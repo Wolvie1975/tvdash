@@ -13,7 +13,7 @@ use slint::{ComponentHandle, Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffe
 use tokio::sync::mpsc::UnboundedReceiver;
 use tvdash_core::{
     AppEvent,
-    config::{ClockFormat, ThemeMode, Units},
+    config::{ClockFormat, StreamingSite, ThemeMode, Units},
     events::PlayerStatus,
     models::{AccountStatus, MediaItem, PlayState, Session, SignInState, SourceKind},
 };
@@ -37,7 +37,8 @@ pub struct UiState {
     pub clock: Option<ClockFormat>,
     units: Option<Units>,
     theme: ThemeMode,
-    site_names: Vec<String>,
+    /// Streaming sites in tile order, hidden ones included.
+    sites: Vec<StreamingSite>,
     /// What tvdash is showing on the TV: mpv playback, or the browser's site.
     player: Option<PlayerStatus>,
     browser: Option<String>,
@@ -81,7 +82,7 @@ pub struct UiConfig {
     pub clock: ClockFormat,
     pub units: Units,
     pub theme: ThemeMode,
-    pub site_names: Vec<String>,
+    pub sites: Vec<StreamingSite>,
     pub jellyfin_url: String,
 }
 
@@ -91,7 +92,7 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         s.tz = c.tz;
         s.clock = Some(c.clock);
         s.units = Some(c.units);
-        s.site_names = c.site_names;
+        s.sites = c.sites;
         let dash = laptop.global::<Dash>();
         dash.set_continue_watching(ModelRc::from(s.cards.clone()));
         dash.set_prompts(ModelRc::from(s.prompts.clone()));
@@ -140,16 +141,29 @@ fn apply_theme(s: &mut UiState, laptop: &LaptopWindow, mode: ThemeMode) {
     refresh_tv_card(s, laptop);
 }
 
+/// The sites as the UI knows them (for the editor).
+pub fn sites() -> Vec<StreamingSite> {
+    STATE.with_borrow(|s| s.sites.clone())
+}
+
+/// (background, foreground) of a site's monogram in the current theme.
+fn site_colors(s: &UiState, index: usize) -> (slint::Color, slint::Color) {
+    let name = s.sites.get(index).map(|x| x.name.as_str()).unwrap_or_default();
+    tint::site_colors(tint::site_hue(name, index), s.theme)
+}
+
 fn refresh_tiles(s: &UiState, laptop: &LaptopWindow) {
     let tiles: Vec<SiteTileData> = s
-        .site_names
+        .sites
         .iter()
         .enumerate()
-        .map(|(i, name)| {
-            let (bg, fg) = tint::site_colors(tint::site_hue(name, i), s.theme);
+        .filter(|(_, site)| !site.hidden)
+        .map(|(i, site)| {
+            let (bg, fg) = site_colors(s, i);
             SiteTileData {
-                name: name.as_str().into(),
-                monogram: monogram(name).into(),
+                index: i as i32,
+                name: site.name.as_str().into(),
+                monogram: monogram(&site.name).into(),
                 bg,
                 fg,
                 logo: Image::default(),
@@ -311,6 +325,11 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             dash.set_weather_on(true);
         }
         AppEvent::Weather(None) => dash.set_weather_on(false),
+        AppEvent::Sites(sites) => {
+            s.sites = sites;
+            refresh_tiles(s, laptop);
+            refresh_accounts(s, laptop);
+        }
         AppEvent::Streaming(map) => {
             s.streaming = map;
             refresh_accounts(s, laptop);
@@ -400,7 +419,7 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
         return (card, hue);
     }
     if let Some(site) = &s.browser {
-        let index = s.site_names.iter().position(|n| n == site).unwrap_or(0);
+        let index = s.sites.iter().position(|x| x.name == *site).unwrap_or(0);
         let card = TvCard {
             mode: "streaming".into(),
             source: "Browser".into(),
@@ -707,11 +726,23 @@ fn site_status(opened: Option<&DateTime<Utc>>) -> String {
 fn refresh_accounts(s: &UiState, laptop: &LaptopWindow) {
     s.account_rows.set_vec(vec![media_account_row(s, SourceKind::Plex), media_account_row(s, SourceKind::Jellyfin)]);
     let sites: Vec<SiteRow> = s
-        .site_names
+        .sites
         .iter()
-        .map(|n| {
-            let opened = s.streaming.get(n);
-            SiteRow { name: n.as_str().into(), status: site_status(opened).into(), opened: opened.is_some() }
+        .enumerate()
+        .map(|(i, site)| {
+            let opened = s.streaming.get(&site.name);
+            let (bg, fg) = site_colors(s, i);
+            SiteRow {
+                index: i as i32,
+                name: site.name.as_str().into(),
+                url: site.url.as_str().into(),
+                status: site_status(opened).into(),
+                opened: opened.is_some(),
+                hidden: site.hidden,
+                monogram: monogram(&site.name).into(),
+                bg,
+                fg,
+            }
         })
         .collect();
     s.site_rows.set_vec(sites);
@@ -784,7 +815,10 @@ mod tests {
                 clock: ClockFormat::H24,
                 units: Units::Fahrenheit,
                 theme: ThemeMode::Dark,
-                site_names: sites,
+                sites: sites
+                    .into_iter()
+                    .map(|name| StreamingSite { url: format!("https://{name}.example"), name, ..Default::default() })
+                    .collect(),
                 jellyfin_url: "http://jf:8096".into(),
             },
         );
@@ -889,6 +923,25 @@ mod tests {
         assert_eq!(l.global::<Theme>().get_mode(), UiTheme::Stone);
         assert_ne!(dash.get_streaming_sites().row_data(0).unwrap().bg, dark_tile);
         assert_eq!(t.global::<Theme>().get_mode(), UiTheme::Dark);
+    }
+
+    #[test]
+    fn hidden_sites_leave_the_dashboard_only() {
+        let (l, t) = windows();
+        let site = |name: &str, hidden| StreamingSite {
+            name: name.into(),
+            url: "https://x.example".into(),
+            hidden,
+            ..Default::default()
+        };
+        send(&l, &t, AppEvent::Sites(vec![site("Netflix", false), site("Hulu", true), site("Max", false)]));
+        let tiles = l.global::<Dash>().get_streaming_sites();
+        let got: Vec<(i32, String)> = tiles.iter().map(|t| (t.index, t.name.to_string())).collect();
+        assert_eq!(got, [(0, "Netflix".to_string()), (2, "Max".into())], "tiles keep config positions");
+        let rows = l.global::<Accounts>().get_sites();
+        assert_eq!(rows.row_count(), 3);
+        assert!(rows.row_data(1).unwrap().hidden);
+        assert_eq!(sites().len(), 3);
     }
 
     #[test]

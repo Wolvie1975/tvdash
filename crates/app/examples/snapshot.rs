@@ -1,7 +1,7 @@
 // Dev tool: render windows offscreen to PNG (no display needed).
 // Usage: cargo run --example snapshot -- out.png <mode> [height] [width]
 // THEME=stone|mist picks a light theme (default dark).
-// Modes: home, home-playing, home-next, home-code, home-streaming, library, library-search,
+// Modes: settings-streaming, site-editor (CONFIRM=1), home, home-playing, home-next, home-code, home-streaming, library, library-search,
 //        settings, setup-0 … setup-2, tv
 use std::rc::Rc;
 
@@ -105,7 +105,15 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
         .enumerate()
         .map(|(i, n)| {
             let (bg, fg) = tint::site_colors(tint::site_hue(n, i), theme_mode);
-            SiteTileData { name: (*n).into(), monogram: n[..1].into(), bg, fg, logo: Image::default(), has_logo: false }
+            SiteTileData {
+                index: i as i32,
+                name: (*n).into(),
+                monogram: n[..1].into(),
+                bg,
+                fg,
+                logo: Image::default(),
+                has_logo: false,
+            }
         })
         .collect();
     dash.set_streaming_sites(model(tiles));
@@ -134,7 +142,21 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
             ("YouTube TV", "Set up · opened yesterday", true),
         ]
         .iter()
-        .map(|(n, s, o)| SiteRow { name: (*n).into(), status: (*s).into(), opened: *o })
+        .enumerate()
+        .map(|(i, (n, s, o))| {
+            let (bg, fg) = tint::site_colors(tint::site_hue(n, i), theme_mode);
+            SiteRow {
+                index: i as i32,
+                name: (*n).into(),
+                url: format!("https://www.{}.com", n.to_lowercase().replace([' ', '+'], "")).into(),
+                status: (*s).into(),
+                opened: *o,
+                hidden: i == 4,
+                monogram: n[..1].into(),
+                bg,
+                fg,
+            }
+        })
         .collect(),
     );
     l.global::<Accounts>().set_sites(sites_rows);
@@ -232,6 +254,21 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                     can_resume: true,
                 });
             }
+        }
+        "settings-streaming" => {
+            l.global::<Nav>().set_page("settings".into());
+            l.global::<Nav>().set_settings_tab("streaming".into());
+        }
+        "site-editor" => {
+            let ed = l.global::<SiteEditor>();
+            ed.set_index(1);
+            ed.set_name("Disney+".into());
+            ed.set_url("https://www.disneyplus.com".into());
+            ed.set_search("https://www.disneyplus.com/search".into());
+            ed.set_providers("337".into());
+            ed.set_error("Put {title} in the search page where the title goes.".into());
+            ed.set_confirm_remove(std::env::var("CONFIRM").is_ok());
+            ed.set_open(true);
         }
         "settings" => {
             l.global::<Nav>().set_page("settings".into());

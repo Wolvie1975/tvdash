@@ -169,10 +169,75 @@ pub struct PlayerConfig {
     pub mpv: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// A Watch on TV tile. Array order in the config = tile order.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct StreamingSite {
     pub name: String,
+    /// Start page, opened full screen on the TV.
     pub url: String,
+    /// Optional search page; `{title}` is replaced with the URL-encoded title
+    /// (used by Where to watch).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub search_url: Option<String>,
+    /// TMDB watch-provider IDs this site counts as (Where to watch).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tmdb_providers: Vec<u32>,
+    /// Hidden from the dashboard; still counts as one of your services.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hidden: bool,
+}
+
+impl StreamingSite {
+    /// Check a site before saving it. `others` are the other sites (for unique names).
+    pub fn validate(&self, others: &[&StreamingSite]) -> std::result::Result<(), String> {
+        let name = self.name.trim();
+        if name.is_empty() {
+            return Err("Give the tile a name.".into());
+        }
+        if others.iter().any(|o| o.name.trim().eq_ignore_ascii_case(name)) {
+            return Err(format!("There's already a site called {name}."));
+        }
+        let web = |u: &str| u.starts_with("https://") || u.starts_with("http://");
+        if !web(self.url.trim()) {
+            return Err("The start page must be a web address (https://…).".into());
+        }
+        if let Some(search) = self.search_url.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            if !web(search) {
+                return Err("The search page must be a web address (https://…).".into());
+            }
+            if !search.contains("{title}") {
+                return Err("Put {title} in the search page where the title goes.".into());
+            }
+        }
+        Ok(())
+    }
+
+    /// Where to open a title: the search page with `{title}` filled in, else the start page.
+    pub fn open_url(&self, title: &str) -> String {
+        match self.search_url.as_deref() {
+            Some(tpl) if tpl.contains("{title}") => tpl.replace("{title}", &encode_component(title)),
+            _ => self.url.clone(),
+        }
+    }
+
+    /// Host of the start page, e.g. `www.netflix.com`.
+    pub fn domain(&self) -> Option<&str> {
+        let rest = self.url.split_once("://")?.1;
+        let host = rest.split(['/', '?', '#']).next()?;
+        (!host.is_empty()).then_some(host)
+    }
+}
+
+/// Percent-encode everything but unreserved characters (RFC 3986).
+pub fn encode_component(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
 }
 
 impl Default for Config {
@@ -258,7 +323,7 @@ fn default_streaming_sites() -> Vec<StreamingSite> {
         ("YouTube TV", "https://tv.youtube.com"),
     ]
     .into_iter()
-    .map(|(name, url)| StreamingSite { name: name.into(), url: url.into() })
+    .map(|(name, url)| StreamingSite { name: name.into(), url: url.into(), ..Default::default() })
     .collect()
 }
 
@@ -403,6 +468,37 @@ mod tests {
         fs::write(&path, "[calendar]\nenabled = true\n\n[homelab]\nportainer_url = \"x\"\n").unwrap();
         assert!(Config::load_or_create_at(&path).is_ok());
         fs::remove_dir_all(path.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn streaming_site_fields() {
+        // v1 entries load; new fields stay out of the file until used.
+        let c: Config = toml::from_str("[[streaming]]\nname = \"Hulu\"\nurl = \"https://www.hulu.com\"\n").unwrap();
+        assert_eq!(
+            c.streaming[0],
+            StreamingSite { name: "Hulu".into(), url: "https://www.hulu.com".into(), ..Default::default() }
+        );
+        let text = toml::to_string_pretty(&c).unwrap();
+        assert!(!text.contains("hidden") && !text.contains("tmdb_providers") && !text.contains("search_url"));
+
+        let mut s = c.streaming[0].clone();
+        s.search_url = Some("https://www.hulu.com/search?q={title}".into());
+        s.tmdb_providers = vec![15];
+        s.hidden = true;
+        assert_eq!(s.open_url("Rick & Morty"), "https://www.hulu.com/search?q=Rick%20%26%20Morty");
+        assert_eq!(s.domain(), Some("www.hulu.com"));
+        let back: StreamingSite = toml::from_str(&toml::to_string(&s).unwrap()).unwrap();
+        assert_eq!(back, s);
+
+        let netflix = StreamingSite { name: "netflix".into(), ..s.clone() };
+        assert!(s.validate(&[]).is_ok());
+        assert!(s.validate(&[&netflix]).is_ok());
+        let dup = StreamingSite { name: "HULU".into(), ..s.clone() };
+        assert!(s.validate(&[&dup]).unwrap_err().contains("already"));
+        let bad = StreamingSite { search_url: Some("https://x.com/search".into()), ..s.clone() };
+        assert!(bad.validate(&[]).unwrap_err().contains("{title}"));
+        let bad = StreamingSite { url: "hulu.com".into(), ..s };
+        assert!(bad.validate(&[]).is_err());
     }
 
     #[test]

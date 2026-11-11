@@ -1,6 +1,7 @@
 import { Theme } from "theme.slint";
+import { Icon } from "icons.slint";
 import { ActionButton, Card, PageHeader, SectionLabel } from "components.slint";
-import { Accounts, AccountRow, Dash, Nav } from "state.slint";
+import { Accounts, AccountRow, Dash, Nav, SiteEditor, SiteRow } from "state.slint";
 
 component AccountLine inherits VerticalLayout {
     in property <AccountRow> account;
@@ -55,20 +56,96 @@ component AccountLine inherits VerticalLayout {
     }
 }
 
-export component SettingsPage inherits VerticalLayout {
-    padding: 40px;
-    spacing: Theme.gap;
-
-    PageHeader {
-        title: "Settings › Accounts";
-        back => { Nav.page = "home"; }
+component Tab inherits Rectangle {
+    in property <string> id;
+    in property <string> label;
+    property <bool> on: Nav.settings-tab == root.id;
+    min-height: Theme.hit-target;
+    min-width: t.preferred-width + 44px;
+    border-radius: 14px;
+    background: root.on ? Theme.text-primary : touch.pressed ? Theme.surface-raised : transparent;
+    accessible-role: tab;
+    accessible-label: root.label;
+    t := Text { text: root.label; font-size: 20px; font-weight: 500; color: root.on ? Theme.bg : Theme.text-secondary; }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { Nav.settings-tab = root.id; }
     }
+}
 
+component IconAction inherits ActionButton {
+    width: Theme.hit-target;
+}
+
+component StreamingLine inherits HorizontalLayout {
+    in property <SiteRow> site;
+    in property <bool> first;
+    in property <bool> last;
+    spacing: 14px;
+    opacity: root.site.hidden ? 0.6 : 1;
+
+    VerticalLayout {
+        alignment: center;
+        Rectangle {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: root.site.bg;
+            Text { text: root.site.monogram; font-size: 24px; font-weight: 600; color: root.site.fg; }
+        }
+    }
+    VerticalLayout {
+        alignment: center;
+        spacing: 4px;
+        horizontal-stretch: 1;
+        Text { text: root.site.name + (root.site.hidden ? " · hidden" : ""); font-size: Theme.body-size; font-weight: 600; color: Theme.text-primary; overflow: elide; }
+        Text { text: root.site.url; font-size: 16px; color: Theme.text-muted; overflow: elide; }
+    }
+    Text {
+        text: root.site.status;
+        font-size: 18px;
+        color: root.site.opened ? Theme.ok : Theme.text-secondary;
+        vertical-alignment: center;
+        width: 270px;
+    }
+    VerticalLayout { alignment: center; ActionButton { text: "Sign in on TV"; clicked => { Accounts.open-site(root.site.index); } } }
+    VerticalLayout { alignment: center; ActionButton { text: "Edit"; icon: "edit"; clicked => { SiteEditor.edit(root.site.index); } } }
+    VerticalLayout {
+        alignment: center;
+        ActionButton {
+            text: root.site.hidden ? "Show" : "Hide";
+            icon: root.site.hidden ? "eye" : "eye-off";
+            width: 124px;
+            clicked => { SiteEditor.set-hidden(root.site.index, !root.site.hidden); }
+        }
+    }
+    VerticalLayout {
+        alignment: center;
+        IconAction {
+            icon: "up";
+            enabled: !root.first;
+            accessible-label: "Move " + root.site.name + " up";
+            clicked => { SiteEditor.move(root.site.index, root.site.index - 1); }
+        }
+    }
+    VerticalLayout {
+        alignment: center;
+        IconAction {
+            icon: "down";
+            enabled: !root.last;
+            accessible-label: "Move " + root.site.name + " down";
+            clicked => { SiteEditor.move(root.site.index, root.site.index + 1); }
+        }
+    }
+}
+
+component AccountsTab inherits VerticalLayout {
+    spacing: Theme.gap;
     Card {
         VerticalLayout {
             padding: 28px;
             spacing: 22px;
-            SectionLabel { text: "SERVERS AND SERVICES"; }
+            SectionLabel { text: "MEDIA SERVERS"; }
             for row[i] in Accounts.accounts: VerticalLayout {
                 spacing: 22px;
                 if i > 0: Rectangle { height: 1px; background: Theme.border; }
@@ -76,74 +153,6 @@ export component SettingsPage inherits VerticalLayout {
             }
         }
     }
-
-    Card {
-        VerticalLayout {
-            padding: 28px;
-            spacing: 18px;
-            SectionLabel { text: "STREAMING SITES"; }
-            Text {
-                text: "Each site opens full screen on the TV in tvdash's own browser profile. Sign in there once with this laptop's mouse and keyboard.";
-                font-size: 18px;
-                color: Theme.text-muted;
-                wrap: word-wrap;
-            }
-            for site[i] in Accounts.sites: HorizontalLayout {
-                spacing: 18px;
-                VerticalLayout {
-                    alignment: center;
-                    Rectangle {
-                        width: 12px;
-                        height: 12px;
-                        border-radius: 6px;
-                        background: site.opened ? Theme.ok : Theme.border;
-                    }
-                }
-                Text {
-                    text: site.name;
-                    font-size: Theme.body-size;
-                    font-weight: 600;
-                    color: Theme.text-primary;
-                    vertical-alignment: center;
-                    width: 200px;
-                }
-                Text {
-                    text: site.status;
-                    font-size: 18px;
-                    color: Theme.text-secondary;
-                    vertical-alignment: center;
-                    horizontal-stretch: 1;
-                }
-                ActionButton { text: "Sign in on TV"; clicked => { Accounts.open-site(i); } }
-            }
-            HorizontalLayout {
-                spacing: 12px;
-                alignment: start;
-                if !Accounts.confirm-clear: ActionButton {
-                    text: "Clear browser profile";
-                    clicked => { Accounts.confirm-clear = true; }
-                }
-                if Accounts.confirm-clear: Text {
-                    text: "Signs you out of every streaming site.";
-                    font-size: 18px;
-                    color: Theme.warn;
-                    vertical-alignment: center;
-                }
-                if Accounts.confirm-clear: ActionButton {
-                    text: "Yes, clear it";
-                    clicked => {
-                        Accounts.confirm-clear = false;
-                        Accounts.clear-profile();
-                    }
-                }
-                if Accounts.confirm-clear: ActionButton {
-                    text: "Cancel";
-                    clicked => { Accounts.confirm-clear = false; }
-                }
-            }
-        }
-    }
-
     HorizontalLayout {
         spacing: 16px;
         ActionButton { text: "Run first-time setup again"; clicked => { Accounts.run-setup(); } }
@@ -163,6 +172,97 @@ export component SettingsPage inherits VerticalLayout {
                 overflow: elide;
             }
         }
+    }
+}
+
+component StreamingTab inherits VerticalLayout {
+    spacing: Theme.gap;
+    Card {
+        VerticalLayout {
+            padding: 28px;
+            spacing: 18px;
+            HorizontalLayout {
+                SectionLabel { text: "STREAMING SITES · TILE ORDER"; horizontal-stretch: 1; vertical-alignment: center; }
+                ActionButton { text: "Add site"; icon: "plus"; primary: true; clicked => { SiteEditor.add(); } }
+            }
+            Text {
+                text: "Each site opens full screen on the TV in tvdash's own browser profile; sign in there once with this laptop. Hidden sites leave the dashboard but still count as your services in Where to watch.";
+                font-size: 18px;
+                color: Theme.text-secondary;
+                wrap: word-wrap;
+            }
+            for site[i] in Accounts.sites: VerticalLayout {
+                spacing: 18px;
+                if i > 0: Rectangle { height: 1px; background: Theme.border; }
+                StreamingLine { site: site; first: i == 0; last: i == Accounts.sites.length - 1; }
+            }
+            if Accounts.sites.length == 0: Text { text: "No streaming sites yet. Add one to get a tile on the dashboard."; font-size: Theme.body-size; color: Theme.text-secondary; }
+        }
+    }
+    Card {
+        HorizontalLayout {
+            padding: 28px;
+            spacing: 12px;
+            VerticalLayout {
+                horizontal-stretch: 1;
+                alignment: center;
+                spacing: 4px;
+                Text { text: "Browser profile"; font-size: Theme.body-size; font-weight: 600; color: Theme.text-primary; }
+                Text {
+                    text: Accounts.confirm-clear ? "Signs you out of every streaming site." : "Holds every streaming sign-in. Clearing it signs you out of all of them.";
+                    font-size: 18px;
+                    color: Accounts.confirm-clear ? Theme.warn : Theme.text-secondary;
+                    wrap: word-wrap;
+                }
+            }
+            if !Accounts.confirm-clear: VerticalLayout {
+                alignment: center;
+                ActionButton { text: "Clear browser profile"; clicked => { Accounts.confirm-clear = true; } }
+            }
+            if Accounts.confirm-clear: VerticalLayout {
+                alignment: center;
+                ActionButton { text: "Cancel"; clicked => { Accounts.confirm-clear = false; } }
+            }
+            if Accounts.confirm-clear: VerticalLayout {
+                alignment: center;
+                ActionButton {
+                    text: "Yes, clear it";
+                    primary: true;
+                    clicked => {
+                        Accounts.confirm-clear = false;
+                        Accounts.clear-profile();
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component SettingsPage inherits VerticalLayout {
+    padding: 40px;
+    spacing: Theme.gap;
+
+    HorizontalLayout {
+        spacing: 20px;
+        PageHeader {
+            title: "Settings";
+            back => { Nav.page = "home"; }
+        }
+        Rectangle { horizontal-stretch: 1; }
+        Rectangle {
+            background: Theme.surface;
+            border-width: 1px;
+            border-color: Theme.border;
+            border-radius: Theme.radius;
+            HorizontalLayout {
+                padding: 4px;
+                Tab { id: "accounts"; label: "Accounts"; }
+                Tab { id: "streaming"; label: "Streaming"; }
+            }
+        }
         ActionButton { text: "Quit tvdash"; clicked => { Dash.quit(); } }
     }
+
+    if Nav.settings-tab == "accounts": AccountsTab { }
+    if Nav.settings-tab == "streaming": StreamingTab { }
 }

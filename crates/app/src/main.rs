@@ -112,7 +112,7 @@ fn main() -> anyhow::Result<()> {
             clock: config.general.clock,
             units: config.general.units,
             theme: config.general.theme,
-            site_names: config.streaming.iter().map(|s| s.name.clone()).collect(),
+            sites: config.streaming.clone(),
             jellyfin_url: config.jellyfin.server_url.clone(),
         },
     );

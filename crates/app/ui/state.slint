@@ -8,6 +8,8 @@ import { UiTheme } from "theme.slint";
 export global Nav {
     // "home" | "library" | "settings" | "setup"
     in-out property <string> page: "home";
+    // Settings tab: "accounts" | "streaming" | "display" | "diagnostics"
+    in-out property <string> settings-tab: "accounts";
 }
 
 // Colours for the On the TV card, taken from the poster's hue (set by Rust per theme).
@@ -42,6 +44,7 @@ export struct TvCard {
 
 // A Watch on TV tile.
 export struct SiteTileData {
+    index: int,         // position in the config (hidden sites included)
     name: string,
     monogram: string,
     bg: color,
@@ -148,9 +151,15 @@ export struct AccountRow {
 }
 
 export struct SiteRow {
+    index: int,         // position in the config
     name: string,
+    url: string,
     status: string,
     opened: bool,
+    hidden: bool,
+    monogram: string,
+    bg: color,
+    fg: color,
 }
 
 export global Accounts {
@@ -181,4 +190,26 @@ export global Setup {
     callback cancel(string);
     callback jellyfin-password(string, string);
     callback finish();
+}
+
+// Add / edit a streaming site (a dialog over any page).
+export global SiteEditor {
+    in-out property <bool> open;
+    // Config position being edited; -1 = adding a new site.
+    in-out property <int> index: -1;
+    in-out property <string> name;
+    in-out property <string> url;
+    in-out property <string> search;
+    in-out property <string> providers; // "8, 1796"
+    in property <string> error;
+    in-out property <bool> confirm-remove;
+    in-out property <bool> clear-cookies: true;
+
+    callback add();
+    callback edit(int);
+    callback save();
+    callback test();
+    callback remove();
+    callback move(int, int);        // (from, to)
+    callback set-hidden(int, bool);
 }

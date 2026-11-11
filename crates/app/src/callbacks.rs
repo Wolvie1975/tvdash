@@ -5,7 +5,8 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{error, warn};
 use tvdash_core::{Command, models::SourceKind};
 
-use crate::{Accounts, Dash, LaptopWindow, Library, Nav, Setup, bridge};
+use crate::{Accounts, Dash, LaptopWindow, Library, Nav, Setup, SiteEditor, bridge};
+use tvdash_core::config::StreamingSite;
 
 fn parse_source(s: &str) -> Option<SourceKind> {
     match s {
@@ -22,6 +23,7 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
         }
     };
     wire_dash(laptop, send.clone());
+    wire_site_editor(laptop, send.clone());
     wire_library(laptop, send.clone());
     wire_accounts(laptop, send.clone());
     wire_setup(laptop, send);
@@ -209,4 +211,122 @@ fn wire_setup(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
             l.global::<Nav>().set_page("home".into());
         }
     });
+}
+
+/// Parse "8, 1796 15" into provider IDs.
+pub fn parse_providers(text: &str) -> Result<Vec<u32>, String> {
+    text.split([',', ' ', ';'])
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(|t| t.parse::<u32>().map_err(|_| format!("“{t}” isn't a TMDB provider ID (a number).")))
+        .collect()
+}
+
+fn wire_site_editor(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
+    let ed = laptop.global::<SiteEditor>();
+
+    let weak = laptop.as_weak();
+    ed.on_add(move || {
+        let Some(l) = weak.upgrade() else { return };
+        let ed = l.global::<SiteEditor>();
+        ed.set_index(-1);
+        for set in [SiteEditor::set_name, SiteEditor::set_url, SiteEditor::set_search, SiteEditor::set_providers] {
+            set(&ed, "".into());
+        }
+        ed.set_url("https://".into());
+        ed.set_error("".into());
+        ed.set_confirm_remove(false);
+        ed.set_open(true);
+    });
+
+    let weak = laptop.as_weak();
+    ed.on_edit(move |index| {
+        let Some(l) = weak.upgrade() else { return };
+        let Some(site) = bridge::sites().get(index as usize).cloned() else { return };
+        let ed = l.global::<SiteEditor>();
+        ed.set_index(index);
+        ed.set_name(site.name.into());
+        ed.set_url(site.url.into());
+        ed.set_search(site.search_url.unwrap_or_default().into());
+        let ids: Vec<String> = site.tmdb_providers.iter().map(u32::to_string).collect();
+        ed.set_providers(ids.join(", ").into());
+        ed.set_error("".into());
+        ed.set_confirm_remove(false);
+        ed.set_clear_cookies(true);
+        ed.set_open(true);
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    ed.on_save(move || {
+        let Some(l) = weak.upgrade() else { return };
+        let ed = l.global::<SiteEditor>();
+        let index = (ed.get_index() >= 0).then_some(ed.get_index() as usize);
+        let all = bridge::sites();
+        let result = parse_providers(&ed.get_providers()).and_then(|tmdb_providers| {
+            let site = StreamingSite {
+                name: ed.get_name().trim().to_owned(),
+                url: ed.get_url().trim().to_owned(),
+                search_url: Some(ed.get_search().trim().to_owned()).filter(|u| !u.is_empty()),
+                tmdb_providers,
+                hidden: index.and_then(|i| all.get(i)).is_some_and(|x| x.hidden),
+            };
+            let others: Vec<&StreamingSite> =
+                all.iter().enumerate().filter(|(i, _)| Some(*i) != index).map(|(_, x)| x).collect();
+            site.validate(&others).map(|()| site)
+        });
+        match result {
+            Ok(site) => {
+                s(Command::SaveSite { index, site });
+                ed.set_open(false);
+            }
+            Err(e) => ed.set_error(e.into()),
+        }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    ed.on_test(move || {
+        let Some(l) = weak.upgrade() else { return };
+        let ed = l.global::<SiteEditor>();
+        let url = ed.get_url().trim().to_owned();
+        if url.starts_with("https://") || url.starts_with("http://") {
+            ed.set_error("".into());
+            s(Command::TestSite(url));
+        } else {
+            ed.set_error("Enter a start page (https://…) to test.".into());
+        }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    ed.on_remove(move || {
+        let Some(l) = weak.upgrade() else { return };
+        let ed = l.global::<SiteEditor>();
+        if ed.get_index() >= 0 {
+            s(Command::RemoveSite { index: ed.get_index() as usize, clear_cookies: ed.get_clear_cookies() });
+        }
+        ed.set_confirm_remove(false);
+        ed.set_open(false);
+    });
+
+    let s = send.clone();
+    ed.on_move(move |from, to| {
+        if from >= 0 && to >= 0 {
+            s(Command::MoveSite { from: from as usize, to: to as usize });
+        }
+    });
+
+    ed.on_set_hidden(move |index, hidden| {
+        if index >= 0 {
+            send(Command::SetSiteHidden(index as usize, hidden));
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn provider_ids() {
+        assert_eq!(super::parse_providers("8, 1796 15;"), Ok(vec![8, 1796, 15]));
+        assert_eq!(super::parse_providers(""), Ok(vec![]));
+        assert!(super::parse_providers("8, netflix").unwrap_err().contains("netflix"));
+    }
 }

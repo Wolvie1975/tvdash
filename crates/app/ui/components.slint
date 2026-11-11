@@ -69,6 +69,7 @@ export component ActionButton inherits Rectangle {
     accessible-action-default => { root.clicked(); }
     min-height: Theme.hit-target;
     min-width: max(Theme.hit-target, row.preferred-width + 40px);
+    horizontal-stretch: 0;
     border-radius: 14px;
     border-width: root.primary ? 0 : 1px;
     border-color: root.edge;
@@ -382,4 +383,50 @@ export component PageHeader inherits HorizontalLayout {
         color: Theme.text-primary;
         vertical-alignment: center;
     }
+}
+
+// Touch-sized checkbox with a label.
+export component CheckBox inherits Rectangle {
+    in property <string> text;
+    in-out property <bool> checked;
+    callback toggled(bool);
+    min-height: Theme.hit-target;
+    accessible-role: checkbox;
+    accessible-checked: root.checked;
+    accessible-label: root.text;
+    HorizontalLayout {
+        spacing: 14px;
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 30px;
+                height: 30px;
+                border-radius: 8px;
+                border-width: root.checked ? 0 : 2px;
+                border-color: Theme.text-secondary;
+                background: root.checked ? Theme.accent : transparent;
+                if root.checked: Icon { name: "check"; tint: Theme.on-accent; size: 22px; line: 2.4px; }
+            }
+        }
+        Text { text: root.text; font-size: 20px; color: Theme.text-primary; vertical-alignment: center; wrap: word-wrap; }
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+    }
+}
+
+// Label above a text field, with an optional hint below.
+export component Field inherits VerticalLayout {
+    in property <string> label;
+    in property <string> hint;
+    in property <string> placeholder;
+    in-out property <string> text;
+    spacing: 8px;
+    Text { text: root.label; font-size: 18px; font-weight: 600; color: Theme.text-secondary; }
+    TextField { placeholder: root.placeholder; text <=> root.text; }
+    if root.hint != "": Text { text: root.hint; font-size: 16px; color: Theme.text-muted; wrap: word-wrap; }
 }

@@ -1,0 +1,87 @@
+import { Theme } from "theme.slint";
+import { ActionButton, CheckBox, Field, SectionLabel } from "components.slint";
+import { SiteEditor } from "state.slint";
+
+// Add / edit a streaming site. Shown over whatever page is open.
+export component SiteEditorDialog inherits Rectangle {
+    background: #000000a0;
+
+    // Swallow taps on the backdrop (closing by accident would lose typing).
+    TouchArea { }
+
+    panel := Rectangle {
+        width: min(960px, root.width - 80px);
+        height: min(col.preferred-height, root.height - 80px);
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        background: Theme.surface;
+        border-radius: Theme.card-radius;
+        border-width: 1px;
+        border-color: Theme.border;
+        clip: true;
+
+        col := VerticalLayout {
+            padding: 36px;
+            spacing: 20px;
+
+            Text {
+                text: SiteEditor.index < 0 ? "Add a streaming site" : "Edit " + SiteEditor.name;
+                font-size: 34px;
+                font-weight: 600;
+                color: Theme.text-primary;
+                overflow: elide;
+            }
+
+            Field { label: "Tile name"; placeholder: "e.g. Peacock"; text <=> SiteEditor.name; }
+            Field {
+                label: "Start page";
+                placeholder: "https://www.peacocktv.com";
+                hint: "Opens full screen on the TV when you tap the tile.";
+                text <=> SiteEditor.url;
+            }
+            Field {
+                label: "Search page (optional)";
+                placeholder: "https://www.peacocktv.com/search?q={title}";
+                hint: "Where to watch opens this with {title} replaced. Leave it empty to open the start page instead.";
+                text <=> SiteEditor.search;
+            }
+            Field {
+                label: "TMDB providers";
+                placeholder: "e.g. 386, 387";
+                hint: "TMDB watch-provider IDs that count as this site in Where to watch. Add ad tiers and channel variants too.";
+                text <=> SiteEditor.providers;
+            }
+
+            if SiteEditor.error != "": Text { text: SiteEditor.error; font-size: 20px; color: Theme.warn; wrap: word-wrap; }
+
+            if SiteEditor.confirm-remove: Rectangle {
+                background: Theme.surface-raised;
+                border-radius: Theme.radius;
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 12px;
+                    Text { text: "Remove " + SiteEditor.name + " from tvdash?"; font-size: 22px; font-weight: 600; color: Theme.text-primary; }
+                    CheckBox {
+                        text: "Also clear its cookies (opens the browser's settings for it on the TV)";
+                        checked <=> SiteEditor.clear-cookies;
+                    }
+                    HorizontalLayout {
+                        spacing: 12px;
+                        alignment: end;
+                        ActionButton { text: "Keep it"; clicked => { SiteEditor.confirm-remove = false; } }
+                        ActionButton { text: "Remove"; primary: true; clicked => { SiteEditor.remove(); } }
+                    }
+                }
+            }
+
+            if !SiteEditor.confirm-remove: HorizontalLayout {
+                spacing: 12px;
+                if SiteEditor.index >= 0: ActionButton { text: "Remove…"; clicked => { SiteEditor.confirm-remove = true; } }
+                Rectangle { horizontal-stretch: 1; }
+                ActionButton { text: "Test on TV"; icon: "tv"; clicked => { SiteEditor.test(); } }
+                ActionButton { text: "Cancel"; clicked => { SiteEditor.open = false; } }
+                ActionButton { text: SiteEditor.index < 0 ? "Add site" : "Save"; primary: true; clicked => { SiteEditor.save(); } }
+            }
+        }
+    }
+}

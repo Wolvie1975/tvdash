@@ -180,7 +180,7 @@ export component SetupPage inherits VerticalLayout {
                     spacing: 18px;
                     Text { text: site.name; font-size: Theme.body-size; font-weight: 600; color: Theme.text-primary; vertical-alignment: center; width: 200px; }
                     Text { text: site.status; font-size: 18px; color: site.opened ? Theme.ok : Theme.text-muted; vertical-alignment: center; horizontal-stretch: 1; }
-                    ActionButton { text: "Sign in on TV"; clicked => { Accounts.open-site(i); } }
+                    ActionButton { text: "Sign in on TV"; clicked => { Accounts.open-site(site.index); } }
                 }
                 HorizontalLayout {
                     alignment: start;

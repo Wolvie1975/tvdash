@@ -58,6 +58,8 @@ pub enum AppEvent {
     Streaming(BTreeMap<String, DateTime<Utc>>),
     /// Show the first-run setup (nothing is connected yet).
     ShowSetup,
+    /// The streaming sites changed (all of them, hidden ones too, in tile order).
+    Sites(Vec<crate::config::StreamingSite>),
 }
 
 /// Requests from the UI, handled by background tasks.
@@ -71,6 +73,24 @@ pub enum Command {
     Stop,
     /// Open `config.streaming[index]` on the TV.
     OpenSite(usize),
+    /// Add (`index: None`) or replace a streaming site. Already validated.
+    SaveSite {
+        index: Option<usize>,
+        site: crate::config::StreamingSite,
+    },
+    /// Remove a site; optionally open the browser's cookie settings for its domain.
+    RemoveSite {
+        index: usize,
+        clear_cookies: bool,
+    },
+    /// Move a site to another position (tile order).
+    MoveSite {
+        from: usize,
+        to: usize,
+    },
+    SetSiteHidden(usize, bool),
+    /// Open an address on the TV in the streaming profile (the editor's Test on TV).
+    TestSite(String),
     CloseBrowser,
     Search(String),
     /// Start the interactive sign-in for a media server.

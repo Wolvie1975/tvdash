@@ -18,7 +18,7 @@ use tokio::{
 use tracing::{debug, error, info, warn};
 use tvdash_core::{
     AppEvent, Command, Config, SecretKey,
-    config::expand_home,
+    config::{StreamingSite, encode_component, expand_home},
     events::PlayerStatus,
     models::{AccountStatus, Geometry, MediaItem, PlayState, RgbaImage, SignInState, SourceKind},
     secrets,
@@ -191,6 +191,7 @@ impl Controller {
             self.init_plex().await;
         }
         self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
+        self.emit_sites();
         if let Some(j) = &self.jellyfin {
             self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(j.base_url().to_owned())));
         }
@@ -281,6 +282,29 @@ impl Controller {
             }
             Command::Refresh => self.refresh(),
             Command::OpenSite(i) => self.open_site(i).await,
+            Command::SaveSite { index, site } => self.save_site(index, site),
+            Command::RemoveSite { index, clear_cookies } => self.remove_site(index, clear_cookies).await,
+            Command::MoveSite { from, to } => {
+                let n = self.config.streaming.len();
+                if from < n && to < n && from != to {
+                    self.update_config(|c| {
+                        let site = c.streaming.remove(from);
+                        c.streaming.insert(to, site);
+                    });
+                    self.emit_sites();
+                }
+            }
+            Command::SetSiteHidden(index, hidden) => {
+                if index < self.config.streaming.len() {
+                    self.update_config(|c| c.streaming[index].hidden = hidden);
+                    self.emit_sites();
+                }
+            }
+            Command::TestSite(url) => {
+                self.stop_playback().await;
+                self.close_browser().await;
+                self.launch_browser("Test", &url).await;
+            }
             Command::CloseBrowser => self.close_browser().await,
             Command::TvGeometry(g) => {
                 debug!(?g, "TV geometry");
@@ -640,6 +664,102 @@ impl Controller {
         }
     }
 
+    fn emit_sites(&self) {
+        self.emit(AppEvent::Sites(self.config.streaming.clone()));
+    }
+
+    fn save_site(&mut self, index: Option<usize>, site: StreamingSite) {
+        let site = StreamingSite {
+            name: site.name.trim().to_owned(),
+            url: site.url.trim().to_owned(),
+            search_url: site.search_url.map(|u| u.trim().to_owned()).filter(|u| !u.is_empty()),
+            ..site
+        };
+        let name = site.name.clone();
+        match index {
+            Some(i) if i < self.config.streaming.len() => {
+                let old = self.config.streaming[i].name.clone();
+                self.update_config(|c| c.streaming[i] = site);
+                // Keep "opened N days ago" across a rename.
+                if old != name
+                    && let Some(t) = self.state.streaming_opened.remove(&old)
+                {
+                    self.state.streaming_opened.insert(name.clone(), t);
+                    self.save_state();
+                    self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
+                }
+                self.toast(format!("Saved {name}"));
+            }
+            Some(i) => warn!(index = i, "save site: no such entry"),
+            None => {
+                self.update_config(|c| c.streaming.push(site));
+                self.toast(format!("Added {name}"));
+            }
+        }
+        self.emit_sites();
+    }
+
+    async fn remove_site(&mut self, index: usize, clear_cookies: bool) {
+        if index >= self.config.streaming.len() {
+            return;
+        }
+        let site = self.config.streaming[index].clone();
+        if self.browser.as_ref().is_some_and(|b| b.site == site.name) {
+            self.close_browser().await;
+        }
+        self.update_config(|c| {
+            c.streaming.remove(index);
+        });
+        if self.state.streaming_opened.remove(&site.name).is_some() {
+            self.save_state();
+            self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
+        }
+        self.emit_sites();
+        match site.domain().filter(|_| clear_cookies) {
+            // The cookie store is encrypted and locked while the browser runs, so
+            // open the browser's own settings for that site and let you clear it there.
+            Some(domain) => {
+                self.stop_playback().await;
+                self.close_browser().await;
+                let url = format!("chrome://settings/content/all?searchSubpage={}", encode_component(domain));
+                if self.launch_browser(&format!("{} cookies", site.name), &url).await {
+                    self.emit(AppEvent::LongToast(format!(
+                        "Removed {}. On the TV, delete its stored data, then press Close browser.",
+                        site.name
+                    )));
+                }
+            }
+            None => self.toast(format!("Removed {}", site.name)),
+        }
+    }
+
+    /// Start the TV browser on `url`. Returns false (with a toast) if it couldn't start.
+    async fn launch_browser(&mut self, label: &str, url: &str) -> bool {
+        let opts = self.browser_options();
+        match Browser::launch(&opts, label, url).await {
+            Ok(b) => {
+                self.browser = Some(b);
+                self.emit(AppEvent::Browser(Some(label.to_owned())));
+                true
+            }
+            Err(e) => {
+                error!(error = %e, "couldn't start the browser");
+                self.toast(format!("Couldn't open {label}: {e}"));
+                false
+            }
+        }
+    }
+
+    fn browser_options(&self) -> BrowserOptions {
+        BrowserOptions {
+            binary: self.config.browser.binary.clone(),
+            profile_dir: expand_home(&self.config.browser.profile_dir),
+            use_xwayland: self.config.browser.use_xwayland,
+            geometry: self.browser_geometry(),
+            fullscreen: !self.windowed,
+        }
+    }
+
     async fn open_site(&mut self, index: usize) {
         let Some(site) = self.config.streaming.get(index).cloned() else {
             warn!(index, "open site: no such streaming entry");
@@ -647,23 +767,10 @@ impl Controller {
         };
         self.stop_playback().await;
         self.close_browser().await;
-
-        let opts = BrowserOptions {
-            binary: self.config.browser.binary.clone(),
-            profile_dir: expand_home(&self.config.browser.profile_dir),
-            use_xwayland: self.config.browser.use_xwayland,
-            geometry: self.browser_geometry(),
-            fullscreen: !self.windowed,
-        };
-        match Browser::launch(&opts, &site.name, &site.url).await {
-            Ok(b) => self.browser = Some(b),
-            Err(e) => {
-                error!(error = %e, "couldn't start the browser");
-                self.toast(format!("Couldn't open {}: {e}", site.name));
-                return;
-            }
+        if !self.launch_browser(&site.name, &site.url).await {
+            return;
         }
-        self.emit(AppEvent::Browser(Some(site.name.clone())));
+        let opts = self.browser_options();
 
         if self.state.mark_opened(&site.name, chrono::Utc::now()) {
             let widevine = if is_brave(&opts.binary) {
@@ -1478,5 +1585,87 @@ mod e2e {
         h.send(Command::SetupFinished);
         sleep(Duration::from_millis(200)).await;
         assert!(AppState::load(&h.dir.join("state.toml")).setup_complete);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "needs python3; run with --ignored"]
+    async fn streaming_site_management() {
+        let _serial = SERIAL.lock().await;
+        let mut h = Harness::start("fake_jellyfin.py", |c, _| {
+            c.jellyfin.enabled = false;
+            c.plex.enabled = false;
+        })
+        .await;
+        let browser_log = h.dir.join("browser.log");
+        let sites = |h: &Harness| Config::load_or_create_at(&h.config_path).unwrap().config.streaming;
+        let names = |v: &[StreamingSite]| v.iter().map(|s| s.name.clone()).collect::<Vec<_>>();
+        let initial = h
+            .find_or_wait(|e| match e {
+                AppEvent::Sites(v) => Some(v.clone()),
+                _ => None,
+            })
+            .await;
+        assert_eq!(initial.len(), 6);
+
+        // Add: appended, saved to the config, the UI gets the new list.
+        let peacock = StreamingSite {
+            name: "Peacock".into(),
+            url: "https://www.peacocktv.com".into(),
+            search_url: Some("https://www.peacocktv.com/search?q={title}".into()),
+            tmdb_providers: vec![386, 387],
+            hidden: false,
+        };
+        h.send(Command::SaveSite { index: None, site: peacock.clone() });
+        let v = h
+            .wait_for(|e| match e {
+                AppEvent::Sites(v) => Some(v.clone()),
+                _ => None,
+            })
+            .await;
+        assert_eq!(v.last(), Some(&peacock));
+        assert_eq!(sites(&h).last(), Some(&peacock));
+
+        // Open it, then rename it: "opened" history follows the new name.
+        h.send(Command::OpenSite(6));
+        h.wait_for(|e| matches!(e, AppEvent::Browser(Some(s)) if s == "Peacock").then_some(())).await;
+        h.send(Command::CloseBrowser);
+        h.wait_for(|e| matches!(e, AppEvent::Browser(None)).then_some(())).await;
+        h.send(Command::SaveSite {
+            index: Some(6),
+            site: StreamingSite { name: "Peacock TV".into(), ..peacock.clone() },
+        });
+        h.wait_for(|e| matches!(e, AppEvent::Streaming(m) if m.contains_key("Peacock TV")).then_some(())).await;
+        assert!(AppState::load(&h.dir.join("state.toml")).streaming_opened.contains_key("Peacock TV"));
+
+        // Move to the front; hide it.
+        h.send(Command::MoveSite { from: 6, to: 0 });
+        h.wait_for(|e| matches!(e, AppEvent::Sites(v) if v[0].name == "Peacock TV").then_some(())).await;
+        assert_eq!(names(&sites(&h))[..2], ["Peacock TV".to_string(), "Netflix".into()]);
+        h.send(Command::SetSiteHidden(0, true));
+        h.wait_for(|e| matches!(e, AppEvent::Sites(v) if v[0].hidden).then_some(())).await;
+        assert!(sites(&h)[0].hidden);
+        assert!(std::fs::read_to_string(&h.config_path).unwrap().contains("hidden = true"));
+
+        // Test on TV opens any address.
+        h.send(Command::TestSite("https://example.com/try".into()));
+        h.wait_for(|e| matches!(e, AppEvent::Browser(Some(s)) if s == "Test").then_some(())).await;
+
+        // Remove with "clear cookies": gone from config and state; the browser
+        // opens its settings for that domain.
+        h.send(Command::RemoveSite { index: 0, clear_cookies: true });
+        h.wait_for(|e| matches!(e, AppEvent::Sites(v) if v.len() == 6).then_some(())).await;
+        h.wait_for(|e| matches!(e, AppEvent::Browser(Some(s)) if s == "Peacock TV cookies").then_some(())).await;
+        assert_eq!(names(&sites(&h)), names(&initial));
+        assert!(!AppState::load(&h.dir.join("state.toml")).streaming_opened.contains_key("Peacock TV"));
+        sleep(Duration::from_millis(300)).await;
+        let log = read_log(&browser_log);
+        let last = log.iter().rfind(|l| l["event"] == "start").unwrap();
+        assert!(
+            serde_json::to_string(&last["argv"])
+                .unwrap()
+                .contains("--app=chrome://settings/content/all?searchSubpage=www.peacocktv.com"),
+            "{last:?}"
+        );
+        h.send(Command::CloseBrowser);
     }
 }

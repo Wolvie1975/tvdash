@@ -1,7 +1,7 @@
 import { Theme, UiTheme } from "theme.slint";
 import { Icon } from "icons.slint";
 import { ActionButton, Clock, PosterRow, ProgressBar, PromptBanner, SectionLabel, SessionLine } from "components.slint";
-import { Dash, Nav, SiteTileData } from "state.slint";
+import { Dash, Nav, SiteEditor, SiteTileData } from "state.slint";
 
 // Laptop dashboard, redesign "Option B": a tall On the TV card tinted from the
 // poster on the left; streaming tiles and Continue Watching on the right.
@@ -299,12 +299,15 @@ component TvCardView inherits Rectangle {
 
 // ── Watch on TV ──────────────────────────────────────────────────────
 
+// Tap opens the site on the TV; hold (or right-click) edits it.
 component SiteTile inherits Rectangle {
     in property <SiteTileData> site;
     callback clicked();
+    callback held();
+    property <bool> held-fired;
     border-radius: Theme.radius;
-    border-width: 1px;
-    border-color: Theme.border;
+    border-width: touch.pressed ? 2px : 1px;
+    border-color: touch.pressed ? Theme.accent : Theme.border;
     background: touch.pressed ? Theme.border : Theme.surface-raised;
     accessible-role: button;
     accessible-label: "Watch " + root.site.name + " on TV";
@@ -340,17 +343,54 @@ component SiteTile inherits Rectangle {
     }
     touch := TouchArea {
         mouse-cursor: pointer;
+        pointer-event(e) => {
+            if e.kind == PointerEventKind.down {
+                root.held-fired = e.button == PointerEventButton.right;
+                if root.held-fired { root.held(); }
+            }
+        }
+        clicked => {
+            if !root.held-fired { root.clicked(); }
+        }
+    }
+    Timer {
+        interval: 600ms;
+        running: touch.pressed && !root.held-fired;
+        triggered => {
+            root.held-fired = true;
+            root.held();
+        }
+    }
+}
+
+component AddTile inherits Rectangle {
+    callback clicked();
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.border;
+    background: touch.pressed ? Theme.surface-raised : transparent;
+    accessible-role: button;
+    accessible-label: "Add service";
+    VerticalLayout {
+        alignment: center;
+        spacing: 10px;
+        HorizontalLayout { alignment: center; Icon { name: "plus"; tint: Theme.text-secondary; size: 30px; } }
+        Text { text: "Add service"; font-size: 18px; font-weight: 500; color: Theme.text-secondary; horizontal-alignment: center; }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
         clicked => { root.clicked(); }
     }
 }
 
-// Wrapping grid of tiles, five per row.
+// Wrapping grid of tiles, five per row, then the Add tile.
 component SiteGrid inherits Rectangle {
     property <int> columns: 5;
     property <length> gap: 14px;
     property <length> tile-h: 104px;
     property <length> tile-w: (self.width - (root.columns - 1) * root.gap) / root.columns;
-    property <int> rows: Math.ceil(Dash.streaming-sites.length / root.columns);
+    property <int> count: Dash.streaming-sites.length + 1;
+    property <int> rows: Math.ceil(root.count / root.columns);
     height: max(0, root.rows * (root.tile-h + root.gap) - root.gap);
 
     for site[i] in Dash.streaming-sites: SiteTile {
@@ -359,7 +399,15 @@ component SiteGrid inherits Rectangle {
         width: root.tile-w;
         height: root.tile-h;
         site: site;
-        clicked => { Dash.open-site(i); }
+        clicked => { Dash.open-site(site.index); }
+        held => { SiteEditor.edit(site.index); }
+    }
+    AddTile {
+        x: Math.mod(Dash.streaming-sites.length, root.columns) * (root.tile-w + root.gap);
+        y: Math.floor(Dash.streaming-sites.length / root.columns) * (root.tile-h + root.gap);
+        width: root.tile-w;
+        height: root.tile-h;
+        clicked => { SiteEditor.add(); }
     }
 }
 
@@ -528,8 +576,12 @@ export component HomePage inherits VerticalLayout {
                     padding-left: 28px;
                     padding-right: 28px;
                     spacing: 16px;
-                    SectionLabel {
-                        text: "WATCH ON TV · " + Dash.streaming-sites.length + (Dash.streaming-sites.length == 1 ? " SERVICE" : " SERVICES");
+                    HorizontalLayout {
+                        SectionLabel {
+                            text: "WATCH ON TV · " + Dash.streaming-sites.length + (Dash.streaming-sites.length == 1 ? " SERVICE" : " SERVICES");
+                            horizontal-stretch: 1;
+                        }
+                        Text { text: "Hold a tile to edit or remove it"; font-size: Theme.label-size; color: Theme.text-muted; }
                     }
                     SiteGrid { }
                 }
