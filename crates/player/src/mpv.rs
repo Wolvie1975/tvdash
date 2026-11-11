@@ -71,6 +71,11 @@ pub enum MpvEvent {
     },
     /// mpv quit / the IPC connection closed. Always the last event.
     Exited,
+    /// An error mpv logged, e.g. a video decoder it couldn't start.
+    Error {
+        prefix: String,
+        text: String,
+    },
 }
 
 // Observer IDs for `observe_property`.
@@ -128,6 +133,10 @@ pub fn parse_line(line: &str) -> Option<MpvEvent> {
             Some(MpvEvent::Ended { reason: v.get("reason").and_then(Value::as_str).unwrap_or("unknown").to_owned() })
         }
         "shutdown" => Some(MpvEvent::Exited),
+        "log-message" if v.get("level").and_then(Value::as_str) == Some("error") => Some(MpvEvent::Error {
+            prefix: v.get("prefix").and_then(Value::as_str).unwrap_or_default().to_owned(),
+            text: v.get("text").and_then(Value::as_str).unwrap_or_default().trim().to_owned(),
+        }),
         _ => None,
     }
 }
@@ -190,6 +199,8 @@ impl Mpv {
         mpv.command(json!(["observe_property", OBS_TIME_POS, "time-pos"])).await?;
         mpv.command(json!(["observe_property", OBS_PAUSE, "pause"])).await?;
         mpv.command(json!(["observe_property", OBS_DURATION, "duration"])).await?;
+        // Errors only (e.g. "Failed to initialize a decoder for codec 'hevc'").
+        mpv.command(json!(["request_log_messages", "error"])).await?;
         Ok(mpv)
     }
 
@@ -305,6 +316,16 @@ mod tests {
             Some(MpvEvent::Ended { reason: "eof".into() })
         );
         assert_eq!(parse_line(r#"{"event":"shutdown"}"#), Some(MpvEvent::Exited));
+        assert_eq!(
+            parse_line(
+                r#"{"event":"log-message","prefix":"vd","level":"error","text":"Failed to initialize a decoder for codec 'h264'.\n"}"#
+            ),
+            Some(MpvEvent::Error {
+                prefix: "vd".into(),
+                text: "Failed to initialize a decoder for codec 'h264'.".into()
+            })
+        );
+        assert_eq!(parse_line(r#"{"event":"log-message","prefix":"cplayer","level":"info","text":"x"}"#), None);
         assert_eq!(parse_line(r#"{"request_id":0,"error":"success"}"#), None);
         assert_eq!(parse_line("garbage"), None);
     }

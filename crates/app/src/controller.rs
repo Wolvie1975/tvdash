@@ -813,6 +813,13 @@ impl Controller {
                 info!(reason, "mpv playback ended");
                 return;
             }
+            Some(MpvEvent::Error { prefix, text }) => {
+                warn!(%prefix, %text, "mpv error");
+                if let Some(hint) = decoder_hint(&prefix, &text) {
+                    let _ = self.events.send(AppEvent::LongToast(hint));
+                }
+                return;
+            }
             Some(MpvEvent::Exited) | None => {
                 let p = self.playback.take().expect("checked above");
                 let _ = p.reporter.send((p.status.position_ms, PlayState::Stopped));
@@ -838,6 +845,22 @@ impl Controller {
             let _ = p.reporter.send((p.status.position_ms, PlayState::Playing));
         }
     }
+}
+
+/// Turn mpv's "can't decode" errors into something actionable. Fedora's own
+/// ffmpeg ("ffmpeg-free") leaves out H.264/HEVC, so audio plays with no picture.
+fn decoder_hint(prefix: &str, text: &str) -> Option<String> {
+    let codec = text.strip_prefix("Failed to initialize a decoder for codec '")?.split('\'').next()?;
+    let kind = match prefix {
+        "vd" => "video",
+        "ad" => "audio",
+        _ => "this",
+    };
+    Some(format!(
+        "mpv can't decode {codec} {kind}, so there's no {}. On Fedora, install the full codecs from \
+         RPM Fusion: sudo dnf swap ffmpeg-free ffmpeg --allowerasing",
+        if kind == "audio" { "sound" } else { "picture" }
+    ))
 }
 
 fn account_status(e: &MediaError) -> AccountStatus {
@@ -900,7 +923,15 @@ fn safe_to_delete(dir: &std::path::Path, home: Option<&std::path::Path>) -> bool
 
 #[cfg(test)]
 mod tests {
-    use super::safe_to_delete;
+    use super::{decoder_hint, safe_to_delete};
+
+    #[test]
+    fn decoder_failure_hint() {
+        let h = decoder_hint("vd", "Failed to initialize a decoder for codec 'hevc'.").unwrap();
+        assert!(h.starts_with("mpv can't decode hevc video, so there's no picture."), "{h}");
+        assert!(h.contains("ffmpeg-free"));
+        assert_eq!(decoder_hint("vd", "Something else"), None);
+    }
     use std::path::Path;
 
     #[test]
