@@ -563,11 +563,10 @@ mod e2e {
             .expect("start fake jellyfin");
         let port = timeout(Duration::from_secs(5), async {
             loop {
-                if let Ok(p) = std::fs::read_to_string(&port_file) {
-                    if !p.is_empty() {
+                if let Ok(p) = std::fs::read_to_string(&port_file)
+                    && !p.is_empty() {
                         return p;
                     }
-                }
                 sleep(Duration::from_millis(50)).await;
             }
         })
