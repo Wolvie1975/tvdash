@@ -89,8 +89,8 @@ Logging: stderr and `~/.local/state/tvdash/tvdash.log` (the previous run's is ke
 
 ## TV-only layout (in progress)
 
-Everything on the TV, no laptop panel: set `layout = "tv"` under `[display]` (or try it with
-`tvdash --layout tv`). One full-screen 10-foot window with a side rail: Home (On the TV / Up
+Everything on the TV, no laptop panel: switch with Settings › Display › **Layout** (TV only /
+Two screens; it switches right away and is remembered), or try it once with `tvdash --layout tv`. One full-screen 10-foot window with a side rail: Home (On the TV / Up
 next, Continue Watching, your services), Library, Services and Settings, driven by arrows,
 Enter (OK) and Esc/Backspace (Back). After 5 quiet minutes on Home it shows an ambient clock.
 

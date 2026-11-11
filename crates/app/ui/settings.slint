@@ -1,7 +1,7 @@
 import { Theme } from "theme.slint";
 import { Icon } from "icons.slint";
 import { ActionButton, Card, CheckBox, PageHeader, SectionLabel, TextField } from "components.slint";
-import { Accounts, AccountRow, Dash, Diagnostics, Display, HealthRow, Nav, SiteEditor, SiteRow } from "state.slint";
+import { Accounts, AccountRow, Dash, Diagnostics, Display, HealthRow, Nav, SiteEditor, SiteRow, TvUi } from "state.slint";
 import { Theme as T, UiTheme } from "theme.slint";
 
 component AccountLine inherits VerticalLayout {
@@ -344,6 +344,18 @@ component DisplayTab inherits VerticalLayout {
                             text: p;
                             clicked => { Display.pick-place(i); }
                         }
+                    }
+                }
+            }
+            Rectangle { height: 1px; background: Theme.border; }
+            SettingLine {
+                title: "Layout";
+                detail: "Two screens: this dashboard on the laptop, playback on the TV. TV only: everything full screen on the TV, driven with the keyboard. Switches right away.";
+                VerticalLayout {
+                    alignment: center;
+                    SegmentBox {
+                        Segment { label: "Two screens"; on: !TvUi.layout-tv; clicked => { Display.set-layout(false); } }
+                        Segment { label: "TV only"; on: TvUi.layout-tv; clicked => { Display.set-layout(true); } }
                     }
                 }
             }

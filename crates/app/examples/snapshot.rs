@@ -356,6 +356,7 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
             l.global::<Nav>().set_page("settings".into());
             l.global::<Nav>().set_settings_tab("display".into());
             l.global::<Display>().set_seconds(true);
+            l.global::<TvUi>().set_layout_tv(false);
             let d = l.global::<Display>();
             d.set_location_name("Chicago, Illinois, United States".into());
             d.set_place_query("spring".into());

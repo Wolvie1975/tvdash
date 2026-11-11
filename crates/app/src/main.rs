@@ -200,12 +200,7 @@ fn main() -> anyhow::Result<()> {
 
     let layout = args.layout.unwrap_or(config.display.layout);
     info!(?layout, "screen layout");
-    {
-        let tx = cmd_tx.clone();
-        tv_nav::init(&laptop, layout, move |c| {
-            let _ = tx.send(c);
-        });
-    }
+    tv_nav::init(&laptop, layout);
 
     // `tvdash --home` (and refusing a second copy).
     {
@@ -257,6 +252,7 @@ fn main() -> anyhow::Result<()> {
         });
     }
 
+    displays::remember(&tv, &config.display, !args.windowed, cmd_tx.clone());
     match layout {
         tvdash_core::config::Layout::Dual => {
             // TV first so it lands on the primary display even if output matching fails.

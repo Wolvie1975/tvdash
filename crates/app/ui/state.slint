@@ -288,6 +288,7 @@ export global Display {
     in property <bool> place-searching;
     in property <string> place-message;     // "No place called …" / errors
     in property <[string]> places;          // matches to pick from
+    callback set-layout(bool);  // true = TV only
     callback find-place(string);
     callback pick-place(int);
 }

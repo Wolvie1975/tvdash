@@ -451,7 +451,7 @@ component SettingsScreen inherits VerticalLayout {
         label: "Layout";
         Chip { text: "Two screens"; on: !TvUi.layout-tv; focused: f("set-layout", 0); }
         Chip { text: "TV only"; on: TvUi.layout-tv; focused: f("set-layout", 1); }
-        Text { text: "Takes effect when tvdash restarts."; font-size: 24px; color: Theme.text-muted; vertical-alignment: center; }
+        Text { text: "Two screens moves the dashboard back to the laptop."; font-size: 24px; color: Theme.text-muted; vertical-alignment: center; }
     }
     SettingRow {
         label: "Theme";

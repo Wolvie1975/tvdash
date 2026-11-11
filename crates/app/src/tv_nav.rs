@@ -13,7 +13,7 @@ use std::{
 };
 
 use slint::{ComponentHandle, Model, SharedString, platform::Key};
-use tvdash_core::{Command, config::Layout};
+use tvdash_core::config::Layout;
 
 use crate::{Accounts, Dash, Display, LaptopWindow, Library, TvUi, UiTheme};
 
@@ -29,22 +29,32 @@ struct NavState {
     /// Last focused item per row id, so coming back lands on the same item.
     cols: HashMap<&'static str, usize>,
     last_key: Instant,
-    send: Option<Box<dyn Fn(Command)>>,
 }
 
 thread_local! {
     static S: RefCell<NavState> =
-        RefCell::new(NavState { cols: HashMap::new(), last_key: Instant::now(), send: None });
+        RefCell::new(NavState { cols: HashMap::new(), last_key: Instant::now() });
 }
 
-/// Switch the window to the TV layout. `send` reaches the controller.
-pub fn init(laptop: &LaptopWindow, layout: Layout, send: impl Fn(Command) + 'static) {
-    laptop.global::<crate::Nav>().set_layout(if layout == Layout::Tv { "tv" } else { "dual" }.into());
-    laptop.global::<TvUi>().set_layout_tv(layout == Layout::Tv);
-    S.with_borrow_mut(|s| s.send = Some(Box::new(send)));
+/// Set the starting layout and take the TV shell's keys.
+pub fn init(laptop: &LaptopWindow, layout: Layout) {
+    set_layout(laptop, layout);
     let weak = laptop.as_weak();
     laptop.global::<TvUi>().on_key(move |text| weak.upgrade().is_some_and(|l| key(&l, &text)));
     sync(laptop);
+}
+
+/// Show the dashboard pages or the TV shell in the main window.
+pub fn set_layout(laptop: &LaptopWindow, layout: Layout) {
+    laptop.global::<crate::Nav>().set_layout(if layout == Layout::Tv { "tv" } else { "dual" }.into());
+    laptop.global::<TvUi>().set_layout_tv(layout == Layout::Tv);
+    if layout == Layout::Tv {
+        sync(laptop);
+    }
+}
+
+pub fn current(laptop: &LaptopWindow) -> Layout {
+    if is_tv(laptop) { Layout::Tv } else { Layout::Dual }
 }
 
 fn is_tv(laptop: &LaptopWindow) -> bool {
@@ -287,14 +297,6 @@ fn cycle_theme(laptop: &LaptopWindow) {
     laptop.global::<Dash>().invoke_set_theme(next);
 }
 
-fn send(cmd: Command) {
-    S.with_borrow(|s| {
-        if let Some(f) = &s.send {
-            f(cmd);
-        }
-    });
-}
-
 fn activate(laptop: &LaptopWindow, row: &str, col: usize) {
     let dash = laptop.global::<Dash>();
     match row {
@@ -326,8 +328,7 @@ fn activate(laptop: &LaptopWindow, row: &str, col: usize) {
         }
         "set-layout" => {
             let layout = if col == 1 { Layout::Tv } else { Layout::Dual };
-            laptop.global::<TvUi>().set_layout_tv(layout == Layout::Tv);
-            send(Command::SetLayout(layout));
+            crate::displays::switch_layout(laptop, layout);
         }
         "set-theme" => dash.invoke_set_theme([UiTheme::Dark, UiTheme::Stone, UiTheme::Mist][col.min(2)]),
         "set-units" | "set-clock" => {
@@ -361,7 +362,7 @@ mod tests {
     use crate::bridge::{self, UiConfig};
     use std::sync::mpsc;
     use tvdash_core::{
-        AppEvent,
+        AppEvent, Command,
         config::{ClockFormat, StreamingSite, ThemeMode, Units},
         models::{MediaItem, MediaKind, SourceKind},
     };
@@ -403,19 +404,16 @@ mod tests {
             },
         );
         let (tx, rx) = mpsc::channel();
-        crate::callbacks::wire(&l, {
-            let (utx, mut urx) = tokio::sync::mpsc::unbounded_channel();
-            let tx = tx.clone();
-            std::thread::spawn(move || {
-                while let Some(c) = urx.blocking_recv() {
-                    let _ = tx.send(c);
-                }
-            });
-            utx
+        let (utx, mut urx) = tokio::sync::mpsc::unbounded_channel();
+        std::thread::spawn(move || {
+            while let Some(c) = urx.blocking_recv() {
+                let _ = tx.send(c);
+            }
         });
-        init(&l, Layout::Tv, move |c| {
-            let _ = tx.send(c);
-        });
+        crate::callbacks::wire(&l, utx.clone());
+        let tv = crate::TvWindow::new().unwrap();
+        crate::displays::remember(&tv, &tvdash_core::config::DisplayConfig::default(), false, utx);
+        init(&l, Layout::Tv);
         (l, rx)
     }
 
@@ -489,9 +487,15 @@ mod tests {
         let ui = l.global::<TvUi>();
         show(&l, "settings");
         assert_eq!(ui.get_focus(), "set-layout");
-        press(&l, Key::Return); // "Two screens"
+        press(&l, Key::Return); // "Two screens": switches right away, and is saved
         assert!(matches!(next_cmd(&rx), Command::SetLayout(Layout::Dual)));
         assert!(!ui.get_layout_tv());
+        assert_eq!(current(&l), Layout::Dual);
+        // …and back from the laptop's Settings › Display.
+        l.global::<Display>().invoke_set_layout(true);
+        assert!(matches!(next_cmd(&rx), Command::SetLayout(Layout::Tv)));
+        assert_eq!((current(&l), ui.get_screen().as_str()), (Layout::Tv, "home"));
+        show(&l, "settings");
         press(&l, Key::DownArrow);
         press(&l, Key::DownArrow);
         press(&l, Key::RightArrow);

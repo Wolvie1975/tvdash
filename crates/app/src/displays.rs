@@ -3,6 +3,8 @@
 //! Wayland apps can't position windows, but they can request full screen on a
 //! specific monitor. Monitors are matched by connector name (`HDMI-A-1`, `eDP-1`).
 
+use std::cell::RefCell;
+
 use slint::ComponentHandle;
 use slint::winit_030::{
     WinitWindowAccessor,
@@ -10,9 +12,62 @@ use slint::winit_030::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{info, warn};
-use tvdash_core::{Command, config::DisplayConfig, models::Geometry};
+use tvdash_core::{
+    Command,
+    config::{DisplayConfig, Layout},
+    models::Geometry,
+};
 
 use crate::{LaptopWindow, TvWindow};
+
+/// What switching layouts while running needs.
+struct Shell {
+    tv: TvWindow,
+    display: DisplayConfig,
+    fullscreen: bool,
+    commands: UnboundedSender<Command>,
+}
+
+thread_local! {
+    static SHELL: RefCell<Option<Shell>> = const { RefCell::new(None) };
+}
+
+/// Keep what's needed to switch layouts later (call once at startup).
+pub fn remember(tv: &TvWindow, display: &DisplayConfig, fullscreen: bool, commands: UnboundedSender<Command>) {
+    SHELL.set(Some(Shell { tv: tv.clone_strong(), display: display.clone(), fullscreen, commands }));
+}
+
+/// Switch between two screens and TV only while running, and save the choice.
+pub fn switch_layout(laptop: &LaptopWindow, layout: Layout) {
+    SHELL.with_borrow(|shell| {
+        let Some(s) = shell else { return };
+        if crate::tv_nav::current(laptop) == layout {
+            return;
+        }
+        info!(?layout, "switching layout");
+        crate::tv_nav::set_layout(laptop, layout);
+        match layout {
+            Layout::Tv => {
+                let _ = s.tv.hide();
+                if !s.fullscreen {
+                    laptop.window().set_size(slint::LogicalSize::new(1920.0, 1080.0));
+                }
+                spawn_placement(laptop, "tv", s.display.tv_output.clone(), s.fullscreen, Some(s.commands.clone()));
+                crate::tv_nav::go_home(laptop);
+            }
+            Layout::Dual => {
+                if let Err(e) = s.tv.show() {
+                    warn!(error = %e, "couldn't show the TV window");
+                }
+                if !s.fullscreen {
+                    laptop.window().set_size(slint::LogicalSize::new(1600.0, 1000.0));
+                }
+                place(&s.tv, laptop, &s.display, s.fullscreen, s.commands.clone());
+            }
+        }
+        let _ = s.commands.send(Command::SetLayout(layout));
+    });
+}
 
 /// `commands` receives the TV output's geometry (for placing the streaming browser).
 pub fn place(
@@ -76,6 +131,9 @@ fn spawn_placement<C: ComponentHandle + 'static>(
             }
             // Nobody should see a mouse pointer on the TV.
             window.set_cursor_visible(false);
+        } else {
+            // Back on the laptop panel after a layout switch.
+            window.set_cursor_visible(true);
         }
 
         let names: Vec<String> = monitors.iter().map(|m| m.name().unwrap_or_default()).collect();

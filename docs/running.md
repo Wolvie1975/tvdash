@@ -10,7 +10,7 @@ drives the TV.
 | Start it | Open **tvdash** from the app menu, or run `tvdash` in a terminal |
 | Try it without full screen | `tvdash --windowed` (two normal windows you can move around) |
 | See what it's doing | **Settings › Diagnostics** shows each service's last success and error. Full log: `~/.local/state/tvdash/tvdash.log` (or start it from a terminal). More detail: `RUST_LOG=tvdash=debug tvdash` |
-| Use it on the TV only | `layout = "tv"` under `[display]` (or Settings › Layout on the TV), then restart. Try it once with `tvdash --layout tv` |
+| Switch to TV only and back | Settings › Display › **Layout** on the laptop, or Settings › Layout on the TV. Switches right away and is remembered. (`tvdash --layout tv` tries it for one run.) |
 | Get back Home from a video or site | Run `tvdash --home`. Bind it to a key in GNOME Settings › Keyboard › Custom Shortcuts |
 | Stop it | **Settings** (gear, top right) › **Quit tvdash**, or press Alt+F4 on either window |
 

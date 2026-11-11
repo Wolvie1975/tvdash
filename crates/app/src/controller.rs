@@ -415,7 +415,7 @@ impl Controller {
                     tvdash_core::config::Layout::Tv => "TV only",
                     tvdash_core::config::Layout::Dual => "two screens",
                 };
-                self.toast(format!("Layout set to {name}. Restart tvdash to switch."));
+                self.toast(format!("Layout: {name}"));
             }
             Command::SetDisplay { units, clock, seconds } => {
                 self.update_config(|c| {

@@ -97,6 +97,14 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         s(Command::FindPlace(q.trim().to_owned()));
     });
 
+    let weak = laptop.as_weak();
+    laptop.global::<crate::Display>().on_set_layout(move |tv| {
+        if let Some(l) = weak.upgrade() {
+            let layout = if tv { tvdash_core::config::Layout::Tv } else { tvdash_core::config::Layout::Dual };
+            crate::displays::switch_layout(&l, layout);
+        }
+    });
+
     let s = send.clone();
     laptop.global::<crate::Display>().on_pick_place(move |i| {
         if let Some(place) = bridge::place(i as usize) {
