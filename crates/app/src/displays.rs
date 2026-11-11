@@ -26,6 +26,16 @@ pub fn place(
     spawn_placement(laptop, "laptop", display.laptop_output.clone(), fullscreen, None);
 }
 
+/// TV-only layout: the main window goes full screen on the TV output.
+pub fn place_tv_only(
+    laptop: &LaptopWindow,
+    display: &DisplayConfig,
+    fullscreen: bool,
+    commands: UnboundedSender<Command>,
+) {
+    spawn_placement(laptop, "tv", display.tv_output.clone(), fullscreen, Some(commands));
+}
+
 /// Desktop (logical) geometry. winit reports Wayland outputs as logical × scale.
 fn geometry(m: &MonitorHandle) -> Geometry {
     let scale = m.scale_factor();

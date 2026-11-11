@@ -192,6 +192,10 @@ pub enum Command {
     /// Close the browser, delete its profile (all streaming sign-ins) and history.
     ClearBrowserProfile,
     SetupFinished,
+    /// Back to Home: stop mpv (progress is saved) or close the browser.
+    Home,
+    /// Two screens or TV only (saved; used on the next start).
+    SetLayout(crate::config::Layout),
     /// Remember the laptop theme picked in the header.
     SetTheme(crate::config::ThemeMode),
     /// Settings › Display: temperature units, clock format, seconds.

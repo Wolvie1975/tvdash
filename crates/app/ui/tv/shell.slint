@@ -1,0 +1,563 @@
+// TV-only layout: one full-screen 10-foot window with a side rail
+// (canvas page "Single screen", Concept 4). Keys go to Rust (tv_nav.rs),
+// which moves TvUi.focus / TvUi.col; this file only draws.
+
+import { Theme, UiTheme } from "../theme.slint";
+import { Icon } from "../icons.slint";
+import { Clock, PosterCardData, ProgressBar } from "../components.slint";
+import { Accounts, Dash, Display, Library, SiteTileData, TvUi } from "../state.slint";
+
+// 10-foot sizes: body ≥ 32 px, safe area 96 / 54 px.
+global Ten {
+    out property <length> safe-x: 96px;
+    out property <length> safe-y: 54px;
+    out property <length> label: 24px;
+    out property <length> body: 32px;
+    out property <length> title: 54px;
+    out property <length> rail-closed: 104px;
+    out property <length> rail-open: 340px;
+}
+
+// Focus ring: 4 px outline, 6 px outside the item.
+component Ring inherits Rectangle {
+    in property <bool> on;
+    in property <length> corner: 18px;
+    x: -10px;
+    y: -10px;
+    border-radius: root.corner + 10px;
+    border-width: root.on ? 4px : 0;
+    border-color: Theme.text-primary;
+}
+
+component TenButton inherits Rectangle {
+    in property <string> text;
+    in property <string> icon;
+    in property <bool> focused;
+    in property <bool> primary;
+    in property <color> fill: Dash.tint.btn;
+    in property <color> ink: Theme.text-primary;
+    height: 76px;
+    min-width: row.preferred-width + 56px;
+    border-radius: 20px;
+    background: root.primary ? Dash.tint.accent : root.fill;
+    border-width: root.primary ? 0 : 1px;
+    border-color: Dash.tint.edge;
+    row := HorizontalLayout {
+        alignment: center;
+        spacing: 12px;
+        if root.icon != "": VerticalLayout {
+            alignment: center;
+            Icon { name: root.icon; tint: root.primary ? Dash.tint.on-accent : root.ink; size: 30px; }
+        }
+        if root.text != "": Text {
+            text: root.text;
+            font-size: 30px;
+            font-weight: 600;
+            color: root.primary ? Dash.tint.on-accent : root.ink;
+            vertical-alignment: center;
+        }
+    }
+    Ring { on: root.focused; corner: 20px; height: parent.height + 20px; width: parent.width + 20px; }
+}
+
+// ── Side rail ────────────────────────────────────────────────────────
+
+component RailItem inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    in property <int> index;
+    in property <string> screen;
+    property <bool> focused: TvUi.focus == "rail" && TvUi.col == root.index;
+    property <bool> current: TvUi.screen == root.screen;
+    height: 72px;
+    border-radius: 18px;
+    background: root.current ? Theme.surface-raised : transparent;
+    HorizontalLayout {
+        padding-left: 22px;
+        spacing: 22px;
+        VerticalLayout {
+            alignment: center;
+            Icon { name: root.icon; tint: root.current ? Theme.text-primary : Theme.text-secondary; size: 34px; line: 2px; }
+        }
+        Text {
+            text: root.label;
+            font-size: Ten.body;
+            color: Theme.text-primary;
+            vertical-alignment: center;
+            opacity: TvUi.rail-open ? 1 : 0;
+            animate opacity { duration: 200ms; }
+        }
+    }
+    Ring { on: root.focused; height: parent.height + 20px; width: parent.width + 20px; }
+}
+
+component Rail inherits Rectangle {
+    width: TvUi.rail-open ? Ten.rail-open : Ten.rail-closed;
+    animate width { duration: 260ms; easing: ease-out; }
+    clip: true;
+    background: Theme.surface;
+
+    VerticalLayout {
+        padding-top: Ten.safe-y;
+        padding-bottom: Ten.safe-y;
+        padding-left: 16px;
+        padding-right: 16px;
+        spacing: 14px;
+
+        // Time (closed) or clock + weather (open).
+        if !TvUi.rail-open: Text {
+            text: Dash.clock-hh + ":" + Dash.clock-mm;
+            font-size: 26px;
+            color: Theme.text-secondary;
+            horizontal-alignment: center;
+            width: Ten.rail-closed - 32px;
+        }
+        if TvUi.rail-open: VerticalLayout {
+            spacing: 6px;
+            padding-left: 8px;
+            Text { text: Dash.clock-hh + ":" + Dash.clock-mm; font-size: 56px; font-weight: 300; color: Theme.text-primary; }
+            Text {
+                text: Dash.weather-on ? Dash.weather-temp + " · " + Dash.weather-detail : Dash.weekday;
+                font-size: 22px;
+                color: Theme.text-secondary;
+                overflow: elide;
+            }
+        }
+        Rectangle { height: 24px; }
+        RailItem { icon: "tv"; label: "Home"; index: 0; screen: "home"; }
+        RailItem { icon: "search"; label: "Search"; index: 1; screen: "search"; }
+        RailItem { icon: "library"; label: "Library"; index: 2; screen: "library"; }
+        RailItem { icon: "play"; label: "Services"; index: 3; screen: "services"; }
+        RailItem { icon: "gear"; label: "Settings"; index: 4; screen: "settings"; }
+        Rectangle { vertical-stretch: 1; }
+
+        // Theme: one button (closed) or a segmented control (open); OK cycles it.
+        theme := Rectangle {
+            height: 72px;
+            border-radius: 18px;
+            background: Theme.surface-raised;
+            if !TvUi.rail-open: Icon {
+                name: Theme.mode == UiTheme.dark ? "moon" : "sun";
+                tint: Theme.text-primary;
+                size: 32px;
+            }
+            if TvUi.rail-open: HorizontalLayout {
+                padding: 6px;
+                spacing: 4px;
+                for m[i] in [{ mode: UiTheme.dark, label: "Dark" }, { mode: UiTheme.stone, label: "Stone" }, { mode: UiTheme.mist, label: "Mist" }]: Rectangle {
+                    border-radius: 14px;
+                    background: Theme.mode == m.mode ? Theme.text-primary : transparent;
+                    Text { text: m.label; font-size: 24px; color: Theme.mode == m.mode ? Theme.bg : Theme.text-secondary; }
+                }
+            }
+            Ring { on: TvUi.focus == "rail" && TvUi.col == 5; height: parent.height + 20px; width: parent.width + 20px; }
+        }
+    }
+}
+
+// ── Rows ─────────────────────────────────────────────────────────────
+
+component Poster inherits Rectangle {
+    in property <PosterCardData> data;
+    in property <bool> focused;
+    width: 170px;
+    height: col.preferred-height;
+    col := VerticalLayout {
+        spacing: 10px;
+        Rectangle {
+            height: 255px;
+            border-radius: 14px;
+            clip: true;
+            background: root.data.placeholder;
+            if root.data.has-poster: Image { width: parent.width; height: parent.height; source: root.data.poster; image-fit: cover; }
+            if !root.data.has-poster: Text {
+                text: root.data.title;
+                width: parent.width - 20px;
+                font-size: 22px;
+                color: Theme.on-scrim;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+            if root.data.progress > 0: Rectangle {
+                y: parent.height - 8px;
+                height: 8px;
+                background: #0B0D1099;
+                Rectangle { x: 0; width: parent.width * root.data.progress; background: root.data.accent; }
+            }
+        }
+        Text { text: root.data.title; font-size: 24px; color: Theme.text-primary; overflow: elide; }
+    }
+    Ring { on: root.focused; height: 255px + 20px; width: parent.width + 20px; }
+}
+
+component PosterStrip inherits Flickable {
+    in property <[PosterCardData]> cards;
+    in property <string> id;
+    property <bool> active: TvUi.focus == root.id;
+    property <length> step: 170px + 28px;
+    height: 310px;
+    interactive: false;
+    content-width: row.preferred-width + 20px;
+    // Keep the focused card in view.
+    content-x: root.active ? -max(0px, min(self.content-width - self.width, TvUi.col * root.step - (self.width - root.step) / 2)) : 0px;
+    animate content-x { duration: 200ms; easing: ease-out; }
+    row := HorizontalLayout {
+        x: 10px;
+        y: 10px;
+        spacing: 28px;
+        alignment: start;
+        for c[i] in root.cards: Poster { data: c; focused: root.active && TvUi.col == i; }
+    }
+}
+
+component ServiceTile inherits Rectangle {
+    in property <SiteTileData> site;
+    in property <bool> focused;
+    border-radius: 20px;
+    background: Theme.surface-raised;
+    border-width: 1px;
+    border-color: Theme.border;
+    VerticalLayout {
+        alignment: center;
+        spacing: 12px;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: 72px;
+                height: 72px;
+                border-radius: 18px;
+                clip: true;
+                background: root.site.has-logo ? transparent : root.site.bg;
+                if root.site.has-logo: Image { width: parent.width; height: parent.height; source: root.site.logo; image-fit: cover; }
+                if !root.site.has-logo: Text { text: root.site.monogram; font-size: 36px; font-weight: 600; color: root.site.fg; }
+            }
+        }
+        Text { text: root.site.name; font-size: 26px; color: Theme.text-primary; horizontal-alignment: center; overflow: elide; }
+    }
+    Ring { on: root.focused; corner: 20px; height: parent.height + 20px; width: parent.width + 20px; }
+}
+
+component ServiceStrip inherits Flickable {
+    property <bool> active: TvUi.focus == "services";
+    property <length> step: 230px + 24px;
+    height: 150px;
+    interactive: false;
+    content-width: row.preferred-width + 20px;
+    content-x: root.active ? -max(0px, min(self.content-width - self.width, TvUi.col * root.step - (self.width - root.step) / 2)) : 0px;
+    animate content-x { duration: 200ms; easing: ease-out; }
+    row := HorizontalLayout {
+        x: 10px;
+        y: 10px;
+        spacing: 24px;
+        alignment: start;
+        for s[i] in Dash.streaming-sites: ServiceTile { width: 230px; height: 130px; site: s; focused: root.active && TvUi.col == i; }
+    }
+}
+
+component RowLabel inherits Text {
+    font-size: Ten.label;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: Theme.text-muted;
+}
+
+// ── Home ─────────────────────────────────────────────────────────────
+
+component Hero inherits Rectangle {
+    property <string> mode: Dash.tv.mode;
+    property <bool> focused: TvUi.focus == "hero";
+    height: 380px;
+    border-radius: 32px;
+    background: Dash.tint.card;
+    animate background { duration: 400ms; }
+    HorizontalLayout {
+        padding: 36px;
+        spacing: 36px;
+        if root.mode != "idle": Rectangle {
+            width: 205px;
+            border-radius: 18px;
+            clip: true;
+            background: Dash.tint.poster;
+            if Dash.tv.has-poster: Image { width: parent.width; height: parent.height; source: Dash.tv.poster; image-fit: cover; }
+            if !Dash.tv.has-poster: Text { text: Dash.tv.monogram; font-size: 110px; font-weight: 600; color: Dash.tint.accent; }
+        }
+        VerticalLayout {
+            spacing: 12px;
+            horizontal-stretch: 1;
+            Text {
+                text: root.mode == "playing" ? (Dash.tv.paused ? "PAUSED" : "PLAYING")
+                    : root.mode == "streaming" ? "ON THE TV NOW" : root.mode == "next" ? "UP NEXT" : "ON THE TV";
+                font-size: Ten.label;
+                font-weight: 600;
+                letter-spacing: 2px;
+                color: Dash.tint.accent;
+            }
+            Text { text: Dash.tv.title; font-size: Ten.title; color: Theme.text-primary; overflow: elide; }
+            if Dash.tv.subtitle != "": Text { text: Dash.tv.subtitle; font-size: Ten.body; color: Dash.tint.sec; overflow: elide; }
+            Rectangle { vertical-stretch: 1; }
+            if (root.mode == "playing" || root.mode == "next") && Dash.tv.at-text != "": VerticalLayout {
+                spacing: 8px;
+                ProgressBar { height: 10px; value: Dash.tv.progress; fill: Dash.tint.accent; track: Dash.tint.track; }
+                HorizontalLayout {
+                    Text { text: Dash.tv.at-text; font-size: 24px; color: Dash.tint.sec; horizontal-stretch: 1; }
+                    Text { text: Dash.tv.left-text; font-size: 24px; color: Dash.tint.sec; }
+                }
+            }
+            HorizontalLayout {
+                spacing: 20px;
+                alignment: start;
+                if root.mode == "playing": TenButton {
+                    text: Dash.tv.paused ? "Play" : "Pause";
+                    icon: Dash.tv.paused ? "play" : "pause";
+                    primary: true;
+                    focused: root.focused && TvUi.col == 0;
+                }
+                if root.mode == "playing": TenButton { text: "Stop"; icon: "stop"; focused: root.focused && TvUi.col == 1; }
+                if root.mode == "streaming": TenButton { text: "Close"; icon: "stop"; primary: true; focused: root.focused && TvUi.col == 0; }
+                if root.mode == "next": TenButton { text: "Resume"; icon: "play"; primary: true; focused: root.focused && TvUi.col == 0; }
+                if root.mode == "idle": Text { text: "Pick something below, or open Search from the rail."; font-size: Ten.body; color: Dash.tint.sec; }
+            }
+        }
+    }
+}
+
+// Sign-in codes and "not connected" prompts.
+component Prompts inherits VerticalLayout {
+    spacing: 18px;
+    if Dash.cw-state == "code": HorizontalLayout {
+        spacing: 36px;
+        Text { text: Dash.signin-code; font-size: 96px; font-weight: 600; letter-spacing: 16px; color: Theme.text-primary; }
+        Text { text: Dash.cw-message; font-size: Ten.body; color: Theme.text-secondary; wrap: word-wrap; vertical-alignment: center; horizontal-stretch: 1; }
+    }
+    HorizontalLayout {
+        spacing: 24px;
+        alignment: start;
+        if Dash.cw-state == "code" || Dash.cw-state == "busy": TenButton {
+            text: "Cancel";
+            fill: Theme.surface-raised;
+            focused: TvUi.focus == "prompts" && TvUi.col == 0;
+        }
+        if Dash.cw-state != "code" && Dash.cw-state != "busy": HorizontalLayout {
+            spacing: 24px;
+            for p[i] in Dash.prompts: TenButton {
+                text: p.action;
+                primary: !p.warn;
+                fill: Theme.surface-raised;
+                focused: TvUi.focus == "prompts" && TvUi.col == i;
+            }
+        }
+    }
+}
+
+component HomeScreen inherits VerticalLayout {
+    spacing: 34px;
+    Hero { }
+    VerticalLayout {
+        spacing: 14px;
+        RowLabel { text: Dash.cw-state == "items" ? "CONTINUE WATCHING" : "YOUR MEDIA SERVERS"; }
+        if (Dash.cw-state == "items" && Dash.prompts.length > 0) || Dash.cw-state != "items": Prompts { }
+        if Dash.cw-state == "items": PosterStrip { id: "continue"; cards: Dash.continue-watching; }
+        if Dash.cw-state == "loading" || Dash.cw-state == "empty": Text {
+            text: Dash.cw-state == "loading" ? "Loading…" : "Nothing in progress yet.";
+            font-size: Ten.body;
+            color: Theme.text-secondary;
+        }
+    }
+    VerticalLayout {
+        spacing: 14px;
+        RowLabel { text: "YOUR SERVICES"; }
+        ServiceStrip { }
+    }
+    Rectangle { vertical-stretch: 1; }
+}
+
+// ── Services ─────────────────────────────────────────────────────────
+
+component ServicesScreen inherits Rectangle {
+    property <int> columns: 5;
+    property <length> gap: 28px;
+    property <length> tile-w: (self.width - (root.columns - 1) * root.gap - 20px) / root.columns;
+    property <length> tile-h: 190px;
+    VerticalLayout {
+        spacing: 24px;
+        Text { text: "Services"; font-size: Ten.title; color: Theme.text-primary; }
+        grid := Flickable {
+            interactive: false;
+            vertical-stretch: 1;
+            property <int> focus-row: TvUi.focus == "grid" ? Math.floor(TvUi.col / root.columns) : 0;
+            content-y: -max(0px, self.focus-row * (root.tile-h + root.gap) - (self.height - root.tile-h - 20px));
+            animate content-y { duration: 200ms; easing: ease-out; }
+            content-height: Math.ceil(Dash.streaming-sites.length / root.columns) * (root.tile-h + root.gap) + 20px;
+            for s[i] in Dash.streaming-sites: ServiceTile {
+                x: 10px + Math.mod(i, root.columns) * (root.tile-w + root.gap);
+                y: 10px + Math.floor(i / root.columns) * (root.tile-h + root.gap);
+                width: root.tile-w;
+                height: root.tile-h;
+                site: s;
+                focused: TvUi.focus == "grid" && TvUi.col == i;
+            }
+        }
+    }
+}
+
+// ── Library ──────────────────────────────────────────────────────────
+
+component LibraryScreen inherits VerticalLayout {
+    spacing: 30px;
+    Text { text: "Library"; font-size: Ten.title; color: Theme.text-primary; }
+    VerticalLayout {
+        spacing: 14px;
+        RowLabel { text: "CONTINUE WATCHING"; }
+        if Library.continue-watching.length == 0: Text { text: "Nothing in progress."; font-size: Ten.body; color: Theme.text-secondary; }
+        PosterStrip { id: "lib-continue"; cards: Library.continue-watching; }
+    }
+    VerticalLayout {
+        spacing: 14px;
+        RowLabel { text: "RECENTLY ADDED"; }
+        PosterStrip { id: "lib-recent"; cards: Library.recently-added; }
+    }
+    Text { text: "OK plays from where you left off."; font-size: 24px; color: Theme.text-muted; }
+    Rectangle { vertical-stretch: 1; }
+}
+
+// ── Settings ─────────────────────────────────────────────────────────
+
+component Chip inherits Rectangle {
+    in property <string> text;
+    in property <bool> on;
+    in property <bool> focused;
+    height: 72px;
+    min-width: t.preferred-width + 56px;
+    horizontal-stretch: 0;
+    border-radius: 18px;
+    background: root.on ? Theme.text-primary : Theme.surface-raised;
+    t := Text { text: root.text; font-size: 28px; font-weight: 500; color: root.on ? Theme.bg : Theme.text-primary; }
+    Ring { on: root.focused; height: parent.height + 20px; width: parent.width + 20px; }
+}
+
+component SettingRow inherits HorizontalLayout {
+    in property <string> label;
+    spacing: 24px;
+    alignment: start;
+    Text { text: root.label; font-size: Ten.body; color: Theme.text-secondary; width: 300px; vertical-alignment: center; }
+    @children
+}
+
+component SettingsScreen inherits VerticalLayout {
+    spacing: 26px;
+    function f(id: string, i: int) -> bool { return TvUi.focus == id && TvUi.col == i; }
+    Text { text: "Settings"; font-size: Ten.title; color: Theme.text-primary; }
+    SettingRow {
+        label: "Layout";
+        Chip { text: "Two screens"; on: !TvUi.layout-tv; focused: f("set-layout", 0); }
+        Chip { text: "TV only"; on: TvUi.layout-tv; focused: f("set-layout", 1); }
+        Text { text: "Takes effect when tvdash restarts."; font-size: 24px; color: Theme.text-muted; vertical-alignment: center; }
+    }
+    SettingRow {
+        label: "Theme";
+        Chip { text: "Dark"; on: Theme.mode == UiTheme.dark; focused: f("set-theme", 0); }
+        Chip { text: "Stone"; on: Theme.mode == UiTheme.stone; focused: f("set-theme", 1); }
+        Chip { text: "Mist"; on: Theme.mode == UiTheme.mist; focused: f("set-theme", 2); }
+    }
+    SettingRow {
+        label: "Temperature";
+        Chip { text: "°F"; on: !Display.celsius; focused: f("set-units", 0); }
+        Chip { text: "°C"; on: Display.celsius; focused: f("set-units", 1); }
+    }
+    SettingRow {
+        label: "Clock";
+        Chip { text: "24-hour"; on: !Display.h12; focused: f("set-clock", 0); }
+        Chip { text: "12-hour"; on: Display.h12; focused: f("set-clock", 1); }
+    }
+    SettingRow {
+        label: "Accounts";
+        for a[i] in Accounts.accounts: Chip {
+            text: a.name + " · " + (a.primary != "" ? a.primary : a.secondary != "" ? a.secondary : a.status);
+            focused: f("set-accounts", i);
+        }
+    }
+    SettingRow {
+        label: "";
+        Chip { text: "Quit tvdash"; focused: f("set-quit", 0); }
+    }
+    Text {
+        text: "Streaming sites, the TMDB token and diagnostics are on the laptop layout for now.";
+        font-size: 24px;
+        color: Theme.text-muted;
+    }
+    Rectangle { vertical-stretch: 1; }
+}
+
+// ── Ambient idle ─────────────────────────────────────────────────────
+
+component Ambient inherits Rectangle {
+    background: #050608;
+    property <int> step;
+    property <[{x: length, y: length}]> shifts: [{ x: 0px, y: 0px }, { x: 8px, y: -6px }, { x: -7px, y: 5px }, { x: 5px, y: 8px }];
+    Timer {
+        interval: 180s;
+        running: TvUi.ambient;
+        triggered => { root.step = Math.mod(root.step + 1, root.shifts.length); }
+    }
+    if Dash.tv.has-poster: Image { width: parent.width; height: parent.height; source: Dash.tv.poster; image-fit: cover; opacity: 0.35; }
+    Rectangle { background: @linear-gradient(90deg, #050608ee 0%, #05060866 60%, #05060800 100%); }
+    VerticalLayout {
+        x: Ten.safe-x + root.shifts[root.step].x;
+        y: root.shifts[root.step].y;
+        height: root.height;
+        alignment: end;
+        padding-bottom: Ten.safe-y + 40px;
+        spacing: 10px;
+        Clock { hh: Dash.clock-hh; mm: Dash.clock-mm; font-px: 180px; tint: #E8EAEDcc; weight: 300; }
+        Text { text: Dash.weekday + ", " + Dash.date-text; font-size: 36px; color: #A0A6AFcc; }
+        if Dash.tv.mode == "next": Text { text: "Up next · " + Dash.tv.title; font-size: 32px; color: #A0A6AFcc; }
+    }
+}
+
+export component TvShell inherits Rectangle {
+    background: Theme.bg;
+
+    fs := FocusScope {
+        key-pressed(e) => {
+            if TvUi.key(e.text) { return accept; }
+            return reject;
+        }
+
+        main := Rectangle {
+            x: Ten.rail-closed;
+            width: parent.width - Ten.rail-closed;
+            opacity: TvUi.focus == "rail" ? 0.45 : 1;
+            animate opacity { duration: 200ms; }
+            VerticalLayout {
+                padding-left: 56px;
+                padding-right: Ten.safe-x;
+                padding-top: Ten.safe-y;
+                padding-bottom: Ten.safe-y;
+                if TvUi.screen == "home": HomeScreen { }
+                if TvUi.screen == "services": ServicesScreen { }
+                if TvUi.screen == "library": LibraryScreen { }
+                if TvUi.screen == "settings": SettingsScreen { }
+                if TvUi.screen == "search": VerticalLayout {
+                    spacing: 24px;
+                    Text { text: "Search"; font-size: Ten.title; color: Theme.text-primary; }
+                    Text {
+                        text: "Where to watch on the TV comes next, with typing from the phone remote or an on-screen keyboard. For now, search from the laptop layout.";
+                        font-size: Ten.body;
+                        color: Theme.text-secondary;
+                        wrap: word-wrap;
+                    }
+                    Rectangle { vertical-stretch: 1; }
+                }
+            }
+        }
+
+        Rail { x: 0; height: parent.height; }
+
+        if TvUi.ambient: Ambient { width: parent.width; height: parent.height; }
+    }
+
+    init => { fs.focus(); }
+    // Rust bumps focus-ticket (e.g. after Home) so the shell gets keys again.
+    property <int> ticket: TvUi.focus-ticket;
+    changed ticket => { fs.focus(); }
+}

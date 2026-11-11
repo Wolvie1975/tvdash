@@ -8,6 +8,8 @@ import { UiTheme } from "theme.slint";
 export global Nav {
     // "home" | "library" | "watch" | "settings" | "setup"
     in-out property <string> page: "home";
+    // "dual" (laptop dashboard) | "tv" (everything on the TV, 10-foot)
+    in property <string> layout: "dual";
     // Settings tab: "accounts" | "streaming" | "display" | "diagnostics"
     in-out property <string> settings-tab: "accounts";
 }
@@ -292,4 +294,25 @@ export struct HealthRow {
 export global Diagnostics {
     in property <[HealthRow]> rows;
     in property <[string]> paths;   // "Log file: /home/…/tvdash.log"
+}
+
+// TV-only layout ([display] layout = "tv"). Rust owns navigation (tv_nav.rs);
+// these say what's showing and what has focus.
+export global TvUi {
+    // "home" | "search" | "library" | "services" | "settings"
+    in-out property <string> screen: "home";
+    in property <bool> rail-open;
+    // What has focus: "rail" | "hero" | "prompts" | "continue" | "services" | "lib-continue"
+    // | "lib-recent" | "grid" | "set-layout" | "set-theme" | "set-units" | "set-clock"
+    // | "set-accounts" | "set-quit" | "" (nothing focusable)
+    in property <string> focus;
+    // Position inside the focused row (rail: 0 Home … 4 Settings, 5 theme).
+    in property <int> col;
+    // Full-bleed art + clock after a few idle minutes; any key returns.
+    in property <bool> ambient;
+    // Settings › Layout shows the saved choice.
+    in property <bool> layout-tv: true;
+    in property <int> focus-ticket;
+    // A key press (Slint key text); returns true when handled.
+    callback key(string) -> bool;
 }

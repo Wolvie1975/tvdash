@@ -31,6 +31,19 @@ The chosen design is **Concept 4** (side rail that slides in and out, theme swit
 
 ---
 
+## Progress
+
+**Step 1 (built):** `[display] layout` and `--layout`; one full-screen window on the TV; side
+rail (closed/open, theme); Home (hero, Continue Watching, your services, sign-in codes and
+prompts), Library, Services, Settings (layout, theme, units, clock, accounts, quit); focus
+navigation with arrows/OK/Back (rows remember their place); ambient idle after 5 min;
+`tvdash --home` over a single-instance socket (Home stops mpv or closes the browser).
+The TV layout is a view inside the existing main window rather than a separate shell module,
+so it reuses all the existing event handling.
+
+**Next:** video inside the tvdash window (libmpv) for Play/Pause from Home, Full screen and the OK
+overlay; Search on the TV; the phone remote (v3) and HDMI-CEC; night-mode Dark (needs v2).
+
 ## 1. What it is
 
 The same app with a second layout: no laptop panel, everything on the TV. Home is a full-screen 10-foot screen with a side rail; Plex/Jellyfin video and streaming sites play full screen on top of it; **Home** always brings you back.

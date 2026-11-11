@@ -6,8 +6,10 @@ import { SetupPage } from "setup.slint";
 import { Dash, Nav, SiteEditor } from "state.slint";
 import { SiteEditorDialog } from "site_editor.slint";
 import { WatchPage } from "watch.slint";
+import { TvShell } from "tv/shell.slint";
 
-// Laptop window: one of four pages, plus the toast.
+// The main window. Two screens: the laptop dashboard pages. TV only
+// (Nav.layout == "tv"): the 10-foot shell, full screen on the TV.
 export component LaptopWindow inherits Window {
     title: "tvdash";
     background: Theme.bg;
@@ -24,6 +26,7 @@ export component LaptopWindow inherits Window {
 
     // Scrolls vertically if the panel is shorter than the content.
     scroller := Flickable {
+        visible: Nav.layout == "dual";
         content-height: max(self.height, body.preferred-height);
         body := VerticalLayout {
             width: scroller.width;
@@ -36,20 +39,22 @@ export component LaptopWindow inherits Window {
         }
     }
 
+    if Nav.layout == "tv": TvShell { width: root.width; height: root.height; }
+
     if SiteEditor.open: SiteEditorDialog { width: root.width; height: root.height; }
 
     if Dash.toast != "": Rectangle {
         x: (parent.width - self.width) / 2;
         y: parent.height - self.height - 110px;
         width: min(toast-text.preferred-width + 48px, parent.width - 80px);
-        height: 56px;
+        height: Nav.layout == "tv" ? 84px : 56px;
         border-radius: 12px;
         background: Theme.surface-raised;
         border-width: 1px;
         border-color: Theme.border;
         toast-text := Text {
             text: Dash.toast;
-            font-size: Theme.body-size;
+            font-size: Nav.layout == "tv" ? 32px : Theme.body-size;
             color: Theme.text-primary;
             overflow: elide;
         }

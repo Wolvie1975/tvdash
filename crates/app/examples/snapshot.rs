@@ -256,6 +256,52 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                 });
             }
         }
+        m if m.starts_with("tv-") => {
+            l.global::<Nav>().set_layout("tv".into());
+            dash.set_continue_watching(row);
+            dash.set_cw_state("items".into());
+            dash.set_tv(TvCard {
+                mode: "next".into(),
+                label: "UP NEXT".into(),
+                source: "Plex".into(),
+                title: "Harbor Lights".into(),
+                subtitle: "S1 · E3 · The Breakwater".into(),
+                at_text: "Stopped at 31:40".into(),
+                left_text: "14 min left".into(),
+                progress: 0.7,
+                poster: fake_poster(60),
+                has_poster: true,
+                ..Default::default()
+            });
+            dash.set_tint(tint::card_tint(tint::DEFAULT, theme_mode));
+            let ui = l.global::<TvUi>();
+            match m {
+                "tv-rail" => {
+                    ui.set_rail_open(true);
+                    ui.set_focus("rail".into());
+                    ui.set_col(3);
+                }
+                "tv-services" => {
+                    ui.set_screen("services".into());
+                    ui.set_focus("grid".into());
+                    ui.set_col(6);
+                }
+                "tv-settings" => {
+                    ui.set_screen("settings".into());
+                    ui.set_focus("set-theme".into());
+                    ui.set_col(1);
+                    l.global::<Accounts>().set_accounts(model(vec![
+                        account("plex", "Plex", "Connected", "", "ok", "", "Sign out"),
+                        account("jellyfin", "Jellyfin", "Not connected", "", "off", "Sign in", ""),
+                    ]));
+                }
+                "tv-ambient" => ui.set_ambient(true),
+                _ => {
+                    ui.set_focus("continue".into());
+                    ui.set_col(1);
+                }
+            }
+        }
         "watch" => {
             l.global::<Nav>().set_page("watch".into());
             let w = l.global::<Watch>();

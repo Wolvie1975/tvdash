@@ -6,7 +6,9 @@ mod clock;
 mod controller;
 mod displays;
 mod format;
+mod instance;
 mod tint;
+mod tv_nav;
 mod watch;
 mod watch_ui;
 
@@ -25,6 +27,9 @@ Usage: tvdash [OPTIONS]
 
 Options:
   --windowed        Don't go full screen (development on a single display)
+  --layout tv|dual  Override [display] layout for this run
+  --home            Tell the running tvdash to go Home (stops what's on the TV);
+                    bind it to a GNOME keyboard shortcut
   --check-keyring   Test GNOME Keyring read/write, list which secrets are set, and exit
   --set-secret KEY  Read a value from stdin and store it in the keyring, e.g.
                     tvdash --set-secret jellyfin_token
@@ -37,6 +42,8 @@ Logging: set RUST_LOG (default: info), e.g. RUST_LOG=tvdash=debug";
 #[derive(Debug, Default)]
 struct Args {
     windowed: bool,
+    home: bool,
+    layout: Option<tvdash_core::config::Layout>,
     check_keyring: bool,
     set_secret: Option<SecretKey>,
     clear_secret: Option<SecretKey>,
@@ -53,6 +60,14 @@ fn parse_args() -> anyhow::Result<Args> {
     while let Some(arg) = argv.next() {
         match arg.as_str() {
             "--windowed" => args.windowed = true,
+            "--home" => args.home = true,
+            "--layout" => {
+                let v = argv.next().unwrap_or_default();
+                args.layout = Some(
+                    tvdash_core::config::Layout::parse(&v)
+                        .ok_or_else(|| anyhow::anyhow!("--layout takes tv or dual\n\n{USAGE}"))?,
+                );
+            }
             "--check-keyring" => args.check_keyring = true,
             "--set-secret" => args.set_secret = Some(secret_arg(argv.next())?),
             "--clear-secret" => args.clear_secret = Some(secret_arg(argv.next())?),
@@ -105,6 +120,19 @@ fn main() -> anyhow::Result<()> {
     if let Some(key) = args.clear_secret {
         secrets::delete(key)?;
         println!("{} removed from the keyring", key.as_str());
+        return Ok(());
+    }
+
+    let socket = instance::socket_path();
+    if args.home {
+        return match instance::send(&socket, instance::Message::Home) {
+            Ok(true) => Ok(()),
+            Ok(false) => bail!("tvdash isn't running"),
+            Err(e) => Err(e).context("talking to the running tvdash"),
+        };
+    }
+    if matches!(instance::send(&socket, instance::Message::Ping), Ok(true)) {
+        println!("tvdash is already running.");
         return Ok(());
     }
 
@@ -169,6 +197,37 @@ fn main() -> anyhow::Result<()> {
     runtime.spawn(controller.run(cmd_rx, internal_rx));
     callbacks::wire(&laptop, cmd_tx.clone());
 
+    let layout = args.layout.unwrap_or(config.display.layout);
+    info!(?layout, "screen layout");
+    {
+        let tx = cmd_tx.clone();
+        tv_nav::init(&laptop, layout, move |c| {
+            let _ = tx.send(c);
+        });
+    }
+
+    // `tvdash --home` (and refusing a second copy).
+    {
+        let _rt = runtime.enter();
+        let (tx, weak) = (cmd_tx.clone(), laptop.as_weak());
+        let listening = instance::listen(socket.clone(), move |m| {
+            if m != instance::Message::Home {
+                return;
+            }
+            let _ = tx.send(Command::Home);
+            let weak = weak.clone();
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(l) = weak.upgrade() {
+                    l.global::<Nav>().set_page("home".into());
+                    tv_nav::go_home(&l);
+                }
+            });
+        });
+        if let Err(e) = listening {
+            warn!(error = %e, "no instance socket; tvdash --home won't work");
+        }
+    }
+
     // M1 done-check: keyring round-trip, reported in the laptop footer.
     {
         let tx = event_tx.clone();
@@ -197,12 +256,23 @@ fn main() -> anyhow::Result<()> {
         });
     }
 
-    // TV first so it lands on the primary display even if output matching fails.
-    tv.show()?;
-    laptop.show()?;
-    displays::place(&tv, &laptop, &config.display, !args.windowed, cmd_tx);
+    match layout {
+        tvdash_core::config::Layout::Dual => {
+            // TV first so it lands on the primary display even if output matching fails.
+            tv.show()?;
+            laptop.show()?;
+            displays::place(&tv, &laptop, &config.display, !args.windowed, cmd_tx);
+        }
+        tvdash_core::config::Layout::Tv => {
+            // One window, full screen on the TV; the idle TV window isn't used.
+            laptop.window().set_size(slint::LogicalSize::new(1920.0, 1080.0));
+            laptop.show()?;
+            displays::place_tv_only(&laptop, &config.display, !args.windowed, cmd_tx);
+        }
+    }
 
     slint::run_event_loop_until_quit()?;
+    instance::cleanup(&socket);
 
     drop(event_tx);
     runtime.shutdown_timeout(Duration::from_secs(1));

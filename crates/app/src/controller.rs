@@ -370,6 +370,18 @@ impl Controller {
             Command::JellyfinPassword { username, password } => self.jellyfin_password(username, password),
             Command::ClearBrowserProfile => self.clear_browser_profile().await,
             Command::SetTheme(mode) => self.update_config(|c| c.general.theme = mode),
+            Command::Home => {
+                self.stop_playback().await;
+                self.close_browser().await;
+            }
+            Command::SetLayout(layout) => {
+                self.update_config(|c| c.display.layout = layout);
+                let name = match layout {
+                    tvdash_core::config::Layout::Tv => "TV only",
+                    tvdash_core::config::Layout::Dual => "two screens",
+                };
+                self.toast(format!("Layout set to {name}. Restart tvdash to switch."));
+            }
             Command::SetDisplay { units, clock, seconds } => {
                 self.update_config(|c| {
                     c.general.units = units;

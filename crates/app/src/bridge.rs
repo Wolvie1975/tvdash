@@ -159,6 +159,7 @@ pub fn on_minute(laptop: &LaptopWindow, _tv: &TvWindow) {
         refresh_diagnostics(s, laptop);
         refresh_tv_card(s, laptop);
     });
+    crate::tv_nav::tick(laptop);
 }
 
 fn ago(t: DateTime<Utc>) -> String {
@@ -322,6 +323,11 @@ pub async fn forward(mut rx: UnboundedReceiver<AppEvent>, laptop: Weak<LaptopWin
 
 fn on_setup(laptop: &LaptopWindow) -> bool {
     laptop.global::<Nav>().get_page() == "setup"
+}
+
+#[cfg(test)]
+pub fn apply_for_test(laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent) {
+    STATE.with_borrow_mut(|s| apply(s, laptop, tv, event));
 }
 
 fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent) {
@@ -521,6 +527,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::Toast(msg) => show_toast(s, laptop, msg, TOAST_FOR),
         AppEvent::LongToast(msg) => show_toast(s, laptop, msg, LONG_TOAST_FOR),
     }
+    crate::tv_nav::sync(laptop);
     if on_setup(laptop) {
         refresh_setup(s, laptop);
     }

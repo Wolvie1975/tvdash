@@ -47,6 +47,29 @@ pub struct DisplayConfig {
     pub tv_output: String,
     /// Connector name of the laptop panel, e.g. `eDP-1`.
     pub laptop_output: String,
+    /// Two screens (laptop dashboard + TV), or everything on the TV.
+    pub layout: Layout,
+}
+
+/// Screen layout. Changing it takes effect on the next start.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Layout {
+    /// Laptop dashboard + TV playback window.
+    #[default]
+    Dual,
+    /// One full-screen 10-foot window on the TV, driven by remote or keyboard.
+    Tv,
+}
+
+impl Layout {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "dual" => Some(Self::Dual),
+            "tv" => Some(Self::Tv),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -258,7 +281,7 @@ impl Default for Config {
 
 impl Default for DisplayConfig {
     fn default() -> Self {
-        Self { tv_output: "HDMI-A-1".into(), laptop_output: "eDP-1".into() }
+        Self { tv_output: "HDMI-A-1".into(), laptop_output: "eDP-1".into(), layout: Layout::Dual }
     }
 }
 

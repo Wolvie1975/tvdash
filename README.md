@@ -80,6 +80,19 @@ tvdash --clear-secret plex_token
 Logging: stderr and `~/.local/state/tvdash/tvdash.log` (the previous run's is kept as
 `tvdash.log.1`). More detail: `RUST_LOG=tvdash=debug`.
 
+## TV-only layout (in progress)
+
+Everything on the TV, no laptop panel: set `layout = "tv"` under `[display]` (or try it with
+`tvdash --layout tv`). One full-screen 10-foot window with a side rail: Home (On the TV / Up
+next, Continue Watching, your services), Library, Services and Settings, driven by arrows,
+Enter (OK) and Esc/Backspace (Back). After 5 quiet minutes on Home it shows an ambient clock.
+
+To get Home back while mpv or a streaming site has the screen, bind a GNOME keyboard
+shortcut (Settings › Keyboard › Custom Shortcuts) to `tvdash --home`. It stops playback
+(progress is saved) or closes the browser and returns to Home. Still to come (see
+[docs/tv-only-plan.md](docs/tv-only-plan.md)): Search on the TV, video inside the tvdash
+window (Play/Pause from Home, Full screen, OK overlay), the phone remote and HDMI-CEC.
+
 ## Where to watch (TMDB)
 
 Needs a TMDB **API Read Access Token** (themoviedb.org › Settings › API). Paste it in
