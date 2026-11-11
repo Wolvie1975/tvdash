@@ -306,6 +306,40 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                 WatchAction { label: "All options on TMDB".into(), kind: "tmdb".into(), site: -1, primary: false },
             ]));
         }
+        "settings-display" => {
+            l.global::<Nav>().set_page("settings".into());
+            l.global::<Nav>().set_settings_tab("display".into());
+            l.global::<Display>().set_seconds(true);
+        }
+        "settings-diagnostics" => {
+            l.global::<Nav>().set_page("settings".into());
+            l.global::<Nav>().set_settings_tab("diagnostics".into());
+            let row = |n: &str, st: &str, ok: &str, err: &str| HealthRow {
+                name: n.into(),
+                state: st.into(),
+                last_ok: ok.into(),
+                last_error: err.into(),
+            };
+            let d = l.global::<Diagnostics>();
+            d.set_rows(model(vec![
+                row("Jellyfin", "ok", "21:03 · 1 min ago · 4 in Continue Watching", ""),
+                row(
+                    "Plex",
+                    "warn",
+                    "20:41 · 23 min ago · 2 in Continue Watching",
+                    "21:03 · server unreachable: connection refused",
+                ),
+                row("TMDB", "ok", "20:58 · 6 min ago · search “matrix”: 5 results", ""),
+                row("Weather (Open-Meteo)", "ok", "20:55 · 9 min ago · 48 Light rain", ""),
+                row("GNOME Keyring", "ok", "20:30 · 34 min ago · read/write OK", ""),
+                row("mpv", "off", "", ""),
+                row("Streaming browser", "ok", "20:12 · 52 min ago · opened Netflix", ""),
+            ]));
+            d.set_paths(model(vec![
+                "Log file: /home/you/.local/state/tvdash/tvdash.log".into(),
+                "Settings: /home/you/.config/tvdash/config.toml".into(),
+            ]));
+        }
         "settings-streaming" => {
             l.global::<Nav>().set_page("settings".into());
             l.global::<Nav>().set_settings_tab("streaming".into());
@@ -392,6 +426,12 @@ fn main() {
         };
         let l = laptop(&mode, theme);
         l.show().unwrap();
+        // Let timers and animations (the crossfade) finish.
+        for _ in 0..3 {
+            slint::platform::update_timers_and_animations();
+            std::thread::sleep(std::time::Duration::from_millis(300));
+        }
+        slint::platform::update_timers_and_animations();
         l.window().take_snapshot().unwrap()
     };
     image::save_buffer(&out, snap.as_bytes(), snap.width(), snap.height(), image::ExtendedColorType::Rgba8).unwrap();

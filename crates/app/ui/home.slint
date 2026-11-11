@@ -59,7 +59,18 @@ component WeatherCard inherits Rectangle {
     border-radius: Theme.radius;
     min-width: 380px;
     min-height: 104px;
+    // Amber dot when the last fetch failed.
+    if Dash.weather-warn: Rectangle {
+        x: parent.width - 26px;
+        y: 14px;
+        width: 12px;
+        height: 12px;
+        border-radius: 6px;
+        background: Theme.warn;
+    }
     HorizontalLayout {
+        opacity: Dash.weather-stale ? 0.55 : 1;
+        animate opacity { duration: 400ms; }
         padding-left: 28px;
         padding-right: 28px;
         spacing: 16px;
@@ -76,10 +87,12 @@ component WeatherCard inherits Rectangle {
                 color: Theme.text-primary;
             }
             Text {
-                text: Dash.weather-on ? Dash.weather-detail : "Set latitude and longitude in config.toml";
+                text: !Dash.weather-on ? "Set latitude and longitude in config.toml"
+                    : Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail;
                 font-size: 18px;
-                color: Theme.text-secondary;
+                color: Dash.weather-warn && Dash.weather-note != "" ? Theme.warn : Theme.text-secondary;
                 overflow: elide;
+                max-width: 300px;
             }
         }
     }
@@ -115,7 +128,25 @@ component TvCardView inherits Rectangle {
     border-radius: Theme.card-radius;
     animate background { duration: 400ms; }
 
+    // Crossfade (~400 ms) when the card switches to something else.
+    property <string> showing: Dash.tv.mode + "|" + Dash.tv.title + "|" + Dash.tv.subtitle;
+    property <bool> shown: true;
+    changed showing => {
+        root.shown = false;
+        fade-in.running = true;
+    }
+    fade-in := Timer {
+        interval: 120ms;
+        running: false;
+        triggered => {
+            root.shown = true;
+            self.running = false;
+        }
+    }
+
     VerticalLayout {
+        opacity: root.shown ? 1 : 0;
+        animate opacity { duration: root.shown ? 400ms : 100ms; }
         padding: 36px;
         spacing: 24px;
 
@@ -526,7 +557,13 @@ export component HomePage inherits VerticalLayout {
             spacing: 28px;
             VerticalLayout {
                 alignment: center;
-                Clock { hh: Dash.clock-hh; mm: Dash.clock-mm; font-px: Theme.laptop-clock-size; }
+                Clock {
+                    hh: Dash.clock-hh;
+                    mm: Dash.clock-mm;
+                    ss: Dash.clock-ss;
+                    show-seconds: Dash.show-seconds;
+                    font-px: Theme.laptop-clock-size;
+                }
             }
             VerticalLayout {
                 alignment: center;

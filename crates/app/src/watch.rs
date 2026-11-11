@@ -16,6 +16,7 @@ use tracing::{debug, info, warn};
 use tvdash_core::{
     AppEvent, SecretKey,
     config::StreamingSite,
+    events::Service,
     models::{AccountStatus, MediaItem, MediaKind, SourceKind},
     secrets,
 };
@@ -190,8 +191,13 @@ impl Watch {
         let (events, cache, library) = (self.events.clone(), self.cache.clone(), self.library_snapshot());
         self.search = Some(tokio::spawn(async move {
             let hits = match tmdb.search(&query).await {
-                Ok(h) => h,
+                Ok(h) => {
+                    let note = format!("search “{query}”: {} results", h.len());
+                    let _ = events.send(AppEvent::Health { service: Service::Tmdb, result: Ok(note) });
+                    h
+                }
                 Err(e) => {
+                    let _ = events.send(AppEvent::Health { service: Service::Tmdb, result: Err(e.to_string()) });
                     let status = if matches!(e, TmdbError::Unauthorized) {
                         AccountStatus::Expired
                     } else {
@@ -261,6 +267,7 @@ impl Watch {
                 Ok(p) => p,
                 Err(e) => {
                     warn!(error = %e, "couldn't load the TMDB provider list");
+                    let _ = events.send(AppEvent::Health { service: Service::Tmdb, result: Err(e.to_string()) });
                     return;
                 }
             };

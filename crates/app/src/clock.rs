@@ -1,6 +1,6 @@
 //! Live clock for both windows. Runs on the UI thread via a Slint timer.
 
-use std::time::Duration;
+use std::{cell::Cell, time::Duration};
 
 use chrono::{Local, NaiveDateTime, Utc};
 use slint::{ComponentHandle, Timer, TimerMode};
@@ -12,6 +12,7 @@ use crate::{LaptopWindow, TvWindow};
 pub struct ClockText {
     pub hh: String,
     pub mm: String,
+    pub ss: String,
     /// "Wednesday, November 11" (TV).
     pub date: String,
     /// "Wednesday" and "November 11" (laptop header, two lines).
@@ -27,16 +28,27 @@ pub fn clock_text(now: NaiveDateTime, format: ClockFormat) -> ClockText {
     ClockText {
         hh: hh.to_string(),
         mm: now.format("%M").to_string(),
+        ss: now.format("%S").to_string(),
         date: now.format("%A, %B %-d").to_string(),
         weekday: now.format("%A").to_string(),
         month_day: now.format("%B %-d").to_string(),
     }
 }
 
+thread_local! {
+    /// (12/24 h, seconds), changeable from Settings › Display.
+    static FORMAT: Cell<(ClockFormat, bool)> = const { Cell::new((ClockFormat::H24, false)) };
+}
+
+/// Change the clock format; the next tick (≤ 0.5 s) shows it.
+pub fn set_format(format: ClockFormat, seconds: bool) {
+    FORMAT.set((format, seconds));
+}
+
 /// Start the clock. Keep the returned timer alive for as long as it should tick.
 pub fn start(laptop: &LaptopWindow, tv: &TvWindow, general: &GeneralConfig) -> Timer {
     let tz = general.tz();
-    let format = general.clock;
+    set_format(general.clock, general.seconds);
     let laptop = laptop.as_weak();
     let tv = tv.as_weak();
     let mut last: Option<ClockText> = None;
@@ -46,12 +58,19 @@ pub fn start(laptop: &LaptopWindow, tv: &TvWindow, general: &GeneralConfig) -> T
             Some(tz) => Utc::now().with_timezone(&tz).naive_local(),
             None => Local::now().naive_local(),
         };
-        let text = clock_text(now, format);
+        let (format, seconds) = FORMAT.get();
+        let mut text = clock_text(now, format);
+        if !seconds {
+            text.ss.clear(); // only redraw once a minute
+        }
         if last.as_ref() == Some(&text) {
             return;
         }
+        let minute_changed = last.as_ref().is_none_or(|l| l.mm != text.mm);
         if let Some(l) = laptop.upgrade() {
             let dash = l.global::<crate::Dash>();
+            dash.set_clock_ss(text.ss.as_str().into());
+            dash.set_show_seconds(seconds);
             dash.set_clock_hh(text.hh.as_str().into());
             dash.set_clock_mm(text.mm.as_str().into());
             dash.set_weekday(text.weekday.as_str().into());
@@ -61,6 +80,11 @@ pub fn start(laptop: &LaptopWindow, tv: &TvWindow, general: &GeneralConfig) -> T
             t.set_clock_hh(text.hh.as_str().into());
             t.set_clock_mm(text.mm.as_str().into());
             t.set_date_text(text.date.as_str().into());
+            t.set_clock_ss(text.ss.as_str().into());
+            t.set_show_seconds(seconds);
+        }
+        if minute_changed && let (Some(l), Some(t)) = (laptop.upgrade(), tv.upgrade()) {
+            crate::bridge::on_minute(&l, &t);
         }
         last = Some(text);
     };

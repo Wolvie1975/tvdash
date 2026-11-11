@@ -74,6 +74,17 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     });
 
     let (weak, s) = (laptop.as_weak(), send.clone());
+    laptop.global::<crate::Display>().on_changed(move || {
+        let Some(l) = weak.upgrade() else { return };
+        let d = l.global::<crate::Display>();
+        use tvdash_core::config::{ClockFormat, Units};
+        let units = if d.get_celsius() { Units::Celsius } else { Units::Fahrenheit };
+        let clock = if d.get_h12() { ClockFormat::H12 } else { ClockFormat::H24 };
+        bridge::set_display(&l, units, clock, d.get_seconds());
+        s(Command::SetDisplay { units, clock, seconds: d.get_seconds() });
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
     dash.on_set_theme(move |theme| {
         let mode = bridge::theme_mode(theme);
         if let Some(l) = weak.upgrade() {

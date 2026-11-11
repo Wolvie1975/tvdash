@@ -62,7 +62,9 @@ for the TV, and logs which ones it chose.
 | **Library** | All / Plex / Jellyfin filter, search, Continue Watching, Recently Added; click a poster for details, **Resume on TV** or **Play from the start** |
 | **Settings › Accounts** | Plex, Jellyfin and the TMDB token with Sign in / Sign out / Reconnect; keyring status |
 | **Settings › Streaming** | Every site in tile order: Edit, Hide/Show, move up/down, Add site, Sign in on TV; **Clear browser profile** |
-| *(both)* | **Quit tvdash** in the Settings header with **Sign in on TV**; **Clear browser profile** (signs out of every streaming site) |
+| **Settings › Display** | °F/°C, 24/12-hour, seconds, theme (all live) |
+| **Settings › Diagnostics** | Last success and last error per service (Plex, Jellyfin, TMDB, weather, keyring, mpv, browser), and where the log, settings and caches are |
+| *(all tabs)* | **Quit tvdash** in the Settings header with **Sign in on TV**; **Clear browser profile** (signs out of every streaming site) |
 
 An expired Plex or Jellyfin sign-in shows **Reconnect** on the On the TV card.
 
@@ -75,7 +77,8 @@ tvdash --set-secret jellyfin_token      # paste a secret (read from stdin)
 tvdash --clear-secret plex_token
 ```
 
-Logging: `RUST_LOG=tvdash=debug`.
+Logging: stderr and `~/.local/state/tvdash/tvdash.log` (the previous run's is kept as
+`tvdash.log.1`). More detail: `RUST_LOG=tvdash=debug`.
 
 ## Where to watch (TMDB)
 
@@ -160,3 +163,5 @@ The weather poller has its own end-to-end test in `crates/widgets/tests/`.
 - [x] **M4**: Streaming tiles open each site full screen on the TV in a dedicated profile; Stop/Close closes the whole browser and the TV returns to idle
 - [x] **M5**: Weather (10 min). Calendar and homelab were built, then removed from scope
 - [x] **M6**: First-run setup, Settings › Accounts, expired-sign-in states, Library with search, filters, Recently Added and a detail panel
+- [x] **Redesign**: two columns, On the TV tinted from the poster, touch-first, Dark / Stone / Mist
+- [x] **v1.1**: manage streaming sites; Where to watch (TMDB); service logos; Settings › Display; weather stale/error states; Diagnostics and a log file; TV pixel shift; crossfades

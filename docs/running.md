@@ -9,7 +9,7 @@ drives the TV.
 |---|---|
 | Start it | Open **tvdash** from the app menu, or run `tvdash` in a terminal |
 | Try it without full screen | `tvdash --windowed` (two normal windows you can move around) |
-| See what it's doing | Start it from a terminal; the log prints there. More detail: `RUST_LOG=tvdash=debug tvdash` |
+| See what it's doing | **Settings › Diagnostics** shows each service's last success and error. Full log: `~/.local/state/tvdash/tvdash.log` (or start it from a terminal). More detail: `RUST_LOG=tvdash=debug tvdash` |
 | Stop it | **Settings** (gear, top right) › **Quit tvdash**, or press Alt+F4 on either window |
 
 It also starts by itself when you log in. To change that:
@@ -61,7 +61,8 @@ tvdash --check-keyring
 | Setting | Where | What it does |
 |---|---|---|
 | `latitude`, `longitude` | `[general]` | Location for the weather (off until set) |
-| `units`, `timezone` | `[general]` | `"fahrenheit"` / `"celsius"`; e.g. `"America/Chicago"` |
+| `units`, `clock`, `seconds` | `[general]` | Easier from Settings › Display |
+| `timezone` | `[general]` | e.g. `"America/Chicago"` |
 | `theme` | `[general]` | `"dark"` (default), `"stone"` or `"mist"`; the header switch changes it for you |
 | `tv_output`, `laptop_output` | `[display]` | Which screen is which (see above) |
 | `server_url` | `[jellyfin]` | Your Jellyfin server address |

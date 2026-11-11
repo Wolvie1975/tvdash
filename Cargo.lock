@@ -5642,6 +5642,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "chrono-tz",
+ "directories",
  "i-slint-backend-testing",
  "image",
  "reqwest",

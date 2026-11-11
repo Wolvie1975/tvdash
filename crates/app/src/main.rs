@@ -66,13 +66,34 @@ fn parse_args() -> anyhow::Result<Args> {
     Ok(args)
 }
 
-fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
+/// `~/.local/state/tvdash/tvdash.log` (the previous run's is kept as `tvdash.log.1`).
+pub fn log_path() -> Option<std::path::PathBuf> {
+    let base = std::env::var_os("XDG_STATE_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| directories::BaseDirs::new().map(|b| b.home_dir().join(".local/state")))?;
+    Some(base.join("tvdash").join("tvdash.log"))
+}
+
+/// Log to stderr and to the log file (shown in Settings › Diagnostics).
+fn init_logging() {
+    use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
+    let filter = || EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let file = log_path().and_then(|path| {
+        std::fs::create_dir_all(path.parent()?).ok()?;
+        let _ = std::fs::rename(&path, path.with_extension("log.1"));
+        std::fs::File::create(&path).ok()
+    });
+    let file_layer = file.map(|f| {
+        tracing_subscriber::fmt::layer().with_ansi(false).with_writer(std::sync::Mutex::new(f)).with_filter(filter())
+    });
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr).with_filter(filter()))
+        .with(file_layer)
         .init();
+}
+
+fn main() -> anyhow::Result<()> {
+    init_logging();
 
     let args = parse_args()?;
     if args.check_keyring {
@@ -112,6 +133,16 @@ fn main() -> anyhow::Result<()> {
         bridge::UiConfig {
             tz: config.general.tz(),
             clock: config.general.clock,
+            seconds: config.general.seconds,
+            paths: [
+                ("Log file", log_path()),
+                ("Settings", Some(loaded.path.clone())),
+                ("App state", tvdash_core::state::default_path()),
+                ("Where to watch cache", tvdash_core::state::default_path().map(|p| p.with_file_name("cache.db"))),
+            ]
+            .into_iter()
+            .filter_map(|(what, p)| Some(format!("{what}: {}", p?.display())))
+            .collect(),
             units: config.general.units,
             theme: config.general.theme,
             sites: config.streaming.clone(),
@@ -124,15 +155,17 @@ fn main() -> anyhow::Result<()> {
     runtime.spawn(bridge::forward(event_rx, laptop.as_weak(), tv.as_weak()));
 
     // Header widgets (weather).
+    let (general_tx, general_rx) = tokio::sync::watch::channel(config.general.clone());
     let _widgets = {
         let _rt = runtime.enter();
-        tvdash_widgets::spawn(&config, tvdash_widgets::Endpoints::default(), event_tx.clone())
+        tvdash_widgets::spawn(&config, tvdash_widgets::Endpoints::default(), event_tx.clone(), general_rx)
     };
 
     // UI → background commands, handled by the controller.
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<Command>();
-    let (controller, internal_rx) =
+    let (mut controller, internal_rx) =
         controller::Controller::new((*config).clone(), loaded.path.clone(), args.windowed, event_tx.clone());
+    controller.set_general_tx(general_tx);
     runtime.spawn(controller.run(cmd_rx, internal_rx));
     callbacks::wire(&laptop, cmd_tx.clone());
 

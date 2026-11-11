@@ -58,6 +58,8 @@ export global Dash {
     // Header
     in property <string> clock-hh: "--";
     in property <string> clock-mm: "--";
+    in property <string> clock-ss: "--";
+    in property <bool> show-seconds: false;
     in property <string> weekday;
     in property <string> date-text;
     in property <bool> weather-on: false;
@@ -65,6 +67,11 @@ export global Dash {
     in property <string> weather-detail;
     // Icon name (see icons.slint): "clear" | "partly" | "cloud" | "fog" | "rain" | "snow" | "storm"
     in property <string> weather-icon: "partly";
+    // Last value is old (shown dimmed) / the last fetch failed (amber dot).
+    in property <bool> weather-stale: false;
+    in property <bool> weather-warn: false;
+    // "Updated 25 min ago" or why it failed; replaces the detail line when set.
+    in property <string> weather-note;
 
     // On the TV
     in property <TvCard> tv: { mode: "idle", label: "ON THE TV", title: "Nothing playing", subtitle: "The TV is showing the idle screen." };
@@ -264,4 +271,25 @@ export global Watch {
     callback select(string);
     callback action(WatchAction);
     callback close-detail();
+}
+
+// Settings › Display.
+export global Display {
+    in-out property <bool> celsius: false;
+    in-out property <bool> h12: false;
+    in-out property <bool> seconds: false;
+    callback changed();
+}
+
+export struct HealthRow {
+    name: string,
+    state: string,      // "ok" | "warn" | "off"
+    last-ok: string,    // "12:04 · 2 min ago · 6 in Continue Watching"
+    last-error: string, // "11:58 · HTTP 500"
+}
+
+// Settings › Diagnostics.
+export global Diagnostics {
+    in property <[HealthRow]> rows;
+    in property <[string]> paths;   // "Log file: /home/…/tvdash.log"
 }

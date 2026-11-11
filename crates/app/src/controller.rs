@@ -19,7 +19,7 @@ use tracing::{debug, error, info, warn};
 use tvdash_core::{
     AppEvent, Command, Config, SecretKey,
     config::{StreamingSite, encode_component, expand_home},
-    events::PlayerStatus,
+    events::{PlayerStatus, Service},
     models::{AccountStatus, Geometry, MediaItem, PlayState, RgbaImage, SignInState, SourceKind},
     secrets,
     state::AppState,
@@ -84,6 +84,8 @@ pub struct Controller {
     posters_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
     /// Where to watch (TMDB) and service logos.
     pub(crate) watch: Watch,
+    /// Tells the widget pollers about display setting changes (units).
+    general_tx: Option<tokio::sync::watch::Sender<tvdash_core::config::GeneralConfig>>,
 }
 
 enum Step {
@@ -120,14 +122,23 @@ impl Controller {
             state: AppState::default(),
             state_path: tvdash_core::state::default_path(),
             posters_requested: Arc::default(),
+            general_tx: None,
             watch: Watch::new(events.clone(), tvdash_core::state::default_path().map(|p| p.with_file_name("cache.db"))),
         };
         c.watch.set_internal(c.internal.clone());
         (c, internal_rx)
     }
 
+    pub fn set_general_tx(&mut self, tx: tokio::sync::watch::Sender<tvdash_core::config::GeneralConfig>) {
+        self.general_tx = Some(tx);
+    }
+
     fn emit(&self, event: AppEvent) {
         let _ = self.events.send(event);
+    }
+
+    fn health(&self, service: Service, result: Result<String, String>) {
+        self.emit(AppEvent::Health { service, result });
     }
 
     fn toast(&self, msg: impl Into<String>) {
@@ -359,6 +370,16 @@ impl Controller {
             Command::JellyfinPassword { username, password } => self.jellyfin_password(username, password),
             Command::ClearBrowserProfile => self.clear_browser_profile().await,
             Command::SetTheme(mode) => self.update_config(|c| c.general.theme = mode),
+            Command::SetDisplay { units, clock, seconds } => {
+                self.update_config(|c| {
+                    c.general.units = units;
+                    c.general.clock = clock;
+                    c.general.seconds = seconds;
+                });
+                if let Some(tx) = &self.general_tx {
+                    let _ = tx.send(self.config.general.clone());
+                }
+            }
             Command::SetupFinished => {
                 self.state.setup_complete = true;
                 self.save_state();
@@ -515,12 +536,15 @@ impl Controller {
                 let kind = source.kind();
                 match source.continue_watching().await {
                     Ok(items) => {
+                        let note = format!("{} in Continue Watching", items.len());
+                        let _ = events.send(AppEvent::Health { service: kind.into(), result: Ok(note) });
                         let _ = events.send(AppEvent::Account(kind, AccountStatus::Connected));
                         let _ = events.send(AppEvent::ContinueWatching(kind, items.clone()));
                         fetch_posters(source.clone(), items, requested.clone(), events.clone());
                     }
                     Err(e) => {
                         warn!(source = kind.label(), error = %e, "continue watching failed");
+                        let _ = events.send(AppEvent::Health { service: kind.into(), result: Err(e.to_string()) });
                         let _ = events.send(AppEvent::Account(kind, account_status(&e)));
                         return;
                     }
@@ -677,11 +701,13 @@ impl Controller {
             Ok(m) => m,
             Err(e) => {
                 error!(error = %e, "couldn't start mpv");
+                self.health(Service::Player, Err(e.to_string()));
                 self.toast(format!("Couldn't start mpv: {e}"));
                 return;
             }
         };
         info!(title = %item.title, resume_ms = ?item.resume_ms, "playing on the TV");
+        self.health(Service::Player, Ok(format!("playing {}", item.title)));
 
         let start = item.resume_ms.unwrap_or(0);
         let reporter = spawn_reporter(source, item.clone());
@@ -795,10 +821,12 @@ impl Controller {
             Ok(b) => {
                 self.browser = Some(b);
                 self.emit(AppEvent::Browser(Some(label.to_owned())));
+                self.health(Service::Browser, Ok(format!("opened {label}")));
                 true
             }
             Err(e) => {
                 error!(error = %e, "couldn't start the browser");
+                self.health(Service::Browser, Err(e.to_string()));
                 self.toast(format!("Couldn't open {label}: {e}"));
                 false
             }
@@ -914,6 +942,9 @@ impl Controller {
             }
             Some(MpvEvent::Error { prefix, text }) => {
                 warn!(%prefix, %text, "mpv error");
+                let _ = self
+                    .events
+                    .send(AppEvent::Health { service: Service::Player, result: Err(format!("{prefix}: {text}")) });
                 if !p.decode_hint_shown
                     && let Some(hint) = decoder_hint(&prefix, &text)
                 {

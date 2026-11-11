@@ -16,9 +16,12 @@ pub type Result<T> = std::result::Result<T, WidgetError>;
 
 // ── Pollers ─────────────────────────────────────────────────────────
 
-use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
+use tokio::{
+    sync::{mpsc::UnboundedSender, watch},
+    task::JoinHandle,
+};
 use tracing::{info, warn};
-use tvdash_core::{AppEvent, Config};
+use tvdash_core::{AppEvent, Config, config::GeneralConfig, events::Service};
 
 /// Overridable service URLs (tests point these at fakes).
 #[derive(Debug, Clone)]
@@ -52,36 +55,56 @@ impl Widgets {
     }
 }
 
-/// Start the pollers. Each sends its first result right away.
-pub fn spawn(config: &Config, endpoints: Endpoints, events: UnboundedSender<AppEvent>) -> Widgets {
+/// Start the pollers. Each sends its first result right away. `general`
+/// carries setting changes (units) so the weather is fetched again at once.
+pub fn spawn(
+    config: &Config,
+    endpoints: Endpoints,
+    events: UnboundedSender<AppEvent>,
+    mut general: watch::Receiver<GeneralConfig>,
+) -> Widgets {
     let mut tasks = Vec::new();
+    let _ = config; // per-widget settings come from `general`
 
     // Weather
-    {
-        let g = config.general.clone();
-        let events = events.clone();
-        tasks.push(tokio::spawn(async move {
-            let http = client();
-            let Some(loc) = weather::location(g.latitude, g.longitude) else {
-                info!("no latitude/longitude in config; weather disabled");
-                let _ = events.send(AppEvent::Weather(None));
-                return;
-            };
-            loop {
-                let wait = match weather::fetch(&http, &endpoints.weather, loc, g.units, &g.timezone).await {
+    tasks.push(tokio::spawn(async move {
+        let http = client();
+        loop {
+            let g = general.borrow_and_update().clone();
+            let wait = match weather::location(g.latitude, g.longitude) {
+                None => {
+                    info!("no latitude/longitude in config; weather disabled");
+                    let _ = events.send(AppEvent::Weather(None));
+                    None
+                }
+                Some(loc) => match weather::fetch(&http, &endpoints.weather, loc, g.units, &g.timezone).await {
                     Ok(w) => {
+                        let note = format!("{} {}", w.temperature.round(), w.condition);
                         let _ = events.send(AppEvent::Weather(Some(w)));
-                        weather::REFRESH
+                        let _ = events.send(AppEvent::Health { service: Service::Weather, result: Ok(note) });
+                        Some(weather::REFRESH)
                     }
                     Err(e) => {
                         warn!(error = %e, "weather fetch failed; retrying in 1 min");
-                        std::time::Duration::from_secs(60)
+                        let _ = events.send(AppEvent::Health { service: Service::Weather, result: Err(e.to_string()) });
+                        Some(std::time::Duration::from_secs(60))
                     }
-                };
-                tokio::time::sleep(wait).await;
+                },
+            };
+            match wait {
+                Some(d) => {
+                    tokio::select! {
+                        _ = tokio::time::sleep(d) => {}
+                        changed = general.changed() => if changed.is_err() { return },
+                    }
+                }
+                None => {
+                    if general.changed().await.is_err() {
+                        return;
+                    }
+                }
             }
-        }));
-    }
-
+        }
+    }));
     Widgets { tasks }
 }

@@ -1,7 +1,8 @@
 import { Theme } from "theme.slint";
 import { Icon } from "icons.slint";
-import { ActionButton, Card, PageHeader, SectionLabel, TextField } from "components.slint";
-import { Accounts, AccountRow, Dash, Nav, SiteEditor, SiteRow } from "state.slint";
+import { ActionButton, Card, CheckBox, PageHeader, SectionLabel, TextField } from "components.slint";
+import { Accounts, AccountRow, Dash, Diagnostics, Display, HealthRow, Nav, SiteEditor, SiteRow } from "state.slint";
+import { Theme as T, UiTheme } from "theme.slint";
 
 component AccountLine inherits VerticalLayout {
     in property <AccountRow> account;
@@ -263,6 +264,152 @@ component StreamingTab inherits VerticalLayout {
     }
 }
 
+// Two or three mutually exclusive choices.
+component Segment inherits Rectangle {
+    in property <string> label;
+    in property <bool> on;
+    callback clicked();
+    min-height: Theme.hit-target;
+    min-width: t.preferred-width + 44px;
+    border-radius: 14px;
+    background: root.on ? Theme.text-primary : touch.pressed ? Theme.surface-raised : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    t := Text { text: root.label; font-size: 20px; font-weight: 500; color: root.on ? Theme.bg : Theme.text-secondary; }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component SettingLine inherits HorizontalLayout {
+    in property <string> title;
+    in property <string> detail;
+    spacing: 20px;
+    VerticalLayout {
+        alignment: center;
+        spacing: 4px;
+        horizontal-stretch: 1;
+        Text { text: root.title; font-size: Theme.body-size; font-weight: 600; color: Theme.text-primary; }
+        Text { text: root.detail; font-size: 17px; color: Theme.text-secondary; wrap: word-wrap; }
+    }
+    @children
+}
+
+component SegmentBox inherits Rectangle {
+    background: Theme.surface;
+    border-width: 1px;
+    border-color: Theme.border;
+    border-radius: Theme.radius;
+    HorizontalLayout {
+        padding: 4px;
+        @children
+    }
+}
+
+component DisplayTab inherits VerticalLayout {
+    spacing: Theme.gap;
+    alignment: start;
+    Card {
+        VerticalLayout {
+            padding: 28px;
+            spacing: 24px;
+            SectionLabel { text: "DISPLAY"; }
+            SettingLine {
+                title: "Temperature";
+                detail: "Weather in the header.";
+                VerticalLayout {
+                    alignment: center;
+                    SegmentBox {
+                        Segment { label: "°F"; on: !Display.celsius; clicked => { Display.celsius = false; Display.changed(); } }
+                        Segment { label: "°C"; on: Display.celsius; clicked => { Display.celsius = true; Display.changed(); } }
+                    }
+                }
+            }
+            Rectangle { height: 1px; background: Theme.border; }
+            SettingLine {
+                title: "Clock";
+                detail: "On the laptop, the TV and in end times.";
+                VerticalLayout {
+                    alignment: center;
+                    SegmentBox {
+                        Segment { label: "24-hour"; on: !Display.h12; clicked => { Display.h12 = false; Display.changed(); } }
+                        Segment { label: "12-hour"; on: Display.h12; clicked => { Display.h12 = true; Display.changed(); } }
+                    }
+                }
+            }
+            Rectangle { height: 1px; background: Theme.border; }
+            SettingLine {
+                title: "Seconds";
+                detail: "Show seconds on both clocks.";
+                VerticalLayout {
+                    alignment: center;
+                    CheckBox { text: "Show seconds"; checked <=> Display.seconds; toggled => { Display.changed(); } }
+                }
+            }
+            Rectangle { height: 1px; background: Theme.border; }
+            SettingLine {
+                title: "Theme";
+                detail: "The laptop only; the TV always stays dark. Also in the dashboard header.";
+                VerticalLayout {
+                    alignment: center;
+                    SegmentBox {
+                        Segment { label: "Dark"; on: T.mode == UiTheme.dark; clicked => { Dash.set-theme(UiTheme.dark); } }
+                        Segment { label: "Stone"; on: T.mode == UiTheme.stone; clicked => { Dash.set-theme(UiTheme.stone); } }
+                        Segment { label: "Mist"; on: T.mode == UiTheme.mist; clicked => { Dash.set-theme(UiTheme.mist); } }
+                    }
+                }
+            }
+        }
+    }
+}
+
+component HealthLine inherits HorizontalLayout {
+    in property <HealthRow> health;
+    spacing: 18px;
+    VerticalLayout {
+        alignment: center;
+        Rectangle {
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            background: root.health.state == "ok" ? Theme.ok : root.health.state == "warn" ? Theme.warn : Theme.border;
+        }
+    }
+    Text { text: root.health.name; font-size: Theme.body-size; font-weight: 600; color: Theme.text-primary; width: 280px; vertical-alignment: center; }
+    VerticalLayout {
+        alignment: center;
+        spacing: 4px;
+        horizontal-stretch: 1;
+        Text { text: root.health.last-ok != "" ? "Last OK · " + root.health.last-ok : "No successful check yet"; font-size: 18px; color: Theme.text-secondary; overflow: elide; }
+        if root.health.last-error != "": Text { text: "Last error · " + root.health.last-error; font-size: 18px; color: Theme.warn; wrap: word-wrap; }
+    }
+}
+
+component DiagnosticsTab inherits VerticalLayout {
+    spacing: Theme.gap;
+    Card {
+        VerticalLayout {
+            padding: 28px;
+            spacing: 20px;
+            SectionLabel { text: "SERVICES"; }
+            for row[i] in Diagnostics.rows: VerticalLayout {
+                spacing: 20px;
+                if i > 0: Rectangle { height: 1px; background: Theme.border; }
+                HealthLine { health: row; }
+            }
+        }
+    }
+    Card {
+        VerticalLayout {
+            padding: 28px;
+            spacing: 12px;
+            SectionLabel { text: "FILES"; }
+            for line in Diagnostics.paths: Text { text: line; font-size: 18px; color: Theme.text-secondary; wrap: word-wrap; }
+        }
+    }
+}
+
 export component SettingsPage inherits VerticalLayout {
     padding: 40px;
     spacing: Theme.gap;
@@ -283,6 +430,8 @@ export component SettingsPage inherits VerticalLayout {
                 padding: 4px;
                 Tab { id: "accounts"; label: "Accounts"; }
                 Tab { id: "streaming"; label: "Streaming"; }
+                Tab { id: "display"; label: "Display"; }
+                Tab { id: "diagnostics"; label: "Diagnostics"; }
             }
         }
         ActionButton { text: "Quit tvdash"; clicked => { Dash.quit(); } }
@@ -290,4 +439,6 @@ export component SettingsPage inherits VerticalLayout {
 
     if Nav.settings-tab == "accounts": AccountsTab { }
     if Nav.settings-tab == "streaming": StreamingTab { }
+    if Nav.settings-tab == "display": DisplayTab { }
+    if Nav.settings-tab == "diagnostics": DiagnosticsTab { }
 }

@@ -14,6 +14,8 @@ export component SectionLabel inherits Text {
 export component Clock {
     in property <string> hh: "--";
     in property <string> mm: "--";
+    in property <string> ss: "--";
+    in property <bool> show-seconds: false;
     in property <length> font-px: Theme.laptop-clock-size;
     in property <color> tint: Theme.text-primary;
     in property <int> weight: 300;
@@ -42,6 +44,15 @@ export component Clock {
             font-size: root.font-px;
             font-weight: root.weight;
             color: root.tint;
+        }
+        if root.show-seconds: Text {
+            text: root.ss;
+            width: root.font-px * 0.7;
+            horizontal-alignment: left;
+            vertical-alignment: bottom;
+            font-size: root.font-px * 0.45;
+            font-weight: root.weight;
+            color: root.tint.transparentize(0.35);
         }
     }
 }
@@ -393,6 +404,7 @@ export component CheckBox inherits Rectangle {
     in-out property <bool> checked;
     callback toggled(bool);
     min-height: Theme.hit-target;
+    horizontal-stretch: 0;
     accessible-role: checkbox;
     accessible-checked: root.checked;
     accessible-label: root.text;

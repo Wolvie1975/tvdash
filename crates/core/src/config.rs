@@ -87,6 +87,8 @@ impl ThemeMode {
 pub struct GeneralConfig {
     pub units: Units,
     pub clock: ClockFormat,
+    /// Show seconds on the clocks.
+    pub seconds: bool,
     /// Laptop theme, switched from the dashboard header.
     pub theme: ThemeMode,
     pub latitude: f64,
@@ -265,6 +267,7 @@ impl Default for GeneralConfig {
         Self {
             units: Units::Fahrenheit,
             clock: ClockFormat::H24,
+            seconds: false,
             theme: ThemeMode::Dark,
             latitude: 0.0,
             longitude: 0.0,

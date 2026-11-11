@@ -8,6 +8,8 @@ Design canvas: https://claude.ai/artifact/UggZzEChLyVVffZNfdGnTf, page **Future 
 
 ---
 
+> **Status (2026-11-11):** v1.1 is built. See the checklists below for what differs from this plan.
+
 ## 1. Roadmap at a glance
 
 | Version | Theme | Headline features |
@@ -77,10 +79,10 @@ Per-site deletion straight from the app is fragile (the cookie DB is encrypted w
 
 ### Done when
 
-- [ ] Add, edit, hide, show, remove and reorder all work and survive a restart.
-- [ ] Test on TV opens the URL full screen in the TV profile.
-- [ ] Removing a site asks to confirm; the tile disappears without a restart.
-- [ ] A v1 config with no new fields loads without errors.
+- [x] Add, edit, hide, show, remove and reorder all work and survive a restart.
+- [x] Test on TV opens the URL full screen in the TV profile.
+- [x] Removing a site asks to confirm; the tile disappears without a restart.
+- [x] A v1 config with no new fields loads without errors.
 
 ---
 
@@ -193,12 +195,12 @@ The design doesn't yet say where search starts. The suggestion is a search field
 
 ### Done when
 
-- [ ] Searching shows grouped results; the switch hides the last two groups.
-- [ ] A title in Plex or Jellyfin lands in **In your library** and Resume on TV plays it.
-- [ ] A title on one of your services lands in **On your services**, and Open on TV opens that site (search page if set).
-- [ ] Hidden sites still count as yours.
-- [ ] JustWatch credit is visible on the screen.
-- [ ] A repeated search within 24 h makes no availability calls (cache hit).
+- [x] Searching shows grouped results; the switch hides the last two groups.
+- [x] A title in Plex or Jellyfin lands in **In your library** and Resume on TV plays it.
+- [x] A title on one of your services lands in **On your services**, and Open on TV opens that site (search page if set).
+- [x] Hidden sites still count as yours.
+- [x] JustWatch credit is visible on the screen.
+- [x] A repeated search within 24 h makes no availability calls (cache hit).
 
 ---
 
@@ -275,10 +277,10 @@ Read the desktop portal's `org.freedesktop.appearance` / `color-scheme` (the `as
 
 ### Done when
 
-- [ ] Theme setting switches the laptop window live, without a restart, and survives a restart.
-- [ ] Follow system tracks GNOME's Appearance setting as it changes.
-- [ ] The TV window stays dark in every theme.
-- [ ] Every widget, tile and source badge uses its role colour in all three themes.
+- [x] Theme setting switches the laptop window live, without a restart, and survives a restart.
+- [ ] Follow system tracks GNOME's Appearance setting as it changes. *(Not built: you chose Dark as the default with a manual switch.)*
+- [x] The TV window stays dark in every theme.
+- [x] ~~Every widget, tile and source badge uses its role colour in all three themes.~~ Replaced by Option B (poster tint); tiles use their own hues.
 
 ---
 

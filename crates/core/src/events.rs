@@ -22,6 +22,44 @@ pub struct PlayerStatus {
     pub duration_ms: Option<u64>,
 }
 
+/// Things Settings › Diagnostics reports on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Service {
+    Jellyfin,
+    Plex,
+    Tmdb,
+    Weather,
+    Keyring,
+    Player,
+    Browser,
+}
+
+impl Service {
+    pub const ALL: [Service; 7] =
+        [Self::Jellyfin, Self::Plex, Self::Tmdb, Self::Weather, Self::Keyring, Self::Player, Self::Browser];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Jellyfin => "Jellyfin",
+            Self::Plex => "Plex",
+            Self::Tmdb => "TMDB",
+            Self::Weather => "Weather (Open-Meteo)",
+            Self::Keyring => "GNOME Keyring",
+            Self::Player => "mpv",
+            Self::Browser => "Streaming browser",
+        }
+    }
+}
+
+impl From<crate::models::SourceKind> for Service {
+    fn from(k: crate::models::SourceKind) -> Self {
+        match k {
+            crate::models::SourceKind::Jellyfin => Self::Jellyfin,
+            crate::models::SourceKind::Plex => Self::Plex,
+        }
+    }
+}
+
 /// Finished data for the UI. Produced off the UI thread.
 #[derive(Debug, Clone)]
 pub enum AppEvent {
@@ -58,6 +96,11 @@ pub enum AppEvent {
     Streaming(BTreeMap<String, DateTime<Utc>>),
     /// Show the first-run setup (nothing is connected yet).
     ShowSetup,
+    /// A service was polled (Settings › Diagnostics): `Ok(note)` or `Err(reason)`.
+    Health {
+        service: Service,
+        result: Result<String, String>,
+    },
     /// The streaming sites changed (all of them, hidden ones too, in tile order).
     Sites(Vec<crate::config::StreamingSite>),
     /// TMDB token state (Where to watch).
@@ -151,4 +194,10 @@ pub enum Command {
     SetupFinished,
     /// Remember the laptop theme picked in the header.
     SetTheme(crate::config::ThemeMode),
+    /// Settings › Display: temperature units, clock format, seconds.
+    SetDisplay {
+        units: crate::config::Units,
+        clock: crate::config::ClockFormat,
+        seconds: bool,
+    },
 }

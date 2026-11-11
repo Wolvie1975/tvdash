@@ -11,12 +11,31 @@ export component TvWindow inherits Window {
 
     in property <string> clock-hh: "--";
     in property <string> clock-mm: "--";
+    in property <string> clock-ss: "--";
+    in property <bool> show-seconds: false;
     in property <string> date-text;
     // Replaces "Ready…" while something is starting ("Opening Netflix…").
     in property <string> message;
 
+    // Burn-in protection: the idle screen drifts a few pixels every few minutes.
+    property <int> shift-step: 0;
+    property <[{x: length, y: length}]> shifts: [
+        { x: 0px, y: 0px }, { x: 6px, y: -4px }, { x: -5px, y: 5px }, { x: 4px, y: 7px },
+        { x: -7px, y: -3px }, { x: 2px, y: -7px }, { x: -3px, y: 3px }, { x: 7px, y: 2px },
+    ];
+    Timer {
+        interval: 180s;
+        running: true;
+        triggered => { root.shift-step = Math.mod(root.shift-step + 1, root.shifts.length); }
+    }
+
     // ── Idle screen: dim, low-contrast, calm ─────────────────────
     VerticalLayout {
+        x: root.shifts[root.shift-step].x;
+        y: root.shifts[root.shift-step].y;
+        width: root.width;
+        height: root.height;
+        animate x, y { duration: 2s; easing: ease-in-out; }
         alignment: center;
         spacing: 24px;
 
@@ -25,6 +44,8 @@ export component TvWindow inherits Window {
             Clock {
                 hh: root.clock-hh;
                 mm: root.clock-mm;
+                ss: root.clock-ss;
+                show-seconds: root.show-seconds;
                 font-px: Theme.tv-clock-size;
                 tint: Theme.text-secondary.with-alpha(0.55);
                 weight: 300;
@@ -39,6 +60,7 @@ export component TvWindow inherits Window {
         Rectangle { height: 48px; }
         Text {
             text: root.message != "" ? root.message : "Ready — pick something on the laptop";
+            animate color { duration: 400ms; }
             horizontal-alignment: center;
             font-size: Theme.tv-body-size;
             color: Theme.text-muted.with-alpha(0.5);

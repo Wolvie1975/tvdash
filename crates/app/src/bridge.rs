@@ -14,13 +14,13 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tvdash_core::{
     AppEvent,
     config::{ClockFormat, StreamingSite, ThemeMode, Units},
-    events::PlayerStatus,
-    models::{AccountStatus, MediaItem, PlayState, Session, SignInState, SourceKind},
+    events::{PlayerStatus, Service},
+    models::{AccountStatus, MediaItem, PlayState, Session, SignInState, SourceKind, Weather},
 };
 
 use crate::{
-    AccountPrompt, AccountRow, Accounts, Dash, DetailData, LaptopWindow, Library, Nav, PosterCardData, SessionRow,
-    Setup, SiteEditor, SiteRow, SiteTileData, Theme, TvCard, TvWindow, UiTheme, format,
+    AccountPrompt, AccountRow, Accounts, Dash, DetailData, Diagnostics, Display, HealthRow, LaptopWindow, Library, Nav,
+    PosterCardData, SessionRow, Setup, SiteEditor, SiteRow, SiteTileData, Theme, TvCard, TvWindow, UiTheme, format,
     tint::{self, Hue},
 };
 
@@ -49,6 +49,11 @@ pub struct UiState {
     posters: HashMap<(SourceKind, String), Image>,
     /// TMDB token state.
     tmdb: Option<AccountStatus>,
+    /// Last weather and when it arrived; the last fetch error, if the latest fetch failed.
+    weather: Option<(Weather, DateTime<Utc>)>,
+    weather_err: Option<String>,
+    /// Settings › Diagnostics: last success and last error per service.
+    health: HashMap<Service, Health>,
     /// Service logos (from TMDB) by site name.
     logos: HashMap<String, Image>,
     /// Dominant hue of each poster, for tints.
@@ -80,10 +85,23 @@ thread_local! {
     pub static STATE: RefCell<UiState> = RefCell::new(UiState::default());
 }
 
+/// Last success and failure of a service, with when.
+#[derive(Default, Clone)]
+struct Health {
+    ok: Option<(DateTime<Utc>, String)>,
+    err: Option<(DateTime<Utc>, String)>,
+}
+
+/// Weather older than this is shown dimmed with its age (it refreshes every 10 min).
+const WEATHER_STALE: chrono::TimeDelta = chrono::TimeDelta::minutes(20);
+
 /// Settings the UI needs from the config.
 pub struct UiConfig {
     pub tz: Option<chrono_tz::Tz>,
     pub clock: ClockFormat,
+    pub seconds: bool,
+    /// "Log file: …" lines for Settings › Diagnostics.
+    pub paths: Vec<String>,
     pub units: Units,
     pub theme: ThemeMode,
     pub sites: Vec<StreamingSite>,
@@ -110,9 +128,108 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         acc.set_accounts(ModelRc::from(s.account_rows.clone()));
         acc.set_sites(ModelRc::from(s.site_rows.clone()));
         laptop.global::<Setup>().set_jellyfin_url(c.jellyfin_url.as_str().into());
+        let d = laptop.global::<Display>();
+        d.set_celsius(c.units == Units::Celsius);
+        d.set_h12(c.clock == ClockFormat::H12);
+        d.set_seconds(c.seconds);
+        let paths: Vec<slint::SharedString> = c.paths.iter().map(|p| p.as_str().into()).collect();
+        laptop.global::<Diagnostics>().set_paths(ModelRc::new(VecModel::from(paths)));
+        refresh_diagnostics(s, laptop);
         apply_theme(s, laptop, c.theme);
         refresh_accounts(s, laptop);
     });
+}
+
+/// Settings › Display changed: re-render times and temperatures (the weather
+/// poller fetches again in the new units by itself).
+pub fn set_display(laptop: &LaptopWindow, units: Units, clock: ClockFormat, seconds: bool) {
+    crate::clock::set_format(clock, seconds);
+    STATE.with_borrow_mut(|s| {
+        s.units = Some(units);
+        s.clock = Some(clock);
+        refresh_tv_card(s, laptop);
+        refresh_diagnostics(s, laptop);
+    });
+}
+
+/// Once a minute: ages ("updated 25 min ago"), end times.
+pub fn on_minute(laptop: &LaptopWindow, _tv: &TvWindow) {
+    STATE.with_borrow(|s| {
+        refresh_weather(s, laptop);
+        refresh_diagnostics(s, laptop);
+        refresh_tv_card(s, laptop);
+    });
+}
+
+fn ago(t: DateTime<Utc>) -> String {
+    match (Utc::now() - t).num_minutes() {
+        ..1 => "just now".into(),
+        1 => "1 min ago".into(),
+        m @ ..120 => format!("{m} min ago"),
+        m => format!("{} h ago", m / 60),
+    }
+}
+
+fn refresh_weather(s: &UiState, laptop: &LaptopWindow) {
+    let dash = laptop.global::<Dash>();
+    let warn = s.weather_err.is_some();
+    dash.set_weather_warn(warn);
+    match &s.weather {
+        None => {
+            if let Some(e) = &s.weather_err {
+                dash.set_weather_on(true);
+                dash.set_weather_temp("—".into());
+                dash.set_weather_stale(true);
+                dash.set_weather_note(format!("Unavailable: {e}").into());
+            }
+        }
+        Some((w, at)) => {
+            let c = format::weather_chip(w, s.units.unwrap_or(Units::Fahrenheit));
+            dash.set_weather_on(true);
+            dash.set_weather_temp(c.value.into());
+            dash.set_weather_detail(c.detail.into());
+            dash.set_weather_icon(format::weather_icon(w.code).into());
+            let stale = Utc::now() - *at > WEATHER_STALE;
+            dash.set_weather_stale(stale);
+            dash.set_weather_note(if stale { format!("Updated {}", ago(*at)) } else { String::new() }.into());
+        }
+    }
+}
+
+fn refresh_diagnostics(s: &UiState, laptop: &LaptopWindow) {
+    let clock = s.clock.unwrap_or(ClockFormat::H24);
+    let at = |t: &DateTime<Utc>| {
+        let local = match s.tz {
+            Some(tz) => t.with_timezone(&tz).naive_local(),
+            None => t.with_timezone(&chrono::Local).naive_local(),
+        };
+        format!("{} · {}", format::hm(local, clock), ago(*t))
+    };
+    let rows: Vec<HealthRow> = Service::ALL
+        .iter()
+        .map(|svc| {
+            let h = s.health.get(svc).cloned().unwrap_or_default();
+            let failing = match (&h.ok, &h.err) {
+                (_, None) => false,
+                (None, Some(_)) => true,
+                (Some((ok, _)), Some((err, _))) => err > ok,
+            };
+            HealthRow {
+                name: svc.label().into(),
+                state: if failing {
+                    "warn"
+                } else if h.ok.is_some() {
+                    "ok"
+                } else {
+                    "off"
+                }
+                .into(),
+                last_ok: h.ok.as_ref().map(|(t, note)| format!("{} · {note}", at(t))).unwrap_or_default().into(),
+                last_error: h.err.as_ref().map(|(t, e)| format!("{} · {e}", at(t))).unwrap_or_default().into(),
+            }
+        })
+        .collect();
+    laptop.global::<Diagnostics>().set_rows(ModelRc::new(VecModel::from(rows)));
 }
 
 /// Switch the laptop's colours (the TV window keeps its own, dark, Theme).
@@ -211,11 +328,30 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
     let theme = laptop.global::<Theme>();
     let dash = laptop.global::<Dash>();
     match event {
+        AppEvent::Health { service, result } => {
+            let h = s.health.entry(service).or_default();
+            match result {
+                Ok(note) => h.ok = Some((Utc::now(), note)),
+                Err(e) => h.err = Some((Utc::now(), e)),
+            }
+            if service == Service::Weather {
+                s.weather_err = s.health[&service].err.as_ref().and_then(|(t, e)| {
+                    let newer = s.health[&service].ok.as_ref().is_none_or(|(ok, _)| t > ok);
+                    newer.then(|| e.clone())
+                });
+                refresh_weather(s, laptop);
+            }
+            refresh_diagnostics(s, laptop);
+        }
         AppEvent::KeyringStatus(Ok(())) => {
+            s.health.entry(Service::Keyring).or_default().ok = Some((Utc::now(), "read/write OK".into()));
+            refresh_diagnostics(s, laptop);
             dash.set_keyring_status("GNOME Keyring connected".into());
             dash.set_keyring_dot(theme.get_ok());
         }
         AppEvent::KeyringStatus(Err(e)) => {
+            s.health.entry(Service::Keyring).or_default().err = Some((Utc::now(), e.clone()));
+            refresh_diagnostics(s, laptop);
             dash.set_keyring_status(format!("Keyring unavailable: {e}").into());
             dash.set_keyring_dot(theme.get_alert());
         }
@@ -323,13 +459,14 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             s.sessions.set_vec(sessions.iter().map(session_row).collect::<Vec<_>>());
         }
         AppEvent::Weather(Some(w)) => {
-            let c = format::weather_chip(&w, s.units.unwrap_or(Units::Fahrenheit));
-            dash.set_weather_temp(c.value.into());
-            dash.set_weather_detail(c.detail.into());
-            dash.set_weather_icon(format::weather_icon(w.code).into());
-            dash.set_weather_on(true);
+            s.weather = Some((w, Utc::now()));
+            s.weather_err = None;
+            refresh_weather(s, laptop);
         }
-        AppEvent::Weather(None) => dash.set_weather_on(false),
+        AppEvent::Weather(None) => {
+            s.weather = None;
+            dash.set_weather_on(false);
+        }
         AppEvent::Tmdb(status) => {
             let acc = laptop.global::<Accounts>();
             if acc.get_editing() == "tmdb" {
@@ -896,6 +1033,8 @@ mod tests {
             UiConfig {
                 tz: Some(chrono_tz::America::Chicago),
                 clock: ClockFormat::H24,
+                seconds: false,
+                paths: vec!["Log file: /tmp/tvdash.log".into()],
                 units: Units::Fahrenheit,
                 theme: ThemeMode::Dark,
                 sites: sites
@@ -1025,6 +1164,43 @@ mod tests {
         assert_eq!(rows.row_count(), 3);
         assert!(rows.row_data(1).unwrap().hidden);
         assert_eq!(sites().len(), 3);
+    }
+
+    #[test]
+    fn weather_states_and_diagnostics() {
+        let (l, t) = windows();
+        let dash = l.global::<Dash>();
+        // Failing before any data: shown as unavailable with the reason.
+        send(&l, &t, AppEvent::Health { service: Service::Weather, result: Err("HTTP 502".into()) });
+        assert!(dash.get_weather_on() && dash.get_weather_warn());
+        assert_eq!(dash.get_weather_note(), "Unavailable: HTTP 502");
+
+        let w = Weather { temperature: 51.0, code: 2, condition: "Partly cloudy".into(), high: None, low: None };
+        send(&l, &t, AppEvent::Weather(Some(w)));
+        send(&l, &t, AppEvent::Health { service: Service::Weather, result: Ok("51 Partly cloudy".into()) });
+        assert!(!dash.get_weather_warn() && !dash.get_weather_stale());
+        assert_eq!((dash.get_weather_temp().as_str(), dash.get_weather_note().as_str()), ("51°F", ""));
+
+        // Old data: dimmed with its age; a later failure adds the amber dot.
+        STATE.with_borrow_mut(|s| s.weather.as_mut().unwrap().1 -= chrono::TimeDelta::minutes(25));
+        send(&l, &t, AppEvent::Health { service: Service::Weather, result: Err("timed out".into()) });
+        assert!(dash.get_weather_stale() && dash.get_weather_warn());
+        assert_eq!(dash.get_weather_note(), "Updated 25 min ago");
+
+        // Diagnostics: one row per service; the newest result decides the dot.
+        let rows = l.global::<Diagnostics>().get_rows();
+        let weather = rows.iter().find(|r| r.name == "Weather (Open-Meteo)").unwrap();
+        assert_eq!(weather.state, "warn");
+        assert!(weather.last_error.ends_with("timed out") && weather.last_ok.ends_with("51 Partly cloudy"));
+        assert_eq!(rows.iter().find(|r| r.name == "Plex").unwrap().state, "off");
+        send(&l, &t, AppEvent::KeyringStatus(Ok(())));
+        let rows = l.global::<Diagnostics>().get_rows();
+        assert_eq!(rows.iter().find(|r| r.name == "GNOME Keyring").unwrap().state, "ok");
+        assert_eq!(l.global::<Diagnostics>().get_paths().row_count(), 1);
+
+        // Display settings: the reading keeps its units until the new fetch arrives.
+        set_display(&l, Units::Celsius, ClockFormat::H12, true);
+        assert_eq!(dash.get_weather_temp(), "51°F");
     }
 
     #[test]

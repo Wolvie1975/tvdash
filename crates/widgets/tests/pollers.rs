@@ -63,7 +63,8 @@ async fn weather_poller_reports_forecast() {
     config.general.latitude = 41.88;
     config.general.longitude = -87.63;
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let w = tvdash_widgets::spawn(&config, Endpoints { weather: base.clone() }, tx);
+    let (general_tx, general) = tokio::sync::watch::channel(config.general.clone());
+    let w = tvdash_widgets::spawn(&config, Endpoints { weather: base.clone() }, tx, general);
 
     let AppEvent::Weather(Some(weather)) = first_weather(&mut rx).await else { panic!() };
     assert_eq!(
@@ -76,11 +77,21 @@ async fn weather_poller_reports_forecast() {
     assert_eq!(forecast["query"]["latitude"][0], "41.88");
     assert_eq!(forecast["query"]["temperature_unit"][0], "fahrenheit");
     assert_eq!(forecast["query"]["timezone"][0], "America/Chicago");
+
+    // Switching to Celsius fetches again straight away.
+    let mut celsius = config.general.clone();
+    celsius.units = tvdash_core::config::Units::Celsius;
+    general_tx.send(celsius).unwrap();
+    first_weather(&mut rx).await;
+    let log: Vec<serde_json::Value> =
+        std::fs::read_to_string(&fake.log).unwrap().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    assert_eq!(log.last().unwrap()["query"]["temperature_unit"][0], "celsius");
     w.abort();
 
     // No location configured: weather is off.
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let w = tvdash_widgets::spawn(&Config::default(), Endpoints { weather: base }, tx);
+    let (_g, general) = tokio::sync::watch::channel(Config::default().general);
+    let w = tvdash_widgets::spawn(&Config::default(), Endpoints { weather: base }, tx, general);
     assert!(matches!(first_weather(&mut rx).await, AppEvent::Weather(None)));
     w.abort();
     std::fs::remove_dir_all(&fake.dir).ok();
