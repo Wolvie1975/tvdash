@@ -68,7 +68,22 @@ fn spawn_placement<C: ComponentHandle + 'static>(
             window.set_cursor_visible(false);
         }
 
-        let target = monitors.into_iter().find(|m| m.name().as_deref() == Some(output.as_str()));
+        let names: Vec<String> = monitors.iter().map(|m| m.name().unwrap_or_default()).collect();
+        let target = match pick_output(&names, &output, is_tv) {
+            Some((i, exact)) => {
+                if !exact {
+                    warn!(
+                        role,
+                        configured = %output,
+                        using = %names[i],
+                        "configured output not found; picked one automatically \
+                         (set [display] in config.toml to make it explicit)"
+                    );
+                }
+                monitors.into_iter().nth(i)
+            }
+            None => None,
+        };
         if let (Some(m), Some(tx)) = (&target, &tv_commands) {
             let g = geometry(m);
             info!(?g, "TV output geometry");
@@ -98,5 +113,46 @@ fn spawn_placement<C: ComponentHandle + 'static>(
     });
     if let Err(e) = spawned {
         warn!(role, error = %e, "couldn't schedule window placement");
+    }
+}
+
+/// Built-in panels: `eDP-1`, `LVDS-1`, `DSI-1`.
+fn is_internal(name: &str) -> bool {
+    ["eDP", "LVDS", "DSI"].iter().any(|p| name.starts_with(p))
+}
+
+/// Index of the monitor to use, and whether it matched the configured name.
+/// Without an exact match: the laptop window takes the built-in panel and the
+/// TV window the first external output.
+fn pick_output(names: &[String], configured: &str, is_tv: bool) -> Option<(usize, bool)> {
+    if let Some(i) = names.iter().position(|n| n == configured) {
+        return Some((i, true));
+    }
+    names.iter().position(|n| is_internal(n) != is_tv).map(|i| (i, false))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pick_output;
+
+    fn names(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn exact_name_wins() {
+        let n = names(&["eDP-1", "HDMI-1", "DP-2"]);
+        assert_eq!(pick_output(&n, "DP-2", true), Some((2, true)));
+        assert_eq!(pick_output(&n, "eDP-1", false), Some((0, true)));
+    }
+
+    #[test]
+    fn falls_back_to_internal_and_external() {
+        // The default config says HDMI-A-1, but this machine calls it HDMI-1.
+        let n = names(&["eDP-1", "HDMI-1"]);
+        assert_eq!(pick_output(&n, "HDMI-A-1", true), Some((1, false)));
+        assert_eq!(pick_output(&n, "eDP-2", false), Some((0, false)));
+        // Only one screen: the TV gets nothing to pick; it stays where it opened.
+        assert_eq!(pick_output(&names(&["eDP-1"]), "HDMI-A-1", true), None);
     }
 }

@@ -34,6 +34,25 @@ idle screen shows otherwise. See [docs/v1-plan.md](docs/v1-plan.md) for the V1 p
 Tokens, the calendar address and the Portainer token live in GNOME Keyring (service
 `tvdash`), never in the config file.
 
+## Installing on the machine that drives the TV
+
+The release binary only needs glibc 2.39+ and fontconfig, so a build from the dev container
+runs on the Fedora host too. On the host, from the project folder:
+
+```bash
+cargo build --release            # or build it inside the dev container
+packaging/install.sh             # ~/.local/bin/tvdash + app-menu entry + icon
+packaging/install.sh --autostart # also start at login
+packaging/install.sh --uninstall # remove (keeps config, keyring entries and browser profile)
+```
+
+The installer warns about anything missing at runtime: mpv, Brave and GNOME Keyring's
+Secret Service. Re-run it after each rebuild to update the installed copy.
+
+If the `[display]` names in the config don't match your outputs, tvdash picks the
+built-in panel (`eDP`/`LVDS`/`DSI`) for the laptop window and the first external output
+for the TV, and logs which ones it chose.
+
 ## Using it
 
 | Page | What's there |

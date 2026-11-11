@@ -12,8 +12,9 @@ export component LaptopWindow inherits Window {
     default-font-family: Theme.font;
     preferred-width: 1600px;
     preferred-height: 1000px;
-    min-width: 960px;
-    min-height: 640px;
+    // Small enough for a 1080p panel at 200% (960 × 540); the page scrolls.
+    min-width: 800px;
+    min-height: 480px;
 
     // Scroll back to the top whenever the page changes.
     property <string> current-page: Nav.page;
