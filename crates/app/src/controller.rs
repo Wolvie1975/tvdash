@@ -58,6 +58,8 @@ struct Playback {
     /// Sequential progress reports for this item (keeps start → progress → stop ordered).
     reporter: UnboundedSender<(u64, PlayState)>,
     last_emitted_sec: Option<u64>,
+    /// The "can't decode" hint was already shown for this item (frame errors repeat).
+    decode_hint_shown: bool,
 }
 
 pub struct Controller {
@@ -690,7 +692,7 @@ impl Controller {
         let status =
             PlayerStatus { duration_ms: item.duration_ms, item, state: PlayState::Playing, position_ms: start };
         self.emit(AppEvent::Player(Some(status.clone())));
-        self.playback = Some(Playback { status, mpv, reporter, last_emitted_sec: None });
+        self.playback = Some(Playback { status, mpv, reporter, last_emitted_sec: None, decode_hint_shown: false });
     }
 
     // ── Streaming browser ───────────────────────────────────────────
@@ -815,7 +817,10 @@ impl Controller {
             }
             Some(MpvEvent::Error { prefix, text }) => {
                 warn!(%prefix, %text, "mpv error");
-                if let Some(hint) = decoder_hint(&prefix, &text) {
+                if !p.decode_hint_shown
+                    && let Some(hint) = decoder_hint(&prefix, &text)
+                {
+                    p.decode_hint_shown = true;
                     let _ = self.events.send(AppEvent::LongToast(hint));
                 }
                 return;
@@ -850,16 +855,28 @@ impl Controller {
 /// Turn mpv's "can't decode" errors into something actionable. Fedora's own
 /// ffmpeg ("ffmpeg-free") leaves out H.264/HEVC, so audio plays with no picture.
 fn decoder_hint(prefix: &str, text: &str) -> Option<String> {
-    let codec = text.strip_prefix("Failed to initialize a decoder for codec '")?.split('\'').next()?;
-    let kind = match prefix {
-        "vd" => "video",
-        "ad" => "audio",
-        _ => "this",
+    let video = prefix == "vd" || prefix.starts_with("ffmpeg/video");
+    let audio = prefix == "ad" || prefix.starts_with("ffmpeg/audio");
+    // Either the decoder can't start, or (OpenH264 with most H.264 movies) it starts
+    // and then fails on every frame.
+    let codec = text.strip_prefix("Failed to initialize a decoder for codec '").and_then(|r| r.split('\'').next());
+    let decode_error = codec.is_some()
+        || text.starts_with("Error while decoding frame")
+        || text.contains("DecodeFrame")
+        || text.starts_with("libopenh264");
+    if !(decode_error && (video || audio)) {
+        return None;
+    }
+    let what = match (codec, video) {
+        (Some(c), true) => format!("{c} video"),
+        (Some(c), false) => format!("{c} audio"),
+        (None, true) => "this video".into(),
+        (None, false) => "this audio".into(),
     };
     Some(format!(
-        "mpv can't decode {codec} {kind}, so there's no {}. On Fedora, install the full codecs from \
+        "mpv can't decode {what}, so there's no {}. On Fedora, install the full codecs from \
          RPM Fusion: sudo dnf swap ffmpeg-free ffmpeg --allowerasing",
-        if kind == "audio" { "sound" } else { "picture" }
+        if video { "picture" } else { "sound" }
     ))
 }
 
@@ -930,7 +947,13 @@ mod tests {
         let h = decoder_hint("vd", "Failed to initialize a decoder for codec 'hevc'.").unwrap();
         assert!(h.starts_with("mpv can't decode hevc video, so there's no picture."), "{h}");
         assert!(h.contains("ffmpeg-free"));
+        // OpenH264 starts, then fails on each frame of a High-profile file.
+        let h = decoder_hint("ffmpeg/video", "libopenh264: DecodeFrame failed").unwrap();
+        assert!(h.starts_with("mpv can't decode this video"), "{h}");
+        assert!(decoder_hint("vd", "Error while decoding frame (hardware decoding)!").is_some());
+        assert!(decoder_hint("ad", "Failed to initialize a decoder for codec 'eac3'.").unwrap().contains("no sound"));
         assert_eq!(decoder_hint("vd", "Something else"), None);
+        assert_eq!(decoder_hint("cplayer", "Error while decoding frame"), None);
     }
     use std::path::Path;
 
