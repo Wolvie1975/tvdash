@@ -1,0 +1,36 @@
+// Visual tokens from the design (plan §8).
+
+import "../../../assets/fonts/Inter-Light.ttf";
+import "../../../assets/fonts/Inter-Regular.ttf";
+import "../../../assets/fonts/Inter-Medium.ttf";
+import "../../../assets/fonts/Inter-SemiBold.ttf";
+
+export global Theme {
+    out property <string> font: "Inter";
+
+    out property <color> bg: #0B0D10;
+    out property <color> bg-night: #050608;
+    out property <color> surface: #14171C;
+    out property <color> surface-raised: #1B1F26;
+    out property <color> border: #2A2F37;
+    out property <color> text-primary: #E8EAED;
+    out property <color> text-secondary: #A0A6AF;
+    out property <color> text-muted: #8A9099;
+    out property <color> accent: #5B9DFF;
+    out property <color> ok: #4CC38A;
+    out property <color> warn: #E5A84B;
+    out property <color> alert: #F0605D;
+
+    // Laptop sizes
+    out property <length> label-size: 18px;
+    out property <length> body-size: 22px;
+    out property <length> title-size: 28px;
+    out property <length> laptop-clock-size: 136px;
+    out property <length> hit-target: 44px;
+    out property <length> radius: 14px;
+    out property <length> gap: 24px;
+
+    // TV sizes
+    out property <length> tv-body-size: 36px;
+    out property <length> tv-clock-size: 160px;
+}

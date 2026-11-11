@@ -1,0 +1,30 @@
+[package]
+name = "tvdash"
+description = "TV dashboard: laptop control window + TV playback window"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "tvdash"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+chrono-tz.workspace = true
+slint = { workspace = true, features = ["unstable-winit-030"] }
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tvdash-core.workspace = true
+tvdash-media.workspace = true
+tvdash-player.workspace = true
+tvdash-widgets.workspace = true
+
+[build-dependencies]
+slint-build.workspace = true
+
+[dev-dependencies]
+image = { workspace = true, default-features = false, features = ["png"] }

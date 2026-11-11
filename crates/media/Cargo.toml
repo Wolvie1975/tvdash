@@ -1,0 +1,12 @@
+[package]
+name = "tvdash-media"
+description = "Plex and Jellyfin clients behind the MediaSource trait"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+thiserror.workspace = true
+tvdash-core.workspace = true

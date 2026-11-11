@@ -1,0 +1,53 @@
+import { Theme } from "theme.slint";
+import { Clock } from "components.slint";
+
+// TV (HDMI) window. No input — everything is driven from the laptop.
+export component TvWindow inherits Window {
+    title: "tvdash — TV";
+    background: Theme.bg-night;
+    default-font-family: Theme.font;
+    preferred-width: 1920px;
+    preferred-height: 1080px;
+
+    in property <string> clock-hh: "--";
+    in property <string> clock-mm: "--";
+    in property <string> date-text;
+    // Empty hides the "Up next" line.
+    in property <string> up-next;
+
+    // ── Idle screen: dim, low-contrast, calm ─────────────────────
+    VerticalLayout {
+        alignment: center;
+        spacing: 24px;
+
+        HorizontalLayout {
+            alignment: center;
+            Clock {
+                hh: root.clock-hh;
+                mm: root.clock-mm;
+                font-px: Theme.tv-clock-size;
+                tint: Theme.text-secondary.with-alpha(0.55);
+                weight: 300;
+            }
+        }
+        Text {
+            text: root.date-text;
+            horizontal-alignment: center;
+            font-size: Theme.tv-body-size;
+            color: Theme.text-muted.with-alpha(0.6);
+        }
+        Rectangle { height: 48px; }
+        Text {
+            text: "Ready — pick something on the laptop";
+            horizontal-alignment: center;
+            font-size: Theme.tv-body-size;
+            color: Theme.text-muted.with-alpha(0.5);
+        }
+        if root.up-next != "": Text {
+            text: "Up next · " + root.up-next;
+            horizontal-alignment: center;
+            font-size: Theme.tv-body-size;
+            color: Theme.text-muted.with-alpha(0.5);
+        }
+    }
+}

@@ -1,0 +1,10 @@
+[package]
+name = "tvdash-player"
+description = "mpv JSON IPC control and the streaming browser launcher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+tvdash-core.workspace = true

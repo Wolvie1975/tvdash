@@ -1,0 +1,146 @@
+import { Theme } from "theme.slint";
+
+// Small caps section label, e.g. "ON THE TV".
+export component SectionLabel inherits Text {
+    font-size: Theme.label-size;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: Theme.text-muted;
+}
+
+// HH:MM in fixed-width cells so the layout never jitters as digits change
+// (Slint can't switch on Inter's tabular numerals).
+export component Clock {
+    in property <string> hh: "--";
+    in property <string> mm: "--";
+    in property <length> font-px: Theme.laptop-clock-size;
+    in property <color> tint: Theme.text-primary;
+    in property <int> weight: 300;
+
+    HorizontalLayout {
+        Text {
+            text: root.hh;
+            width: root.font-px * 1.24;
+            horizontal-alignment: right;
+            font-size: root.font-px;
+            font-weight: root.weight;
+            color: root.tint;
+        }
+        Text {
+            text: ":";
+            width: root.font-px * 0.34;
+            horizontal-alignment: center;
+            font-size: root.font-px;
+            font-weight: root.weight;
+            color: root.tint;
+        }
+        Text {
+            text: root.mm;
+            width: root.font-px * 1.24;
+            horizontal-alignment: left;
+            font-size: root.font-px;
+            font-weight: root.weight;
+            color: root.tint;
+        }
+    }
+}
+
+export component Card inherits Rectangle {
+    background: Theme.surface;
+    border-radius: Theme.radius;
+}
+
+export component ActionButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary: false;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    min-height: Theme.hit-target;
+    min-width: max(Theme.hit-target, label.preferred-width + 32px);
+    border-radius: 10px;
+    border-width: root.primary ? 0 : 1px;
+    border-color: Theme.border;
+    background: !root.enabled ? Theme.surface-raised
+        : root.primary ? (touch.pressed ? Theme.accent.darker(20%) : touch.has-hover ? Theme.accent.brighter(10%) : Theme.accent)
+        : (touch.pressed ? Theme.border : touch.has-hover ? Theme.surface-raised.brighter(20%) : Theme.surface-raised);
+    opacity: root.enabled ? 1.0 : 0.45;
+
+    label := Text {
+        text: root.text;
+        font-size: Theme.body-size;
+        font-weight: 500;
+        color: root.primary && root.enabled ? #0B0D10 : Theme.text-primary;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Header status chip (weather, next event, homelab).
+export component StatusChip inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <color> dot: transparent;
+
+    background: Theme.surface;
+    border-radius: Theme.radius;
+    min-width: 220px;
+
+    VerticalLayout {
+        padding: 18px;
+        spacing: 6px;
+        SectionLabel { text: root.label; }
+        HorizontalLayout {
+            spacing: 10px;
+            if root.dot != transparent: Rectangle {
+                width: 12px;
+                height: 12px;
+                y: (parent.height - self.height) / 2;
+                border-radius: 6px;
+                background: root.dot;
+            }
+            Text {
+                text: root.value;
+                font-size: Theme.body-size;
+                color: Theme.text-primary;
+                overflow: elide;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+// "Watch on TV" streaming tile.
+export component SiteTile inherits Rectangle {
+    in property <string> name;
+    callback clicked();
+
+    min-height: 96px;
+    min-width: 140px;
+    horizontal-stretch: 1;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: touch.has-hover ? Theme.accent : Theme.border;
+    background: touch.pressed ? Theme.border : Theme.surface-raised;
+
+    Text {
+        text: root.name;
+        font-size: Theme.body-size;
+        font-weight: 600;
+        color: Theme.text-primary;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        wrap: word-wrap;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
