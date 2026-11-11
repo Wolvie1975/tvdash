@@ -17,12 +17,6 @@ export global Dash {
     in property <string> date-text;
     in property <string> weather-text: "—";
     in property <string> weather-detail;
-    in property <string> event-text: "—";
-    in property <string> event-detail;
-    in property <string> event-action; // "Add calendar" / "Reconnect" when the calendar needs attention
-    in property <string> homelab-text: "—";
-    in property <string> homelab-detail;
-    in property <color> homelab-dot: transparent;
 
     // On the TV
     in property <string> now-playing-title: "Nothing playing";
@@ -58,7 +52,6 @@ export global Dash {
     callback play-item(int);
     callback prompt-action(string, string); // (source, "sign-in" | "retry")
     callback cancel-sign-in(string);
-    callback calendar-action();
     callback quit();
 }
 
@@ -99,17 +92,15 @@ export global Library {
 }
 
 export struct AccountRow {
-    id: string,         // "plex" | "jellyfin" | "calendar" | "portainer"
+    id: string,         // "plex" | "jellyfin"
     name: string,
     status: string,
     detail: string,
     state: string,      // "ok" | "warn" | "off" | "busy"
     primary: string,    // button labels; "" = no button
-    primary-id: string, // "sign-in" | "sign-out" | "retry" | "cancel" | "edit" | "remove"
+    primary-id: string, // "sign-in" | "sign-out" | "retry" | "cancel"
     secondary: string,
     secondary-id: string,
-    input-hint: string, // placeholder when the row takes text (calendar / token)
-    secret-input: bool,
 }
 
 export struct SiteRow {
@@ -121,21 +112,17 @@ export struct SiteRow {
 export global Accounts {
     in property <[AccountRow]> accounts;
     in property <[SiteRow]> sites;
-    // Row whose text field is open ("" = none).
-    in-out property <string> editing;
-    in property <string> edit-error;
     in-out property <bool> confirm-clear;
 
     // (row id, button label)
     callback action(string, string);
-    callback submit(string, string); // (row id, value)
     callback open-site(int);
     callback clear-profile();
     callback run-setup();
 }
 
 export global Setup {
-    // 0 Plex · 1 Jellyfin · 2 Calendar · 3 Streaming
+    // 0 Plex · 1 Jellyfin · 2 Streaming
     in-out property <int> step: 0;
     // Per sign-in: "idle" | "busy" | "code" | "done" | "error"
     in property <string> plex-state: "idle";
@@ -145,13 +132,9 @@ export global Setup {
     in property <string> jellyfin-code;
     in property <string> jellyfin-message;
     in-out property <string> jellyfin-url;
-    // "idle" | "busy" | "done" | "error"
-    in property <string> calendar-state: "idle";
-    in property <string> calendar-message;
 
     callback sign-in(string);       // "plex" | "jellyfin" (uses jellyfin-url)
     callback cancel(string);
     callback jellyfin-password(string, string);
-    callback set-calendar(string);
     callback finish();
 }

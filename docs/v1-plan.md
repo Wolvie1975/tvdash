@@ -2,10 +2,33 @@
 
 A Rust + Slint desktop app for a Fedora laptop connected to a TV.
 
-- **Laptop panel** → mouse-driven control dashboard (clock, weather, calendar, homelab, what's on the TV, streaming tiles, library).
+- **Laptop panel** → mouse-driven control dashboard (clock, weather, ~~calendar, homelab,~~ what's on the TV, streaming tiles, library).
 - **TV (HDMI, primary display)** → playback only: Plex/Jellyfin through mpv, streaming sites in a full-screen browser, a dim idle screen otherwise.
 
 Design canvas (screens, states, scope): https://claude.ai/artifact/UggZzEChLyVVffZNfdGnTf, page **Version 1 build**.
+
+---
+
+## 0. Scope change — 2026-11-11
+
+> **Calendar and homelab are removed from tvdash entirely.** No next-event card, no Google Calendar link, no Portainer or Uptime Kuma checks. The laptop header is now: clock and date, theme switch, weather, Settings.
+
+What that changes in this plan (each spot is also marked ~~struck through~~ or **REMOVED** below):
+
+| Section | Change |
+|---|---|
+| §1 Decisions | Calendar and Homelab rows dropped |
+| §2 Scope | Header is clock + weather only |
+| §3 Screens | First-run setup is 3 steps (Plex → Jellyfin → streaming); no calendar sign-in state |
+| §4 Workspace | `widgets` crate holds weather only (or fold weather into `core`) |
+| §5 Config | Drop `[calendar]` and `[homelab]`; drop the `calendar_ics_url`, `portainer_api_key` and `uptime_kuma_api_key` keyring entries |
+| §6.5, §6.6 | Removed |
+| §9 M5 | Becomes "Weather" only |
+| §10 Checklist | No iCal address, Portainer token or Uptime Kuma page needed |
+
+If any of this code already exists, it can simply be deleted: nothing else depends on it.
+
+Laptop dashboard redesign in progress on the canvas page **Laptop redesign** (touch-first, poster-tinted, Dark / Stone / Mist).
 
 ---
 
@@ -22,12 +45,12 @@ Design canvas (screens, states, scope): https://claude.ai/artifact/UggZzEChLyVVf
 | Streaming playback | Google Chrome (or Firefox) with a dedicated profile, full screen on the TV |
 | Local playback | mpv, controlled over its JSON IPC socket |
 | Weather | Open-Meteo (no API key) |
-| Calendar | Google Calendar via its **secret iCal address** (see §6.5) |
-| Homelab | Portainer (containers) + Uptime Kuma (service monitors) |
+| ~~Calendar~~ | ~~Google Calendar via its secret iCal address~~ — **removed** |
+| ~~Homelab~~ | ~~Portainer + Uptime Kuma~~ — **removed** |
 | Secrets | GNOME Keyring through the Secret Service API; never in the config file |
 | Defaults | °F, 24-hour clock |
 
-> **Calendar change from the design:** Google's TV/device-code sign-in only allows sign-in, Drive and YouTube scopes, not Calendar. V1 therefore reads the calendar's private iCal URL instead. It's read-only, needs no Google Cloud project, and never expires. The setup screen's calendar step becomes "paste your secret address".
+> ~~**Calendar change from the design:**~~ *(No longer applies: calendar removed.)* Google's TV/device-code sign-in only allows sign-in, Drive and YouTube scopes, not Calendar. V1 therefore reads the calendar's private iCal URL instead. It's read-only, needs no Google Cloud project, and never expires. The setup screen's calendar step becomes "paste your secret address".
 
 ---
 
@@ -41,7 +64,7 @@ Design canvas (screens, states, scope): https://claude.ai/artifact/UggZzEChLyVVf
 | **Jellyfin** | Quick Connect sign-in (password fallback), active sessions, continue watching, recently added, search, posters, play on TV, progress sync |
 | **Streaming** | Six tiles that open each site full screen on the TV; one-time sign-in inside the dedicated browser profile |
 | **Playback** | mpv full screen on the TV; pause/resume, ±seek, stop from the laptop; paused overlay on the TV |
-| **Header** | Clock, weather, next calendar event, homelab up/down |
+| **Header** | Clock, weather ~~, next calendar event, homelab up/down~~ |
 | **Accounts** | First-run setup, Settings › Accounts, expired-sign-in states |
 
 ### Not in V1 (later)
@@ -54,15 +77,15 @@ Night mode · headlines widget · alerts ticker and severe-weather takeover · b
 
 | Window | Screen | Purpose |
 |---|---|---|
-| Laptop | **First-run setup** | 4 steps: Plex code → Jellyfin Quick Connect → calendar address → streaming sign-ins |
-| Laptop | **Control dashboard** (home) | Header (clock, weather, next event, homelab); "On the TV" card with transport buttons; Watch on TV tiles; Continue Watching row; Settings link |
+| Laptop | **First-run setup** | 3 steps: Plex code → Jellyfin Quick Connect → streaming sign-ins ~~(calendar step removed)~~ |
+| Laptop | **Control dashboard** (home) | Header (clock, weather ~~, next event, homelab~~); "On the TV" card with transport buttons; Watch on TV tiles; Continue Watching row; Settings link |
 | Laptop | **Library** | All / Plex / Jellyfin filter, search, Continue Watching, Recently Added, detail panel with Resume on TV |
 | Laptop | **Settings › Accounts** | Status of each connection; Sign out / Reconnect; "Sign in on TV" for streaming sites; clear browser profile |
 | TV | **Idle** | Dim clock, "Ready — pick something on the laptop", up next |
 | TV | **Playback overlay** | Shown on pause/start, hides 5 s after resume: title, progress, end time |
 | TV | Streaming | The browser itself; nothing to design |
 
-The sign-in states to build: an expired server on the "On the TV" card, Continue Watching with one source missing, the calendar header chip turned into a Reconnect button, and a laptop toast while you sign in to a streaming site.
+The sign-in states to build: an expired server on the "On the TV" card, Continue Watching with one source missing, ~~the calendar header chip turned into a Reconnect button,~~ and a laptop toast while you sign in to a streaming site.
 
 ---
 
@@ -75,7 +98,7 @@ tvdash/
 │  ├─ core/                # config, keyring, shared models, app events
 │  ├─ media/               # Plex + Jellyfin clients behind MediaSource
 │  ├─ player/              # mpv IPC, browser launcher
-│  ├─ widgets/             # weather, calendar, homelab pollers
+│  ├─ widgets/             # weather poller (calendar, homelab removed)
 │  └─ app/                 # Slint UI: laptop window + TV window, main()
 │     └─ ui/               # .slint files
 └─ assets/fonts/           # Inter (bundled)
@@ -160,14 +183,7 @@ server_url = "http://republic-city:8096"
 user_id = ""                # filled after sign-in
 device_id = ""              # generated UUID
 
-[calendar]
-enabled = true              # URL itself is a secret → keyring
-
-[homelab]
-portainer_url = "https://portainer.local:9443"
-portainer_endpoint_id = 1
-uptime_kuma_url = "http://uptime.local:3001"
-uptime_kuma_status_page = "homelab"
+# [calendar] and [homelab] removed (scope change 2026-11-11)
 
 [browser]
 binary = "google-chrome"
@@ -202,9 +218,9 @@ url = "https://tv.youtube.com"
 |---|---|
 | `plex_token` | Plex auth token from the PIN flow |
 | `jellyfin_token` | Jellyfin access token |
-| `calendar_ics_url` | Google secret iCal address |
-| `portainer_api_key` | Portainer access token |
-| `uptime_kuma_api_key` | Only if you use `/metrics` instead of a status page |
+| ~~`calendar_ics_url`~~ | ~~Google secret iCal address~~ — removed |
+| ~~`portainer_api_key`~~ | ~~Portainer access token~~ — removed |
+| ~~`uptime_kuma_api_key`~~ | ~~Uptime Kuma~~ — removed |
 
 ```rust
 let entry = keyring::Entry::new("tvdash", "jellyfin_token")?;
@@ -294,7 +310,9 @@ google-chrome --user-data-dir="$HOME/.local/share/tvdash/browser" \
 
 > **Watch out:** Fedora's `chromium` package lacks Widevine DRM, so the streaming sites won't play in it. Use Google Chrome, or Firefox with DRM enabled (`firefox --profile <dir> --kiosk <url>`, after `firefox -CreateProfile`). Some services also limit Linux browsers to lower resolutions.
 
-### 6.5 Google Calendar (secret iCal address)
+### 6.5 ~~Google Calendar~~ — REMOVED
+
+*Kept for reference only; not part of v1.*
 
 1. Google Calendar on the web → Settings → your calendar → **Integrate calendar** → copy **Secret address in iCal format**.
 2. Paste it in setup; store it in the keyring as `calendar_ics_url`.
@@ -302,7 +320,9 @@ google-chrome --user-data-dir="$HOME/.local/share/tvdash/browser" \
 
 > **Tip:** treat the URL like a password. Anyone with it can read that calendar. "Reset" on the same Google settings screen revokes it.
 
-### 6.6 Homelab
+### 6.6 ~~Homelab~~ — REMOVED
+
+*Kept for reference only; not part of v1.*
 
 | Source | Request | Use |
 |---|---|---|
@@ -383,7 +403,7 @@ export global Theme {
 | **M2** | Jellyfin + mpv | Quick Connect sign-in; Continue Watching row with posters; Resume on TV plays in mpv on the TV; Pause/±seek/Stop work from the laptop; progress shows up in Jellyfin's own resume |
 | **M3** | Plex | PIN sign-in + server discovery; Plex items appear in the same rows with a Plex badge; play on TV and progress sync work; "On the TV" card shows active sessions from both servers |
 | **M4** | Streaming | Six tiles open the right site full screen on the TV in the dedicated profile; Stop/Close kills the browser and the TV returns to idle |
-| **M5** | Header widgets | Weather, next calendar event and "N / N up" homelab status, each refreshing on its own interval |
+| **M5** | Weather | Weather in the header, refreshing every 10 minutes ~~; next calendar event; homelab status~~ |
 | **M6** | Setup + polish | First-run flow on an empty config; Settings › Accounts; expired-token states; library search and Recently Added |
 
 ### Event flow (all milestones)
@@ -405,5 +425,5 @@ Keep all network and IPC work off the UI thread; the UI only receives finished d
 - [ ] Note both connector names (`HDMI-A-1`, `eDP-1`, …).
 - [ ] Install `mpv` and Google Chrome (or set up Firefox with DRM).
 - [ ] Enable Quick Connect in Jellyfin.
-- [ ] Copy Google Calendar's secret iCal address.
-- [ ] Create a Portainer access token and an Uptime Kuma status page.
+- [ ] ~~Copy Google Calendar's secret iCal address.~~ (removed)
+- [ ] ~~Create a Portainer access token and an Uptime Kuma status page.~~ (removed)

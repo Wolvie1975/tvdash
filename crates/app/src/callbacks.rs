@@ -3,7 +3,7 @@
 use slint::ComponentHandle;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{error, warn};
-use tvdash_core::{Command, SecretKey, models::SourceKind};
+use tvdash_core::{Command, models::SourceKind};
 
 use crate::{Accounts, Dash, LaptopWindow, Library, Nav, Setup, bridge};
 
@@ -68,16 +68,6 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
             }
         };
         send(cmd);
-    });
-
-    // "Add calendar" / "Reconnect" on the header chip → Settings with the field open.
-    let weak = laptop.as_weak();
-    dash.on_calendar_action(move || {
-        if let Some(l) = weak.upgrade() {
-            l.global::<Accounts>().set_edit_error("".into());
-            l.global::<Accounts>().set_editing("calendar".into());
-            l.global::<Nav>().set_page("settings".into());
-        }
     });
 
     dash.on_quit(|| {
@@ -150,26 +140,12 @@ fn wire_accounts(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static
             (_, "sign-out", Some(kind)) => Command::SignOut(kind),
             (_, "cancel", Some(kind)) => Command::CancelSignIn(kind),
             (_, "retry", _) => Command::Refresh,
-            ("calendar", "remove", _) => Command::ClearSecret(SecretKey::CalendarIcsUrl),
-            ("portainer", "remove", _) => Command::ClearSecret(SecretKey::PortainerApiKey),
             _ => {
                 warn!(%id, %action, "unknown account action");
                 return;
             }
         };
         s(cmd);
-    });
-
-    let (weak, s) = (laptop.as_weak(), send.clone());
-    acc.on_submit(move |id, value| {
-        if let Some(l) = weak.upgrade() {
-            l.global::<Accounts>().set_edit_error("".into());
-        }
-        match id.as_str() {
-            "calendar" => s(Command::SetCalendarUrl(value.to_string())),
-            "portainer" => s(Command::SetSecret(SecretKey::PortainerApiKey, value.to_string())),
-            other => warn!(id = other, "nothing to save for this row"),
-        }
     });
 
     let s = send.clone();
@@ -182,7 +158,6 @@ fn wire_accounts(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static
     acc.on_run_setup(move || {
         if let Some(l) = weak.upgrade() {
             l.global::<Setup>().set_step(0);
-            l.global::<Setup>().set_calendar_state("idle".into());
             l.global::<Nav>().set_page("setup".into());
             bridge::sync_setup(&l);
         }
@@ -216,14 +191,6 @@ fn wire_setup(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
             s(Command::JellyfinServer(l.global::<Setup>().get_jellyfin_url().to_string()));
         }
         s(Command::JellyfinPassword { username: username.to_string(), password: password.to_string() });
-    });
-
-    let (weak, s) = (laptop.as_weak(), send.clone());
-    setup.on_set_calendar(move |url| {
-        if let Some(l) = weak.upgrade() {
-            l.global::<Setup>().set_calendar_state("busy".into());
-        }
-        s(Command::SetCalendarUrl(url.to_string()));
     });
 
     let weak = laptop.as_weak();

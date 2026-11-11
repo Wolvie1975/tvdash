@@ -148,26 +148,16 @@ mod tests {
 
 // ── Header widgets ──────────────────────────────────────────────────
 
-use tvdash_core::models::{CalendarEvent, HomelabStatus, Probe, Weather};
-
-/// How a chip's dot should look.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Severity {
-    None,
-    Ok,
-    Warn,
-    Alert,
-}
+use tvdash_core::models::Weather;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChipText {
     pub value: String,
     pub detail: String,
-    pub severity: Severity,
 }
 
-fn chip(value: impl Into<String>, detail: impl Into<String>, severity: Severity) -> ChipText {
-    ChipText { value: value.into(), detail: detail.into(), severity }
+fn chip(value: impl Into<String>, detail: impl Into<String>) -> ChipText {
+    ChipText { value: value.into(), detail: detail.into() }
 }
 
 pub fn weather_chip(w: &Weather) -> ChipText {
@@ -176,109 +166,12 @@ pub fn weather_chip(w: &Weather) -> ChipText {
         (Some(h), Some(l)) => format!("H {} · L {}", deg(h), deg(l)),
         _ => String::new(),
     };
-    chip(format!("{} {}", deg(w.temperature), w.condition), detail, Severity::None)
-}
-
-/// Chip text plus the TV's "Up next" line for a calendar event.
-pub fn event_chip(
-    e: &CalendarEvent,
-    now: chrono::DateTime<Utc>,
-    tz: Option<chrono_tz::Tz>,
-    clock: ClockFormat,
-) -> (ChipText, String) {
-    let local = |t: chrono::DateTime<Utc>| match tz {
-        Some(tz) => t.with_timezone(&tz).naive_local(),
-        None => t.with_timezone(&Local).naive_local(),
-    };
-    let (start, end, today) = (local(e.start), local(e.end), local(now).date());
-    let day = if start.date() <= today { "Today" } else { "Tomorrow" };
-    if e.all_day {
-        return (chip(e.title.clone(), format!("{day} · all day"), Severity::None), format!("{day} · {}", e.title));
-    }
-    let at = hm(start, clock);
-    if e.start <= now {
-        let until = format!("Now, until {}", hm(end, clock));
-        return (chip(format!("{at} {}", e.title), until.clone(), Severity::None), format!("{} · {until}", e.title));
-    }
-    let tv = if day == "Today" { format!("{at} {}", e.title) } else { format!("Tomorrow {at} {}", e.title) };
-    (chip(format!("{at} {}", e.title), day, Severity::None), tv)
-}
-
-pub fn homelab_chip(h: &HomelabStatus) -> ChipText {
-    let containers = match &h.containers {
-        Probe::Ok(c) => format!("{} / {} containers", c.running, c.total),
-        Probe::Failed(_) => "Portainer unavailable".into(),
-        Probe::NotConfigured => String::new(),
-    };
-    match (&h.monitors, &h.containers) {
-        (Probe::Ok(m), _) if !m.down.is_empty() => {
-            chip(format!("{} / {} up", m.up, m.total), format!("Down: {}", m.down.join(", ")), Severity::Alert)
-        }
-        (Probe::Ok(m), _) => chip(format!("{} / {} up", m.up, m.total), containers, Severity::Ok),
-        (Probe::Failed(_), _) => chip("Unavailable", containers, Severity::Warn),
-        (Probe::NotConfigured, Probe::Ok(c)) => chip(
-            format!("{} / {} running", c.running, c.total),
-            "containers",
-            if c.running == c.total { Severity::Ok } else { Severity::Warn },
-        ),
-        (Probe::NotConfigured, Probe::Failed(_)) => chip("Unavailable", "Portainer", Severity::Warn),
-        (Probe::NotConfigured, Probe::NotConfigured) => chip("Not set up", "Uptime Kuma, Portainer", Severity::None),
-    }
+    chip(format!("{} {}", deg(w.temperature), w.condition), detail)
 }
 
 #[cfg(test)]
 mod widget_tests {
     use super::*;
-    use tvdash_core::models::{ContainerCounts, MonitorCounts};
-
-    fn utc(s: &str) -> chrono::DateTime<Utc> {
-        chrono::DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&Utc)
-    }
-
-    fn ev(title: &str, start: &str, end: &str, all_day: bool) -> CalendarEvent {
-        CalendarEvent { title: title.into(), start: utc(start), end: utc(end), all_day }
-    }
-
-    const CHI: Option<chrono_tz::Tz> = Some(chrono_tz::America::Chicago);
-
-    #[test]
-    fn event_texts() {
-        let now = utc("2026-11-11T14:00:00Z"); // 08:00 Chicago
-        let (c, tv) = event_chip(
-            &ev("Standup", "2026-11-11T15:30:00Z", "2026-11-11T15:45:00Z", false),
-            now,
-            CHI,
-            ClockFormat::H24,
-        );
-        assert_eq!((c.value.as_str(), c.detail.as_str(), tv.as_str()), ("09:30 Standup", "Today", "09:30 Standup"));
-
-        let (c, tv) = event_chip(
-            &ev("Standup", "2026-11-11T13:30:00Z", "2026-11-11T14:15:00Z", false),
-            now,
-            CHI,
-            ClockFormat::H24,
-        );
-        assert_eq!((c.detail.as_str(), tv.as_str()), ("Now, until 08:15", "Standup · Now, until 08:15"));
-
-        let (c, tv) = event_chip(
-            &ev("Dentist", "2026-11-12T20:00:00Z", "2026-11-12T21:00:00Z", false),
-            now,
-            CHI,
-            ClockFormat::H12,
-        );
-        assert_eq!(
-            (c.value.as_str(), c.detail.as_str(), tv.as_str()),
-            ("2:00 PM Dentist", "Tomorrow", "Tomorrow 2:00 PM Dentist")
-        );
-
-        let (c, _) = event_chip(
-            &ev("Holiday", "2026-11-11T06:00:00Z", "2026-11-12T06:00:00Z", true),
-            now,
-            CHI,
-            ClockFormat::H24,
-        );
-        assert_eq!((c.value.as_str(), c.detail.as_str()), ("Holiday", "Today · all day"));
-    }
 
     #[test]
     fn weather_text() {
@@ -289,20 +182,6 @@ mod widget_tests {
             high: Some(55.1),
             low: Some(38.6),
         };
-        assert_eq!(weather_chip(&w), chip("48° Partly cloudy", "H 55° · L 39°", Severity::None));
-    }
-
-    #[test]
-    fn homelab_texts() {
-        let m = |up, total, down: &[&str]| {
-            Probe::Ok(MonitorCounts { up, total, down: down.iter().map(|s| s.to_string()).collect() })
-        };
-        let c = Probe::Ok(ContainerCounts { running: 23, total: 24 });
-        let h = |monitors, containers| HomelabStatus { monitors, containers };
-        assert_eq!(homelab_chip(&h(m(6, 6, &[]), c.clone())), chip("6 / 6 up", "23 / 24 containers", Severity::Ok));
-        assert_eq!(homelab_chip(&h(m(5, 6, &["NAS"]), c.clone())), chip("5 / 6 up", "Down: NAS", Severity::Alert));
-        assert_eq!(homelab_chip(&h(Probe::Failed("x".into()), c.clone())).severity, Severity::Warn);
-        assert_eq!(homelab_chip(&h(Probe::NotConfigured, c)).value, "23 / 24 running");
-        assert_eq!(homelab_chip(&h(Probe::NotConfigured, Probe::NotConfigured)).value, "Not set up");
+        assert_eq!(weather_chip(&w), chip("48° Partly cloudy", "H 55° · L 39°"));
     }
 }

@@ -1,6 +1,6 @@
 //! `~/.config/tvdash/config.toml`: loading, first-run creation and saving.
 //!
-//! Secrets (tokens, the calendar address, API keys) never live here; see
+//! Secrets (Plex and Jellyfin tokens) never live here; see
 //! [`crate::secrets`].
 
 use std::{
@@ -34,8 +34,6 @@ pub struct Config {
     pub general: GeneralConfig,
     pub plex: PlexConfig,
     pub jellyfin: JellyfinConfig,
-    pub calendar: CalendarConfig,
-    pub homelab: HomelabConfig,
     pub browser: BrowserConfig,
     pub player: PlayerConfig,
     /// Kept last: TOML arrays of tables must follow plain tables.
@@ -125,24 +123,6 @@ pub struct JellyfinConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-pub struct CalendarConfig {
-    /// The secret iCal URL itself is stored in the keyring.
-    pub enabled: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct HomelabConfig {
-    pub portainer_url: String,
-    pub portainer_endpoint_id: u32,
-    /// Portainer ships a self-signed certificate; set false to accept it.
-    pub portainer_verify_tls: bool,
-    pub uptime_kuma_url: String,
-    pub uptime_kuma_status_page: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
 pub struct BrowserConfig {
     pub binary: String,
     /// Dedicated profile directory; `~` is expanded with [`expand_home`].
@@ -182,8 +162,6 @@ impl Default for Config {
             general: GeneralConfig::default(),
             plex: PlexConfig::default(),
             jellyfin: JellyfinConfig::default(),
-            calendar: CalendarConfig::default(),
-            homelab: HomelabConfig::default(),
             browser: BrowserConfig::default(),
             player: PlayerConfig::default(),
             streaming: default_streaming_sites(),
@@ -231,24 +209,6 @@ impl Default for JellyfinConfig {
     }
 }
 
-impl Default for CalendarConfig {
-    fn default() -> Self {
-        Self { enabled: true }
-    }
-}
-
-impl Default for HomelabConfig {
-    fn default() -> Self {
-        Self {
-            portainer_url: "https://portainer.local:9443".into(),
-            portainer_endpoint_id: 1,
-            portainer_verify_tls: true,
-            uptime_kuma_url: "http://uptime.local:3001".into(),
-            uptime_kuma_status_page: "homelab".into(),
-        }
-    }
-}
-
 impl Default for BrowserConfig {
     fn default() -> Self {
         Self {
@@ -283,7 +243,7 @@ fn default_streaming_sites() -> Vec<StreamingSite> {
 
 const HEADER: &str = "\
 # tvdash configuration.
-# Secrets (tokens, calendar address, API keys) are kept in GNOME Keyring, not here.
+# Plex and Jellyfin tokens are kept in GNOME Keyring, not here.
 # Output names: run tvdash once and check the log for \"available monitor\" lines.
 
 ";
@@ -412,6 +372,15 @@ mod tests {
         assert_eq!(loaded.config.display.laptop_output, "eDP-1");
         assert_eq!(loaded.config.general.clock, ClockFormat::H24);
         assert!(!loaded.config.plex.client_id.is_empty());
+        fs::remove_dir_all(path.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn old_sections_are_ignored() {
+        let path = temp_path("old");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "[calendar]\nenabled = true\n\n[homelab]\nportainer_url = \"x\"\n").unwrap();
+        assert!(Config::load_or_create_at(&path).is_ok());
         fs::remove_dir_all(path.parent().unwrap()).ok();
     }
 

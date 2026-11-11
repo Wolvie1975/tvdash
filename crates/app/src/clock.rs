@@ -51,9 +51,6 @@ pub fn start(laptop: &LaptopWindow, tv: &TvWindow, general: &GeneralConfig) -> T
             t.set_clock_mm(text.mm.as_str().into());
             t.set_date_text(text.date.as_str().into());
         }
-        if let (Some(l), Some(t)) = (laptop.upgrade(), tv.upgrade()) {
-            crate::bridge::on_minute(&l, &t);
-        }
         last = Some(text);
     };
 

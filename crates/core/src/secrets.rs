@@ -26,17 +26,10 @@ pub enum SecretKey {
     PlexToken,
     /// Jellyfin access token.
     JellyfinToken,
-    /// Google Calendar secret iCal address.
-    CalendarIcsUrl,
-    /// Portainer access token.
-    PortainerApiKey,
-    /// Only needed when using Uptime Kuma's `/metrics` instead of a status page.
-    UptimeKumaApiKey,
 }
 
 impl SecretKey {
-    pub const ALL: [SecretKey; 5] =
-        [Self::PlexToken, Self::JellyfinToken, Self::CalendarIcsUrl, Self::PortainerApiKey, Self::UptimeKumaApiKey];
+    pub const ALL: [SecretKey; 2] = [Self::PlexToken, Self::JellyfinToken];
 
     /// Inverse of [`Self::as_str`].
     pub fn parse(name: &str) -> Option<Self> {
@@ -47,9 +40,6 @@ impl SecretKey {
         match self {
             Self::PlexToken => "plex_token",
             Self::JellyfinToken => "jellyfin_token",
-            Self::CalendarIcsUrl => "calendar_ics_url",
-            Self::PortainerApiKey => "portainer_api_key",
-            Self::UptimeKumaApiKey => "uptime_kuma_api_key",
         }
     }
 }
@@ -106,4 +96,12 @@ pub fn self_test() -> Result<()> {
 /// Never returns the values themselves.
 pub fn presence() -> Result<Vec<(SecretKey, bool)>> {
     SecretKey::ALL.into_iter().map(|k| get(k).map(|v| (k, v.is_some()))).collect()
+}
+
+/// Entries from features that were removed (calendar, homelab).
+const RETIRED: [&str; 3] = ["calendar_ics_url", "portainer_api_key", "uptime_kuma_api_key"];
+
+/// Delete entries left behind by removed features. Missing ones are skipped.
+pub fn purge_retired() -> Result<()> {
+    RETIRED.into_iter().try_for_each(delete_raw)
 }

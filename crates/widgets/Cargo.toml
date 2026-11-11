@@ -1,16 +1,13 @@
 [package]
 name = "tvdash-widgets"
-description = "Weather, calendar and homelab pollers"
+description = "Header widget pollers (weather)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
 
 [dependencies]
-chrono.workspace = true
-chrono-tz.workspace = true
 reqwest.workspace = true
-rrule = "0.14"
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

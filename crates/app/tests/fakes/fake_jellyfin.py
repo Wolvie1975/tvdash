@@ -52,10 +52,6 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         self._log()
         p = urlparse(self.path).path
-        if p == "/cal.ics":
-            return self._send(200, raw=b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n", ctype="text/calendar")
-        if p == "/missing.ics":
-            return self._send(404)
         if p == "/QuickConnect/Connect":
             polls["n"] += 1
             return self._send(200, {"Authenticated": polls["n"] >= 2, "Secret": "s3cr3t", "Code": "424242"})

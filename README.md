@@ -4,7 +4,8 @@ Rust + Slint desktop app for a Fedora laptop connected to a TV. The laptop panel
 mouse-driven control dashboard, and the TV (HDMI, the primary display) handles playback only:
 Plex and Jellyfin play through mpv, streaming sites open in a full-screen browser, and a dim
 idle screen shows otherwise. See [docs/running.md](docs/running.md) for day-to-day use (start, stop, update, fixes) and
-[docs/v1-plan.md](docs/v1-plan.md) for the V1 plan.
+[docs/v1-plan.md](docs/v1-plan.md) for the V1 plan, and
+[docs/future-plan.md](docs/future-plan.md) for v1.1 onwards.
 
 ## Install and first run (Fedora 44)
 
@@ -25,15 +26,13 @@ idle screen shows otherwise. See [docs/running.md](docs/running.md) for day-to-d
    1. **Plex**: get a code and enter it at plex.tv/link. tvdash finds your server.
    2. **Jellyfin**: check the server address, then use Quick Connect (enable it in the
       Jellyfin dashboard), or a username and password.
-   3. **Calendar**: paste Google Calendar's *Secret address in iCal format*. tvdash checks
-      it before saving it.
-   4. **Streaming**: open each site on the TV once and sign in with the laptop's mouse and
+   3. **Streaming**: open each site on the TV once and sign in with the laptop's mouse and
       keyboard.
 
    Every step can be skipped. Settings › Accounts can run setup again.
 
-Tokens, the calendar address and the Portainer token live in GNOME Keyring (service
-`tvdash`), never in the config file.
+The Plex and Jellyfin tokens live in GNOME Keyring (service `tvdash`), never in the
+config file.
 
 ## Installing on the machine that drives the TV
 
@@ -58,36 +57,30 @@ for the TV, and logs which ones it chose.
 
 | Page | What's there |
 |---|---|
-| **Home** | Clock, weather, next event, homelab; **On the TV** with transport buttons and other devices' sessions; Watch on TV tiles; Continue Watching (click to resume on the TV) |
+| **Home** | Clock, weather; **On the TV** with transport buttons and other devices' sessions; Watch on TV tiles; Continue Watching (click to resume on the TV) |
 | **Library** | All / Plex / Jellyfin filter, search, Continue Watching, Recently Added; click a poster for details, **Resume on TV** or **Play from the start** |
-| **Settings › Accounts** | Each connection's status with Sign in / Sign out / Reconnect; calendar address and Portainer token; streaming sites with **Sign in on TV**; **Clear browser profile** (signs out of every streaming site) |
+| **Settings › Accounts** | Each connection's status with Sign in / Sign out / Reconnect; streaming sites with **Sign in on TV**; **Clear browser profile** (signs out of every streaming site) |
 
-Expired sign-ins show **Reconnect** where they matter: a Plex or Jellyfin token on the
-On the TV card, and a reset calendar address on the next-event chip.
+An expired Plex or Jellyfin sign-in shows **Reconnect** on the On the TV card.
 
 Command-line options:
 
 ```bash
 tvdash --windowed                       # don't go full screen (single-display development)
 tvdash --check-keyring                  # keyring round-trip and the list of stored secrets
-tvdash --set-secret calendar_ics_url    # paste a secret (read from stdin)
-tvdash --clear-secret portainer_api_key
+tvdash --set-secret jellyfin_token      # paste a secret (read from stdin)
+tvdash --clear-secret plex_token
 ```
 
 Logging: `RUST_LOG=tvdash=debug`.
 
 ## Header widgets
 
-| Chip | Needs | Refresh |
-|---|---|---|
-| Weather | `latitude` / `longitude` under `[general]` (Open-Meteo, no key) | 10 min |
-| Next event | Google Calendar's secret iCal address (setup or Settings) | 5 min |
-| Homelab | `[homelab]` URLs; the Portainer token (Settings); an Uptime Kuma status page whose slug is `uptime_kuma_status_page` | 1 min |
-
-Portainer's default certificate is self-signed. If its line says unavailable, set
-`portainer_verify_tls = false` under `[homelab]`. The next-event chip re-picks every
-minute, so "Now" and "Tomorrow" stay current between fetches. The TV's idle screen shows
-the same event as "Up next".
+Weather comes from Open-Meteo (no key) and refreshes every 10 minutes. Set `latitude` /
+`longitude` under `[general]` to turn it on. Calendar and homelab were removed on
+2026-11-11 (see the scope change in [docs/v1-plan.md](docs/v1-plan.md)); tvdash deletes
+their old keyring entries on start, and old `[calendar]` / `[homelab]` config sections
+are ignored.
 
 ## Streaming
 
@@ -110,7 +103,7 @@ Widevine (Chrome, Edge, Vivaldi) work too; Fedora's `chromium` doesn't.
 | `crates/core` | `tvdash-core` | Config, keyring secrets, app state file, models, `AppEvent`/`Command` |
 | `crates/media` | `tvdash-media` | `MediaSource` trait; Plex and Jellyfin clients |
 | `crates/player` | `tvdash-player` | mpv JSON IPC and the streaming browser launcher |
-| `crates/widgets` | `tvdash-widgets` | Weather, calendar and homelab pollers |
+| `crates/widgets` | `tvdash-widgets` | Weather poller |
 | `crates/app` | `tvdash` | Slint UI (`ui/*.slint`: home, library, settings, setup, TV), controller, `main()` |
 
 The controller (`crates/app/src/controller.rs`) owns everything with side effects: media
@@ -122,7 +115,7 @@ To render the windows to PNG without a display (useful in the devcontainer):
 ```bash
 cargo run --example snapshot -- out.png home-playing   # also: home, home-code, home-streaming,
                                                        # library, library-search, settings,
-                                                       # setup-0 … setup-3, tv
+                                                       # setup-0 … setup-2, tv
 ```
 
 ## Tests
@@ -139,7 +132,7 @@ password), Continue Watching, Recently Added, search, posters, play, pause/seek,
 progress reports the server receives, and sign-out. The streaming test covers site
 switching, Stop closing the whole process group, the first-visit hint, Chrome handing
 off to an already-open window, clearing the profile and the first-run setup trigger.
-The widget pollers have their own end-to-end test in `crates/widgets/tests/`.
+The weather poller has its own end-to-end test in `crates/widgets/tests/`.
 
 ## Milestone status
 
@@ -147,5 +140,5 @@ The widget pollers have their own end-to-end test in `crates/widgets/tests/`.
 - [x] **M2**: Jellyfin Quick Connect, Continue Watching with posters, Resume on TV in mpv, Pause/±seek/Stop, progress sync
 - [x] **M3**: Plex PIN sign-in and server discovery, merged rows with source badges, play/progress sync, active sessions from both servers
 - [x] **M4**: Streaming tiles open each site full screen on the TV in a dedicated profile; Stop/Close closes the whole browser and the TV returns to idle
-- [x] **M5**: Weather (10 min), next calendar event (5 min, recurrences expanded), homelab "N / N up" (1 min); calendar Reconnect state
+- [x] **M5**: Weather (10 min). Calendar and homelab were built, then removed from scope
 - [x] **M6**: First-run setup, Settings › Accounts, expired-sign-in states, Library with search, filters, Recently Added and a detail panel

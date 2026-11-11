@@ -9,10 +9,8 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
 
-use crate::SecretKey;
 use crate::models::{
-    AccountStatus, CalendarState, Geometry, HomelabStatus, MediaItem, PlayState, RgbaImage, Session, SignInState,
-    SourceKind, Weather,
+    AccountStatus, Geometry, MediaItem, PlayState, RgbaImage, Session, SignInState, SourceKind, Weather,
 };
 
 /// What tvdash itself is playing on the TV through mpv.
@@ -42,8 +40,6 @@ pub enum AppEvent {
     },
     /// `None`: no location configured.
     Weather(Option<Weather>),
-    Calendar(CalendarState),
-    Homelab(HomelabStatus),
     /// Local playback changed; `None` means the TV is back to idle.
     Player(Option<PlayerStatus>),
     /// The streaming browser opened (`Some(site name)`) or closed (`None`).
@@ -60,11 +56,6 @@ pub enum AppEvent {
     Server(SourceKind, Option<String>),
     /// Site name → last opened, for the setup and Accounts screens.
     Streaming(BTreeMap<String, DateTime<Utc>>),
-    /// Result of storing a secret from the UI (calendar address, Portainer token).
-    SecretSaved {
-        key: SecretKey,
-        result: Result<(), String>,
-    },
     /// Show the first-run setup (nothing is connected yet).
     ShowSetup,
 }
@@ -98,11 +89,6 @@ pub enum Command {
         username: String,
         password: String,
     },
-    /// Check a calendar address works, then store it.
-    SetCalendarUrl(String),
-    /// Store a secret entered in the UI (e.g. the Portainer token).
-    SetSecret(SecretKey, String),
-    ClearSecret(SecretKey),
     /// Close the browser, delete its profile (all streaming sign-ins) and history.
     ClearBrowserProfile,
     SetupFinished,

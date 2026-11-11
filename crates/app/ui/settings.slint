@@ -1,5 +1,5 @@
 import { Theme } from "theme.slint";
-import { ActionButton, Card, PageHeader, SectionLabel, TextField } from "components.slint";
+import { ActionButton, Card, PageHeader, SectionLabel } from "components.slint";
 import { Accounts, AccountRow, Dash, Nav } from "state.slint";
 
 component AccountLine inherits VerticalLayout {
@@ -41,13 +41,7 @@ component AccountLine inherits VerticalLayout {
             alignment: center;
             ActionButton {
                 text: root.account.secondary;
-                clicked => {
-                    if root.account.secondary-id == "edit" {
-                        Accounts.editing = root.account.id;
-                    } else {
-                        Accounts.action(root.account.id, root.account.secondary-id);
-                    }
-                }
+                clicked => { Accounts.action(root.account.id, root.account.secondary-id); }
             }
         }
         if root.account.primary != "": VerticalLayout {
@@ -55,31 +49,9 @@ component AccountLine inherits VerticalLayout {
             ActionButton {
                 text: root.account.primary;
                 primary: true;
-                clicked => {
-                    if root.account.primary-id == "edit" {
-                        Accounts.editing = root.account.id;
-                    } else {
-                        Accounts.action(root.account.id, root.account.primary-id);
-                    }
-                }
+                clicked => { Accounts.action(root.account.id, root.account.primary-id); }
             }
         }
-    }
-
-    if Accounts.editing == root.account.id: VerticalLayout {
-        spacing: 8px;
-        padding-left: 30px;
-        HorizontalLayout {
-            spacing: 12px;
-            field := TextField {
-                placeholder: root.account.input-hint;
-                password: root.account.secret-input;
-                accepted(v) => { Accounts.submit(root.account.id, v); }
-            }
-            ActionButton { text: "Save"; primary: true; clicked => { Accounts.submit(root.account.id, field.text); } }
-            ActionButton { text: "Cancel"; clicked => { Accounts.editing = ""; } }
-        }
-        if Accounts.edit-error != "": Text { text: Accounts.edit-error; font-size: 18px; color: Theme.warn; }
     }
 }
 

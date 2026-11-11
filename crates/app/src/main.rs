@@ -24,10 +24,9 @@ Options:
   --windowed        Don't go full screen (development on a single display)
   --check-keyring   Test GNOME Keyring read/write, list which secrets are set, and exit
   --set-secret KEY  Read a value from stdin and store it in the keyring, e.g.
-                    tvdash --set-secret calendar_ics_url
+                    tvdash --set-secret jellyfin_token
   --clear-secret KEY  Remove a secret from the keyring
-                    KEY: plex_token, jellyfin_token, calendar_ics_url,
-                         portainer_api_key, uptime_kuma_api_key
+                    KEY: plex_token, jellyfin_token
   -h, --help        Show this help
 
 Logging: set RUST_LOG (default: info), e.g. RUST_LOG=tvdash=debug";
@@ -115,21 +114,16 @@ fn main() -> anyhow::Result<()> {
     let (event_tx, event_rx) = mpsc::unbounded_channel::<AppEvent>();
     runtime.spawn(bridge::forward(event_rx, laptop.as_weak(), tv.as_weak()));
 
-    // Header widgets: weather, calendar, homelab (each on its own interval).
-    let widgets = {
+    // Header widgets (weather).
+    let _widgets = {
         let _rt = runtime.enter();
-        let reader: tvdash_widgets::SecretReader = Arc::new(|k| secrets::get(k).ok().flatten());
-        tvdash_widgets::spawn(&config, reader, tvdash_widgets::Endpoints::default(), event_tx.clone())
+        tvdash_widgets::spawn(&config, tvdash_widgets::Endpoints::default(), event_tx.clone())
     };
 
     // UI → background commands, handled by the controller.
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<Command>();
-    let (mut controller, internal_rx) =
+    let (controller, internal_rx) =
         controller::Controller::new((*config).clone(), loaded.path.clone(), args.windowed, event_tx.clone());
-    controller.set_widget_refresh(controller::WidgetRefresh {
-        calendar: widgets.refresh_calendar.clone(),
-        homelab: widgets.refresh_homelab.clone(),
-    });
     runtime.spawn(controller.run(cmd_rx, internal_rx));
     callbacks::wire(&laptop, cmd_tx.clone());
 
@@ -142,7 +136,12 @@ fn main() -> anyhow::Result<()> {
                 Ok(()) => info!("keyring self-test passed"),
                 Err(e) => warn!(error = %e, "keyring self-test failed"),
             }
+            let ok = result.is_ok();
             let _ = tx.send(AppEvent::KeyringStatus(result));
+            // Calendar and homelab were removed; drop their old entries.
+            if ok && let Err(e) = secrets::purge_retired() {
+                warn!(error = %e, "couldn't remove old calendar/homelab keyring entries");
+            }
         });
     }
 

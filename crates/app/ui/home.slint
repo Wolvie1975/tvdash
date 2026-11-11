@@ -25,28 +25,6 @@ export component HomePage inherits VerticalLayout {
                 alignment: start;
                 StatusChip { label: "WEATHER"; value: Dash.weather-text; detail: Dash.weather-detail; }
             }
-            VerticalLayout {
-                alignment: start;
-                StatusChip {
-                    label: "NEXT EVENT";
-                    value: Dash.event-text;
-                    detail: Dash.event-detail;
-                    action: Dash.event-action;
-                    min-width: 320px;
-                    max-width: 420px;
-                    action-clicked => { Dash.calendar-action(); }
-                }
-            }
-            VerticalLayout {
-                alignment: start;
-                StatusChip {
-                    label: "HOMELAB";
-                    value: Dash.homelab-text;
-                    detail: Dash.homelab-detail;
-                    dot: Dash.homelab-dot;
-                    max-width: 360px;
-                }
-            }
         }
     }
 

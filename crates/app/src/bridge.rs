@@ -12,11 +12,9 @@ use chrono::{DateTime, Utc};
 use slint::{ComponentHandle, Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, Timer, VecModel, Weak};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tvdash_core::{
-    AppEvent, SecretKey,
+    AppEvent,
     config::ClockFormat,
-    models::{
-        AccountStatus, CalendarState, HomelabStatus, MediaItem, PlayState, Probe, Session, SignInState, SourceKind,
-    },
+    models::{AccountStatus, MediaItem, PlayState, Session, SignInState, SourceKind},
 };
 
 use crate::{
@@ -44,8 +42,6 @@ pub struct UiState {
     accounts: HashMap<SourceKind, AccountStatus>,
     servers: HashMap<SourceKind, String>,
     sign_in: HashMap<SourceKind, SignInState>,
-    calendar: Option<CalendarState>,
-    homelab: Option<HomelabStatus>,
     streaming: BTreeMap<String, DateTime<Utc>>,
     // Library
     search: Option<(String, Vec<MediaItem>)>,
@@ -260,24 +256,10 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             dash.set_weather_text("No location".into());
             dash.set_weather_detail("Set latitude/longitude".into());
         }
-        AppEvent::Calendar(state) => {
-            s.calendar = Some(state);
-            update_calendar(s, laptop, tv);
-            refresh_accounts(s, laptop);
-        }
-        AppEvent::Homelab(h) => {
-            let c = format::homelab_chip(&h);
-            dash.set_homelab_text(c.value.into());
-            dash.set_homelab_detail(c.detail.into());
-            dash.set_homelab_dot(severity_color(&theme, c.severity));
-            s.homelab = Some(h);
-            refresh_accounts(s, laptop);
-        }
         AppEvent::Streaming(map) => {
             s.streaming = map;
             refresh_accounts(s, laptop);
         }
-        AppEvent::SecretSaved { key, result } => on_secret_saved(s, laptop, key, result),
         AppEvent::ShowSetup => {
             laptop.global::<Setup>().set_step(0);
             laptop.global::<Nav>().set_page("setup".into());
@@ -288,71 +270,6 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
     if on_setup(laptop) {
         refresh_setup(s, laptop);
     }
-}
-
-fn on_secret_saved(s: &mut UiState, laptop: &LaptopWindow, key: SecretKey, result: Result<(), String>) {
-    let acc = laptop.global::<Accounts>();
-    let setup = laptop.global::<Setup>();
-    let calendar = key == SecretKey::CalendarIcsUrl;
-    match result {
-        Ok(()) => {
-            acc.set_editing("".into());
-            acc.set_edit_error("".into());
-            if calendar {
-                setup.set_calendar_state("done".into());
-                if on_setup(laptop) && setup.get_step() == 2 {
-                    setup.set_step(3);
-                }
-            }
-            show_toast(s, laptop, "Saved to GNOME Keyring".into(), TOAST_FOR);
-        }
-        Err(e) => {
-            acc.set_edit_error(e.as_str().into());
-            if calendar {
-                setup.set_calendar_state("error".into());
-                setup.set_calendar_message(format!("That didn't work: {e}").into());
-            }
-        }
-    }
-}
-
-fn severity_color(theme: &Theme, s: format::Severity) -> slint::Color {
-    match s {
-        format::Severity::None => slint::Color::default(), // transparent: no dot
-        format::Severity::Ok => theme.get_ok(),
-        format::Severity::Warn => theme.get_warn(),
-        format::Severity::Alert => theme.get_alert(),
-    }
-}
-
-// ── Header calendar ─────────────────────────────────────────────────
-
-/// Re-pick the next event; called on new data and every minute by the clock.
-pub fn on_minute(laptop: &LaptopWindow, tv: &TvWindow) {
-    STATE.with_borrow(|s| update_calendar(s, laptop, tv));
-}
-
-fn update_calendar(s: &UiState, laptop: &LaptopWindow, tv: &TvWindow) {
-    let (value, detail, action, up_next) = match &s.calendar {
-        None => return,
-        Some(CalendarState::NotSetUp) => ("Not set up".into(), String::new(), "Add calendar", String::new()),
-        Some(CalendarState::Revoked) => ("Address stopped working".into(), String::new(), "Reconnect", String::new()),
-        Some(CalendarState::Events(events)) => {
-            let now = Utc::now();
-            match tvdash_widgets::calendar::next(events, now) {
-                Some(e) => {
-                    let (c, tv_line) = format::event_chip(e, now, s.tz, s.clock.unwrap_or(ClockFormat::H24));
-                    (c.value, c.detail, "", tv_line)
-                }
-                None => ("Nothing today".into(), "or tomorrow".into(), "", String::new()),
-            }
-        }
-    };
-    let dash = laptop.global::<Dash>();
-    dash.set_event_text(value.into());
-    dash.set_event_detail(detail.into());
-    dash.set_event_action(action.into());
-    tv.set_up_next(up_next.into());
 }
 
 // ── Rows ────────────────────────────────────────────────────────────
@@ -585,8 +502,6 @@ struct Row<'a> {
     state: &'a str,
     primary: Button<'a>,
     secondary: Button<'a>,
-    /// Text entry (placeholder, secret?) for rows that take a value.
-    input: Option<(&'a str, bool)>,
 }
 
 impl From<Row<'_>> for AccountRow {
@@ -601,8 +516,6 @@ impl From<Row<'_>> for AccountRow {
             primary_id: r.primary.1.into(),
             secondary: r.secondary.0.into(),
             secondary_id: r.secondary.1.into(),
-            input_hint: r.input.map(|(h, _)| h).unwrap_or_default().into(),
-            secret_input: r.input.is_some_and(|(_, secret)| secret),
         }
     }
 }
@@ -618,7 +531,6 @@ fn media_account_row(s: &UiState, kind: SourceKind) -> AccountRow {
         state,
         primary,
         secondary,
-        input: None,
     };
     match (s.sign_in.get(&kind), s.accounts.get(&kind)) {
         (Some(SignInState::Starting), _) => {
@@ -642,79 +554,6 @@ fn media_account_row(s: &UiState, kind: SourceKind) -> AccountRow {
     .into()
 }
 
-fn calendar_row(s: &UiState) -> AccountRow {
-    let row = |status: &str, detail: String, state, primary, secondary| Row {
-        id: "calendar",
-        name: "Google Calendar",
-        status: status.into(),
-        detail,
-        state,
-        primary,
-        secondary,
-        input: Some(("Secret address in iCal format (https://calendar.google.com/…/basic.ics)", false)),
-    };
-    let (replace, remove) = (("Replace address", "edit"), ("Remove", "remove"));
-    match &s.calendar {
-        Some(CalendarState::Events(e)) => {
-            row("Connected", format!("{} events today and tomorrow", e.len()), "ok", replace, remove)
-        }
-        Some(CalendarState::Revoked) => row(
-            "Address stopped working",
-            "It was probably reset in Google Calendar's settings; paste the new one.".into(),
-            "warn",
-            replace,
-            remove,
-        ),
-        _ => row("Not set up", String::new(), "off", ("Add address", "edit"), NONE),
-    }
-    .into()
-}
-
-fn homelab_rows(s: &UiState) -> [AccountRow; 2] {
-    let portainer = |status: &str, detail: String, state, primary, secondary| Row {
-        id: "portainer",
-        name: "Portainer",
-        status: status.into(),
-        detail,
-        state,
-        primary,
-        secondary,
-        input: Some(("Portainer access token (My account › Access tokens)", true)),
-    };
-    let (replace, remove) = (("Replace token", "edit"), ("Remove", "remove"));
-    let portainer = match s.homelab.as_ref().map(|h| &h.containers) {
-        Some(Probe::Ok(c)) => {
-            portainer("Connected", format!("{} / {} containers running", c.running, c.total), "ok", replace, remove)
-        }
-        Some(Probe::Failed(e)) => portainer("Unavailable", e.clone(), "warn", replace, remove),
-        _ => portainer(
-            "No access token",
-            "URL is set in config.toml under [homelab]".into(),
-            "off",
-            ("Add token", "edit"),
-            NONE,
-        ),
-    };
-    let kuma = |status: String, detail: String, state| Row {
-        id: "kuma",
-        name: "Uptime Kuma",
-        status,
-        detail,
-        state,
-        primary: NONE,
-        secondary: NONE,
-        input: None,
-    };
-    let kuma = match s.homelab.as_ref().map(|h| &h.monitors) {
-        Some(Probe::Ok(m)) => {
-            kuma(format!("{} / {} monitors up", m.up, m.total), "Public status page; set in config.toml".into(), "ok")
-        }
-        Some(Probe::Failed(e)) => kuma("Unavailable".into(), e.clone(), "warn"),
-        _ => kuma("Not set up".into(), "Set the URL and status page in config.toml".into(), "off"),
-    };
-    [portainer.into(), kuma.into()]
-}
-
 fn site_status(opened: Option<&DateTime<Utc>>) -> String {
     match opened {
         None => "Not signed in yet".into(),
@@ -727,10 +566,7 @@ fn site_status(opened: Option<&DateTime<Utc>>) -> String {
 }
 
 fn refresh_accounts(s: &UiState, laptop: &LaptopWindow) {
-    let mut rows =
-        vec![media_account_row(s, SourceKind::Plex), media_account_row(s, SourceKind::Jellyfin), calendar_row(s)];
-    rows.extend(homelab_rows(s));
-    s.account_rows.set_vec(rows);
+    s.account_rows.set_vec(vec![media_account_row(s, SourceKind::Plex), media_account_row(s, SourceKind::Jellyfin)]);
     let sites: Vec<SiteRow> = s
         .site_names
         .iter()
@@ -796,7 +632,7 @@ mod tests {
     //! and check what the pages would show.
 
     use super::*;
-    use tvdash_core::models::{ContainerCounts, MediaKind, MonitorCounts, RgbaImage};
+    use tvdash_core::models::{MediaKind, RgbaImage};
 
     fn windows() -> (LaptopWindow, TvWindow) {
         i_slint_backend_testing::init_no_event_loop();
@@ -856,13 +692,6 @@ mod tests {
         send(&l, &t, AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Failed("wrong username or password".into())));
         assert_eq!((setup.get_step(), setup.get_jellyfin_state().as_str()), (1, "error"));
         assert!(setup.get_jellyfin_message().contains("wrong username"));
-
-        // Calendar: a rejected address shows why; a good one moves to streaming.
-        setup.set_step(2);
-        send(&l, &t, AppEvent::SecretSaved { key: SecretKey::CalendarIcsUrl, result: Err("copy it again".into()) });
-        assert_eq!((setup.get_step(), setup.get_calendar_state().as_str()), (2, "error"));
-        send(&l, &t, AppEvent::SecretSaved { key: SecretKey::CalendarIcsUrl, result: Ok(()) });
-        assert_eq!((setup.get_step(), setup.get_calendar_state().as_str()), (3, "done"));
     }
 
     #[test]
@@ -915,7 +744,7 @@ mod tests {
     }
 
     #[test]
-    fn expired_revoked_and_failed_states() {
+    fn expired_states_and_streaming_sites() {
         let (l, t) = windows();
         let dash = l.global::<Dash>();
         send(&l, &t, AppEvent::Account(SourceKind::Jellyfin, AccountStatus::Connected));
@@ -929,39 +758,9 @@ mod tests {
             ("warn", "Reconnect", "sign-in")
         );
 
-        send(&l, &t, AppEvent::Calendar(CalendarState::Revoked));
-        assert_eq!(dash.get_event_action(), "Reconnect");
-        assert_eq!(account(&l, "calendar").state, "warn");
-        assert_eq!(account(&l, "calendar").primary_id, "edit");
-
-        let h = HomelabStatus {
-            monitors: Probe::Ok(MonitorCounts { up: 3, total: 3, down: vec![] }),
-            containers: Probe::Failed("HTTP 401".into()),
-        };
-        send(&l, &t, AppEvent::Homelab(h));
-        assert_eq!(
-            (account(&l, "portainer").state.as_str(), account(&l, "portainer").detail.as_str()),
-            ("warn", "HTTP 401")
-        );
-        assert_eq!(account(&l, "kuma").status, "3 / 3 monitors up");
-        let ok = HomelabStatus {
-            monitors: Probe::NotConfigured,
-            containers: Probe::Ok(ContainerCounts { running: 2, total: 2 }),
-        };
-        send(&l, &t, AppEvent::Homelab(ok));
-        assert_eq!(account(&l, "portainer").status, "Connected");
-
         send(&l, &t, AppEvent::Streaming(BTreeMap::from([("Netflix".to_string(), Utc::now())])));
         let sites = l.global::<Accounts>().get_sites();
         assert_eq!(sites.row_data(0).unwrap().status, "Set up · opened today");
         assert_eq!(sites.row_data(1).unwrap().status, "Not signed in yet");
-
-        // Saving a token closes the editor; a failure keeps it open with the reason.
-        let acc = l.global::<Accounts>();
-        acc.set_editing("portainer".into());
-        send(&l, &t, AppEvent::SecretSaved { key: SecretKey::PortainerApiKey, result: Err("keyring locked".into()) });
-        assert_eq!((acc.get_editing().as_str(), acc.get_edit_error().as_str()), ("portainer", "keyring locked"));
-        send(&l, &t, AppEvent::SecretSaved { key: SecretKey::PortainerApiKey, result: Ok(()) });
-        assert_eq!(acc.get_editing(), "");
     }
 }

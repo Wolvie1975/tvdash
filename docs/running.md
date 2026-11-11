@@ -41,9 +41,6 @@ another.
 Everything is under **Settings › Accounts** on the dashboard:
 
 - **Plex / Jellyfin:** Sign in, Sign out, Reconnect.
-- **Google Calendar:** paste the *Secret address in iCal format* (Google Calendar →
-  Settings → your calendar → Integrate calendar).
-- **Portainer:** paste an access token (Portainer → My account → Access tokens).
 - **Streaming sites:** **Sign in on TV** opens the site on the TV. Sign in with the
   laptop's mouse and keyboard, then press **Stop**.
 - **Run first-time setup again** walks through all of these in order.
@@ -65,7 +62,6 @@ tvdash --check-keyring
 | `units`, `timezone` | `[general]` | `"fahrenheit"` / `"celsius"`; e.g. `"America/Chicago"` |
 | `tv_output`, `laptop_output` | `[display]` | Which screen is which (see above) |
 | `server_url` | `[jellyfin]` | Your Jellyfin server address |
-| `portainer_url`, `uptime_kuma_url`, `uptime_kuma_status_page` | `[homelab]` | Homelab chip; `portainer_verify_tls = false` for Portainer's self-signed certificate |
 | `binary` | `[browser]` | Browser for streaming sites (default `brave-browser`) |
 | `[[streaming]]` entries | end of file | The Watch on TV tiles: a `name` and a `url` each |
 
@@ -87,8 +83,6 @@ Quit tvdash and start it again to run the new version.
 | Streaming site says DRM or won't play | In the Brave window on the TV, accept the prompt to enable **Widevine**. If you missed it: Brave → Settings → Extensions → turn on Widevine, then reopen the site |
 | A streaming site opens on the laptop instead of the TV | Set `window_position = "X,Y"` under `[browser]` to the TV's top-left corner (e.g. `"1920,0"` if the TV is to the right of a 1920-wide panel) |
 | "Keyring unavailable" in the footer | The keyring service isn't running, so sign-ins won't be saved. Log out and back in, or check GNOME Keyring / KWallet is enabled |
-| Calendar chip says **Reconnect** | The secret address was reset in Google Calendar. Copy the new one and paste it in Settings |
-| Homelab says unavailable | Check the URLs under `[homelab]`, and the Portainer token in Settings |
 | Streaming sites keep their old sign-ins | **Settings › Clear browser profile** signs out of all of them |
 
 ## Uninstall

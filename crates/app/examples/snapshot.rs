@@ -1,7 +1,7 @@
 // Dev tool: render windows offscreen to PNG (no display needed).
 // Usage: cargo run --example snapshot -- out.png <mode> [height] [width]
 // Modes: home, home-playing, home-code, home-streaming, library, library-search,
-//        settings, setup-0 … setup-3, tv
+//        settings, setup-0 … setup-2, tv
 use std::rc::Rc;
 
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
@@ -64,7 +64,6 @@ fn account(
     state: &str,
     primary: &str,
     secondary: &str,
-    hint: &str,
 ) -> AccountRow {
     AccountRow {
         id: id.into(),
@@ -76,8 +75,6 @@ fn account(
         primary_id: "x".into(),
         secondary: secondary.into(),
         secondary_id: "x".into(),
-        input_hint: hint.into(),
-        secret_input: false,
     }
 }
 
@@ -95,11 +92,6 @@ fn laptop(mode: &str) -> LaptopWindow {
     dash.set_keyring_dot(theme.get_ok());
     dash.set_weather_text("48° Light rain".into());
     dash.set_weather_detail("H 55° · L 39°".into());
-    dash.set_event_text("14:00 Stand, up (moved)".into());
-    dash.set_event_detail("Today".into());
-    dash.set_homelab_text("6 / 6 up".into());
-    dash.set_homelab_detail("23 / 24 containers".into());
-    dash.set_homelab_dot(theme.get_ok());
 
     let row = cards(&[
         ("Some Show", "S2 · E5 · The Pilot", 0.33, true, "Jellyfin"),
@@ -193,41 +185,9 @@ fn laptop(mode: &str) -> LaptopWindow {
                     "warn",
                     "Reconnect",
                     "Sign out",
-                    "",
                 ),
-                account("jellyfin", "Jellyfin", "Connected", "http://republic-city:8096", "ok", "", "Sign out", ""),
-                account(
-                    "calendar",
-                    "Google Calendar",
-                    "Connected",
-                    "4 events today and tomorrow",
-                    "ok",
-                    "Replace address",
-                    "Remove",
-                    "Secret address in iCal format",
-                ),
-                account(
-                    "portainer",
-                    "Portainer",
-                    "No access token",
-                    "URL is set in config.toml under [homelab]",
-                    "off",
-                    "Add token",
-                    "",
-                    "Portainer access token",
-                ),
-                account(
-                    "kuma",
-                    "Uptime Kuma",
-                    "6 / 6 monitors up",
-                    "Public status page; set in config.toml",
-                    "ok",
-                    "",
-                    "",
-                    "",
-                ),
+                account("jellyfin", "Jellyfin", "Connected", "http://republic-city:8096", "ok", "", "Sign out"),
             ]));
-            acc.set_editing("portainer".into());
             acc.set_confirm_clear(true);
         }
         m if m.starts_with("setup-") => {
@@ -245,12 +205,6 @@ fn laptop(mode: &str) -> LaptopWindow {
                     setup.set_plex_code("WXYZ".into());
                 }
                 1 => setup.set_jellyfin_state("idle".into()),
-                2 => {
-                    setup.set_calendar_state("error".into());
-                    setup.set_calendar_message(
-                        "That didn't work: Google says that address doesn't exist; copy it again".into(),
-                    );
-                }
                 _ => {}
             }
         }
@@ -261,8 +215,6 @@ fn laptop(mode: &str) -> LaptopWindow {
                 prompt("plex", "Plex isn't connected.", "Sign in to Plex", false),
             ]));
             dash.set_tv_prompts(model(vec![prompt("plex", "Plex sign-in expired.", "Reconnect", true)]));
-            dash.set_event_text("Address stopped working".into());
-            dash.set_event_action("Reconnect".into());
         }
     }
     l
@@ -279,7 +231,6 @@ fn main() {
         t.set_clock_hh("21".into());
         t.set_clock_mm("04".into());
         t.set_date_text("Wednesday, 11 November".into());
-        t.set_up_next("14:00 Stand, up (moved)".into());
         t.show().unwrap();
         t.window().take_snapshot().unwrap()
     } else {

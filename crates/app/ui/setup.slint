@@ -80,8 +80,7 @@ export component SetupPage inherits VerticalLayout {
         alignment: start;
         StepDot { index: 0; label: "Plex"; done: Setup.plex-state == "done"; }
         StepDot { index: 1; label: "Jellyfin"; done: Setup.jellyfin-state == "done"; }
-        StepDot { index: 2; label: "Calendar"; done: Setup.calendar-state == "done"; }
-        StepDot { index: 3; label: "Streaming"; }
+        StepDot { index: 2; label: "Streaming"; }
     }
 
     Card {
@@ -166,34 +165,10 @@ export component SetupPage inherits VerticalLayout {
                 }
             }
 
-            // ── 3 · Calendar ─────────────────────────────────────
+            // ── 3 · Streaming ────────────────────────────────────
             if Setup.step == 2: VerticalLayout {
-                spacing: 20px;
-                SectionLabel { text: "STEP 3 · CALENDAR"; }
-                Text { text: "Paste your Google Calendar's secret address."; font-size: 28px; color: Theme.text-primary; }
-                Text {
-                    text: "Google Calendar on the web → Settings → your calendar → Integrate calendar → copy “Secret address in iCal format”. Treat it like a password: anyone with it can read that calendar. It's stored in GNOME Keyring.";
-                    font-size: 18px;
-                    color: Theme.text-secondary;
-                    wrap: word-wrap;
-                }
-                HorizontalLayout {
-                    spacing: 12px;
-                    cal := TextField {
-                        placeholder: "https://calendar.google.com/calendar/ical/…/basic.ics";
-                        accepted(v) => { Setup.set-calendar(v); }
-                    }
-                    ActionButton { text: "Save"; primary: true; clicked => { Setup.set-calendar(cal.text); } }
-                }
-                if Setup.calendar-state == "busy": Text { text: "Checking the address…"; font-size: Theme.body-size; color: Theme.text-muted; }
-                if Setup.calendar-state == "done": Text { text: "✓  Calendar connected"; font-size: Theme.body-size; color: Theme.ok; }
-                if Setup.calendar-state == "error": Text { text: Setup.calendar-message; font-size: Theme.body-size; color: Theme.warn; wrap: word-wrap; }
-            }
-
-            // ── 4 · Streaming ────────────────────────────────────
-            if Setup.step == 3: VerticalLayout {
                 spacing: 16px;
-                SectionLabel { text: "STEP 4 · STREAMING"; }
+                SectionLabel { text: "STEP 3 · STREAMING"; }
                 Text { text: "Sign in to each streaming site once, on the TV."; font-size: 28px; color: Theme.text-primary; }
                 Text {
                     text: "Each opens full screen on the TV. Sign in there with this laptop's mouse and keyboard, then press Close browser here.";
@@ -220,15 +195,15 @@ export component SetupPage inherits VerticalLayout {
         spacing: 12px;
         if Setup.step > 0: ActionButton { text: "‹  Back"; clicked => { Setup.step -= 1; } }
         Rectangle { horizontal-stretch: 1; }
-        if Setup.step < 3: ActionButton {
+        if Setup.step < 2: ActionButton {
             text: "Skip";
             clicked => { Setup.step += 1; }
         }
-        if Setup.step < 3: ActionButton {
+        if Setup.step < 2: ActionButton {
             text: "Next  ›";
             primary: true;
             clicked => { Setup.step += 1; }
         }
-        if Setup.step == 3: ActionButton { text: "Finish"; primary: true; clicked => { Setup.finish(); } }
+        if Setup.step == 2: ActionButton { text: "Finish"; primary: true; clicked => { Setup.finish(); } }
     }
 }

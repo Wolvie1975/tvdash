@@ -77,15 +77,6 @@ pub struct Controller {
     state: AppState,
     state_path: Option<PathBuf>,
     posters_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
-    /// Lets the controller poke the widget pollers after a secret changes.
-    widgets: Option<WidgetRefresh>,
-}
-
-/// "Poll now" handles for the header widgets.
-#[derive(Clone)]
-pub struct WidgetRefresh {
-    pub calendar: Arc<tokio::sync::Notify>,
-    pub homelab: Arc<tokio::sync::Notify>,
 }
 
 enum Step {
@@ -122,13 +113,8 @@ impl Controller {
             state: AppState::default(),
             state_path: tvdash_core::state::default_path(),
             posters_requested: Arc::default(),
-            widgets: None,
         };
         (c, internal_rx)
-    }
-
-    pub fn set_widget_refresh(&mut self, w: WidgetRefresh) {
-        self.widgets = Some(w);
     }
 
     fn emit(&self, event: AppEvent) {
@@ -310,27 +296,6 @@ impl Controller {
                 }
             }
             Command::JellyfinPassword { username, password } => self.jellyfin_password(username, password),
-            Command::SetCalendarUrl(url) => self.set_calendar_url(url),
-            Command::SetSecret(key, value) => {
-                let result = store_secret(key, value).await;
-                if key == SecretKey::PortainerApiKey
-                    && let Some(w) = &self.widgets
-                {
-                    w.homelab.notify_one();
-                }
-                self.emit(AppEvent::SecretSaved { key, result });
-            }
-            Command::ClearSecret(key) => {
-                let result = match tokio::task::spawn_blocking(move || secrets::delete(key)).await {
-                    Ok(r) => r.map_err(|e| e.to_string()),
-                    Err(e) => Err(e.to_string()),
-                };
-                if let Some(w) = &self.widgets {
-                    w.calendar.notify_one();
-                    w.homelab.notify_one();
-                }
-                self.emit(AppEvent::SecretSaved { key, result });
-            }
             Command::ClearBrowserProfile => self.clear_browser_profile().await,
             Command::SetupFinished => {
                 self.state.setup_complete = true;
@@ -398,37 +363,6 @@ impl Controller {
             }
         });
         self.sign_in.insert(SourceKind::Jellyfin, task);
-    }
-
-    /// Fetch the address once; store it only if it's a working calendar feed.
-    fn set_calendar_url(&self, url: String) {
-        let (events, refresh) = (self.events.clone(), self.widgets.as_ref().map(|w| w.calendar.clone()));
-        tokio::spawn(async move {
-            let url = url.trim().to_owned();
-            let http = reqwest::Client::builder().timeout(Duration::from_secs(20)).build().expect("HTTP client");
-            let check = if !url.starts_with("https://") && !url.starts_with("http://") {
-                Err("that doesn't look like a web address".to_owned())
-            } else {
-                match tvdash_widgets::calendar::fetch(&http, &url).await {
-                    Ok(body) if body.contains("BEGIN:VCALENDAR") => Ok(()),
-                    Ok(_) => Err("that address isn't an iCal feed".into()),
-                    Err(tvdash_widgets::WidgetError::Revoked) => {
-                        Err("Google says that address doesn't exist; copy it again".into())
-                    }
-                    Err(e) => Err(format!("couldn't fetch it: {e}")),
-                }
-            };
-            let result = match check {
-                Ok(()) => store_secret(SecretKey::CalendarIcsUrl, url).await,
-                Err(e) => Err(e),
-            };
-            if result.is_ok()
-                && let Some(r) = refresh
-            {
-                r.notify_one();
-            }
-            let _ = events.send(AppEvent::SecretSaved { key: SecretKey::CalendarIcsUrl, result });
-        });
     }
 
     async fn clear_browser_profile(&mut self) {
@@ -968,17 +902,6 @@ mod tests {
     }
 }
 
-async fn store_secret(key: SecretKey, value: String) -> Result<(), String> {
-    let value = value.trim().to_owned();
-    if value.is_empty() {
-        return Err("nothing to save".into());
-    }
-    match tokio::task::spawn_blocking(move || secrets::set(key, &value)).await {
-        Ok(r) => r.map_err(|e| e.to_string()),
-        Err(e) => Err(e.to_string()),
-    }
-}
-
 async fn read_secret(key: SecretKey) -> Option<String> {
     match tokio::task::spawn_blocking(move || secrets::get(key)).await {
         Ok(Ok(v)) => v,
@@ -1327,32 +1250,6 @@ mod e2e {
         assert_eq!((query.as_str(), found.len(), found[0].title.as_str()), ("film", 1, "A Film"));
         let search = h.server_log().into_iter().rfind(|r| r["path"] == "/Items").unwrap();
         assert_eq!(search["query"]["includeItemTypes"][0], "Movie,Series,Episode");
-
-        // Calendar address is checked before it's stored.
-        let base = format!("http://127.0.0.1:{}", h.port);
-        for (url, want) in [
-            ("not a url".to_string(), "doesn't look like a web address"),
-            (format!("{base}/missing.ics"), "copy it again"),
-            (format!("{base}/QuickConnect/Connect"), "isn't an iCal feed"),
-        ] {
-            h.send(Command::SetCalendarUrl(url));
-            let r = h
-                .wait_for(|e| match e {
-                    AppEvent::SecretSaved { key: SecretKey::CalendarIcsUrl, result } => Some(result.clone()),
-                    _ => None,
-                })
-                .await;
-            assert!(r.as_ref().is_err_and(|e| e.contains(want)), "{r:?} should mention {want:?}");
-        }
-        // A real feed passes the check (storing may fail here: no keyring in CI).
-        h.send(Command::SetCalendarUrl(format!("{base}/cal.ics")));
-        let r = h
-            .wait_for(|e| match e {
-                AppEvent::SecretSaved { key: SecretKey::CalendarIcsUrl, result } => Some(result.clone()),
-                _ => None,
-            })
-            .await;
-        assert!(r.as_ref().is_ok() || r.as_ref().is_err_and(|e| e.contains("keyring")), "{r:?}");
 
         // Sign out: rows cleared, account back to "not connected", config forgets the user.
         h.send(Command::SignOut(SourceKind::Jellyfin));
