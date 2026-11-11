@@ -82,6 +82,9 @@ sudo dnf swap ffmpeg-free ffmpeg --allowerasing
 mpv --vd=help | grep -wE "h264|hevc"          # should list both
 ```
 
+If you skip this, tvdash shows "mpv can't decode the video, so there's no picture" when a
+title plays with sound only, and the fix is the same two commands; no restart needed.
+
 Optional, for smoother 4K on Intel graphics: `sudo dnf install intel-media-driver`, and add
 `hwdec=auto` to `~/.config/mpv/mpv.conf`.
 

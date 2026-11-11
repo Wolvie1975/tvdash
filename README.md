@@ -12,7 +12,13 @@ idle screen shows otherwise. See [docs/running.md](docs/running.md) for day-to-d
 
 1. In GNOME Settings → Displays, make the TV the **primary** display.
 2. Install the players: `sudo dnf install mpv`, plus Brave from Brave's RPM repo (see
-   [Streaming](#streaming)).
+   [Streaming](#streaming)). Then switch to RPM Fusion's full FFmpeg, or most films play with
+   sound but no picture (Fedora's `ffmpeg-free` can't decode most H.264 or any HEVC):
+
+   ```bash
+   sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
+   sudo dnf swap ffmpeg-free ffmpeg --allowerasing
+   ```
 3. Build and run:
 
    ```bash

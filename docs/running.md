@@ -85,6 +85,7 @@ Quit tvdash and start it again to run the new version.
 
 | Problem | Fix |
 |---|---|
+| Plex or Jellyfin plays **sound but no picture** (black screen), or tvdash says "mpv can't decode the video" | Fedora's own FFmpeg (`ffmpeg-free`) can't decode most H.264 films or any HEVC. Switch to RPM Fusion's full FFmpeg: `sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm`, then `sudo dnf swap ffmpeg-free ffmpeg --allowerasing`. Check with `mpv --vd=help \| grep -wE "h264\|hevc"` (both should be listed), then play the title again; no restart needed |
 | Plex sign-in says no address answered | Your router may block `*.plex.direct` names. tvdash falls back to the server's local address; if that fails too, check the server is on and the laptop is on the same network |
 | Streaming site says DRM or won't play | In the Brave window on the TV, accept the prompt to enable **Widevine**. If you missed it: Brave → Settings → Extensions → turn on Widevine, then reopen the site |
 | A streaming site opens on the laptop instead of the TV | Set `window_position = "X,Y"` under `[browser]` to the TV's top-left corner (e.g. `"1920,0"` if the TV is to the right of a 1920-wide panel) |
