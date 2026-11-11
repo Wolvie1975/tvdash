@@ -2,7 +2,9 @@
 
 mod bridge;
 mod clock;
+mod controller;
 mod displays;
+mod format;
 
 use std::{sync::Arc, time::Duration};
 
@@ -10,7 +12,7 @@ use anyhow::{Context, bail};
 use slint::{CloseRequestResponse, ComponentHandle, ModelRc, SharedString, VecModel};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
-use tvdash_core::{AppEvent, Command, Config, secrets};
+use tvdash_core::{AppEvent, Command, Config, models::SourceKind, secrets};
 
 slint::include_modules!();
 
@@ -65,7 +67,7 @@ fn main() -> anyhow::Result<()> {
     } else {
         info!(path = %loaded.path.display(), "loaded config");
     }
-    let config = Arc::new(loaded.config);
+    let config = Arc::new(loaded.config.clone());
 
     // All network/IPC work runs here; the UI thread only receives finished data.
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -85,14 +87,18 @@ fn main() -> anyhow::Result<()> {
     let sites: Vec<SharedString> = config.streaming.iter().map(|s| s.name.as_str().into()).collect();
     laptop.set_streaming_sites(ModelRc::new(VecModel::from(sites)));
 
-    // UI → background commands.
-    let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<Command>();
-    runtime.spawn(handle_commands(cmd_rx, config.clone()));
-    wire_callbacks(&laptop, cmd_tx);
+    bridge::init(&laptop, config.general.tz(), config.general.clock);
 
     // Background → UI events.
     let (event_tx, event_rx) = mpsc::unbounded_channel::<AppEvent>();
     runtime.spawn(bridge::forward(event_rx, laptop.as_weak(), tv.as_weak()));
+
+    // UI → background commands, handled by the controller.
+    let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<Command>();
+    let (controller, internal_rx) =
+        controller::Controller::new((*config).clone(), loaded.path.clone(), args.windowed, event_tx.clone());
+    runtime.spawn(controller.run(cmd_rx, internal_rx));
+    wire_callbacks(&laptop, cmd_tx);
 
     // M1 done-check: keyring round-trip, reported in the laptop footer.
     {
@@ -139,6 +145,25 @@ fn wire_callbacks(laptop: &LaptopWindow, cmd_tx: mpsc::UnboundedSender<Command>)
     let s = send.clone();
     laptop.on_open_site(move |i| s(Command::OpenSite(i as usize)));
 
+    let s = send.clone();
+    laptop.on_play_item(move |i| match bridge::row(i as usize) {
+        Some(item) => s(Command::Play(item)),
+        None => warn!(index = i, "play: no such card"),
+    });
+
+    let s = send.clone();
+    laptop.on_sign_in(move |source| match parse_source(&source) {
+        Some(kind) => s(Command::SignIn(kind)),
+        None => warn!(%source, "sign-in: unknown source"),
+    });
+
+    let s = send.clone();
+    laptop.on_cancel_sign_in(move |source| {
+        if let Some(kind) = parse_source(&source) {
+            s(Command::CancelSignIn(kind));
+        }
+    });
+
     let laptop_weak = laptop.as_weak();
     laptop.on_transport(move |action| {
         let paused = laptop_weak.upgrade().is_some_and(|l| l.get_paused());
@@ -162,16 +187,11 @@ fn wire_callbacks(laptop: &LaptopWindow, cmd_tx: mpsc::UnboundedSender<Command>)
     });
 }
 
-/// M1: log commands. M2 wires mpv + media sources, M4 the browser launcher.
-async fn handle_commands(mut rx: mpsc::UnboundedReceiver<Command>, config: Arc<Config>) {
-    while let Some(cmd) = rx.recv().await {
-        match &cmd {
-            Command::OpenSite(i) => match config.streaming.get(*i) {
-                Some(site) => info!(site = %site.name, url = %site.url, "open site requested (browser launcher lands in M4)"),
-                None => warn!(index = i, "open site: no such streaming entry"),
-            },
-            other => info!(command = ?other, "command received (player lands in M2)"),
-        }
+fn parse_source(s: &str) -> Option<SourceKind> {
+    match s {
+        "jellyfin" => Some(SourceKind::Jellyfin),
+        "plex" => Some(SourceKind::Plex),
+        _ => None,
     }
 }
 

@@ -17,7 +17,7 @@ tvdash-widgets = { path = "crates/widgets" }
 
 # External
 tokio = { version = "1.54", features = ["full"] }
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "query", "rustls", "http2"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "1.2"

@@ -33,10 +33,22 @@ cargo run --example snapshot -- laptop.png laptop
 cargo run --example snapshot -- tv.png tv
 ```
 
+## Tests
+
+```bash
+cargo test                      # unit tests
+cargo test -- --include-ignored # also the end-to-end test (needs python3)
+```
+
+The end-to-end test in `crates/app/src/controller.rs` runs the real controller
+against `crates/app/tests/fakes/` (a fake Jellyfin server and a fake mpv that speaks
+the JSON IPC protocol). It covers sign-in → Continue Watching → play → pause/seek →
+stop, plus the progress reports Jellyfin receives.
+
 ## Milestone status
 
 - [x] **M1**: workspace, config load/create, keyring read/write, two windows full screen per output, live clock, TV idle screen
-- [ ] M2: Jellyfin + mpv
+- [x] **M2**: Jellyfin Quick Connect, Continue Watching with posters, Resume on TV in mpv, Pause/±seek/Stop, progress sync
 - [ ] M3: Plex
 - [ ] M4: Streaming
 - [ ] M5: Header widgets

@@ -6,8 +6,18 @@
 //! ```
 
 use crate::models::{
-    AccountStatus, CalendarEvent, HomelabStatus, MediaItem, PlayState, Session, SourceKind, Weather,
+    AccountStatus, CalendarEvent, HomelabStatus, MediaItem, PlayState, RgbaImage, Session, SignInState,
+    SourceKind, Weather,
 };
+
+/// What tvdash itself is playing on the TV through mpv.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerStatus {
+    pub item: MediaItem,
+    pub state: PlayState,
+    pub position_ms: u64,
+    pub duration_ms: Option<u64>,
+}
 
 /// Finished data for the UI. Produced off the UI thread.
 #[derive(Debug, Clone)]
@@ -15,18 +25,21 @@ pub enum AppEvent {
     /// Result of the startup keyring self-test (M1).
     KeyringStatus(Result<(), String>),
     Account(SourceKind, AccountStatus),
+    SignIn(SourceKind, SignInState),
     NowPlaying(Vec<Session>),
     ContinueWatching(SourceKind, Vec<MediaItem>),
     RecentlyAdded(SourceKind, Vec<MediaItem>),
+    /// Poster for the item with this source + id.
+    Poster {
+        source: SourceKind,
+        item_id: String,
+        image: RgbaImage,
+    },
     Weather(Weather),
     NextEvent(Option<CalendarEvent>),
     Homelab(HomelabStatus),
-    /// Local mpv state: what's on the TV right now.
-    Player {
-        item: Option<MediaItem>,
-        state: PlayState,
-        position_ms: u64,
-    },
+    /// Local playback changed; `None` means the TV is back to idle.
+    Player(Option<PlayerStatus>),
     /// The streaming browser opened (`Some(site name)`) or closed (`None`).
     Browser(Option<String>),
     Toast(String),
@@ -45,4 +58,9 @@ pub enum Command {
     OpenSite(usize),
     CloseBrowser,
     Search(String),
+    /// Start the interactive sign-in for a media server.
+    SignIn(SourceKind),
+    CancelSignIn(SourceKind),
+    /// Re-fetch rows now instead of waiting for the next poll.
+    Refresh,
 }

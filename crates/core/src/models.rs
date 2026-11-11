@@ -71,6 +71,33 @@ pub struct Session {
     pub position_ms: u64,
 }
 
+/// Decoded RGBA8 image (posters). Plain bytes so it can cross threads; the UI
+/// turns it into a `slint::Image`.
+#[derive(Clone, PartialEq, Eq)]
+pub struct RgbaImage {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Vec<u8>,
+}
+
+impl std::fmt::Debug for RgbaImage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "RgbaImage({}x{})", self.width, self.height)
+    }
+}
+
+/// Progress of an interactive sign-in (Jellyfin Quick Connect, Plex PIN).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SignInState {
+    /// Contacting the server for a code.
+    Starting,
+    /// Show this code to the user and wait.
+    Code(String),
+    Done,
+    Failed(String),
+    Cancelled,
+}
+
 /// Connection state of an account, shown in Settings › Accounts and on cards.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AccountStatus {

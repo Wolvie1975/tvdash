@@ -330,6 +330,15 @@ impl Config {
         changed
     }
 
+    /// Re-read the config at `path`, apply `change`, and save it. Re-reading
+    /// first keeps hand edits made while the app was running.
+    pub fn update_at(path: &Path, change: impl FnOnce(&mut Config)) -> Result<Config> {
+        let mut config = Self::load_or_create_at(path)?.config;
+        change(&mut config);
+        config.save_to(path)?;
+        Ok(config)
+    }
+
     /// Write the config atomically (temp file + rename).
     pub fn save_to(&self, path: &Path) -> Result<()> {
         let body = toml::to_string_pretty(self)?;

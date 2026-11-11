@@ -15,12 +15,37 @@ pub enum MediaError {
     Unauthorized,
     #[error("server not configured")]
     NotConfigured,
+    #[error("not found on the server")]
+    NotFound,
     #[error("server unreachable: {0}")]
     Unreachable(String),
-    #[error("unexpected response: {0}")]
+    #[error("{0}")]
     Protocol(String),
     #[error("not implemented yet")]
     NotImplemented,
+}
+
+impl MediaError {
+    /// Map an HTTP status to an error (only called for non-success statuses).
+    pub fn from_status(status: reqwest::StatusCode, context: &str) -> Self {
+        match status.as_u16() {
+            401 | 403 => Self::Unauthorized,
+            404 => Self::NotFound,
+            _ => Self::Protocol(format!("{context}: HTTP {status}")),
+        }
+    }
+}
+
+impl From<reqwest::Error> for MediaError {
+    fn from(e: reqwest::Error) -> Self {
+        if let Some(status) = e.status() {
+            Self::from_status(status, "request failed")
+        } else if e.is_decode() {
+            Self::Protocol(format!("unexpected response: {e}"))
+        } else {
+            Self::Unreachable(e.to_string())
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, MediaError>;
@@ -44,6 +69,16 @@ pub const fn ms_to_ticks(ms: u64) -> u64 {
 
 pub const fn ticks_to_ms(ticks: u64) -> u64 {
     ticks / 10_000
+}
+
+/// Shared HTTP client settings for media servers.
+pub(crate) fn http_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(20))
+        .user_agent(concat!("tvdash/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(|e| MediaError::Protocol(format!("building HTTP client: {e}")))
 }
 
 #[cfg(test)]

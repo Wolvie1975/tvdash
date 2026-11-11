@@ -121,8 +121,8 @@ export component SiteTile inherits Rectangle {
     in property <string> name;
     callback clicked();
 
-    min-height: 96px;
-    min-width: 140px;
+    min-height: 84px;
+    min-width: 120px;
     horizontal-stretch: 1;
     border-radius: Theme.radius;
     border-width: 1px;
@@ -142,5 +142,123 @@ export component SiteTile inherits Rectangle {
     touch := TouchArea {
         mouse-cursor: pointer;
         clicked => { root.clicked(); }
+    }
+}
+
+export struct PosterCardData {
+    title: string,
+    subtitle: string,
+    badge: string,
+    progress: float,
+    poster: image,
+    has-poster: bool,
+}
+
+// Continue Watching card: 2:3 poster, source badge, progress, title.
+export component PosterCard inherits Rectangle {
+    in property <PosterCardData> data;
+    callback clicked();
+
+    width: 150px;
+    height: 290px;
+
+    VerticalLayout {
+        spacing: 10px;
+
+        art := Rectangle {
+            height: 225px;
+            border-radius: 10px;
+            clip: true;
+            background: Theme.surface-raised;
+            border-width: touch.has-hover ? 2px : 0;
+            border-color: Theme.accent;
+
+            if !root.data.has-poster: Text {
+                text: root.data.title;
+                width: parent.width - 24px;
+                font-size: Theme.body-size;
+                color: Theme.text-muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                wrap: word-wrap;
+            }
+            if root.data.has-poster: Image {
+                width: parent.width;
+                height: parent.height;
+                source: root.data.poster;
+                image-fit: cover;
+            }
+
+            // Source badge
+            Rectangle {
+                x: 8px;
+                y: 8px;
+                width: badge-text.preferred-width + 16px;
+                height: 26px;
+                border-radius: 6px;
+                background: #000000b0;
+                badge-text := Text {
+                    text: root.data.badge;
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: Theme.text-primary;
+                }
+            }
+
+            // Hover affordance
+            if touch.has-hover: Rectangle {
+                background: #00000080;
+                Text {
+                    text: "▶  Resume on TV";
+                    font-size: Theme.body-size;
+                    font-weight: 600;
+                    color: Theme.text-primary;
+                }
+            }
+
+            // Progress
+            if root.data.progress > 0: Rectangle {
+                y: parent.height - 6px;
+                height: 6px;
+                background: #00000099;
+                Rectangle {
+                    x: 0;
+                    width: parent.width * root.data.progress;
+                    background: Theme.accent;
+                }
+            }
+        }
+
+        Text {
+            text: root.data.title;
+            font-size: 18px;
+            font-weight: 600;
+            color: Theme.text-primary;
+            overflow: elide;
+        }
+        Text {
+            text: root.data.subtitle;
+            font-size: 16px;
+            color: Theme.text-secondary;
+            overflow: elide;
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component ProgressBar inherits Rectangle {
+    in property <float> value;
+    height: 6px;
+    border-radius: 3px;
+    background: Theme.border;
+    Rectangle {
+        x: 0;
+        width: parent.width * clamp(root.value, 0, 1);
+        border-radius: 3px;
+        background: Theme.accent;
     }
 }
