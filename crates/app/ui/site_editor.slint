@@ -45,11 +45,19 @@ export component SiteEditorDialog inherits Rectangle {
                 hint: "Where to watch opens this with {title} replaced. Leave it empty to open the start page instead.";
                 text <=> SiteEditor.search;
             }
-            Field {
-                label: "TMDB providers";
-                placeholder: "e.g. 386, 387";
-                hint: "TMDB watch-provider IDs that count as this site in Where to watch. Add ad tiers and channel variants too.";
-                text <=> SiteEditor.providers;
+            HorizontalLayout {
+                spacing: 12px;
+                Field {
+                    label: "TMDB providers";
+                    placeholder: "e.g. 386, 387";
+                    hint: SiteEditor.note != "" ? SiteEditor.note : "TMDB watch-provider IDs that count as this site in Where to watch (and give the tile its logo). Find matches the tile name; add ad tiers and channel variants too.";
+                    text <=> SiteEditor.providers;
+                }
+                VerticalLayout {
+                    padding-top: 30px;
+                    alignment: start;
+                    ActionButton { text: "Find"; icon: "search"; clicked => { SiteEditor.find(); } }
+                }
             }
 
             if SiteEditor.error != "": Text { text: SiteEditor.error; font-size: 20px; color: Theme.warn; wrap: word-wrap; }

@@ -60,6 +60,8 @@ pub trait MediaSource: Send + Sync {
     async fn poster(&self, item: &MediaItem, max_h: u32) -> Result<Vec<u8>>;
     async fn stream_url(&self, item: &MediaItem) -> Result<String>;
     async fn report_progress(&self, item: &MediaItem, pos_ms: u64, state: PlayState) -> Result<()>;
+    /// Every movie and show with its TMDB ID (for Where to watch's library matches).
+    async fn tmdb_library(&self) -> Result<Vec<(u32, MediaItem)>>;
 }
 
 /// Jellyfin positions are in ticks (1 tick = 100 ns).

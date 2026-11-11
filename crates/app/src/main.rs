@@ -7,6 +7,8 @@ mod controller;
 mod displays;
 mod format;
 mod tint;
+mod watch;
+mod watch_ui;
 
 use std::{sync::Arc, time::Duration};
 

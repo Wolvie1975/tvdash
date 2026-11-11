@@ -26,10 +26,12 @@ pub enum SecretKey {
     PlexToken,
     /// Jellyfin access token.
     JellyfinToken,
+    /// TMDB v4 read access token (Where to watch, service logos).
+    TmdbToken,
 }
 
 impl SecretKey {
-    pub const ALL: [SecretKey; 2] = [Self::PlexToken, Self::JellyfinToken];
+    pub const ALL: [SecretKey; 3] = [Self::PlexToken, Self::JellyfinToken, Self::TmdbToken];
 
     /// Inverse of [`Self::as_str`].
     pub fn parse(name: &str) -> Option<Self> {
@@ -40,6 +42,7 @@ impl SecretKey {
         match self {
             Self::PlexToken => "plex_token",
             Self::JellyfinToken => "jellyfin_token",
+            Self::TmdbToken => "tmdb_api_key",
         }
     }
 }

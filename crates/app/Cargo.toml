@@ -23,6 +23,7 @@ tvdash-core.workspace = true
 tvdash-media.workspace = true
 tvdash-player.workspace = true
 tvdash-widgets.workspace = true
+tvdash-discover.workspace = true
 reqwest.workspace = true
 
 [build-dependencies]

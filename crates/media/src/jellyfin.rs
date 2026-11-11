@@ -217,6 +217,29 @@ impl MediaSource for JellyfinClient {
         Ok(result.items.into_iter().map(BaseItemDto::into_media_item).collect())
     }
 
+    async fn tmdb_library(&self) -> Result<Vec<(u32, MediaItem)>> {
+        let user = self.user()?;
+        let q = [
+            ("userId", user.user_id.clone()),
+            ("recursive", "true".into()),
+            ("includeItemTypes", "Movie,Series".into()),
+            ("fields", "ProviderIds".into()),
+            ("enableUserData", "true".into()),
+            ("enableImageTypes", "Primary".into()),
+            ("imageTypeLimit", "1".into()),
+        ];
+        let result: ItemsResult = Self::send_json(self.request(Method::GET, "/Items").query(&q), "library").await?;
+        Ok(result
+            .items
+            .into_iter()
+            .filter_map(|i| {
+                let id =
+                    i.provider_ids.as_ref()?.iter().find(|(k, _)| k.eq_ignore_ascii_case("tmdb"))?.1.parse().ok()?;
+                Some((id, i.into_media_item()))
+            })
+            .collect())
+    }
+
     async fn poster(&self, item: &MediaItem, max_h: u32) -> Result<Vec<u8>> {
         let id = item.poster.as_deref().ok_or(MediaError::NotFound)?;
         let rb = self
@@ -317,6 +340,7 @@ struct BaseItemDto {
     run_time_ticks: Option<u64>,
     user_data: Option<UserData>,
     image_tags: Option<HashMap<String, String>>,
+    provider_ids: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Default, Deserialize)]

@@ -333,6 +333,7 @@ export component TextField inherits Rectangle {
     in-out property <string> text <=> input.text;
     in property <bool> password: false;
     callback accepted(string);
+    callback edited(string);
 
     min-height: Theme.hit-target;
     min-width: 200px;
@@ -364,6 +365,7 @@ export component TextField inherits Rectangle {
                 single-line: true;
                 input-type: root.password ? InputType.password : InputType.text;
                 accepted => { root.accepted(self.text); }
+                edited => { root.edited(self.text); }
             }
         }
     }

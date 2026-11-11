@@ -34,7 +34,7 @@ use tvdash_player::{
     mpv::{Mpv, MpvEvent, MpvOptions},
 };
 
-use crate::format;
+use crate::{format, watch::Watch};
 
 const REFRESH_EVERY: Duration = Duration::from_secs(120);
 const PROGRESS_EVERY: Duration = Duration::from_secs(10);
@@ -48,8 +48,13 @@ const RECENTLY_ADDED: u32 = 20;
 /// Messages from tasks the controller spawned.
 pub enum Internal {
     JellyfinSignedIn(Auth),
-    PlexSignedIn { account_token: String, server: DiscoveredServer },
+    PlexSignedIn {
+        account_token: String,
+        server: DiscoveredServer,
+    },
     Refresh,
+    /// TMDB provider IDs matched by name for sites that had none: (site name, IDs).
+    FillProviders(Vec<(String, Vec<u32>)>),
 }
 
 struct Playback {
@@ -77,6 +82,8 @@ pub struct Controller {
     state: AppState,
     state_path: Option<PathBuf>,
     posters_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
+    /// Where to watch (TMDB) and service logos.
+    pub(crate) watch: Watch,
 }
 
 enum Step {
@@ -98,11 +105,11 @@ impl Controller {
         events: UnboundedSender<AppEvent>,
     ) -> (Self, UnboundedReceiver<Internal>) {
         let (internal, internal_rx) = unbounded_channel();
-        let c = Self {
+        let mut c = Self {
             config,
             config_path,
             windowed,
-            events,
+            events: events.clone(),
             internal,
             jellyfin: None,
             plex: None,
@@ -113,7 +120,9 @@ impl Controller {
             state: AppState::default(),
             state_path: tvdash_core::state::default_path(),
             posters_requested: Arc::default(),
+            watch: Watch::new(events.clone(), tvdash_core::state::default_path().map(|p| p.with_file_name("cache.db"))),
         };
+        c.watch.set_internal(c.internal.clone());
         (c, internal_rx)
     }
 
@@ -166,11 +175,19 @@ impl Controller {
                 Step::Command(c) => self.on_command(c).await,
                 Step::Mpv(e) => self.on_mpv(e).await,
                 Step::BrowserExited => self.on_browser_exited(),
-                Step::Internal(Internal::JellyfinSignedIn(auth)) => self.on_jellyfin_signed_in(auth).await,
-                Step::Internal(Internal::PlexSignedIn { account_token, server }) => {
-                    self.on_plex_signed_in(account_token, server).await
+                Step::Internal(Internal::JellyfinSignedIn(auth)) => {
+                    self.on_jellyfin_signed_in(auth).await;
+                    self.watch.refresh_library(self.sources(), true);
                 }
-                Step::Internal(Internal::Refresh) | Step::Refresh => self.refresh(),
+                Step::Internal(Internal::PlexSignedIn { account_token, server }) => {
+                    self.on_plex_signed_in(account_token, server).await;
+                    self.watch.refresh_library(self.sources(), true);
+                }
+                Step::Internal(Internal::FillProviders(fills)) => self.fill_providers(fills),
+                Step::Internal(Internal::Refresh) | Step::Refresh => {
+                    self.refresh();
+                    self.watch.refresh_library(self.sources(), false);
+                }
                 Step::Sessions => self.poll_sessions(),
                 Step::Progress => self.report_tick(),
                 Step::Shutdown => break,
@@ -192,6 +209,8 @@ impl Controller {
         }
         self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
         self.emit_sites();
+        self.watch.init(&self.config.streaming).await;
+        self.watch.refresh_library(self.sources(), true);
         if let Some(j) = &self.jellyfin {
             self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(j.base_url().to_owned())));
         }
@@ -300,11 +319,29 @@ impl Controller {
                     self.emit_sites();
                 }
             }
-            Command::TestSite(url) => {
+            Command::OpenUrl { label, url } => {
                 self.stop_playback().await;
                 self.close_browser().await;
-                self.launch_browser("Test", &url).await;
+                self.launch_browser(&label, &url).await;
             }
+            Command::WhereToWatch(query) => self.watch.search(query, self.config.streaming.clone()),
+            Command::OpenOnService { site, title } => {
+                if let Some(s) = self.config.streaming.get(site).cloned() {
+                    self.stop_playback().await;
+                    self.close_browser().await;
+                    if self.launch_browser(&s.name, &s.open_url(&title)).await
+                        && self.state.mark_opened(&s.name, chrono::Utc::now())
+                    {
+                        self.save_state();
+                        self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
+                    }
+                }
+            }
+            Command::SetTmdbToken(token) => {
+                self.watch.set_token(token, &self.config.streaming).await;
+                self.watch.refresh_library(self.sources(), true);
+            }
+            Command::FindProviders(name) => self.watch.find_providers(name),
             Command::CloseBrowser => self.close_browser().await,
             Command::TvGeometry(g) => {
                 debug!(?g, "TV geometry");
@@ -355,6 +392,7 @@ impl Controller {
                 self.update_config(|c| c.plex.server_url.clear());
             }
         }
+        self.watch.forget(kind);
         info!(source = kind.label(), "signed out");
         self.emit(AppEvent::Server(kind, None));
         self.emit(AppEvent::ContinueWatching(kind, Vec::new()));
@@ -664,8 +702,25 @@ impl Controller {
         }
     }
 
+    fn fill_providers(&mut self, fills: Vec<(String, Vec<u32>)>) {
+        let mut named = Vec::new();
+        self.update_config(|c| {
+            for (name, ids) in fills {
+                if let Some(site) = c.streaming.iter_mut().find(|s| s.name == name && s.tmdb_providers.is_empty()) {
+                    site.tmdb_providers = ids;
+                    named.push(name);
+                }
+            }
+        });
+        if !named.is_empty() {
+            info!(sites = ?named, "matched TMDB providers by name");
+            self.emit_sites();
+        }
+    }
+
     fn emit_sites(&self) {
         self.emit(AppEvent::Sites(self.config.streaming.clone()));
+        self.watch.logos(&self.config.streaming);
     }
 
     fn save_site(&mut self, index: Option<usize>, site: StreamingSite) {
@@ -1068,7 +1123,7 @@ fn fetch_posters(
     }
 }
 
-fn decode(bytes: &[u8]) -> Option<RgbaImage> {
+pub(crate) fn decode(bytes: &[u8]) -> Option<RgbaImage> {
     match image::load_from_memory(bytes) {
         Ok(img) => {
             let rgba = img.to_rgba8();
@@ -1112,6 +1167,15 @@ mod e2e {
     impl Harness {
         /// Start `fake` and a controller whose config is tweaked by `configure(config, port)`.
         async fn start(fake: &str, configure: impl FnOnce(&mut Config, &str)) -> Self {
+            Self::start_with(fake, configure, |_, _| {}).await
+        }
+
+        /// Like `start`, and `tweak(controller, dir)` runs before the controller does.
+        async fn start_with(
+            fake: &str,
+            configure: impl FnOnce(&mut Config, &str),
+            tweak: impl FnOnce(&mut Controller, &Path),
+        ) -> Self {
             let dir = std::env::temp_dir().join(format!(
                 "tvdash-e2e-{}-{}",
                 std::process::id(),
@@ -1158,6 +1222,10 @@ mod e2e {
             let (cmd, cmd_rx) = unbounded_channel();
             let (mut controller, internal_rx) = Controller::new(config, config_path.clone(), false, ev_tx);
             controller.state_path = Some(dir.join("state.toml"));
+            // Never touch the real cache in tests.
+            controller.watch = Watch::new(controller.events.clone(), Some(dir.join("cache.db")));
+            controller.watch.set_internal(controller.internal.clone());
+            tweak(&mut controller, &dir);
             tokio::spawn(controller.run(cmd_rx, internal_rx));
             Self { dir, port, server_log, mpv_log, _server: server, events, cmd, config_path, seen: Vec::new() }
         }
@@ -1647,7 +1715,7 @@ mod e2e {
         assert!(std::fs::read_to_string(&h.config_path).unwrap().contains("hidden = true"));
 
         // Test on TV opens any address.
-        h.send(Command::TestSite("https://example.com/try".into()));
+        h.send(Command::OpenUrl { label: "Test".into(), url: "https://example.com/try".into() });
         h.wait_for(|e| matches!(e, AppEvent::Browser(Some(s)) if s == "Test").then_some(())).await;
 
         // Remove with "clear cookies": gone from config and state; the browser
@@ -1667,5 +1735,173 @@ mod e2e {
             "{last:?}"
         );
         h.send(Command::CloseBrowser);
+    }
+
+    /// Start an extra fake server (besides the harness's own); returns (process, base URL, log path).
+    async fn spawn_fake(script: &str, dir: &Path) -> (tokio::process::Child, String, PathBuf) {
+        let stem = script.trim_end_matches(".py");
+        let (port_file, log) = (dir.join(format!("{stem}.port")), dir.join(format!("{stem}.log")));
+        let child = tokio::process::Command::new(format!("{FAKES}/{script}"))
+            .arg(&port_file)
+            .arg(&log)
+            .stdout(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .expect("start fake");
+        let port = timeout(Duration::from_secs(5), async {
+            loop {
+                if let Ok(p) = std::fs::read_to_string(&port_file)
+                    && !p.is_empty()
+                {
+                    return p;
+                }
+                sleep(Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("fake port");
+        (child, format!("http://127.0.0.1:{port}"), log)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "needs python3; run with --ignored"]
+    async fn where_to_watch_ranks_by_library_and_services() {
+        use tvdash_core::models::WatchTier;
+        let _serial = SERIAL.lock().await;
+        let tmp = std::env::temp_dir().join(format!("tvdash-tmdb-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let (_tmdb, tmdb_url, tmdb_log) = spawn_fake("fake_tmdb.py", &tmp).await;
+        let site = |name: &str, url: &str, ids: &[u32], hidden| StreamingSite {
+            name: name.into(),
+            url: url.into(),
+            search_url: (name == "Netflix").then(|| "https://www.netflix.com/search?q={title}".into()),
+            tmdb_providers: ids.to_vec(),
+            hidden,
+        };
+        let endpoints = tvdash_discover::Endpoints { api: tmdb_url.clone(), images: format!("{tmdb_url}/t/p") };
+        let mut h = Harness::start_with(
+            "fake_jellyfin.py",
+            |c, port| {
+                c.jellyfin.server_url = format!("http://127.0.0.1:{port}");
+                c.jellyfin.device_id = "dev-e2e".into();
+                c.plex.enabled = false;
+                c.streaming = vec![
+                    site("Netflix", "https://www.netflix.com", &[8, 1796], false),
+                    site("Hulu", "https://www.hulu.com", &[15], true),
+                    // No IDs yet: matched by name once TMDB is connected.
+                    site("Max", "https://www.max.com", &[], false),
+                ];
+            },
+            move |c, _| {
+                c.watch.endpoints = endpoints;
+                c.watch.token_override = Some("good".into());
+            },
+        )
+        .await;
+        let tmdb_calls =
+            |pat: &str| read_log(&tmdb_log).iter().filter(|r| r["path"].as_str().unwrap().contains(pat)).count();
+
+        h.find_or_wait(|e| matches!(e, AppEvent::Tmdb(AccountStatus::Connected)).then_some(())).await;
+        // Tile logos: Netflix has a TMDB logo; Hulu (hidden) too.
+        let logos = h
+            .find_or_wait(|e| match e {
+                AppEvent::SiteLogos(l) if !l.is_empty() => Some(l.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>()),
+                _ => None,
+            })
+            .await;
+        assert_eq!(logos, ["Netflix", "Hulu", "Max"]);
+        let saved = Config::load_or_create_at(&h.config_path).unwrap().config.streaming;
+        assert_eq!(saved[2].tmdb_providers, [1899], "Max matched by name and saved");
+
+        // Sign in to Jellyfin so its library's TMDB IDs are known.
+        h.send(Command::SignIn(SourceKind::Jellyfin));
+        h.wait_for(|e| matches!(e, AppEvent::SignIn(_, SignInState::Done)).then_some(())).await;
+        sleep(Duration::from_millis(500)).await;
+        assert!(
+            h.server_log().iter().any(|r| r["path"] == "/Items" && r["query"]["fields"][0] == "ProviderIds"),
+            "library listed with provider IDs"
+        );
+
+        // Search: everything starts as "checking", then lands in its group.
+        h.send(Command::WhereToWatch("matrix".into()));
+        let first = h
+            .wait_for(|e| match e {
+                AppEvent::WatchResults { hits, .. } => Some(hits.clone()),
+                _ => None,
+            })
+            .await;
+        assert_eq!(first.len(), 5, "people are left out");
+        assert!(first.iter().all(|h| h.tier == WatchTier::Checking || h.tier == WatchTier::Library));
+        let done = h
+            .wait_for(|e| match e {
+                AppEvent::WatchResults { hits, .. } if hits.iter().all(|h| h.tier != WatchTier::Checking) => {
+                    Some(hits.clone())
+                }
+                _ => None,
+            })
+            .await;
+        let order: Vec<(u32, WatchTier)> = done.iter().map(|h| (h.tmdb_id, h.tier)).collect();
+        assert_eq!(
+            order,
+            [
+                (604, WatchTier::Library),
+                (603, WatchTier::Included),
+                (1399, WatchTier::Included),
+                (606, WatchTier::CostsExtra),
+                (605, WatchTier::NotStreaming),
+            ]
+        );
+        assert_eq!(done[0].library.as_ref().map(|i| i.id.as_str()), Some("m604"));
+        assert_eq!(done[1].services, [(0, "Netflix".to_string())]);
+        assert_eq!(done[1].elsewhere, ["Rent · Apple TV"]);
+        assert_eq!(done[1].link.as_deref(), Some("https://tmdb.example/603/watch"));
+        // Max is one of yours now, so the show is included.
+        assert_eq!(done[2].services, [(2, "Max".to_string())]);
+        assert!(done[2].is_tv && done[2].year == Some(2011));
+        h.find_or_wait(|e| matches!(e, AppEvent::WatchPoster { tmdb_id: 603, .. }).then_some(())).await;
+
+        // Same search again within a day: answered from the cache.
+        let before = tmdb_calls("/watch/providers");
+        h.send(Command::WhereToWatch("matrix".into()));
+        h.wait_for(|e| match e {
+            AppEvent::WatchResults { hits, .. } if hits.iter().all(|h| h.tier != WatchTier::Checking) => Some(()),
+            _ => None,
+        })
+        .await;
+        assert_eq!(tmdb_calls("/watch/providers"), before, "no availability calls on a cache hit");
+
+        // Open on a service: its search page with the title filled in.
+        h.send(Command::OpenOnService { site: 0, title: "The Matrix".into() });
+        h.wait_for(|e| matches!(e, AppEvent::Browser(Some(s)) if s == "Netflix").then_some(())).await;
+        sleep(Duration::from_millis(300)).await;
+        let log = read_log(&h.dir.join("browser.log"));
+        let start = log.iter().rfind(|l| l["event"] == "start").unwrap();
+        assert!(
+            serde_json::to_string(&start["argv"])
+                .unwrap()
+                .contains("--app=https://www.netflix.com/search?q=The%20Matrix")
+        );
+        h.send(Command::CloseBrowser);
+
+        // The editor's Find button.
+        h.send(Command::FindProviders("Netflix".into()));
+        let ids = h
+            .wait_for(|e| match e {
+                AppEvent::ProviderMatches { ids, .. } => Some(ids.clone()),
+                _ => None,
+            })
+            .await;
+        assert_eq!(ids, [8, 1796]);
+
+        // A bad token is reported, not stored.
+        h.send(Command::SetTmdbToken("bad".into()));
+        let status = h
+            .wait_for(|e| match e {
+                AppEvent::Tmdb(s) => Some(s.clone()),
+                _ => None,
+            })
+            .await;
+        assert!(matches!(status, AccountStatus::Unreachable(ref e) if e.contains("didn't accept")), "{status:?}");
+        std::fs::remove_dir_all(&tmp).ok();
     }
 }

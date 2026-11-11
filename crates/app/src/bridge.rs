@@ -20,7 +20,7 @@ use tvdash_core::{
 
 use crate::{
     AccountPrompt, AccountRow, Accounts, Dash, DetailData, LaptopWindow, Library, Nav, PosterCardData, SessionRow,
-    Setup, SiteRow, SiteTileData, Theme, TvCard, TvWindow, UiTheme, format,
+    Setup, SiteEditor, SiteRow, SiteTileData, Theme, TvCard, TvWindow, UiTheme, format,
     tint::{self, Hue},
 };
 
@@ -47,6 +47,10 @@ pub struct UiState {
     /// Dashboard Continue Watching rows; index = card index.
     rows: Vec<MediaItem>,
     posters: HashMap<(SourceKind, String), Image>,
+    /// TMDB token state.
+    tmdb: Option<AccountStatus>,
+    /// Service logos (from TMDB) by site name.
+    logos: HashMap<String, Image>,
     /// Dominant hue of each poster, for tints.
     hues: HashMap<(SourceKind, String), Hue>,
     accounts: HashMap<SourceKind, AccountStatus>,
@@ -160,14 +164,15 @@ fn refresh_tiles(s: &UiState, laptop: &LaptopWindow) {
         .filter(|(_, site)| !site.hidden)
         .map(|(i, site)| {
             let (bg, fg) = site_colors(s, i);
+            let logo = s.logos.get(&site.name);
             SiteTileData {
                 index: i as i32,
                 name: site.name.as_str().into(),
                 monogram: monogram(&site.name).into(),
                 bg,
                 fg,
-                logo: Image::default(),
-                has_logo: false,
+                has_logo: logo.is_some(),
+                logo: logo.cloned().unwrap_or_default(),
             }
         })
         .collect();
@@ -325,6 +330,44 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             dash.set_weather_on(true);
         }
         AppEvent::Weather(None) => dash.set_weather_on(false),
+        AppEvent::Tmdb(status) => {
+            let acc = laptop.global::<Accounts>();
+            if acc.get_editing() == "tmdb" {
+                match &status {
+                    AccountStatus::Unreachable(e) => acc.set_edit_error(e.as_str().into()),
+                    _ => {
+                        acc.set_editing("".into());
+                        acc.set_edit_error("".into());
+                    }
+                }
+            }
+            s.tmdb = Some(status);
+            refresh_accounts(s, laptop);
+        }
+        AppEvent::WatchResults { query, hits, error } => crate::watch_ui::on_results(laptop, query, hits, error),
+        AppEvent::WatchPoster { tmdb_id, is_tv, image } => crate::watch_ui::on_poster(laptop, tmdb_id, is_tv, image),
+        AppEvent::SiteLogos(logos) => {
+            s.logos = logos
+                .into_iter()
+                .map(|(name, img)| {
+                    let buf = SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(&img.pixels, img.width, img.height);
+                    (name, Image::from_rgba8(buf))
+                })
+                .collect();
+            refresh_tiles(s, laptop);
+        }
+        AppEvent::ProviderMatches { name, ids, names } => {
+            let ed = laptop.global::<SiteEditor>();
+            if ed.get_open() && ed.get_name().trim().eq_ignore_ascii_case(name.trim()) {
+                if ids.is_empty() {
+                    ed.set_note(format!("TMDB has no provider called “{name}”. Enter its IDs by hand.").into());
+                } else {
+                    let list: Vec<String> = ids.iter().map(u32::to_string).collect();
+                    ed.set_providers(list.join(", ").into());
+                    ed.set_note(format!("Found: {}", names.join(", ")).into());
+                }
+            }
+        }
         AppEvent::Sites(sites) => {
             s.sites = sites;
             refresh_tiles(s, laptop);
@@ -674,7 +717,43 @@ impl From<Row<'_>> for AccountRow {
             primary_id: r.primary.1.into(),
             secondary: r.secondary.0.into(),
             secondary_id: r.secondary.1.into(),
+            input_hint: "".into(),
         }
+    }
+}
+
+fn tmdb_row(s: &UiState) -> AccountRow {
+    let row = |status: &str, detail: String, state: &str, primary, secondary| -> AccountRow {
+        AccountRow {
+            input_hint: "TMDB API Read Access Token (themoviedb.org › Settings › API)".into(),
+            ..Row {
+                id: "tmdb",
+                name: "TMDB · Where to watch",
+                status: status.into(),
+                detail,
+                state,
+                primary,
+                secondary,
+            }
+            .into()
+        }
+    };
+    let (replace, remove) = (("Replace token", "edit"), ("Remove", "remove"));
+    match &s.tmdb {
+        Some(AccountStatus::Connected) => {
+            row("Connected", "Search, where things stream, and service logos".into(), "ok", NONE, replace)
+        }
+        Some(AccountStatus::Expired) => row("TMDB rejected the token", String::new(), "warn", replace, remove),
+        Some(AccountStatus::Unreachable(e)) => {
+            row("Couldn't use that token", e.clone(), "warn", ("Add token", "edit"), NONE)
+        }
+        _ => row(
+            "Not set up",
+            "Paste your TMDB API Read Access Token to search where things stream".into(),
+            "off",
+            ("Add token", "edit"),
+            NONE,
+        ),
     }
 }
 
@@ -724,7 +803,11 @@ fn site_status(opened: Option<&DateTime<Utc>>) -> String {
 }
 
 fn refresh_accounts(s: &UiState, laptop: &LaptopWindow) {
-    s.account_rows.set_vec(vec![media_account_row(s, SourceKind::Plex), media_account_row(s, SourceKind::Jellyfin)]);
+    s.account_rows.set_vec(vec![
+        media_account_row(s, SourceKind::Plex),
+        media_account_row(s, SourceKind::Jellyfin),
+        tmdb_row(s),
+    ]);
     let sites: Vec<SiteRow> = s
         .sites
         .iter()

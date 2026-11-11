@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use chrono::{DateTime, Utc};
 
 use crate::models::{
-    AccountStatus, Geometry, MediaItem, PlayState, RgbaImage, Session, SignInState, SourceKind, Weather,
+    AccountStatus, Geometry, MediaItem, PlayState, RgbaImage, Session, SignInState, SourceKind, WatchHit, Weather,
 };
 
 /// What tvdash itself is playing on the TV through mpv.
@@ -60,6 +60,29 @@ pub enum AppEvent {
     ShowSetup,
     /// The streaming sites changed (all of them, hidden ones too, in tile order).
     Sites(Vec<crate::config::StreamingSite>),
+    /// TMDB token state (Where to watch).
+    Tmdb(AccountStatus),
+    /// Where to watch results so far (re-sent as availability arrives).
+    WatchResults {
+        query: String,
+        hits: Vec<WatchHit>,
+        /// Why the search failed, if it did.
+        error: Option<String>,
+    },
+    /// TMDB poster for a Where to watch result.
+    WatchPoster {
+        tmdb_id: u32,
+        is_tv: bool,
+        image: RgbaImage,
+    },
+    /// Service logos for the dashboard tiles: site name → logo.
+    SiteLogos(Vec<(String, RgbaImage)>),
+    /// TMDB providers whose name matches a site name (the editor's Find button).
+    ProviderMatches {
+        name: String,
+        ids: Vec<u32>,
+        names: Vec<String>,
+    },
 }
 
 /// Requests from the UI, handled by background tasks.
@@ -89,8 +112,22 @@ pub enum Command {
         to: usize,
     },
     SetSiteHidden(usize, bool),
-    /// Open an address on the TV in the streaming profile (the editor's Test on TV).
-    TestSite(String),
+    /// Open an address on the TV in the streaming profile (Test on TV, TMDB page).
+    OpenUrl {
+        label: String,
+        url: String,
+    },
+    /// Search TMDB and rank by availability.
+    WhereToWatch(String),
+    /// Open a title on one of your sites (its search page, else start page).
+    OpenOnService {
+        site: usize,
+        title: String,
+    },
+    /// Check and store the TMDB read access token; empty removes it.
+    SetTmdbToken(String),
+    /// Look up TMDB provider IDs for a site name.
+    FindProviders(String),
     CloseBrowser,
     Search(String),
     /// Start the interactive sign-in for a media server.

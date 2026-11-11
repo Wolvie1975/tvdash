@@ -5,6 +5,7 @@ import { SettingsPage } from "settings.slint";
 import { SetupPage } from "setup.slint";
 import { Dash, Nav, SiteEditor } from "state.slint";
 import { SiteEditorDialog } from "site_editor.slint";
+import { WatchPage } from "watch.slint";
 
 // Laptop window: one of four pages, plus the toast.
 export component LaptopWindow inherits Window {
@@ -29,6 +30,7 @@ export component LaptopWindow inherits Window {
             height: scroller.content-height;
             if Nav.page == "home": HomePage { }
             if Nav.page == "library": LibraryPage { }
+            if Nav.page == "watch": WatchPage { }
             if Nav.page == "settings": SettingsPage { }
             if Nav.page == "setup": SetupPage { }
         }

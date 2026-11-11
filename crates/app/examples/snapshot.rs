@@ -1,7 +1,7 @@
 // Dev tool: render windows offscreen to PNG (no display needed).
 // Usage: cargo run --example snapshot -- out.png <mode> [height] [width]
 // THEME=stone|mist picks a light theme (default dark).
-// Modes: settings-streaming, site-editor (CONFIRM=1), home, home-playing, home-next, home-code, home-streaming, library, library-search,
+// Modes: watch, settings-streaming, site-editor (CONFIRM=1), home, home-playing, home-next, home-code, home-streaming, library, library-search,
 //        settings, setup-0 … setup-2, tv
 use std::rc::Rc;
 
@@ -84,6 +84,7 @@ fn account(
         primary_id: "x".into(),
         secondary: secondary.into(),
         secondary_id: "x".into(),
+        input_hint: "".into(),
     }
 }
 
@@ -254,6 +255,56 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                     can_resume: true,
                 });
             }
+        }
+        "watch" => {
+            l.global::<Nav>().set_page("watch".into());
+            let w = l.global::<Watch>();
+            w.set_query("matrix".into());
+            let wc = |key: &str, title: &str, meta: &str, line: &str, tier: &str, hue: u8| WatchCard {
+                key: key.into(),
+                title: title.into(),
+                meta: meta.into(),
+                line: line.into(),
+                tier: tier.into(),
+                poster: fake_poster(hue),
+                has_poster: hue > 0,
+            };
+            w.set_library(model(vec![wc(
+                "movie:604",
+                "The Matrix Reloaded",
+                "2003 · Movie",
+                "In Jellyfin",
+                "library",
+                30,
+            )]));
+            w.set_included(model(vec![
+                wc("movie:603", "The Matrix", "1999 · Movie", "On Netflix", "included", 90),
+                wc("movie:624860", "The Matrix Resurrections", "2021 · Movie", "On Max, Netflix", "included", 150),
+            ]));
+            w.set_extra(model(vec![
+                wc("tv:1399", "Matrix Tales", "2011 · Show", "Peacock (not one of yours)", "extra", 200),
+                wc("movie:606", "The Animatrix", "2003 · Movie", "Rent · Apple TV", "extra", 0),
+            ]));
+            w.set_none(model(vec![wc(
+                "movie:605",
+                "The Matrix Rare Cut",
+                "Movie",
+                "Not streaming in the US",
+                "none",
+                0,
+            )]));
+            w.set_selected("movie:603".into());
+            w.set_detail_open(true);
+            w.set_detail(wc("movie:603", "The Matrix", "1999 · Movie", "On Netflix", "included", 90));
+            w.set_detail_overview(
+                "A hacker learns the truth about his reality and his role in the war against its controllers.".into(),
+            );
+            w.set_detail_yours(model(vec!["Netflix".into()]));
+            w.set_detail_elsewhere(model(vec!["Rent · Apple TV".into(), "Buy · Amazon Video".into()]));
+            w.set_detail_actions(model(vec![
+                WatchAction { label: "Open on Netflix".into(), kind: "open".into(), site: 0, primary: true },
+                WatchAction { label: "All options on TMDB".into(), kind: "tmdb".into(), site: -1, primary: false },
+            ]));
         }
         "settings-streaming" => {
             l.global::<Nav>().set_page("settings".into());

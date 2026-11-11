@@ -6,7 +6,7 @@ import { UiTheme } from "theme.slint";
 
 // Which laptop page is showing.
 export global Nav {
-    // "home" | "library" | "settings" | "setup"
+    // "home" | "library" | "watch" | "settings" | "setup"
     in-out property <string> page: "home";
     // Settings tab: "accounts" | "streaming" | "display" | "diagnostics"
     in-out property <string> settings-tab: "accounts";
@@ -148,6 +148,7 @@ export struct AccountRow {
     primary-id: string, // "sign-in" | "sign-out" | "retry" | "cancel"
     secondary: string,
     secondary-id: string,
+    input-hint: string, // placeholder when the row takes text (the TMDB token)
 }
 
 export struct SiteRow {
@@ -164,6 +165,10 @@ export struct SiteRow {
 
 export global Accounts {
     in property <[AccountRow]> accounts;
+    // Row whose text field is open ("" = none).
+    in-out property <string> editing;
+    in property <string> edit-error;
+    callback submit(string, string); // (row id, value)
     in property <[SiteRow]> sites;
     in-out property <bool> confirm-clear;
 
@@ -204,6 +209,8 @@ export global SiteEditor {
     in property <string> error;
     in-out property <bool> confirm-remove;
     in-out property <bool> clear-cookies: true;
+    // Result of Find (TMDB provider names that matched).
+    in property <string> note;
 
     callback add();
     callback edit(int);
@@ -212,4 +219,49 @@ export global SiteEditor {
     callback remove();
     callback move(int, int);        // (from, to)
     callback set-hidden(int, bool);
+    callback find();                // look up TMDB provider IDs for the name
+}
+
+// A Where to watch result.
+export struct WatchCard {
+    key: string,        // "movie:603" | "tv:1399"
+    title: string,
+    meta: string,       // "1999 · Movie"
+    line: string,       // "On Netflix" | "In Plex" | "Rent · Apple TV" | "Not streaming in the US" | "Checking…"
+    tier: string,       // "library" | "included" | "extra" | "none" | "checking"
+    poster: image,
+    has-poster: bool,
+}
+
+export struct WatchAction {
+    label: string,
+    kind: string,       // "play" | "library" | "open" | "tmdb"
+    site: int,          // config index for "open"
+    primary: bool,
+}
+
+export global Watch {
+    in-out property <string> query;
+    // Hide "Costs extra" and "Not streaming".
+    in-out property <bool> only-now: false;
+    in property <bool> searching;
+    in property <string> message;   // prompt, error or "no results"
+    in property <[WatchCard]> library;
+    in property <[WatchCard]> included;
+    in property <[WatchCard]> extra;
+    in property <[WatchCard]> none;
+    in property <[WatchCard]> checking;
+    in property <bool> detail-open;
+    in-out property <string> selected;
+    in property <WatchCard> detail;
+    in property <string> detail-overview;
+    in property <[string]> detail-yours;
+    in property <[string]> detail-elsewhere;
+    in property <[WatchAction]> detail-actions;
+
+    callback edited(string);        // debounced search while typing
+    callback search(string);
+    callback select(string);
+    callback action(WatchAction);
+    callback close-detail();
 }

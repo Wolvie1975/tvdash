@@ -58,8 +58,11 @@ for the TV, and logs which ones it chose.
 | Page | What's there |
 |---|---|
 | **Home** | Header: clock, theme switch (Dark / Stone / Mist), weather, Settings. Left: **On the TV**, tinted from the poster, with transport buttons (or **Up next** with Resume on TV when the TV is idle) and other devices' sessions. Right: Watch on TV tiles and Continue Watching (tap to resume on the TV, swipe for more) |
+| **Where to watch** | Search icon in the header. Any movie or show, grouped: In your library (Resume/Play on TV), On your services (Open on TV, using the site's search page), Costs extra, Not streaming. "Only what I can watch now" hides the last two |
 | **Library** | All / Plex / Jellyfin filter, search, Continue Watching, Recently Added; click a poster for details, **Resume on TV** or **Play from the start** |
-| **Settings › Accounts** | Each connection's status with Sign in / Sign out / Reconnect; keyring status; **Quit tvdash**; streaming sites with **Sign in on TV**; **Clear browser profile** (signs out of every streaming site) |
+| **Settings › Accounts** | Plex, Jellyfin and the TMDB token with Sign in / Sign out / Reconnect; keyring status |
+| **Settings › Streaming** | Every site in tile order: Edit, Hide/Show, move up/down, Add site, Sign in on TV; **Clear browser profile** |
+| *(both)* | **Quit tvdash** in the Settings header with **Sign in on TV**; **Clear browser profile** (signs out of every streaming site) |
 
 An expired Plex or Jellyfin sign-in shows **Reconnect** on the On the TV card.
 
@@ -73,6 +76,20 @@ tvdash --clear-secret plex_token
 ```
 
 Logging: `RUST_LOG=tvdash=debug`.
+
+## Where to watch (TMDB)
+
+Needs a TMDB **API Read Access Token** (themoviedb.org › Settings › API). Paste it in
+Settings › Accounts › TMDB (or `tvdash --set-secret tmdb_api_key`). With it:
+
+- the dashboard tiles show each service's logo;
+- sites without TMDB provider IDs get them matched by name (the editor's **Find** does the
+  same by hand; add ad tiers and channel variants as extra IDs);
+- searches show what's in Plex/Jellyfin (matched by TMDB ID), what's included with your sites
+  (hidden ones count), and what costs extra. Availability is cached for a day in
+  `~/.local/share/tvdash/cache.db`; the provider list for a week.
+
+Availability data is JustWatch's, via TMDB; the page credits both as TMDB requires.
 
 ## Header widgets
 
@@ -104,6 +121,7 @@ Widevine (Chrome, Edge, Vivaldi) work too; Fedora's `chromium` doesn't.
 | `crates/media` | `tvdash-media` | `MediaSource` trait; Plex and Jellyfin clients |
 | `crates/player` | `tvdash-player` | mpv JSON IPC and the streaming browser launcher |
 | `crates/widgets` | `tvdash-widgets` | Weather poller |
+| `crates/discover` | `tvdash-discover` | TMDB client, SQLite cache, Where to watch ranking |
 | `crates/app` | `tvdash` | Slint UI (`ui/*.slint`: home, library, settings, setup, TV), controller, `main()` |
 
 The controller (`crates/app/src/controller.rs`) owns everything with side effects: media

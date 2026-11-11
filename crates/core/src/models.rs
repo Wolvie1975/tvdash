@@ -126,3 +126,38 @@ pub struct Weather {
     pub high: Option<f64>,
     pub low: Option<f64>,
 }
+
+/// Where to watch groups, best first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum WatchTier {
+    /// In Plex or Jellyfin.
+    Library,
+    /// A flat-rate, free or ad-supported offer on one of your streaming sites.
+    Included,
+    /// Offers exist, but only rent/buy or on services you don't have.
+    CostsExtra,
+    /// No US offers.
+    NotStreaming,
+    /// Availability not fetched yet.
+    Checking,
+}
+
+/// One Where to watch result.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WatchHit {
+    pub tmdb_id: u32,
+    /// TV show (else movie). TMDB IDs are per kind.
+    pub is_tv: bool,
+    pub title: String,
+    pub year: Option<i32>,
+    pub overview: String,
+    pub tier: WatchTier,
+    /// Your sites that include it: (config index, site name).
+    pub services: Vec<(usize, String)>,
+    /// Other offers, e.g. "Rent · Apple TV", "Max (not one of yours)".
+    pub elsewhere: Vec<String>,
+    /// The matching Plex/Jellyfin item.
+    pub library: Option<MediaItem>,
+    /// TMDB's watch page for the title.
+    pub link: Option<String>,
+}

@@ -5,7 +5,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{error, warn};
 use tvdash_core::{Command, models::SourceKind};
 
-use crate::{Accounts, Dash, LaptopWindow, Library, Nav, Setup, SiteEditor, bridge};
+use crate::{Accounts, Dash, LaptopWindow, Library, Nav, Setup, SiteEditor, Watch, bridge, watch_ui};
 use tvdash_core::config::StreamingSite;
 
 fn parse_source(s: &str) -> Option<SourceKind> {
@@ -24,6 +24,7 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
     };
     wire_dash(laptop, send.clone());
     wire_site_editor(laptop, send.clone());
+    wire_watch(laptop, send.clone());
     wire_library(laptop, send.clone());
     wire_accounts(laptop, send.clone());
     wire_setup(laptop, send);
@@ -151,12 +152,20 @@ fn wire_accounts(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static
             (_, "sign-out", Some(kind)) => Command::SignOut(kind),
             (_, "cancel", Some(kind)) => Command::CancelSignIn(kind),
             (_, "retry", _) => Command::Refresh,
+            ("tmdb", "remove", _) => Command::SetTmdbToken(String::new()),
             _ => {
                 warn!(%id, %action, "unknown account action");
                 return;
             }
         };
         s(cmd);
+    });
+
+    let s = send.clone();
+    acc.on_submit(move |id, value| {
+        if id == "tmdb" && !value.trim().is_empty() {
+            s(Command::SetTmdbToken(value.to_string()));
+        }
     });
 
     let s = send.clone();
@@ -213,6 +222,72 @@ fn wire_setup(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     });
 }
 
+fn wire_watch(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
+    let w = laptop.global::<Watch>();
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    w.on_edited(move |q| {
+        if let Some(l) = weak.upgrade() {
+            let s = s.clone();
+            watch_ui::debounce(&l, q.to_string(), move |q| s(Command::WhereToWatch(q)));
+        }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    w.on_search(move |q| {
+        if let Some(l) = weak.upgrade()
+            && watch_ui::start(&l, &q)
+        {
+            s(Command::WhereToWatch(q.trim().to_owned()));
+        }
+    });
+
+    let weak = laptop.as_weak();
+    w.on_select(move |key| {
+        if let Some(l) = weak.upgrade() {
+            watch_ui::select(&l, &key);
+        }
+    });
+
+    let weak = laptop.as_weak();
+    w.on_close_detail(move || {
+        if let Some(l) = weak.upgrade() {
+            l.global::<Watch>().set_detail_open(false);
+        }
+    });
+
+    let weak = laptop.as_weak();
+    w.on_action(move |a| {
+        let Some(l) = weak.upgrade() else { return };
+        let Some(hit) = watch_ui::hit(&l.global::<Watch>().get_selected()) else { return };
+        match a.kind.as_str() {
+            "play" => {
+                if let Some(item) = hit.library {
+                    send(Command::Play(item));
+                    l.global::<Nav>().set_page("home".into());
+                }
+            }
+            "library" => {
+                let lib = l.global::<Library>();
+                lib.set_query(hit.title.as_str().into());
+                if bridge::start_search(&l, &hit.title) {
+                    send(Command::Search(hit.title.clone()));
+                }
+                l.global::<Nav>().set_page("library".into());
+            }
+            "open" if a.site >= 0 => {
+                send(Command::OpenOnService { site: a.site as usize, title: hit.title });
+            }
+            "tmdb" => {
+                if let Some(url) = hit.link {
+                    send(Command::OpenUrl { label: "TMDB".into(), url });
+                }
+            }
+            other => warn!(kind = other, "unknown Where to watch action"),
+        }
+    });
+}
+
 /// Parse "8, 1796 15" into provider IDs.
 pub fn parse_providers(text: &str) -> Result<Vec<u32>, String> {
     text.split([',', ' ', ';'])
@@ -235,6 +310,7 @@ fn wire_site_editor(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'sta
         }
         ed.set_url("https://".into());
         ed.set_error("".into());
+        ed.set_note("".into());
         ed.set_confirm_remove(false);
         ed.set_open(true);
     });
@@ -251,6 +327,7 @@ fn wire_site_editor(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'sta
         let ids: Vec<String> = site.tmdb_providers.iter().map(u32::to_string).collect();
         ed.set_providers(ids.join(", ").into());
         ed.set_error("".into());
+        ed.set_note("".into());
         ed.set_confirm_remove(false);
         ed.set_clear_cookies(true);
         ed.set_open(true);
@@ -290,7 +367,7 @@ fn wire_site_editor(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'sta
         let url = ed.get_url().trim().to_owned();
         if url.starts_with("https://") || url.starts_with("http://") {
             ed.set_error("".into());
-            s(Command::TestSite(url));
+            s(Command::OpenUrl { label: "Test".into(), url });
         } else {
             ed.set_error("Enter a start page (https://…) to test.".into());
         }
@@ -311,6 +388,19 @@ fn wire_site_editor(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'sta
     ed.on_move(move |from, to| {
         if from >= 0 && to >= 0 {
             s(Command::MoveSite { from: from as usize, to: to as usize });
+        }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    ed.on_find(move || {
+        let Some(l) = weak.upgrade() else { return };
+        let ed = l.global::<SiteEditor>();
+        let name = ed.get_name().trim().to_owned();
+        if name.is_empty() {
+            ed.set_note("Type the tile name first.".into());
+        } else {
+            ed.set_note("Looking it up on TMDB…".into());
+            s(Command::FindProviders(name));
         }
     });
 

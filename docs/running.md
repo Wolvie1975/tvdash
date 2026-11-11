@@ -41,7 +41,9 @@ another.
 Everything is under **Settings › Accounts** on the dashboard:
 
 - **Plex / Jellyfin:** Sign in, Sign out, Reconnect.
-- **Streaming sites:** **Sign in on TV** opens the site on the TV. Sign in with the
+- **TMDB (Where to watch):** paste your TMDB API Read Access Token (themoviedb.org ›
+  Settings › API). It turns on Where to watch and the service logos on the tiles.
+- **Streaming sites** (Settings › Streaming): **Sign in on TV** opens the site on the TV. Sign in with the
   laptop's mouse and keyboard, then press **Stop**.
 - **Run first-time setup again** walks through all of these in order.
 
@@ -64,7 +66,7 @@ tvdash --check-keyring
 | `tv_output`, `laptop_output` | `[display]` | Which screen is which (see above) |
 | `server_url` | `[jellyfin]` | Your Jellyfin server address |
 | `binary` | `[browser]` | Browser for streaming sites (default `brave-browser`) |
-| `[[streaming]]` entries | end of file | The Watch on TV tiles: a `name` and a `url` each |
+| `[[streaming]]` entries | end of file | The Watch on TV tiles, in order: `name`, `url`, optional `search_url` (with `{title}`), `tmdb_providers`, `hidden`. Easier from Settings › Streaming or by holding a tile |
 
 ## Updating after code changes
 

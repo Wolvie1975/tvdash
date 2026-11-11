@@ -63,6 +63,14 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"Items": ITEMS, "TotalRecordCount": len(ITEMS)})
         if p == "/Items/Latest":
             return self._send(200, [{"Id": "new1", "Name": "New Film", "Type": "Movie", "ImageTags": {"Primary": "n"}}])
+        if p == "/Items" and "ProviderIds" in parse_qs(urlparse(self.path).query).get("fields", [""])[0]:
+            # Library listing with TMDB IDs (Where to watch matches).
+            return self._send(200, {"Items": [
+                {"Id": "m604", "Name": "The Matrix Reloaded", "Type": "Movie", "ProductionYear": 2003,
+                 "ProviderIds": {"Tmdb": "604", "Imdb": "tt0234215"}},
+                {"Id": "s1", "Name": "Some Show", "Type": "Series", "ProviderIds": {"Tmdb": "999"}},
+                {"Id": "nope", "Name": "No IDs", "Type": "Movie"},
+            ]})
         if p == "/Items":
             term = parse_qs(urlparse(self.path).query).get("searchTerm", [""])[0].lower()
             found = [i for i in ITEMS if term in i["Name"].lower()]

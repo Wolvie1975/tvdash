@@ -287,6 +287,22 @@ impl MediaSource for PlexClient {
         Ok(r.media_container.hub.into_iter().flat_map(|h| h.metadata).filter_map(Metadata::into_media_item).collect())
     }
 
+    async fn tmdb_library(&self) -> Result<Vec<(u32, MediaItem)>> {
+        let r: Container = send_json(self.request(Method::GET, "/library/sections"), "library sections").await?;
+        let mut out = Vec::new();
+        for dir in r.media_container.directory.into_iter().filter(|d| d.kind == "movie" || d.kind == "show") {
+            let q = [("includeGuids", "1".to_owned())];
+            let meta = self.metadata(&format!("/library/sections/{}/all", dir.key), &q, "library").await?;
+            for m in meta {
+                let tmdb = m.guid.iter().find_map(|g| g.id.strip_prefix("tmdb://")?.parse::<u32>().ok());
+                if let (Some(id), Some(item)) = (tmdb, m.into_media_item()) {
+                    out.push((id, item));
+                }
+            }
+        }
+        Ok(out)
+    }
+
     async fn poster(&self, item: &MediaItem, max_h: u32) -> Result<Vec<u8>> {
         let thumb = item.poster.as_deref().ok_or(MediaError::NotFound)?;
         let rb = self.request(Method::GET, "/photo/:/transcode").query(&[
@@ -343,6 +359,22 @@ struct Container {
 struct MediaContainer {
     metadata: Vec<Metadata>,
     hub: Vec<Hub>,
+    directory: Vec<Directory>,
+}
+
+/// A library section (`/library/sections`).
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct Directory {
+    key: String,
+    #[serde(rename = "type")]
+    kind: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct Guid {
+    id: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -370,6 +402,8 @@ struct Metadata {
     media: Vec<Media>,
     #[serde(rename = "Player")]
     player: Option<Player>,
+    #[serde(rename = "Guid")]
+    guid: Vec<Guid>,
 }
 
 #[derive(Debug, Default, Deserialize)]

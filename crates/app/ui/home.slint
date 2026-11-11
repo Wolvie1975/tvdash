@@ -541,6 +541,11 @@ export component HomePage inherits VerticalLayout {
         VerticalLayout {
             alignment: center;
             horizontal-stretch: 0;
+            SquareButton { icon: "search"; label: "Where to watch"; clicked => { Nav.page = "watch"; } }
+        }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
             SquareButton { icon: "gear"; label: "Settings"; clicked => { Nav.page = "settings"; } }
         }
     }
