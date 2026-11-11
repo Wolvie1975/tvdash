@@ -17,7 +17,7 @@ component StepDot inherits HorizontalLayout {
             text: root.done && Setup.step != root.index ? "✓" : root.index + 1;
             font-size: 18px;
             font-weight: 600;
-            color: Setup.step == root.index || root.done ? #0B0D10 : Theme.text-muted;
+            color: Setup.step == root.index || root.done ? Theme.on-accent : Theme.text-muted;
         }
     }
     Text {
@@ -184,7 +184,7 @@ export component SetupPage inherits VerticalLayout {
                 }
                 HorizontalLayout {
                     alignment: start;
-                    ActionButton { text: "Close browser"; enabled: Dash.stop-enabled; clicked => { Dash.transport("stop"); } }
+                    ActionButton { text: "Close browser"; enabled: Dash.tv.mode == "streaming"; clicked => { Dash.transport("stop"); } }
                 }
             }
         }
@@ -193,14 +193,14 @@ export component SetupPage inherits VerticalLayout {
     // ── Navigation ──────────────────────────────────────────────
     HorizontalLayout {
         spacing: 12px;
-        if Setup.step > 0: ActionButton { text: "‹  Back"; clicked => { Setup.step -= 1; } }
+        if Setup.step > 0: ActionButton { text: "Back"; icon: "back-arrow"; clicked => { Setup.step -= 1; } }
         Rectangle { horizontal-stretch: 1; }
         if Setup.step < 2: ActionButton {
             text: "Skip";
             clicked => { Setup.step += 1; }
         }
         if Setup.step < 2: ActionButton {
-            text: "Next  ›";
+            text: "Next";
             primary: true;
             clicked => { Setup.step += 1; }
         }

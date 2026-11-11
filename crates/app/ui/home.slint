@@ -1,129 +1,397 @@
-import { Theme } from "theme.slint";
-import { ActionButton, Card, Clock, PosterRow, ProgressBar, PromptBanner, SectionLabel, SessionLine, SiteTile, StatusChip } from "components.slint";
-import { Dash, Nav } from "state.slint";
+import { Theme, UiTheme } from "theme.slint";
+import { Icon } from "icons.slint";
+import { ActionButton, Clock, PosterRow, ProgressBar, PromptBanner, SectionLabel, SessionLine } from "components.slint";
+import { Dash, Nav, SiteTileData } from "state.slint";
 
-// Control dashboard (home page).
-export component HomePage inherits VerticalLayout {
-    padding: 40px;
-    spacing: Theme.gap;
+// Laptop dashboard, redesign "Option B": a tall On the TV card tinted from the
+// poster on the left; streaming tiles and Continue Watching on the right.
+// Touch-first: every control is at least 56 px tall and nothing needs hover.
 
-    // ── Header ───────────────────────────────────────────────────
+component ThemeChoice inherits Rectangle {
+    in property <UiTheme> mode;
+    in property <string> label;
+    property <bool> on: Theme.mode == root.mode;
+    min-height: Theme.hit-target;
+    border-radius: 14px;
+    background: root.on ? Theme.text-primary : touch.pressed ? Theme.surface-raised : transparent;
     HorizontalLayout {
-        spacing: Theme.gap;
-        alignment: space-between;
-
+        padding-left: 20px;
+        padding-right: 20px;
+        spacing: 10px;
         VerticalLayout {
             alignment: center;
-            Clock { hh: Dash.clock-hh; mm: Dash.clock-mm; font-px: Theme.laptop-clock-size; }
-            Text { text: Dash.date-text; font-size: Theme.title-size; color: Theme.text-secondary; }
-        }
-
-        HorizontalLayout {
-            spacing: 16px;
-            alignment: end;
-            VerticalLayout {
-                alignment: start;
-                StatusChip { label: "WEATHER"; value: Dash.weather-text; detail: Dash.weather-detail; }
+            Icon {
+                name: root.mode == UiTheme.dark ? "moon" : "sun";
+                tint: root.on ? Theme.bg : Theme.text-secondary;
+                size: 22px;
             }
         }
+        Text {
+            text: root.label;
+            font-size: 20px;
+            font-weight: 500;
+            color: root.on ? Theme.bg : Theme.text-secondary;
+            vertical-alignment: center;
+        }
     }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { Dash.set-theme(root.mode); }
+    }
+}
 
-    // ── On the TV ────────────────────────────────────────────────
-    Card {
+component ThemeSwitch inherits Rectangle {
+    background: Theme.surface;
+    border-width: 1px;
+    border-color: Theme.border;
+    border-radius: Theme.radius;
+
+    HorizontalLayout {
+        padding: 4px;
+        ThemeChoice { mode: UiTheme.dark; label: "Dark"; }
+        ThemeChoice { mode: UiTheme.stone; label: "Stone"; }
+        ThemeChoice { mode: UiTheme.mist; label: "Mist"; }
+    }
+}
+
+component WeatherCard inherits Rectangle {
+    background: Theme.surface;
+    border-radius: Theme.radius;
+    min-width: 380px;
+    min-height: 104px;
+    HorizontalLayout {
+        padding-left: 28px;
+        padding-right: 28px;
+        spacing: 16px;
         VerticalLayout {
-            padding: 28px;
-            spacing: 16px;
-
-            HorizontalLayout {
-                spacing: Theme.gap;
-                VerticalLayout {
-                    spacing: 8px;
-                    alignment: center;
-                    horizontal-stretch: 1;
-                    SectionLabel { text: "ON THE TV"; }
-                    Text {
-                        text: Dash.now-playing-title;
-                        font-size: 32px;
-                        font-weight: 600;
-                        color: Theme.text-primary;
-                        overflow: elide;
-                    }
-                    Text {
-                        text: Dash.now-playing-detail;
-                        font-size: Theme.body-size;
-                        color: Theme.text-secondary;
-                        overflow: elide;
-                    }
-                    if Dash.transport-enabled: ProgressBar { value: Dash.now-playing-progress; }
-                }
-                HorizontalLayout {
-                    spacing: 12px;
-                    alignment: end;
-                    VerticalLayout {
-                        alignment: center;
-                        ActionButton { text: "−10 s"; enabled: Dash.transport-enabled; clicked => { Dash.transport("back"); } }
-                    }
-                    VerticalLayout {
-                        alignment: center;
-                        ActionButton {
-                            text: Dash.paused ? "Resume" : "Pause";
-                            primary: true;
-                            enabled: Dash.transport-enabled;
-                            clicked => { Dash.transport("play-pause"); }
-                        }
-                    }
-                    VerticalLayout {
-                        alignment: center;
-                        ActionButton { text: "+30 s"; enabled: Dash.transport-enabled; clicked => { Dash.transport("forward"); } }
-                    }
-                    VerticalLayout {
-                        alignment: center;
-                        ActionButton {
-                            text: "Stop";
-                            enabled: Dash.transport-enabled || Dash.stop-enabled;
-                            clicked => { Dash.transport("stop"); }
-                        }
-                    }
-                }
+            alignment: center;
+            Icon { name: Dash.weather-on ? Dash.weather-icon : "partly"; tint: Theme.text-secondary; size: 36px; line: 1.6px; }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            Text {
+                text: Dash.weather-on ? Dash.weather-temp : "No location";
+                font-size: Dash.weather-on ? 34px : 24px;
+                color: Theme.text-primary;
             }
-
-            if Dash.sessions.length > 0 || Dash.tv-prompts.length > 0: Rectangle {
-                height: 1px;
-                background: Theme.border;
-            }
-            if Dash.sessions.length > 0: SectionLabel { text: "ALSO PLAYING"; }
-            for session in Dash.sessions: SessionLine { data: session; }
-            for p in Dash.tv-prompts: PromptBanner {
-                data: p;
-                action => { Dash.prompt-action(p.source, p.action-id); }
+            Text {
+                text: Dash.weather-on ? Dash.weather-detail : "Set latitude and longitude in config.toml";
+                font-size: 18px;
+                color: Theme.text-secondary;
+                overflow: elide;
             }
         }
     }
+}
 
-    // ── Watch on TV ──────────────────────────────────────────────
-    VerticalLayout {
-        spacing: 14px;
-        SectionLabel { text: "WATCH ON TV"; }
-        HorizontalLayout {
-            spacing: 16px;
-            for site[i] in Dash.streaming-sites: SiteTile {
-                name: site;
-                clicked => { Dash.open-site(i); }
-            }
-        }
+component SquareButton inherits Rectangle {
+    in property <string> icon;
+    in property <string> label; // accessible name
+    callback clicked();
+    width: 64px;
+    height: 64px;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.border;
+    background: touch.pressed ? Theme.surface-raised : Theme.surface;
+    accessible-role: button;
+    accessible-label: root.label;
+    Icon { name: root.icon; tint: Theme.text-secondary; size: 28px; line: 1.7px; }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
     }
+}
 
-    // ── Continue Watching ────────────────────────────────────────
+// ── On the TV ────────────────────────────────────────────────────────
+
+component TvCardView inherits Rectangle {
+    property <bool> playing: Dash.tv.mode == "playing";
+    property <bool> streaming: Dash.tv.mode == "streaming";
+    property <bool> next: Dash.tv.mode == "next";
+
+    background: Dash.tint.card;
+    border-radius: Theme.card-radius;
+    animate background { duration: 400ms; }
+
     VerticalLayout {
-        spacing: 14px;
-        vertical-stretch: 1;
+        padding: 36px;
+        spacing: 24px;
+
         HorizontalLayout {
-            SectionLabel { text: "CONTINUE WATCHING"; horizontal-stretch: 1; vertical-alignment: center; }
-            if Dash.cw-state == "items": Text {
-                text: "See all in Library ›";
+            spacing: 10px;
+            VerticalLayout {
+                alignment: center;
+                Icon { name: "tv"; tint: Dash.tint.accent; size: 22px; line: 1.75px; }
+            }
+            Text {
+                text: Dash.tv.label;
                 font-size: Theme.label-size;
-                color: see-all.has-hover ? Theme.text-primary : Theme.accent;
-                see-all := TouchArea {
+                font-weight: 600;
+                letter-spacing: 1.5px;
+                color: Dash.tint.accent;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+            if Dash.tv.source != "": Rectangle {
+                width: pill.preferred-width + 28px;
+                height: 34px;
+                border-radius: 17px;
+                border-width: 1px;
+                border-color: Dash.tint.edge;
+                pill := Text { text: Dash.tv.source; font-size: 18px; color: Dash.tint.sec; }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 28px;
+            vertical-stretch: 1;
+
+            if Dash.tv.mode != "idle": VerticalLayout {
+                alignment: start;
+                Rectangle {
+                    width: 230px;
+                    height: 345px;
+                    border-radius: 16px;
+                    clip: true;
+                    background: Dash.tint.poster;
+                    if Dash.tv.has-poster: Image {
+                        width: parent.width;
+                        height: parent.height;
+                        source: Dash.tv.poster;
+                        image-fit: cover;
+                    }
+                    if !Dash.tv.has-poster: Text {
+                        text: Dash.tv.monogram != "" ? Dash.tv.monogram : Dash.tv.title;
+                        width: parent.width - 28px;
+                        font-size: Dash.tv.monogram != "" ? 96px : 24px;
+                        font-weight: Dash.tv.monogram != "" ? 600 : 400;
+                        color: Dash.tint.accent;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+            VerticalLayout {
+                spacing: 10px;
+                alignment: start;
+                horizontal-stretch: 1;
+                if Dash.tv.note != "": Text {
+                    text: Dash.tv.note;
+                    font-size: Theme.body-size;
+                    color: Dash.tint.sec;
+                    wrap: word-wrap;
+                }
+                Text {
+                    text: Dash.tv.title;
+                    font-size: 46px;
+                    color: Theme.text-primary;
+                    wrap: word-wrap;
+                }
+                if Dash.tv.subtitle != "": Text {
+                    text: Dash.tv.subtitle;
+                    font-size: 24px;
+                    color: Dash.tint.sec;
+                    wrap: word-wrap;
+                }
+                if root.playing && Dash.tv.paused: HorizontalLayout {
+                    alignment: start;
+                    padding-top: 8px;
+                    Rectangle {
+                        width: paused.preferred-width + 28px;
+                        height: 34px;
+                        border-radius: 17px;
+                        background: Dash.tint.btn;
+                        paused := Text { text: "Paused"; font-size: 18px; font-weight: 600; color: Dash.tint.accent; }
+                    }
+                }
+            }
+        }
+
+        if (root.playing || root.next) && Dash.tv.at-text != "": VerticalLayout {
+            spacing: 10px;
+            ProgressBar { height: 10px; value: Dash.tv.progress; fill: Dash.tint.accent; track: Dash.tint.track; }
+            HorizontalLayout {
+                Text { text: Dash.tv.at-text; font-size: 20px; color: Dash.tint.sec; horizontal-stretch: 1; }
+                Text { text: Dash.tv.left-text; font-size: 20px; color: Dash.tint.sec; }
+            }
+        }
+
+        if root.playing: HorizontalLayout {
+            spacing: 14px;
+            height: 76px;
+            ActionButton {
+                icon: "back";
+                width: 84px;
+                font-px: 26px;
+                fill: Dash.tint.btn;
+                edge: Dash.tint.edge;
+                accessible-label: "Back 10 seconds";
+                clicked => { Dash.transport("back"); }
+            }
+            ActionButton {
+                text: Dash.tv.paused ? "Resume" : "Pause";
+                icon: Dash.tv.paused ? "play" : "pause";
+                primary: true;
+                font-px: 26px;
+                horizontal-stretch: 1;
+                fill: Dash.tint.accent;
+                ink: Dash.tint.on-accent;
+                clicked => { Dash.transport("play-pause"); }
+            }
+            ActionButton {
+                icon: "forward";
+                width: 84px;
+                font-px: 26px;
+                fill: Dash.tint.btn;
+                edge: Dash.tint.edge;
+                accessible-label: "Forward 30 seconds";
+                clicked => { Dash.transport("forward"); }
+            }
+            ActionButton {
+                text: "Stop";
+                font-px: 24px;
+                fill: Dash.tint.btn;
+                edge: Dash.tint.edge;
+                clicked => { Dash.transport("stop"); }
+            }
+        }
+        if root.streaming: ActionButton {
+            height: 76px;
+            text: "Close browser";
+            icon: "stop";
+            primary: true;
+            font-px: 26px;
+            fill: Dash.tint.accent;
+            ink: Dash.tint.on-accent;
+            clicked => { Dash.transport("stop"); }
+        }
+        if root.next: ActionButton {
+            height: 76px;
+            text: "Resume on TV";
+            icon: "play";
+            primary: true;
+            font-px: 26px;
+            fill: Dash.tint.accent;
+            ink: Dash.tint.on-accent;
+            clicked => { Dash.play-item(0); }
+        }
+
+        // Other devices, and servers whose sign-in expired.
+        if Dash.sessions.length > 0 || Dash.tv-prompts.length > 0: Rectangle { height: 1px; background: Dash.tint.edge; }
+        if Dash.sessions.length > 0: Text {
+            text: "ALSO PLAYING";
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            color: Dash.tint.sec;
+        }
+        for session in Dash.sessions: SessionLine { data: session; }
+        for p in Dash.tv-prompts: PromptBanner {
+            data: p;
+            fill: Dash.tint.btn;
+            action => { Dash.prompt-action(p.source, p.action-id); }
+        }
+    }
+}
+
+// ── Watch on TV ──────────────────────────────────────────────────────
+
+component SiteTile inherits Rectangle {
+    in property <SiteTileData> site;
+    callback clicked();
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.border;
+    background: touch.pressed ? Theme.border : Theme.surface-raised;
+    accessible-role: button;
+    accessible-label: "Watch " + root.site.name + " on TV";
+
+    VerticalLayout {
+        alignment: center;
+        spacing: 10px;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: 52px;
+                height: 52px;
+                border-radius: 14px;
+                clip: true;
+                background: root.site.has-logo ? transparent : root.site.bg;
+                if root.site.has-logo: Image { width: parent.width; height: parent.height; source: root.site.logo; image-fit: cover; }
+                if !root.site.has-logo: Text {
+                    text: root.site.monogram;
+                    font-size: 26px;
+                    font-weight: 600;
+                    color: root.site.fg;
+                }
+            }
+        }
+        Text {
+            text: root.site.name;
+            font-size: 18px;
+            font-weight: 500;
+            color: Theme.text-primary;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Wrapping grid of tiles, five per row.
+component SiteGrid inherits Rectangle {
+    property <int> columns: 5;
+    property <length> gap: 14px;
+    property <length> tile-h: 104px;
+    property <length> tile-w: (self.width - (root.columns - 1) * root.gap) / root.columns;
+    property <int> rows: Math.ceil(Dash.streaming-sites.length / root.columns);
+    height: max(0, root.rows * (root.tile-h + root.gap) - root.gap);
+
+    for site[i] in Dash.streaming-sites: SiteTile {
+        x: Math.mod(i, root.columns) * (root.tile-w + root.gap);
+        y: Math.floor(i / root.columns) * (root.tile-h + root.gap);
+        width: root.tile-w;
+        height: root.tile-h;
+        site: site;
+        clicked => { Dash.open-site(i); }
+    }
+}
+
+// ── Continue Watching ────────────────────────────────────────────────
+
+component ContinueWatching inherits Rectangle {
+    background: Theme.surface;
+    border-radius: Theme.card-radius;
+    clip: true;
+
+    VerticalLayout {
+        padding-top: 24px;
+        padding-bottom: 24px;
+        padding-left: 28px;
+        padding-right: 28px;
+        spacing: 16px;
+
+        HorizontalLayout {
+            SectionLabel {
+                text: Dash.cw-state == "items" ? "CONTINUE WATCHING · SWIPE FOR MORE" : "CONTINUE WATCHING";
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+            }
+            Rectangle {
+                min-height: 48px;
+                width: see-all.preferred-width + 8px;
+                see-all := HorizontalLayout {
+                    spacing: 6px;
+                    Text { text: "See all in Library"; font-size: 20px; color: link.pressed ? Theme.text-primary : Theme.text-secondary; vertical-alignment: center; }
+                    VerticalLayout { alignment: center; Icon { name: "chevron"; tint: Theme.text-secondary; size: 18px; } }
+                }
+                link := TouchArea {
                     mouse-cursor: pointer;
                     clicked => { Nav.page = "library"; }
                 }
@@ -139,84 +407,135 @@ export component HomePage inherits VerticalLayout {
                 action => { Dash.prompt-action(p.source, p.action-id); }
             }
             PosterRow {
-                vertical-stretch: 1;
                 cards: Dash.continue-watching;
                 clicked(i) => { Dash.play-item(i); }
             }
+            Rectangle { vertical-stretch: 1; }
         }
 
-        if Dash.cw-state != "items": Card {
+        if Dash.cw-state != "items": VerticalLayout {
+            alignment: center;
+            spacing: 18px;
             vertical-stretch: 1;
-            min-height: 200px;
-            VerticalLayout {
-                alignment: center;
-                spacing: 18px;
-                padding: 24px;
 
-                if Dash.cw-state == "code": Text {
-                    text: Dash.signin-code;
-                    font-size: 72px;
-                    font-weight: 600;
-                    letter-spacing: 12px;
-                    color: Theme.text-primary;
-                    horizontal-alignment: center;
-                }
-                if Dash.cw-state != "prompts": Text {
-                    text: Dash.cw-state == "loading" ? "Loading…"
-                        : Dash.cw-state == "empty" ? "Nothing in progress. Start something and it'll show up here."
-                        : Dash.cw-message;
-                    font-size: Theme.body-size;
-                    color: Theme.text-muted;
-                    horizontal-alignment: center;
-                    wrap: word-wrap;
-                }
-                if Dash.cw-state == "code" || Dash.cw-state == "busy": HorizontalLayout {
+            if Dash.cw-state == "code": Text {
+                text: Dash.signin-code;
+                font-size: 72px;
+                font-weight: 600;
+                letter-spacing: 12px;
+                color: Theme.text-primary;
+                horizontal-alignment: center;
+            }
+            if Dash.cw-state != "prompts": Text {
+                text: Dash.cw-state == "loading" ? "Loading…"
+                    : Dash.cw-state == "empty" ? "Nothing in progress. Start something and it'll show up here."
+                    : Dash.cw-message;
+                font-size: Theme.body-size;
+                color: Theme.text-secondary;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+            if Dash.cw-state == "code" || Dash.cw-state == "busy": HorizontalLayout {
+                alignment: center;
+                ActionButton { text: "Cancel"; clicked => { Dash.cancel-sign-in(Dash.signin-source); } }
+            }
+            if Dash.cw-state == "prompts": VerticalLayout {
+                spacing: 18px;
+                alignment: center;
+                for p in Dash.prompts: HorizontalLayout {
                     alignment: center;
-                    ActionButton { text: "Cancel"; clicked => { Dash.cancel-sign-in(Dash.signin-source); } }
-                }
-                if Dash.cw-state == "prompts": VerticalLayout {
-                    spacing: 18px;
-                    alignment: center;
-                    for p in Dash.prompts: HorizontalLayout {
-                        alignment: center;
-                        spacing: 20px;
-                        Text {
-                            text: p.message;
-                            font-size: Theme.body-size;
-                            color: p.warn ? Theme.warn : Theme.text-muted;
-                            vertical-alignment: center;
-                        }
-                        ActionButton {
-                            text: p.action;
-                            primary: !p.warn;
-                            clicked => { Dash.prompt-action(p.source, p.action-id); }
-                        }
+                    spacing: 20px;
+                    Text {
+                        text: p.message;
+                        font-size: Theme.body-size;
+                        color: p.warn ? Theme.warn : Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                    ActionButton {
+                        text: p.action;
+                        primary: !p.warn;
+                        clicked => { Dash.prompt-action(p.source, p.action-id); }
                     }
                 }
             }
         }
     }
+}
 
-    // ── Footer ───────────────────────────────────────────────────
+export component HomePage inherits VerticalLayout {
+    padding-top: 40px;
+    padding-bottom: 40px;
+    padding-left: 64px;
+    padding-right: 64px;
+    spacing: Theme.gap;
+
+    // ── Header: clock, theme, weather, Settings ──────────────────
     HorizontalLayout {
-        spacing: 16px;
+        spacing: Theme.gap;
+        min-height: 140px;
+
         HorizontalLayout {
-            spacing: 10px;
-            horizontal-stretch: 1;
+            spacing: 28px;
             VerticalLayout {
                 alignment: center;
-                Rectangle { width: 12px; height: 12px; border-radius: 6px; background: Dash.keyring-dot; }
+                Clock { hh: Dash.clock-hh; mm: Dash.clock-mm; font-px: Theme.laptop-clock-size; }
             }
-            Text {
-                text: Dash.keyring-status;
-                font-size: Theme.label-size;
-                color: Theme.text-muted;
-                vertical-alignment: center;
-                overflow: elide;
+            VerticalLayout {
+                alignment: center;
+                spacing: 4px;
+                Text { text: Dash.weekday; font-size: 30px; color: Theme.text-primary; }
+                Text { text: Dash.date-text; font-size: Theme.body-size; color: Theme.text-secondary; }
             }
         }
-        ActionButton { text: "Library"; clicked => { Nav.page = "library"; } }
-        ActionButton { text: "Settings"; clicked => { Nav.page = "settings"; } }
-        ActionButton { text: "Quit"; clicked => { Dash.quit(); } }
+        Rectangle { horizontal-stretch: 1; }
+        VerticalLayout { alignment: center; horizontal-stretch: 0; ThemeSwitch { } }
+        VerticalLayout { alignment: center; horizontal-stretch: 0; WeatherCard { } }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+            SquareButton { icon: "gear"; label: "Settings"; clicked => { Nav.page = "settings"; } }
+        }
+    }
+
+    // ── Main: On the TV (5/12) · tiles + Continue Watching (7/12) ─
+    // Placed by hand: a layout can't size one column from its own width.
+    main := Rectangle {
+        vertical-stretch: 1;
+        min-height: 640px;
+
+        tv-card := TvCardView {
+            x: 0;
+            y: 0;
+            width: (main.width - Theme.gap) * 5 / 12;
+            height: main.height;
+        }
+
+        VerticalLayout {
+            x: tv-card.width + Theme.gap;
+            y: 0;
+            width: main.width - self.x;
+            height: main.height;
+            spacing: Theme.gap;
+
+            Rectangle {
+                background: Theme.surface;
+                border-radius: Theme.card-radius;
+                vertical-stretch: 0;
+                VerticalLayout {
+                    alignment: start;
+                    padding-top: 24px;
+                    padding-bottom: 24px;
+                    padding-left: 28px;
+                    padding-right: 28px;
+                    spacing: 16px;
+                    SectionLabel {
+                        text: "WATCH ON TV · " + Dash.streaming-sites.length + (Dash.streaming-sites.length == 1 ? " SERVICE" : " SERVICES");
+                    }
+                    SiteGrid { }
+                }
+            }
+
+            ContinueWatching { vertical-stretch: 1; }
+        }
     }
 }

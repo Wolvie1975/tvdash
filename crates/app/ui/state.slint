@@ -2,6 +2,7 @@
 // `laptop.global::<Dash>()` etc.; pages read them directly.
 
 import { AccountPrompt, PosterCardData, SessionRow } from "components.slint";
+import { UiTheme } from "theme.slint";
 
 // Which laptop page is showing.
 export global Nav {
@@ -9,23 +10,65 @@ export global Nav {
     in-out property <string> page: "home";
 }
 
+// Colours for the On the TV card, taken from the poster's hue (set by Rust per theme).
+export struct Tint {
+    card: color,
+    poster: color,
+    accent: color,
+    sec: color,
+    track: color,
+    btn: color,
+    edge: color,
+    on-accent: color,
+}
+
+// The On the TV card.
+export struct TvCard {
+    // "playing" (mpv) | "streaming" (browser) | "next" (idle, top Continue Watching item) | "idle"
+    mode: string,
+    label: string,      // "ON THE TV" | "UP NEXT"
+    source: string,     // pill: "Jellyfin" | "Plex" | "Browser" | ""
+    title: string,
+    subtitle: string,
+    note: string,       // line above the title ("Nothing on the TV. Pick up where you left off:")
+    at-text: string,    // "24:10 / 52:00" | "Stopped at 31:40"
+    left-text: string,  // "28 min left · ends 21:40"
+    progress: float,
+    paused: bool,
+    poster: image,
+    has-poster: bool,
+    monogram: string,   // shown instead of a poster (streaming site initial)
+}
+
+// A Watch on TV tile.
+export struct SiteTileData {
+    name: string,
+    monogram: string,
+    bg: color,
+    fg: color,
+    logo: image,
+    has-logo: bool,
+}
+
 // Control dashboard (home page) + things shared with every page.
 export global Dash {
     // Header
     in property <string> clock-hh: "--";
     in property <string> clock-mm: "--";
+    in property <string> weekday;
     in property <string> date-text;
-    in property <string> weather-text: "—";
+    in property <bool> weather-on: false;
+    in property <string> weather-temp: "—";
     in property <string> weather-detail;
+    // Icon name (see icons.slint): "clear" | "partly" | "cloud" | "fog" | "rain" | "snow" | "storm"
+    in property <string> weather-icon: "partly";
 
     // On the TV
-    in property <string> now-playing-title: "Nothing playing";
-    in property <string> now-playing-detail: "The TV is showing the idle screen.";
-    in property <bool> transport-enabled: false;
-    // Stop alone (the streaming browser can only be closed, not paused).
-    in property <bool> stop-enabled: false;
-    in property <bool> paused: false;
-    in property <float> now-playing-progress: 0;
+    in property <TvCard> tv: { mode: "idle", label: "ON THE TV", title: "Nothing playing", subtitle: "The TV is showing the idle screen." };
+    in property <Tint> tint: {
+        card: #121F30, poster: #1C2E45, accent: #8FC1FF, sec: #AFC3DA,
+        track: #1E3048, btn: #172840, edge: #24395A, on-accent: #0B0D10,
+    };
     in property <[SessionRow]> sessions;
     // Servers whose sign-in expired (sessions can't be read).
     in property <[AccountPrompt]> tv-prompts;
@@ -38,9 +81,9 @@ export global Dash {
     in property <[AccountPrompt]> prompts;
     in property <[PosterCardData]> continue-watching;
 
-    in property <[string]> streaming-sites;
+    in property <[SiteTileData]> streaming-sites;
 
-    // Footer
+    // Shown in Settings
     in property <string> keyring-status: "Checking keyring…";
     in property <color> keyring-dot: #8A9099;
 
@@ -52,6 +95,7 @@ export global Dash {
     callback play-item(int);
     callback prompt-action(string, string); // (source, "sign-in" | "retry")
     callback cancel-sign-in(string);
+    callback set-theme(UiTheme);
     callback quit();
 }
 

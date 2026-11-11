@@ -297,6 +297,7 @@ impl Controller {
             }
             Command::JellyfinPassword { username, password } => self.jellyfin_password(username, password),
             Command::ClearBrowserProfile => self.clear_browser_profile().await,
+            Command::SetTheme(mode) => self.update_config(|c| c.general.theme = mode),
             Command::SetupFinished => {
                 self.state.setup_complete = true;
                 self.save_state();

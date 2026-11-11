@@ -57,9 +57,9 @@ for the TV, and logs which ones it chose.
 
 | Page | What's there |
 |---|---|
-| **Home** | Clock, weather; **On the TV** with transport buttons and other devices' sessions; Watch on TV tiles; Continue Watching (click to resume on the TV) |
+| **Home** | Header: clock, theme switch (Dark / Stone / Mist), weather, Settings. Left: **On the TV**, tinted from the poster, with transport buttons (or **Up next** with Resume on TV when the TV is idle) and other devices' sessions. Right: Watch on TV tiles and Continue Watching (tap to resume on the TV, swipe for more) |
 | **Library** | All / Plex / Jellyfin filter, search, Continue Watching, Recently Added; click a poster for details, **Resume on TV** or **Play from the start** |
-| **Settings › Accounts** | Each connection's status with Sign in / Sign out / Reconnect; streaming sites with **Sign in on TV**; **Clear browser profile** (signs out of every streaming site) |
+| **Settings › Accounts** | Each connection's status with Sign in / Sign out / Reconnect; keyring status; **Quit tvdash**; streaming sites with **Sign in on TV**; **Clear browser profile** (signs out of every streaming site) |
 
 An expired Plex or Jellyfin sign-in shows **Reconnect** on the On the TV card.
 

@@ -64,11 +64,31 @@ pub enum ClockFormat {
     H12,
 }
 
+/// Laptop window colours. The TV always stays dark.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeMode {
+    #[default]
+    Dark,
+    /// Warm grey light theme.
+    Stone,
+    /// Cool blue-grey light theme.
+    Mist,
+}
+
+impl ThemeMode {
+    pub fn is_light(self) -> bool {
+        self != Self::Dark
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct GeneralConfig {
     pub units: Units,
     pub clock: ClockFormat,
+    /// Laptop theme, switched from the dashboard header.
+    pub theme: ThemeMode,
     pub latitude: f64,
     pub longitude: f64,
     /// IANA zone name, e.g. `America/Chicago`. Empty or invalid → system local time.
@@ -180,6 +200,7 @@ impl Default for GeneralConfig {
         Self {
             units: Units::Fahrenheit,
             clock: ClockFormat::H24,
+            theme: ThemeMode::Dark,
             latitude: 0.0,
             longitude: 0.0,
             timezone: "America/Chicago".into(),

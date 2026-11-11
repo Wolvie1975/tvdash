@@ -6,11 +6,12 @@ mod clock;
 mod controller;
 mod displays;
 mod format;
+mod tint;
 
 use std::{sync::Arc, time::Duration};
 
 use anyhow::{Context, bail};
-use slint::{CloseRequestResponse, ComponentHandle, ModelRc, SharedString, VecModel};
+use slint::{CloseRequestResponse, ComponentHandle};
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 use tvdash_core::{AppEvent, Command, Config, SecretKey, secrets};
@@ -104,11 +105,17 @@ fn main() -> anyhow::Result<()> {
     let tv = TvWindow::new()?;
     let laptop = LaptopWindow::new()?;
 
-    let site_names: Vec<String> = config.streaming.iter().map(|s| s.name.clone()).collect();
-    let sites: Vec<SharedString> = site_names.iter().map(|n| n.as_str().into()).collect();
-    laptop.global::<Dash>().set_streaming_sites(ModelRc::new(VecModel::from(sites)));
-
-    bridge::init(&laptop, config.general.tz(), config.general.clock, site_names, &config.jellyfin.server_url);
+    bridge::init(
+        &laptop,
+        bridge::UiConfig {
+            tz: config.general.tz(),
+            clock: config.general.clock,
+            units: config.general.units,
+            theme: config.general.theme,
+            site_names: config.streaming.iter().map(|s| s.name.clone()).collect(),
+            jellyfin_url: config.jellyfin.server_url.clone(),
+        },
+    );
 
     // Background → UI events.
     let (event_tx, event_rx) = mpsc::unbounded_channel::<AppEvent>();

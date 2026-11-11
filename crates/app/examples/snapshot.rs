@@ -1,13 +1,20 @@
 // Dev tool: render windows offscreen to PNG (no display needed).
 // Usage: cargo run --example snapshot -- out.png <mode> [height] [width]
-// Modes: home, home-playing, home-code, home-streaming, library, library-search,
+// THEME=stone|mist picks a light theme (default dark).
+// Modes: home, home-playing, home-next, home-code, home-streaming, library, library-search,
 //        settings, setup-0 … setup-2, tv
 use std::rc::Rc;
 
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
-use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel};
+use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
 
 slint::include_modules!();
+
+#[path = "../src/tint.rs"]
+#[allow(dead_code)]
+mod tint;
+
+use tvdash_core::config::ThemeMode;
 
 struct P(Rc<MinimalSoftwareWindow>);
 impl slint::platform::Platform for P {
@@ -34,6 +41,8 @@ fn cards(list: &[(&str, &str, f32, bool, &str)]) -> ModelRc<PosterCardData> {
         list.iter()
             .enumerate()
             .map(|(i, (t, s, p, has, badge))| PosterCardData {
+                accent: tint::progress_color(tint::Hue { degrees: (i * 70) as f32 + 200.0, saturation: 0.8 }),
+                placeholder: tint::card_tint(tint::DEFAULT, ThemeMode::Dark).poster,
                 title: (*t).into(),
                 subtitle: (*s).into(),
                 badge: (*badge).into(),
@@ -78,20 +87,35 @@ fn account(
     }
 }
 
-fn laptop(mode: &str) -> LaptopWindow {
+fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
     let l = LaptopWindow::new().unwrap();
     let dash = l.global::<Dash>();
     let theme = l.global::<Theme>();
+    theme.set_mode(match theme_mode {
+        ThemeMode::Dark => UiTheme::Dark,
+        ThemeMode::Stone => UiTheme::Stone,
+        ThemeMode::Mist => UiTheme::Mist,
+    });
     dash.set_clock_hh("21".into());
     dash.set_clock_mm("04".into());
-    dash.set_date_text("Wednesday, 11 November".into());
-    let sites: Vec<SharedString> =
-        ["Netflix", "Disney+", "Hulu", "Prime Video", "Apple TV+", "YouTube TV"].iter().map(|s| (*s).into()).collect();
-    dash.set_streaming_sites(model(sites));
+    dash.set_weekday("Wednesday".into());
+    dash.set_date_text("November 11".into());
+    let tiles: Vec<SiteTileData> = ["Netflix", "Disney+", "Hulu", "Prime Video", "Apple TV+", "YouTube TV", "Max"]
+        .iter()
+        .enumerate()
+        .map(|(i, n)| {
+            let (bg, fg) = tint::site_colors(tint::site_hue(n, i), theme_mode);
+            SiteTileData { name: (*n).into(), monogram: n[..1].into(), bg, fg, logo: Image::default(), has_logo: false }
+        })
+        .collect();
+    dash.set_streaming_sites(model(tiles));
     dash.set_keyring_status("GNOME Keyring connected".into());
     dash.set_keyring_dot(theme.get_ok());
-    dash.set_weather_text("48° Light rain".into());
-    dash.set_weather_detail("H 55° · L 39°".into());
+    dash.set_weather_on(true);
+    dash.set_weather_temp("48°F".into());
+    dash.set_weather_detail("Light rain · H 55 L 39".into());
+    dash.set_weather_icon("rain".into());
+    let teal = tint::Hue { degrees: 182.0, saturation: 0.8 };
 
     let row = cards(&[
         ("Some Show", "S2 · E5 · The Pilot", 0.33, true, "Jellyfin"),
@@ -123,18 +147,54 @@ fn laptop(mode: &str) -> LaptopWindow {
         }
         "home-streaming" => {
             dash.set_cw_state("empty".into());
-            dash.set_now_playing_title("Netflix".into());
-            dash.set_now_playing_detail("Streaming in the browser on the TV. Stop closes it.".into());
-            dash.set_stop_enabled(true);
+            dash.set_tv(TvCard {
+                mode: "streaming".into(),
+                label: "ON THE TV".into(),
+                source: "Browser".into(),
+                title: "Netflix".into(),
+                subtitle: "Streaming full screen on the TV. Close the browser to go back to the idle screen.".into(),
+                monogram: "N".into(),
+                ..Default::default()
+            });
+            dash.set_tint(tint::card_tint(tint::Hue { degrees: 338.0, saturation: 0.7 }, theme_mode));
+        }
+        "home-next" => {
+            dash.set_continue_watching(row);
+            dash.set_cw_state("items".into());
+            dash.set_tv(TvCard {
+                mode: "next".into(),
+                label: "UP NEXT".into(),
+                source: "Plex".into(),
+                note: "Nothing on the TV. Pick up where you left off:".into(),
+                title: "Harbor Lights".into(),
+                subtitle: "S1 · E3 · The Breakwater".into(),
+                at_text: "Stopped at 31:40".into(),
+                left_text: "14 min left".into(),
+                progress: 0.7,
+                poster: fake_poster(60),
+                has_poster: true,
+                ..Default::default()
+            });
+            dash.set_tint(tint::card_tint(tint::DEFAULT, theme_mode));
         }
         "home-playing" => {
             dash.set_continue_watching(row);
             dash.set_cw_state("items".into());
-            dash.set_now_playing_title("Some Show".into());
-            dash.set_now_playing_detail("Jellyfin · S2 · E5 · The Pilot · 12:34 / 45:00 · ends 21:36".into());
-            dash.set_now_playing_progress(0.28);
-            dash.set_transport_enabled(true);
-            dash.set_paused(true);
+            dash.set_tv(TvCard {
+                mode: "playing".into(),
+                label: "ON THE TV".into(),
+                source: "Jellyfin".into(),
+                title: "The Long Drive Home".into(),
+                subtitle: "S2 · E7 · Crossroads".into(),
+                at_text: "24:10 / 52:00".into(),
+                left_text: "28 min left · ends 21:32".into(),
+                progress: 0.46,
+                paused: true,
+                poster: fake_poster(140),
+                has_poster: true,
+                ..Default::default()
+            });
+            dash.set_tint(tint::card_tint(teal, theme_mode));
             dash.set_sessions(model(vec![SessionRow {
                 badge: "Plex".into(),
                 title: "Plex Film · 2001".into(),
@@ -230,14 +290,19 @@ fn main() {
         let t = TvWindow::new().unwrap();
         t.set_clock_hh("21".into());
         t.set_clock_mm("04".into());
-        t.set_date_text("Wednesday, 11 November".into());
+        t.set_date_text("Wednesday, November 11".into());
         t.show().unwrap();
         t.window().take_snapshot().unwrap()
     } else {
-        let h = std::env::args().nth(3).and_then(|h| h.parse().ok()).unwrap_or(1000);
-        let width = std::env::args().nth(4).and_then(|w| w.parse().ok()).unwrap_or(1600);
+        let h = std::env::args().nth(3).and_then(|h| h.parse().ok()).unwrap_or(1080);
+        let width = std::env::args().nth(4).and_then(|w| w.parse().ok()).unwrap_or(1920);
         w.set_size(slint::PhysicalSize::new(width, h));
-        let l = laptop(&mode);
+        let theme = match std::env::var("THEME").as_deref() {
+            Ok("stone") => ThemeMode::Stone,
+            Ok("mist") => ThemeMode::Mist,
+            _ => ThemeMode::Dark,
+        };
+        let l = laptop(&mode, theme);
         l.show().unwrap();
         l.window().take_snapshot().unwrap()
     };

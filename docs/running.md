@@ -10,7 +10,7 @@ drives the TV.
 | Start it | Open **tvdash** from the app menu, or run `tvdash` in a terminal |
 | Try it without full screen | `tvdash --windowed` (two normal windows you can move around) |
 | See what it's doing | Start it from a terminal; the log prints there. More detail: `RUST_LOG=tvdash=debug tvdash` |
-| Stop it | Click **Quit** on the laptop dashboard, or press Alt+F4 on either window |
+| Stop it | **Settings** (gear, top right) › **Quit tvdash**, or press Alt+F4 on either window |
 
 It also starts by itself when you log in. To change that:
 
@@ -60,6 +60,7 @@ tvdash --check-keyring
 |---|---|---|
 | `latitude`, `longitude` | `[general]` | Location for the weather (off until set) |
 | `units`, `timezone` | `[general]` | `"fahrenheit"` / `"celsius"`; e.g. `"America/Chicago"` |
+| `theme` | `[general]` | `"dark"` (default), `"stone"` or `"mist"`; the header switch changes it for you |
 | `tv_output`, `laptop_output` | `[display]` | Which screen is which (see above) |
 | `server_url` | `[jellyfin]` | Your Jellyfin server address |
 | `binary` | `[browser]` | Browser for streaming sites (default `brave-browser`) |

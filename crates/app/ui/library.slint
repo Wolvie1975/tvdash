@@ -33,7 +33,7 @@ component DetailPanel inherits Card {
                 }
             }
         }
-        Text { text: Library.detail.badge; font-size: 16px; font-weight: 600; color: Theme.accent; }
+        Text { text: Library.detail.badge; font-size: 16px; font-weight: 600; letter-spacing: 1.5px; color: Theme.text-secondary; }
         Text {
             text: Library.detail.title;
             font-size: 28px;
@@ -51,7 +51,8 @@ component DetailPanel inherits Card {
         if Library.detail.progress > 0: ProgressBar { value: Library.detail.progress; }
         Rectangle { height: 6px; }
         ActionButton {
-            text: Library.detail.can-resume ? "▶  Resume on TV" : "▶  Play on TV";
+            text: Library.detail.can-resume ? "Resume on TV" : "Play on TV";
+            icon: "play";
             primary: true;
             clicked => { Library.play-detail(false); }
         }
@@ -72,7 +73,8 @@ component Section inherits VerticalLayout {
     SectionLabel { text: root.title; }
     if root.cards.length > 0: PosterRow {
         cards: root.cards;
-        hover-text: "Details";
+        art-width: 150px;
+        show-subtitle: true;
         selected: Library.selected-section == root.id ? Library.selected-index : -1;
         clicked(i) => {
             Library.selected-section = root.id;

@@ -92,4 +92,6 @@ pub enum Command {
     /// Close the browser, delete its profile (all streaming sign-ins) and history.
     ClearBrowserProfile,
     SetupFinished,
+    /// Remember the laptop theme picked in the header.
+    SetTheme(crate::config::ThemeMode),
 }

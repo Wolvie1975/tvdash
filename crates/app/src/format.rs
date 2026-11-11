@@ -87,6 +87,26 @@ pub fn overlay(status: &PlayerStatus, now: NaiveDateTime, format: ClockFormat) -
     format!("{}\n{state}{}", item_line(&status.item), progress_line(status, now, format))
 }
 
+/// On the TV card's two lines under the progress bar:
+/// ("24:10 / 52:00", "28 min left · ends 21:40").
+pub fn tv_times(status: &PlayerStatus, now: NaiveDateTime, format: ClockFormat) -> (String, String) {
+    let pos = duration(status.position_ms);
+    match status.duration_ms {
+        Some(dur) if dur > 0 => {
+            let left = dur.saturating_sub(status.position_ms);
+            let ends = now + TimeDelta::milliseconds(left as i64);
+            (format!("{pos} / {}", duration(dur)), format!("{} left · ends {}", length(left), hm(ends, format)))
+        }
+        _ => (pos, String::new()),
+    }
+}
+
+/// "14 min left" for a partly watched item.
+pub fn time_left(item: &MediaItem) -> Option<String> {
+    let (pos, dur) = (item.resume_ms?, item.duration_ms.filter(|&d| d > 0)?);
+    Some(format!("{} left", length(dur.saturating_sub(pos))))
+}
+
 pub fn fraction(status: &PlayerStatus) -> f32 {
     match status.duration_ms {
         Some(d) if d > 0 => (status.position_ms as f32 / d as f32).clamp(0.0, 1.0),
@@ -143,12 +163,18 @@ mod tests {
         let s = overlay(&status(PlayState::Paused), now, ClockFormat::H24);
         assert_eq!(s, "Some Show · S2 · E5 · The Pilot\nPaused · 12:34 / 45:00 · ends 21:32");
         assert_eq!(item_detail(&status(PlayState::Playing).item), "S2 · E5 · The Pilot");
+        let (at, left) = tv_times(&status(PlayState::Playing), now, ClockFormat::H24);
+        assert_eq!((at.as_str(), left.as_str()), ("12:34 / 45:00", "32 min left · ends 21:32"));
+        let mut item = status(PlayState::Playing).item;
+        assert_eq!(time_left(&item), None);
+        item.resume_ms = Some(900_000);
+        assert_eq!(time_left(&item).as_deref(), Some("30 min left"));
     }
 }
 
 // ── Header widgets ──────────────────────────────────────────────────
 
-use tvdash_core::models::Weather;
+use tvdash_core::{config::Units, models::Weather};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChipText {
@@ -160,13 +186,32 @@ fn chip(value: impl Into<String>, detail: impl Into<String>) -> ChipText {
     ChipText { value: value.into(), detail: detail.into() }
 }
 
-pub fn weather_chip(w: &Weather) -> ChipText {
-    let deg = |t: f64| format!("{}°", t.round() as i64);
-    let detail = match (w.high, w.low) {
-        (Some(h), Some(l)) => format!("H {} · L {}", deg(h), deg(l)),
-        _ => String::new(),
+/// ("51°F", "Partly cloudy · H 58 L 40").
+pub fn weather_chip(w: &Weather, units: Units) -> ChipText {
+    let unit = match units {
+        Units::Fahrenheit => "F",
+        Units::Celsius => "C",
     };
-    chip(format!("{} {}", deg(w.temperature), w.condition), detail)
+    let round = |t: f64| t.round() as i64;
+    let detail = match (w.high, w.low) {
+        (Some(h), Some(l)) => format!("{} · H {} L {}", w.condition, round(h), round(l)),
+        _ => w.condition.clone(),
+    };
+    chip(format!("{}°{unit}", round(w.temperature)), detail)
+}
+
+/// Icon name (icons.slint) for a WMO weather code.
+pub fn weather_icon(code: u8) -> &'static str {
+    match code {
+        0 | 1 => "clear",
+        2 => "partly",
+        3 => "cloud",
+        45 | 48 => "fog",
+        51..=67 | 80..=82 => "rain",
+        71..=77 | 85 | 86 => "snow",
+        95..=99 => "storm",
+        _ => "cloud",
+    }
 }
 
 #[cfg(test)]
@@ -182,6 +227,8 @@ mod widget_tests {
             high: Some(55.1),
             low: Some(38.6),
         };
-        assert_eq!(weather_chip(&w), chip("48° Partly cloudy", "H 55° · L 39°"));
+        assert_eq!(weather_chip(&w, Units::Fahrenheit), chip("48°F", "Partly cloudy · H 55 L 39"));
+        assert_eq!(weather_chip(&Weather { high: None, ..w }, Units::Celsius), chip("48°C", "Partly cloudy"));
+        assert_eq!((weather_icon(0), weather_icon(61), weather_icon(95)), ("clear", "rain", "storm"));
     }
 }

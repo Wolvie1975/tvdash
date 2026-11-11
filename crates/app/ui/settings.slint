@@ -145,7 +145,24 @@ export component SettingsPage inherits VerticalLayout {
     }
 
     HorizontalLayout {
-        alignment: start;
+        spacing: 16px;
         ActionButton { text: "Run first-time setup again"; clicked => { Accounts.run-setup(); } }
+        HorizontalLayout {
+            spacing: 10px;
+            horizontal-stretch: 1;
+            padding-left: 12px;
+            VerticalLayout {
+                alignment: center;
+                Rectangle { width: 12px; height: 12px; border-radius: 6px; background: Dash.keyring-dot; }
+            }
+            Text {
+                text: Dash.keyring-status;
+                font-size: Theme.label-size;
+                color: Theme.text-secondary;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+        ActionButton { text: "Quit tvdash"; clicked => { Dash.quit(); } }
     }
 }

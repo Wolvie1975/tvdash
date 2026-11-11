@@ -1,4 +1,5 @@
 import { Theme } from "theme.slint";
+import { Icon } from "icons.slint";
 
 // Small caps section label, e.g. "ON THE TV".
 export component SectionLabel inherits Text {
@@ -47,121 +48,52 @@ export component Clock {
 
 export component Card inherits Rectangle {
     background: Theme.surface;
-    border-radius: Theme.radius;
+    border-radius: Theme.card-radius;
 }
 
 export component ActionButton inherits Rectangle {
     in property <string> text;
+    in property <string> icon;
     in property <bool> primary: false;
     in property <bool> enabled: true;
+    // Overrides for tinted surfaces (the On the TV card).
+    in property <color> fill: root.primary ? Theme.accent : Theme.surface-raised;
+    in property <color> ink: root.primary ? Theme.on-accent : Theme.text-primary;
+    in property <color> edge: Theme.border;
+    in property <length> font-px: Theme.body-size;
     callback clicked();
 
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { root.clicked(); }
     min-height: Theme.hit-target;
-    min-width: max(Theme.hit-target, label.preferred-width + 32px);
-    border-radius: 10px;
+    min-width: max(Theme.hit-target, row.preferred-width + 40px);
+    border-radius: 14px;
     border-width: root.primary ? 0 : 1px;
-    border-color: Theme.border;
-    background: !root.enabled ? Theme.surface-raised
-        : root.primary ? (touch.pressed ? Theme.accent.darker(20%) : touch.has-hover ? Theme.accent.brighter(10%) : Theme.accent)
-        : (touch.pressed ? Theme.border : touch.has-hover ? Theme.surface-raised.brighter(20%) : Theme.surface-raised);
+    border-color: root.edge;
+    background: touch.pressed ? root.fill.mix(root.ink, 0.8) : touch.has-hover ? root.fill.mix(root.ink, 0.92) : root.fill;
     opacity: root.enabled ? 1.0 : 0.45;
 
-    label := Text {
-        text: root.text;
-        font-size: Theme.body-size;
-        font-weight: 500;
-        color: root.primary && root.enabled ? #0B0D10 : Theme.text-primary;
-        horizontal-alignment: center;
-        vertical-alignment: center;
+    row := HorizontalLayout {
+        alignment: center;
+        spacing: 10px;
+        if root.icon != "": VerticalLayout {
+            alignment: center;
+            Icon { name: root.icon; tint: root.ink; size: root.font-px * 1.2; }
+        }
+        if root.text != "": Text {
+            text: root.text;
+            font-size: root.font-px;
+            font-weight: root.primary ? 600 : 500;
+            color: root.ink;
+            vertical-alignment: center;
+        }
     }
 
     touch := TouchArea {
         enabled: root.enabled;
         mouse-cursor: root.enabled ? pointer : default;
-        clicked => { root.clicked(); }
-    }
-}
-
-// Header status chip (weather, next event, homelab).
-export component StatusChip inherits Rectangle {
-    in property <string> label;
-    in property <string> value;
-    in property <string> detail;
-    in property <color> dot: transparent;
-    // Non-empty shows a button instead of the detail line (e.g. "Reconnect").
-    in property <string> action;
-    callback action-clicked();
-
-    background: Theme.surface;
-    border-radius: Theme.radius;
-    border-width: root.action != "" ? 1px : 0;
-    border-color: Theme.warn.with-alpha(0.4);
-    min-width: 220px;
-
-    VerticalLayout {
-        padding: 18px;
-        spacing: 6px;
-        SectionLabel { text: root.label; }
-        HorizontalLayout {
-            spacing: 10px;
-            if root.dot != transparent: VerticalLayout {
-                alignment: center;
-                Rectangle {
-                    width: 12px;
-                    height: 12px;
-                    border-radius: 6px;
-                    background: root.dot;
-                }
-            }
-            Text {
-                text: root.value;
-                font-size: Theme.body-size;
-                color: Theme.text-primary;
-                overflow: elide;
-                vertical-alignment: center;
-            }
-        }
-        if root.action == "" && root.detail != "": Text {
-            text: root.detail;
-            font-size: 18px;
-            color: Theme.text-secondary;
-            overflow: elide;
-        }
-        if root.action != "": HorizontalLayout {
-            alignment: start;
-            ActionButton {
-                text: root.action;
-                clicked => { root.action-clicked(); }
-            }
-        }
-    }
-}
-
-// "Watch on TV" streaming tile.
-export component SiteTile inherits Rectangle {
-    in property <string> name;
-    callback clicked();
-
-    min-height: 84px;
-    min-width: 120px;
-    horizontal-stretch: 1;
-    border-radius: Theme.radius;
-    border-width: 1px;
-    border-color: touch.has-hover ? Theme.accent : Theme.border;
-    background: touch.pressed ? Theme.border : Theme.surface-raised;
-
-    Text {
-        text: root.name;
-        font-size: Theme.body-size;
-        font-weight: 600;
-        color: Theme.text-primary;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-        wrap: word-wrap;
-    }
-
-    touch := TouchArea {
-        mouse-cursor: pointer;
         clicked => { root.clicked(); }
     }
 }
@@ -173,34 +105,38 @@ export struct PosterCardData {
     progress: float,
     poster: image,
     has-poster: bool,
+    // Progress colour and the no-art background, from the poster's hue.
+    accent: color,
+    placeholder: color,
 }
 
-// Continue Watching card: 2:3 poster, source badge, progress, title.
+// Poster card: 2:3 art, source badge, progress, title (and optionally a subtitle).
 export component PosterCard inherits Rectangle {
     in property <PosterCardData> data;
-    in property <string> hover-text: "▶  Resume on TV";
     in property <bool> selected: false;
+    in property <length> art-width: 140px;
+    in property <bool> show-subtitle: false;
     callback clicked();
 
-    width: 150px;
-    height: 290px;
+    width: root.art-width;
+    height: col.preferred-height;
 
-    VerticalLayout {
-        spacing: 10px;
+    col := VerticalLayout {
+        spacing: 8px;
 
         art := Rectangle {
-            height: 225px;
-            border-radius: 10px;
+            height: root.art-width * 1.5;
+            border-radius: 12px;
             clip: true;
-            background: Theme.surface-raised;
-            border-width: touch.has-hover || root.selected ? 2px : 0;
+            background: root.data.placeholder;
+            border-width: touch.pressed || root.selected ? 3px : touch.has-hover ? 2px : 0;
             border-color: Theme.accent;
 
             if !root.data.has-poster: Text {
                 text: root.data.title;
-                width: parent.width - 24px;
-                font-size: Theme.body-size;
-                color: Theme.text-muted;
+                width: parent.width - 20px;
+                font-size: 18px;
+                color: Theme.on-scrim;
                 horizontal-alignment: center;
                 vertical-alignment: center;
                 wrap: word-wrap;
@@ -217,25 +153,14 @@ export component PosterCard inherits Rectangle {
                 x: 8px;
                 y: 8px;
                 width: badge-text.preferred-width + 16px;
-                height: 26px;
+                height: 24px;
                 border-radius: 6px;
-                background: #000000b0;
+                background: Theme.scrim;
                 badge-text := Text {
                     text: root.data.badge;
-                    font-size: 14px;
+                    font-size: 13px;
                     font-weight: 600;
-                    color: Theme.text-primary;
-                }
-            }
-
-            // Hover affordance
-            if touch.has-hover: Rectangle {
-                background: #00000080;
-                Text {
-                    text: root.hover-text;
-                    font-size: Theme.body-size;
-                    font-weight: 600;
-                    color: Theme.text-primary;
+                    color: Theme.on-scrim;
                 }
             }
 
@@ -243,25 +168,25 @@ export component PosterCard inherits Rectangle {
             if root.data.progress > 0: Rectangle {
                 y: parent.height - 6px;
                 height: 6px;
-                background: #00000099;
+                background: #0B0D1099;
                 Rectangle {
                     x: 0;
                     width: parent.width * root.data.progress;
-                    background: Theme.accent;
+                    background: root.data.accent;
                 }
             }
         }
 
         Text {
             text: root.data.title;
-            font-size: 18px;
-            font-weight: 600;
+            font-size: 17px;
+            font-weight: 500;
             color: Theme.text-primary;
             overflow: elide;
         }
-        Text {
+        if root.show-subtitle: Text {
             text: root.data.subtitle;
-            font-size: 16px;
+            font-size: 15px;
             color: Theme.text-secondary;
             overflow: elide;
         }
@@ -275,14 +200,16 @@ export component PosterCard inherits Rectangle {
 
 export component ProgressBar inherits Rectangle {
     in property <float> value;
+    in property <color> fill: Theme.accent;
+    in property <color> track: Theme.border;
     height: 6px;
-    border-radius: 3px;
-    background: Theme.border;
+    border-radius: self.height / 2;
+    background: root.track;
+    clip: true;
     Rectangle {
         x: 0;
         width: parent.width * clamp(root.value, 0, 1);
-        border-radius: 3px;
-        background: Theme.accent;
+        background: root.fill;
     }
 }
 
@@ -298,10 +225,11 @@ export struct AccountPrompt {
 // Slim one-line version, above a populated row or on the On the TV card.
 export component PromptBanner inherits Rectangle {
     in property <AccountPrompt> data;
+    in property <color> fill: Theme.surface-raised;
     callback action();
 
-    border-radius: 10px;
-    background: Theme.surface;
+    border-radius: 14px;
+    background: root.fill;
     border-width: 1px;
     border-color: root.data.warn ? Theme.warn.with-alpha(0.4) : Theme.border;
 
@@ -351,12 +279,12 @@ export component SessionLine inherits HorizontalLayout {
         height: 26px;
         y: (parent.height - self.height) / 2;
         border-radius: 6px;
-        background: Theme.surface-raised;
+        background: Theme.scrim;
         badge := Text {
             text: root.data.badge;
             font-size: 14px;
             font-weight: 600;
-            color: Theme.text-secondary;
+            color: Theme.on-scrim;
         }
     }
     Text {
@@ -370,26 +298,28 @@ export component SessionLine inherits HorizontalLayout {
     Text {
         text: root.data.detail;
         font-size: 18px;
-        color: Theme.text-muted;
+        color: Theme.text-secondary;
         vertical-alignment: center;
     }
 }
 
-// Horizontally scrolling row of poster cards.
+// Horizontally scrolling row of poster cards (swipe or drag to scroll).
 export component PosterRow inherits Flickable {
     in property <[PosterCardData]> cards;
-    in property <string> hover-text: "▶  Resume on TV";
     in property <int> selected: -1;
+    in property <length> art-width: 140px;
+    in property <bool> show-subtitle: false;
     callback clicked(int);
 
-    min-height: 290px;
+    min-height: row.preferred-height;
     content-width: row.preferred-width;
     row := HorizontalLayout {
-        spacing: 20px;
+        spacing: 16px;
         alignment: start;
         for c[i] in root.cards: PosterCard {
             data: c;
-            hover-text: root.hover-text;
+            art-width: root.art-width;
+            show-subtitle: root.show-subtitle;
             selected: i == root.selected;
             clicked => { root.clicked(i); }
         }
@@ -406,9 +336,9 @@ export component TextField inherits Rectangle {
     min-height: Theme.hit-target;
     min-width: 200px;
     horizontal-stretch: 1;
-    border-radius: 10px;
+    border-radius: 14px;
     background: Theme.surface-raised;
-    border-width: 1px;
+    border-width: input.has-focus ? 2px : 1px;
     border-color: input.has-focus ? Theme.accent : Theme.border;
 
     HorizontalLayout {
@@ -444,7 +374,7 @@ export component PageHeader inherits HorizontalLayout {
     callback back();
     spacing: 20px;
     alignment: start;
-    ActionButton { text: "‹  Back"; clicked => { root.back(); } }
+    ActionButton { text: "Back"; icon: "back-arrow"; clicked => { root.back(); } }
     Text {
         text: root.title;
         font-size: 36px;

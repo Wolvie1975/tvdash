@@ -53,9 +53,9 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         }
     });
 
-    let weak = laptop.as_weak();
+    let (weak, s) = (laptop.as_weak(), send.clone());
     dash.on_transport(move |action| {
-        let paused = weak.upgrade().is_some_and(|l| l.global::<Dash>().get_paused());
+        let paused = weak.upgrade().is_some_and(|l| l.global::<Dash>().get_tv().paused);
         let cmd = match action.as_str() {
             "back" => Command::Seek(-10),
             "forward" => Command::Seek(30),
@@ -67,7 +67,16 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
                 return;
             }
         };
-        send(cmd);
+        s(cmd);
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    dash.on_set_theme(move |theme| {
+        let mode = bridge::theme_mode(theme);
+        if let Some(l) = weak.upgrade() {
+            bridge::set_theme(&l, mode);
+        }
+        s(Command::SetTheme(mode));
     });
 
     dash.on_quit(|| {

@@ -1,33 +1,45 @@
-// Visual tokens from the design (plan §8).
+// Visual tokens (plan §8, future plan §4). The laptop switches between Dark,
+// Stone and Mist; the TV window never changes its mode, so it stays dark.
 
 import "../../../assets/fonts/Inter-Light.ttf";
 import "../../../assets/fonts/Inter-Regular.ttf";
 import "../../../assets/fonts/Inter-Medium.ttf";
 import "../../../assets/fonts/Inter-SemiBold.ttf";
 
+export enum UiTheme { dark, stone, mist }
+
 export global Theme {
+    in-out property <UiTheme> mode: UiTheme.dark;
+    out property <bool> light: mode != UiTheme.dark;
+
     out property <string> font: "Inter";
 
-    out property <color> bg: #0B0D10;
+    out property <color> bg: mode == UiTheme.dark ? #0B0D10 : mode == UiTheme.stone ? #CBC5BA : #C3CBD3;
     out property <color> bg-night: #050608;
-    out property <color> surface: #14171C;
-    out property <color> surface-raised: #1B1F26;
-    out property <color> border: #2A2F37;
-    out property <color> text-primary: #E8EAED;
-    out property <color> text-secondary: #A0A6AF;
-    out property <color> text-muted: #8A9099;
-    out property <color> accent: #5B9DFF;
-    out property <color> ok: #4CC38A;
-    out property <color> warn: #E5A84B;
-    out property <color> alert: #F0605D;
+    out property <color> surface: mode == UiTheme.dark ? #14171C : mode == UiTheme.stone ? #DAD5CC : #D3DAE1;
+    out property <color> surface-raised: mode == UiTheme.dark ? #1B1F26 : mode == UiTheme.stone ? #E3DFD7 : #DEE3E8;
+    out property <color> border: mode == UiTheme.dark ? #2A2F37 : mode == UiTheme.stone ? #B9B2A6 : #AEB7C1;
+    out property <color> text-primary: mode == UiTheme.dark ? #E8EAED : mode == UiTheme.stone ? #1F1D1A : #1A1E23;
+    out property <color> text-secondary: mode == UiTheme.dark ? #A0A6AF : mode == UiTheme.stone ? #47433D : #3F464F;
+    out property <color> text-muted: mode == UiTheme.dark ? #8A9099 : mode == UiTheme.stone ? #4E4943 : #47505A;
+    // Primary buttons and focus; darker on the light themes so white labels pass.
+    out property <color> accent: light ? #194D9F : #5B9DFF;
+    out property <color> on-accent: light ? #FFFFFF : #0B0D10;
+    out property <color> ok: light ? #1E6B45 : #4CC38A;
+    out property <color> warn: light ? #7A4E00 : #E5A84B;
+    out property <color> alert: light ? #9E2622 : #F0605D;
+    // Text drawn on poster art (badges) sits on a dark scrim in every theme.
+    out property <color> scrim: #0B0D10C0;
+    out property <color> on-scrim: #E8EAED;
 
-    // Laptop sizes
+    // Laptop sizes (touch-first: every control at least 56 px tall)
     out property <length> label-size: 18px;
     out property <length> body-size: 22px;
     out property <length> title-size: 28px;
-    out property <length> laptop-clock-size: 136px;
-    out property <length> hit-target: 44px;
-    out property <length> radius: 14px;
+    out property <length> laptop-clock-size: 132px;
+    out property <length> hit-target: 56px;
+    out property <length> radius: 18px;
+    out property <length> card-radius: 28px;
     out property <length> gap: 24px;
 
     // TV sizes

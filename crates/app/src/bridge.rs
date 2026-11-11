@@ -13,13 +13,15 @@ use slint::{ComponentHandle, Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffe
 use tokio::sync::mpsc::UnboundedReceiver;
 use tvdash_core::{
     AppEvent,
-    config::ClockFormat,
+    config::{ClockFormat, ThemeMode, Units},
+    events::PlayerStatus,
     models::{AccountStatus, MediaItem, PlayState, Session, SignInState, SourceKind},
 };
 
 use crate::{
     AccountPrompt, AccountRow, Accounts, Dash, DetailData, LaptopWindow, Library, Nav, PosterCardData, SessionRow,
-    Setup, SiteRow, Theme, TvWindow, format,
+    Setup, SiteRow, SiteTileData, Theme, TvCard, TvWindow, UiTheme, format,
+    tint::{self, Hue},
 };
 
 /// Display order for sources everywhere (rows, prompts, sessions).
@@ -33,12 +35,19 @@ const LONG_TOAST_FOR: Duration = Duration::from_secs(30);
 pub struct UiState {
     pub tz: Option<chrono_tz::Tz>,
     pub clock: Option<ClockFormat>,
+    units: Option<Units>,
+    theme: ThemeMode,
     site_names: Vec<String>,
+    /// What tvdash is showing on the TV: mpv playback, or the browser's site.
+    player: Option<PlayerStatus>,
+    browser: Option<String>,
     continue_watching: HashMap<SourceKind, Vec<MediaItem>>,
     recently_added: HashMap<SourceKind, Vec<MediaItem>>,
     /// Dashboard Continue Watching rows; index = card index.
     rows: Vec<MediaItem>,
     posters: HashMap<(SourceKind, String), Image>,
+    /// Dominant hue of each poster, for tints.
+    hues: HashMap<(SourceKind, String), Hue>,
     accounts: HashMap<SourceKind, AccountStatus>,
     servers: HashMap<SourceKind, String>,
     sign_in: HashMap<SourceKind, SignInState>,
@@ -66,18 +75,23 @@ thread_local! {
     pub static STATE: RefCell<UiState> = RefCell::new(UiState::default());
 }
 
+/// Settings the UI needs from the config.
+pub struct UiConfig {
+    pub tz: Option<chrono_tz::Tz>,
+    pub clock: ClockFormat,
+    pub units: Units,
+    pub theme: ThemeMode,
+    pub site_names: Vec<String>,
+    pub jellyfin_url: String,
+}
+
 /// Call once on the UI thread before the event loop starts.
-pub fn init(
-    laptop: &LaptopWindow,
-    tz: Option<chrono_tz::Tz>,
-    clock: ClockFormat,
-    site_names: Vec<String>,
-    jellyfin_url: &str,
-) {
+pub fn init(laptop: &LaptopWindow, c: UiConfig) {
     STATE.with_borrow_mut(|s| {
-        s.tz = tz;
-        s.clock = Some(clock);
-        s.site_names = site_names;
+        s.tz = c.tz;
+        s.clock = Some(c.clock);
+        s.units = Some(c.units);
+        s.site_names = c.site_names;
         let dash = laptop.global::<Dash>();
         dash.set_continue_watching(ModelRc::from(s.cards.clone()));
         dash.set_prompts(ModelRc::from(s.prompts.clone()));
@@ -90,9 +104,65 @@ pub fn init(
         let acc = laptop.global::<Accounts>();
         acc.set_accounts(ModelRc::from(s.account_rows.clone()));
         acc.set_sites(ModelRc::from(s.site_rows.clone()));
-        laptop.global::<Setup>().set_jellyfin_url(jellyfin_url.into());
+        laptop.global::<Setup>().set_jellyfin_url(c.jellyfin_url.as_str().into());
+        apply_theme(s, laptop, c.theme);
         refresh_accounts(s, laptop);
     });
+}
+
+/// Switch the laptop's colours (the TV window keeps its own, dark, Theme).
+pub fn set_theme(laptop: &LaptopWindow, mode: ThemeMode) {
+    STATE.with_borrow_mut(|s| apply_theme(s, laptop, mode));
+}
+
+pub fn ui_theme(mode: ThemeMode) -> UiTheme {
+    match mode {
+        ThemeMode::Dark => UiTheme::Dark,
+        ThemeMode::Stone => UiTheme::Stone,
+        ThemeMode::Mist => UiTheme::Mist,
+    }
+}
+
+pub fn theme_mode(theme: UiTheme) -> ThemeMode {
+    match theme {
+        UiTheme::Stone => ThemeMode::Stone,
+        UiTheme::Mist => ThemeMode::Mist,
+        _ => ThemeMode::Dark,
+    }
+}
+
+fn apply_theme(s: &mut UiState, laptop: &LaptopWindow, mode: ThemeMode) {
+    s.theme = mode;
+    laptop.global::<Theme>().set_mode(ui_theme(mode));
+    refresh_tiles(s, laptop);
+    rebuild_rows(s);
+    rebuild_library(s, laptop);
+    refresh_tv_card(s, laptop);
+}
+
+fn refresh_tiles(s: &UiState, laptop: &LaptopWindow) {
+    let tiles: Vec<SiteTileData> = s
+        .site_names
+        .iter()
+        .enumerate()
+        .map(|(i, name)| {
+            let (bg, fg) = tint::site_colors(tint::site_hue(name, i), s.theme);
+            SiteTileData {
+                name: name.as_str().into(),
+                monogram: monogram(name).into(),
+                bg,
+                fg,
+                logo: Image::default(),
+                has_logo: false,
+            }
+        })
+        .collect();
+    laptop.global::<Dash>().set_streaming_sites(ModelRc::new(VecModel::from(tiles)));
+}
+
+/// First letter of a site name ("Disney+" → "D", "Apple TV+" → "A").
+fn monogram(name: &str) -> String {
+    name.chars().find(|c| c.is_alphanumeric()).map(|c| c.to_uppercase().collect()).unwrap_or_default()
 }
 
 /// The item behind dashboard Continue Watching card `index`.
@@ -112,16 +182,6 @@ pub async fn forward(mut rx: UnboundedReceiver<AppEvent>, laptop: Weak<LaptopWin
             break; // event loop is gone; app is shutting down
         }
     }
-}
-
-fn show_idle(dash: &Dash, tv: &TvWindow) {
-    dash.set_now_playing_title("Nothing playing".into());
-    dash.set_now_playing_detail("The TV is showing the idle screen.".into());
-    dash.set_now_playing_progress(0.0);
-    dash.set_paused(false);
-    dash.set_transport_enabled(false);
-    dash.set_stop_enabled(false);
-    tv.set_message("".into());
 }
 
 fn on_setup(laptop: &LaptopWindow) -> bool {
@@ -178,6 +238,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             rebuild_rows(s);
             rebuild_library(s, laptop);
             update_cw_state(s, laptop);
+            refresh_tv_card(s, laptop);
         }
         AppEvent::RecentlyAdded(kind, items) => {
             s.recently_added.insert(kind, items);
@@ -192,6 +253,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             }
         }
         AppEvent::Poster { source, item_id, image } => {
+            s.hues.insert((source, item_id.clone()), tint::poster_hue(&image));
             let buffer = SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(&image.pixels, image.width, image.height);
             let img = Image::from_rgba8(buffer);
             let models = [
@@ -200,10 +262,11 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
                 (&s.lib_recent, &s.lib_recent_cards),
                 (&s.lib_results, &s.lib_result_cards),
             ];
+            let hue = s.hues.get(&(source, item_id.clone())).copied();
             for (items, model) in models {
                 for (i, item) in items.iter().enumerate() {
                     if item.source == source && item.id == item_id {
-                        model.set_row_data(i, card(item, Some(&img)));
+                        model.set_row_data(i, card(item, Some(&img), hue, s.theme));
                     }
                 }
             }
@@ -216,31 +279,24 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
                 lib.set_detail(d);
             }
             s.posters.insert(key, img);
+            refresh_tv_card(s, laptop);
         }
-        AppEvent::Player(Some(status)) => {
-            let now = format::now_local(s.tz);
-            let clock = s.clock.unwrap_or(ClockFormat::H24);
-            let detail = [format::item_detail(&status.item), format::progress_line(&status, now, clock)]
-                .into_iter()
-                .filter(|p| !p.is_empty())
-                .collect::<Vec<_>>()
-                .join(" · ");
-            dash.set_now_playing_title(status.item.title.as_str().into());
-            dash.set_now_playing_detail(format!("{} · {detail}", status.item.source.label()).into());
-            dash.set_now_playing_progress(format::fraction(&status));
-            dash.set_paused(status.state == PlayState::Paused);
-            dash.set_transport_enabled(true);
-            dash.set_stop_enabled(false);
-            tv.set_message(format!("Starting {}…", status.item.title).into());
+        AppEvent::Player(status) => {
+            match &status {
+                Some(st) => {
+                    if s.player.as_ref().is_none_or(|p| p.item.id != st.item.id) {
+                        tv.set_message(format!("Starting {}…", st.item.title).into());
+                    }
+                }
+                None => tv.set_message("".into()),
+            }
+            s.player = status;
+            refresh_tv_card(s, laptop);
         }
-        AppEvent::Player(None) | AppEvent::Browser(None) => show_idle(&dash, tv),
-        AppEvent::Browser(Some(site)) => {
-            dash.set_now_playing_title(site.as_str().into());
-            dash.set_now_playing_detail("Streaming in the browser on the TV. Stop closes it.".into());
-            dash.set_now_playing_progress(0.0);
-            dash.set_transport_enabled(false);
-            dash.set_stop_enabled(true);
-            tv.set_message(format!("Opening {site}…").into());
+        AppEvent::Browser(site) => {
+            tv.set_message(site.as_ref().map(|n| format!("Opening {n}…")).unwrap_or_default().into());
+            s.browser = site;
+            refresh_tv_card(s, laptop);
         }
         AppEvent::NowPlaying(sessions) => {
             let mut sessions = sessions;
@@ -248,14 +304,13 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             s.sessions.set_vec(sessions.iter().map(session_row).collect::<Vec<_>>());
         }
         AppEvent::Weather(Some(w)) => {
-            let c = format::weather_chip(&w);
-            dash.set_weather_text(c.value.into());
+            let c = format::weather_chip(&w, s.units.unwrap_or(Units::Fahrenheit));
+            dash.set_weather_temp(c.value.into());
             dash.set_weather_detail(c.detail.into());
+            dash.set_weather_icon(format::weather_icon(w.code).into());
+            dash.set_weather_on(true);
         }
-        AppEvent::Weather(None) => {
-            dash.set_weather_text("No location".into());
-            dash.set_weather_detail("Set latitude/longitude".into());
-        }
+        AppEvent::Weather(None) => dash.set_weather_on(false),
         AppEvent::Streaming(map) => {
             s.streaming = map;
             refresh_accounts(s, laptop);
@@ -274,8 +329,11 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
 
 // ── Rows ────────────────────────────────────────────────────────────
 
-fn card(item: &MediaItem, poster: Option<&Image>) -> PosterCardData {
+fn card(item: &MediaItem, poster: Option<&Image>, hue: Option<Hue>, theme: ThemeMode) -> PosterCardData {
+    let hue = hue.unwrap_or(tint::DEFAULT);
     PosterCardData {
+        accent: tint::progress_color(hue),
+        placeholder: tint::card_tint(Hue { saturation: hue.saturation.max(0.3), ..hue }, theme).poster,
         title: item.title.as_str().into(),
         subtitle: format::item_detail(item).into(),
         badge: item.source.label().into(),
@@ -286,7 +344,13 @@ fn card(item: &MediaItem, poster: Option<&Image>) -> PosterCardData {
 }
 
 fn cards_for(s: &UiState, items: &[MediaItem]) -> Vec<PosterCardData> {
-    items.iter().map(|item| card(item, s.posters.get(&(item.source, item.id.clone())))).collect()
+    items
+        .iter()
+        .map(|item| {
+            let key = (item.source, item.id.clone());
+            card(item, s.posters.get(&key), s.hues.get(&key).copied(), s.theme)
+        })
+        .collect()
 }
 
 fn in_order(map: &HashMap<SourceKind, Vec<MediaItem>>) -> Vec<MediaItem> {
@@ -297,6 +361,81 @@ fn rebuild_rows(s: &mut UiState) {
     // Fixed source order keeps cards from jumping between refreshes.
     s.rows = in_order(&s.continue_watching);
     s.cards.set_vec(cards_for(s, &s.rows));
+}
+
+// ── On the TV ───────────────────────────────────────────────────────
+
+/// Build the On the TV card: mpv playback, else the browser, else the top
+/// Continue Watching item ("up next"), else idle. Its tint follows the poster.
+fn refresh_tv_card(s: &UiState, laptop: &LaptopWindow) {
+    let dash = laptop.global::<Dash>();
+    let (card, hue) = tv_card(s);
+    dash.set_tint(tint::card_tint(hue, s.theme));
+    dash.set_tv(card);
+}
+
+fn tv_card(s: &UiState) -> (TvCard, Hue) {
+    let poster_of = |item: &MediaItem| {
+        let key = (item.source, item.id.clone());
+        (s.posters.get(&key).cloned(), s.hues.get(&key).copied().unwrap_or(tint::DEFAULT))
+    };
+    let base = TvCard { label: "ON THE TV".into(), ..Default::default() };
+    if let Some(st) = &s.player {
+        let (poster, hue) = poster_of(&st.item);
+        let now = format::now_local(s.tz);
+        let (at, left) = format::tv_times(st, now, s.clock.unwrap_or(ClockFormat::H24));
+        let card = TvCard {
+            mode: "playing".into(),
+            source: st.item.source.label().into(),
+            title: st.item.title.as_str().into(),
+            subtitle: format::item_detail(&st.item).into(),
+            at_text: at.into(),
+            left_text: left.into(),
+            progress: format::fraction(st),
+            paused: st.state == PlayState::Paused,
+            has_poster: poster.is_some(),
+            poster: poster.unwrap_or_default(),
+            ..base
+        };
+        return (card, hue);
+    }
+    if let Some(site) = &s.browser {
+        let index = s.site_names.iter().position(|n| n == site).unwrap_or(0);
+        let card = TvCard {
+            mode: "streaming".into(),
+            source: "Browser".into(),
+            title: site.as_str().into(),
+            subtitle: "Streaming full screen on the TV. Close the browser to go back to the idle screen.".into(),
+            monogram: monogram(site).into(),
+            ..base
+        };
+        return (card, Hue { degrees: tint::site_hue(site, index), saturation: 0.7 });
+    }
+    if let Some(item) = s.rows.first() {
+        let (poster, hue) = poster_of(item);
+        let card = TvCard {
+            mode: "next".into(),
+            label: "UP NEXT".into(),
+            source: item.source.label().into(),
+            note: "Nothing on the TV. Pick up where you left off:".into(),
+            title: item.title.as_str().into(),
+            subtitle: format::item_detail(item).into(),
+            at_text: item.resume_ms.map(|p| format!("Stopped at {}", format::duration(p))).unwrap_or_default().into(),
+            left_text: format::time_left(item).unwrap_or_default().into(),
+            progress: item.progress().unwrap_or(0.0),
+            has_poster: poster.is_some(),
+            poster: poster.unwrap_or_default(),
+            ..base
+        };
+        return (card, hue);
+    }
+    let card = TvCard {
+        mode: "idle".into(),
+        title: "Nothing playing".into(),
+        subtitle: "The TV is showing the idle screen.".into(),
+        ..base
+    };
+    (card, tint::DEFAULT)
 }
 
 fn session_row(x: &Session) -> SessionRow {
@@ -638,7 +777,17 @@ mod tests {
         i_slint_backend_testing::init_no_event_loop();
         let (l, t) = (LaptopWindow::new().unwrap(), TvWindow::new().unwrap());
         let sites = vec!["Netflix".to_string(), "Hulu".to_string()];
-        init(&l, Some(chrono_tz::America::Chicago), ClockFormat::H24, sites, "http://jf:8096");
+        init(
+            &l,
+            UiConfig {
+                tz: Some(chrono_tz::America::Chicago),
+                clock: ClockFormat::H24,
+                units: Units::Fahrenheit,
+                theme: ThemeMode::Dark,
+                site_names: sites,
+                jellyfin_url: "http://jf:8096".into(),
+            },
+        );
         (l, t)
     }
 
@@ -692,6 +841,54 @@ mod tests {
         send(&l, &t, AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Failed("wrong username or password".into())));
         assert_eq!((setup.get_step(), setup.get_jellyfin_state().as_str()), (1, "error"));
         assert!(setup.get_jellyfin_message().contains("wrong username"));
+    }
+
+    #[test]
+    fn tv_card_follows_playback_browser_and_theme() {
+        let (l, t) = windows();
+        let dash = l.global::<Dash>();
+        assert_eq!(dash.get_tv().mode, "idle");
+        assert_eq!(dash.get_streaming_sites().row_count(), 2);
+        assert_eq!(dash.get_streaming_sites().row_data(0).unwrap().monogram, "N");
+
+        // Something to resume: the card offers it, tinted from its poster.
+        send(&l, &t, AppEvent::ContinueWatching(SourceKind::Plex, vec![item(SourceKind::Plex, "p1", "Plex Film")]));
+        let tv = dash.get_tv();
+        assert_eq!((tv.mode.as_str(), tv.label.as_str(), tv.source.as_str()), ("next", "UP NEXT", "Plex"));
+        assert_eq!((tv.at_text.as_str(), tv.left_text.as_str()), ("Stopped at 1:00:00", "1 h left"));
+        let before = dash.get_tint().card;
+        let red = RgbaImage { width: 2, height: 2, pixels: [200, 30, 30, 255].repeat(4) };
+        send(&l, &t, AppEvent::Poster { source: SourceKind::Plex, item_id: "p1".into(), image: red });
+        assert!(dash.get_tv().has_poster);
+        assert_ne!(dash.get_tint().card, before, "tint follows the poster");
+
+        // Playback wins over "up next"; the browser shows when mpv isn't running.
+        let status = PlayerStatus {
+            item: item(SourceKind::Jellyfin, "j1", "Jelly Film"),
+            state: PlayState::Paused,
+            position_ms: 754_000,
+            duration_ms: Some(2_700_000),
+        };
+        send(&l, &t, AppEvent::Player(Some(status)));
+        let tv = dash.get_tv();
+        assert_eq!((tv.mode.as_str(), tv.title.as_str(), tv.paused), ("playing", "Jelly Film", true));
+        assert_eq!(tv.at_text, "12:34 / 45:00");
+        assert!(tv.left_text.starts_with("32 min left · ends "));
+        assert_eq!(t.get_message(), "Starting Jelly Film…");
+        send(&l, &t, AppEvent::Player(None));
+        send(&l, &t, AppEvent::Browser(Some("Hulu".into())));
+        let tv = dash.get_tv();
+        assert_eq!((tv.mode.as_str(), tv.monogram.as_str()), ("streaming", "H"));
+        send(&l, &t, AppEvent::Browser(None));
+        assert_eq!(dash.get_tv().mode, "next");
+        assert_eq!(t.get_message(), "");
+
+        // Theme: laptop switches, tiles and tint follow; the TV stays dark.
+        let dark_tile = dash.get_streaming_sites().row_data(0).unwrap().bg;
+        set_theme(&l, ThemeMode::Stone);
+        assert_eq!(l.global::<Theme>().get_mode(), UiTheme::Stone);
+        assert_ne!(dash.get_streaming_sites().row_data(0).unwrap().bg, dark_tile);
+        assert_eq!(t.global::<Theme>().get_mode(), UiTheme::Dark);
     }
 
     #[test]

@@ -12,7 +12,11 @@ use crate::{LaptopWindow, TvWindow};
 pub struct ClockText {
     pub hh: String,
     pub mm: String,
+    /// "Wednesday, November 11" (TV).
     pub date: String,
+    /// "Wednesday" and "November 11" (laptop header, two lines).
+    pub weekday: String,
+    pub month_day: String,
 }
 
 pub fn clock_text(now: NaiveDateTime, format: ClockFormat) -> ClockText {
@@ -20,7 +24,13 @@ pub fn clock_text(now: NaiveDateTime, format: ClockFormat) -> ClockText {
         ClockFormat::H24 => now.format("%H"),
         ClockFormat::H12 => now.format("%-I"),
     };
-    ClockText { hh: hh.to_string(), mm: now.format("%M").to_string(), date: now.format("%A, %-d %B").to_string() }
+    ClockText {
+        hh: hh.to_string(),
+        mm: now.format("%M").to_string(),
+        date: now.format("%A, %B %-d").to_string(),
+        weekday: now.format("%A").to_string(),
+        month_day: now.format("%B %-d").to_string(),
+    }
 }
 
 /// Start the clock. Keep the returned timer alive for as long as it should tick.
@@ -44,7 +54,8 @@ pub fn start(laptop: &LaptopWindow, tv: &TvWindow, general: &GeneralConfig) -> T
             let dash = l.global::<crate::Dash>();
             dash.set_clock_hh(text.hh.as_str().into());
             dash.set_clock_mm(text.mm.as_str().into());
-            dash.set_date_text(text.date.as_str().into());
+            dash.set_weekday(text.weekday.as_str().into());
+            dash.set_date_text(text.month_day.as_str().into());
         }
         if let Some(t) = tv.upgrade() {
             t.set_clock_hh(text.hh.as_str().into());
@@ -74,7 +85,8 @@ mod tests {
     fn formats_24h() {
         let t = clock_text(at(7, 4), ClockFormat::H24);
         assert_eq!((t.hh.as_str(), t.mm.as_str()), ("07", "04"));
-        assert_eq!(t.date, "Wednesday, 11 November");
+        assert_eq!(t.date, "Wednesday, November 11");
+        assert_eq!((t.weekday.as_str(), t.month_day.as_str()), ("Wednesday", "November 11"));
     }
 
     #[test]
