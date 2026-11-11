@@ -1,5 +1,7 @@
-//! Background controller: owns media sources, sign-in flows and the mpv
-//! session. Receives `Command`s from the UI and emits `AppEvent`s back.
+//! Background controller: owns media sources, sign-in flows, the mpv session
+//! and the streaming browser. Receives `Command`s from the UI and emits
+//! `AppEvent`s back. Only one thing is on the TV at a time: starting mpv closes
+//! the browser and vice versa.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -16,16 +18,21 @@ use tokio::{
 use tracing::{debug, error, info, warn};
 use tvdash_core::{
     AppEvent, Command, Config, SecretKey,
+    config::expand_home,
     events::PlayerStatus,
-    models::{AccountStatus, MediaItem, PlayState, RgbaImage, SignInState, SourceKind},
+    models::{AccountStatus, Geometry, MediaItem, PlayState, RgbaImage, SignInState, SourceKind},
     secrets,
+    state::AppState,
 };
 use tvdash_media::{
     MediaError, MediaSource,
     jellyfin::{Auth, JellyfinClient},
     plex::{DiscoveredServer, PlexAccount, PlexClient},
 };
-use tvdash_player::mpv::{Mpv, MpvEvent, MpvOptions};
+use tvdash_player::{
+    browser::{Browser, BrowserOptions},
+    mpv::{Mpv, MpvEvent, MpvOptions},
+};
 
 use crate::format;
 
@@ -62,12 +69,17 @@ pub struct Controller {
     plex: Option<Arc<PlexClient>>,
     sign_in: HashMap<SourceKind, JoinHandle<()>>,
     playback: Option<Playback>,
+    browser: Option<Browser>,
+    tv_geometry: Option<Geometry>,
+    state: AppState,
+    state_path: Option<PathBuf>,
     posters_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
 }
 
 enum Step {
     Command(Command),
     Mpv(Option<MpvEvent>),
+    BrowserExited,
     Internal(Internal),
     Refresh,
     Sessions,
@@ -93,6 +105,10 @@ impl Controller {
             plex: None,
             sign_in: HashMap::new(),
             playback: None,
+            browser: None,
+            tv_geometry: None,
+            state: AppState::default(),
+            state_path: tvdash_core::state::default_path(),
             posters_requested: Arc::default(),
         };
         (c, internal_rx)
@@ -120,15 +136,23 @@ impl Controller {
 
         loop {
             let step = {
-                let mpv_next = async {
-                    match self.playback.as_mut() {
+                let (playback, browser) = (self.playback.as_mut(), self.browser.as_mut());
+                let mpv_next = async move {
+                    match playback {
                         Some(p) => p.mpv.next_event().await,
+                        None => std::future::pending().await,
+                    }
+                };
+                let browser_exit = async move {
+                    match browser {
+                        Some(b) => b.wait().await,
                         None => std::future::pending().await,
                     }
                 };
                 tokio::select! {
                     c = commands.recv() => c.map_or(Step::Shutdown, Step::Command),
                     e = mpv_next => Step::Mpv(e),
+                    _ = browser_exit => Step::BrowserExited,
                     Some(m) = internal.recv() => Step::Internal(m),
                     _ = refresh.tick() => Step::Refresh,
                     _ = progress.tick() => Step::Progress,
@@ -138,6 +162,7 @@ impl Controller {
             match step {
                 Step::Command(c) => self.on_command(c).await,
                 Step::Mpv(e) => self.on_mpv(e).await,
+                Step::BrowserExited => self.on_browser_exited(),
                 Step::Internal(Internal::JellyfinSignedIn(auth)) => self.on_jellyfin_signed_in(auth).await,
                 Step::Internal(Internal::PlexSignedIn { account_token, server }) => {
                     self.on_plex_signed_in(account_token, server).await
@@ -149,9 +174,13 @@ impl Controller {
             }
         }
         self.stop_playback().await;
+        self.close_browser().await;
     }
 
     async fn init(&mut self) {
+        if let Some(path) = &self.state_path {
+            self.state = AppState::load(path);
+        }
         if self.config.jellyfin.enabled {
             self.init_jellyfin().await;
         }
@@ -206,7 +235,10 @@ impl Controller {
                     warn!(error = %e, "mpv seek failed");
                 }
             }
-            Command::Stop => self.stop_playback().await,
+            Command::Stop => {
+                self.stop_playback().await;
+                self.close_browser().await;
+            }
             Command::SignIn(SourceKind::Jellyfin) => self.start_jellyfin_sign_in(),
             Command::SignIn(SourceKind::Plex) => self.start_plex_sign_in(),
             Command::CancelSignIn(kind) => {
@@ -216,14 +248,13 @@ impl Controller {
                 self.emit(AppEvent::SignIn(kind, SignInState::Cancelled));
             }
             Command::Refresh => self.refresh(),
-            Command::OpenSite(i) => match self.config.streaming.get(i) {
-                Some(site) => {
-                    info!(site = %site.name, url = %site.url, "open site requested (M4)");
-                    self.toast(format!("{} on the TV arrives in M4", site.name));
-                }
-                None => warn!(index = i, "open site: no such streaming entry"),
-            },
-            Command::CloseBrowser | Command::Search(_) => info!(command = ?cmd, "not implemented yet"),
+            Command::OpenSite(i) => self.open_site(i).await,
+            Command::CloseBrowser => self.close_browser().await,
+            Command::TvGeometry(g) => {
+                debug!(?g, "TV geometry");
+                self.tv_geometry = Some(g);
+            }
+            Command::Search(_) => info!(command = ?cmd, "not implemented yet"),
         }
     }
 
@@ -395,6 +426,7 @@ impl Controller {
 
     async fn play(&mut self, item: MediaItem) {
         self.stop_playback().await;
+        self.close_browser().await;
         let Some(source) = self.source_for(item.source) else {
             self.toast(format!("{} isn't connected", item.source.label()));
             return;
@@ -430,6 +462,73 @@ impl Controller {
             PlayerStatus { duration_ms: item.duration_ms, item, state: PlayState::Playing, position_ms: start };
         self.emit(AppEvent::Player(Some(status.clone())));
         self.playback = Some(Playback { status, mpv, reporter, last_emitted_sec: None });
+    }
+
+    // ── Streaming browser ───────────────────────────────────────────
+
+    fn browser_geometry(&self) -> Option<Geometry> {
+        match (self.config.browser.position_override(), self.tv_geometry) {
+            (Some((x, y)), Some(g)) => Some(Geometry { x, y, ..g }),
+            (Some((x, y)), None) => Some(Geometry { x, y, width: 1920, height: 1080 }),
+            (None, g) => g,
+        }
+    }
+
+    async fn open_site(&mut self, index: usize) {
+        let Some(site) = self.config.streaming.get(index).cloned() else {
+            warn!(index, "open site: no such streaming entry");
+            return;
+        };
+        self.stop_playback().await;
+        self.close_browser().await;
+
+        let opts = BrowserOptions {
+            binary: self.config.browser.binary.clone(),
+            profile_dir: expand_home(&self.config.browser.profile_dir),
+            use_xwayland: self.config.browser.use_xwayland,
+            geometry: self.browser_geometry(),
+            fullscreen: !self.windowed,
+        };
+        match Browser::launch(&opts, &site.name, &site.url).await {
+            Ok(b) => self.browser = Some(b),
+            Err(e) => {
+                error!(error = %e, "couldn't start the browser");
+                self.toast(format!("Couldn't open {}: {e}", site.name));
+                return;
+            }
+        }
+        self.emit(AppEvent::Browser(Some(site.name.clone())));
+
+        if self.state.mark_opened(&site.name, chrono::Utc::now()) {
+            self.emit(AppEvent::LongToast(format!(
+                "First time on {}: sign in on the TV with this laptop's mouse and keyboard. It stays signed in.",
+                site.name
+            )));
+        }
+        if let Some(path) = &self.state_path
+            && let Err(e) = self.state.save(path)
+        {
+            warn!(error = %e, "couldn't save app state");
+        }
+    }
+
+    async fn close_browser(&mut self) {
+        if let Some(b) = self.browser.take() {
+            b.close().await;
+            self.emit(AppEvent::Browser(None));
+        }
+    }
+
+    fn on_browser_exited(&mut self) {
+        let Some(b) = self.browser.take() else { return };
+        self.emit(AppEvent::Browser(None));
+        if b.exited_immediately() {
+            warn!(site = %b.site, "browser exited at once; another instance probably owns the profile");
+            self.toast("The browser handed off to a window that was already open. Close it and try again.");
+        } else {
+            info!(site = %b.site, "browser closed on the TV");
+        }
+        drop(b); // signals any helpers left in its process group
     }
 
     async fn stop_playback(&mut self) {
@@ -692,17 +791,22 @@ mod e2e {
             // SAFETY: test-only, serialized by SERIAL.
             unsafe {
                 std::env::set_var("FAKE_MPV_LOG", &mpv_log);
+                std::env::set_var("FAKE_BROWSER_LOG", dir.join("browser.log"));
+                std::env::remove_var("FAKE_BROWSER_MODE");
                 std::env::set_var("XDG_RUNTIME_DIR", &dir);
             }
             let mut config = Config::default();
             config.player.mpv = format!("{FAKES}/fake_mpv.py");
+            config.browser.binary = format!("{FAKES}/fake_browser.py");
+            config.browser.profile_dir = dir.join("profile").display().to_string();
             configure(&mut config, &port);
             let config_path = dir.join("config.toml");
             config.save_to(&config_path).unwrap();
 
             let (ev_tx, events) = unbounded_channel();
             let (cmd, cmd_rx) = unbounded_channel();
-            let (controller, internal_rx) = Controller::new(config, config_path.clone(), false, ev_tx);
+            let (mut controller, internal_rx) = Controller::new(config, config_path.clone(), false, ev_tx);
+            controller.state_path = Some(dir.join("state.toml"));
             tokio::spawn(controller.run(cmd_rx, internal_rx));
             Self { dir, port, server_log, mpv_log, _server: server, events, cmd, config_path, last_sessions: None }
         }
@@ -715,6 +819,9 @@ mod e2e {
             timeout(Duration::from_secs(15), async {
                 loop {
                     let ev = self.events.recv().await.expect("controller stopped");
+                    if std::env::var_os("E2E_DEBUG").is_some() {
+                        eprintln!("event: {ev:?}");
+                    }
                     if let AppEvent::NowPlaying(s) = &ev
                         && !s.is_empty()
                     {
@@ -859,6 +966,24 @@ mod e2e {
         assert_mpv_transport(&cmds);
         let overlay = cmds.iter().find(|c| c[0] == "show-text" && c[1].as_str().unwrap().contains("Paused")).unwrap();
         assert!(overlay[1].as_str().unwrap().starts_with("Some Show · S1 · E1 · The Pilot\nPaused · "));
+
+        // One thing on the TV at a time: opening a site stops mpv first.
+        h.send(Command::Play(items[1].clone()));
+        h.wait_for(|e| matches!(e, AppEvent::Player(Some(s)) if s.item.id == "mov1").then_some(())).await;
+        h.send(Command::OpenSite(0));
+        h.wait_for(|e| matches!(e, AppEvent::Player(None)).then_some(())).await;
+        h.wait_for(|e| matches!(e, AppEvent::Browser(Some(_))).then_some(())).await;
+        sleep(Duration::from_millis(300)).await; // progress reports are async
+        let (_, cmds) = h.mpv_log();
+        assert_eq!(cmds.iter().filter(|c| **c == json!(["quit"])).count(), 2, "second mpv was quit");
+        let stops = h.server_log().iter().filter(|r| r["path"] == "/Sessions/Playing/Stopped").count();
+        assert_eq!(stops, 2, "second playback reported stopped");
+        // ...and playing something closes the browser.
+        h.send(Command::Play(items[0].clone()));
+        h.wait_for(|e| matches!(e, AppEvent::Browser(None)).then_some(())).await;
+        h.wait_for(|e| matches!(e, AppEvent::Player(Some(_))).then_some(())).await;
+        h.send(Command::Stop);
+        h.wait_for(|e| matches!(e, AppEvent::Player(None)).then_some(())).await;
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -941,5 +1066,99 @@ mod e2e {
         assert!(argv.contains(&"--start=1200.000".into()));
         assert_eq!(argv.last().unwrap(), &format!("{server_url}/library/parts/9101/file.mkv?X-Plex-Token=ptok"));
         assert_mpv_transport(&cmds);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "needs python3; run with --ignored"]
+    async fn streaming_sites_open_switch_stop_and_handoff() {
+        let _serial = SERIAL.lock().await;
+        // Any fake works as the "server"; this test only uses the browser.
+        let mut h = Harness::start("fake_jellyfin.py", |c, _| {
+            c.jellyfin.enabled = false;
+            c.plex.enabled = false;
+        })
+        .await;
+        let browser_log = h.dir.join("browser.log");
+        let profile = h.dir.join("profile");
+
+        h.send(Command::TvGeometry(Geometry { x: 1920, y: 0, width: 3840, height: 2160 }));
+
+        // First open: right site, profile, placement; first-visit hint.
+        h.send(Command::OpenSite(0));
+        h.wait_for(|e| matches!(e, AppEvent::Browser(Some(s)) if s == "Netflix").then_some(())).await;
+        let toast = h
+            .wait_for(|e| match e {
+                AppEvent::LongToast(t) => Some(t.clone()),
+                _ => None,
+            })
+            .await;
+        assert!(toast.starts_with("First time on Netflix"), "{toast}");
+        assert!(profile.is_dir(), "profile dir created");
+        sleep(Duration::from_millis(300)).await;
+
+        // Switching sites closes the old browser (main + helper) first.
+        h.send(Command::OpenSite(2));
+        h.wait_for(|e| matches!(e, AppEvent::Browser(None)).then_some(())).await;
+        h.wait_for(|e| matches!(e, AppEvent::Browser(Some(s)) if s == "Hulu").then_some(())).await;
+        sleep(Duration::from_millis(300)).await;
+
+        // Stop closes it and the TV goes idle.
+        h.send(Command::Stop);
+        h.wait_for(|e| matches!(e, AppEvent::Browser(None)).then_some(())).await;
+
+        let log = read_log(&browser_log);
+        let starts: Vec<&Value> = log.iter().filter(|l| l["event"] == "start").collect();
+        assert_eq!(starts.len(), 2);
+        let argv: Vec<String> = serde_json::from_value(starts[0]["argv"].clone()).unwrap();
+        for want in [
+            "--app=https://www.netflix.com".to_string(),
+            format!("--user-data-dir={}", profile.display()),
+            "--start-fullscreen".into(),
+            "--ozone-platform=x11".into(),
+            "--window-position=1920,0".into(),
+            "--window-size=3840,2160".into(),
+        ] {
+            assert!(argv.contains(&want), "missing {want}: {argv:?}");
+        }
+        assert!(serde_json::to_string(&starts[1]["argv"]).unwrap().contains("--app=https://www.hulu.com"));
+        let terms = |role: &str| log.iter().filter(|l| l["event"] == "term" && l["role"] == role).count();
+        assert_eq!(terms("main"), 2, "both main processes got SIGTERM: {log:?}");
+        assert_eq!(terms("helper"), 2, "both helpers got SIGTERM: {log:?}");
+        for s in &starts {
+            assert_eq!(s["pid"], s["pgid"], "browser leads its own process group");
+        }
+
+        // Re-opening a known site: no first-visit hint; state remembers both.
+        h.send(Command::OpenSite(0));
+        h.wait_for(|e| matches!(e, AppEvent::Browser(Some(_))).then_some(())).await;
+        h.send(Command::CloseBrowser);
+        let next = h
+            .wait_for(|e| match e {
+                AppEvent::Toast(t) | AppEvent::LongToast(t) => Some(Some(t.clone())),
+                AppEvent::Browser(None) => Some(None),
+                _ => None,
+            })
+            .await;
+        assert_eq!(next, None, "no first-visit toast for a known site");
+        let state = AppState::load(&h.dir.join("state.toml"));
+        assert!(state.streaming_opened.contains_key("Netflix") && state.streaming_opened.contains_key("Hulu"));
+
+        // Hand-off: the browser exits at once → TV back to idle with an explanation.
+        unsafe {
+            std::env::set_var("FAKE_BROWSER_MODE", "exit-now");
+        }
+        h.send(Command::OpenSite(0));
+        h.wait_for(|e| matches!(e, AppEvent::Browser(Some(_))).then_some(())).await;
+        h.wait_for(|e| matches!(e, AppEvent::Browser(None)).then_some(())).await;
+        let toast = h
+            .wait_for(|e| match e {
+                AppEvent::Toast(t) => Some(t.clone()),
+                _ => None,
+            })
+            .await;
+        assert!(toast.contains("handed off"), "{toast}");
+        unsafe {
+            std::env::remove_var("FAKE_BROWSER_MODE");
+        }
     }
 }

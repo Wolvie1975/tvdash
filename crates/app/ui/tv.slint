@@ -14,6 +14,8 @@ export component TvWindow inherits Window {
     in property <string> date-text;
     // Empty hides the "Up next" line.
     in property <string> up-next;
+    // Replaces "Ready…" while something is starting ("Opening Netflix…").
+    in property <string> message;
 
     // ── Idle screen: dim, low-contrast, calm ─────────────────────
     VerticalLayout {
@@ -38,7 +40,7 @@ export component TvWindow inherits Window {
         }
         Rectangle { height: 48px; }
         Text {
-            text: "Ready — pick something on the laptop";
+            text: root.message != "" ? root.message : "Ready — pick something on the laptop";
             horizontal-alignment: center;
             font-size: Theme.tv-body-size;
             color: Theme.text-muted.with-alpha(0.5);

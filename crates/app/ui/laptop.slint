@@ -27,6 +27,8 @@ export component LaptopWindow inherits Window {
     in property <string> now-playing-title: "Nothing playing";
     in property <string> now-playing-detail: "The TV is showing the idle screen.";
     in property <bool> transport-enabled: false;
+    // Stop alone (the streaming browser can only be closed, not paused).
+    in property <bool> stop-enabled: false;
     in property <bool> paused: false;
     in property <float> now-playing-progress: 0;
     // Playback on other devices, from both servers.
@@ -153,7 +155,7 @@ export component LaptopWindow inherits Window {
                             }
                             VerticalLayout {
                                 alignment: center;
-                                ActionButton { text: "Stop"; enabled: root.transport-enabled; clicked => { root.transport("stop"); } }
+                                ActionButton { text: "Stop"; enabled: root.transport-enabled || root.stop-enabled; clicked => { root.transport("stop"); } }
                             }
                         }
                     }

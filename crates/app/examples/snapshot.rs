@@ -1,5 +1,5 @@
 // Dev tool: render windows offscreen to PNG (no display needed).
-// Usage: cargo run --example snapshot -- out.png <laptop|laptop-playing|laptop-code|tv> [height]
+// Usage: cargo run --example snapshot -- out.png <laptop|laptop-playing|laptop-code|laptop-streaming|tv> [height]
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
 use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel};
 use std::rc::Rc;
@@ -46,6 +46,16 @@ fn laptop(mode: &str) -> LaptopWindow {
             l.set_cw_state("code".into());
             l.set_signin_code("WXYZ".into());
             l.set_cw_message("On any device, go to plex.tv/link and enter this code.".into());
+        }
+        "laptop-streaming" => {
+            l.set_cw_state("empty".into());
+            l.set_now_playing_title("Netflix".into());
+            l.set_now_playing_detail("Streaming in the browser on the TV. Stop closes it.".into());
+            l.set_stop_enabled(true);
+            l.set_toast(
+                "First time on Netflix: sign in on the TV with this laptop's mouse and keyboard. It stays signed in."
+                    .into(),
+            );
         }
         "laptop-playing" => {
             let cards: Vec<PosterCardData> = [

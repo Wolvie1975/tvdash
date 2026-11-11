@@ -95,7 +95,7 @@ fn main() -> anyhow::Result<()> {
     let (controller, internal_rx) =
         controller::Controller::new((*config).clone(), loaded.path.clone(), args.windowed, event_tx.clone());
     runtime.spawn(controller.run(cmd_rx, internal_rx));
-    wire_callbacks(&laptop, cmd_tx);
+    wire_callbacks(&laptop, cmd_tx.clone());
 
     // M1 done-check: keyring round-trip, reported in the laptop footer.
     {
@@ -123,7 +123,7 @@ fn main() -> anyhow::Result<()> {
     // TV first so it lands on the primary display even if output matching fails.
     tv.show()?;
     laptop.show()?;
-    displays::place(&tv, &laptop, &config.display, !args.windowed);
+    displays::place(&tv, &laptop, &config.display, !args.windowed, cmd_tx);
 
     slint::run_event_loop_until_quit()?;
 

@@ -18,6 +18,7 @@ use crate::{AccountPrompt, LaptopWindow, PosterCardData, SessionRow, Theme, TvWi
 const SOURCES: [SourceKind; 2] = [SourceKind::Jellyfin, SourceKind::Plex];
 
 const TOAST_FOR: Duration = Duration::from_secs(5);
+const LONG_TOAST_FOR: Duration = Duration::from_secs(30);
 
 /// UI-thread state. Only touched from the Slint event loop.
 #[derive(Default)]
@@ -72,7 +73,17 @@ pub async fn forward(mut rx: UnboundedReceiver<AppEvent>, laptop: Weak<LaptopWin
     }
 }
 
-fn apply(s: &mut UiState, laptop: &LaptopWindow, _tv: &TvWindow, event: AppEvent) {
+fn show_idle(laptop: &LaptopWindow, tv: &TvWindow) {
+    laptop.set_now_playing_title("Nothing playing".into());
+    laptop.set_now_playing_detail("The TV is showing the idle screen.".into());
+    laptop.set_now_playing_progress(0.0);
+    laptop.set_paused(false);
+    laptop.set_transport_enabled(false);
+    laptop.set_stop_enabled(false);
+    tv.set_message("".into());
+}
+
+fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent) {
     let theme = laptop.global::<Theme>();
     match event {
         AppEvent::KeyringStatus(Ok(())) => {
@@ -97,7 +108,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, _tv: &TvWindow, event: AppEvent
                 }
             }
             if state == SignInState::Done {
-                show_toast(s, laptop, format!("Signed in to {}", kind.label()));
+                show_toast(s, laptop, format!("Signed in to {}", kind.label()), TOAST_FOR);
             }
             update_cw_state(s, laptop);
         }
@@ -129,20 +140,25 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, _tv: &TvWindow, event: AppEvent
             laptop.set_now_playing_progress(format::fraction(&status));
             laptop.set_paused(status.state == PlayState::Paused);
             laptop.set_transport_enabled(true);
+            laptop.set_stop_enabled(false);
+            tv.set_message(format!("Starting {}…", status.item.title).into());
         }
-        AppEvent::Player(None) => {
-            laptop.set_now_playing_title("Nothing playing".into());
-            laptop.set_now_playing_detail("The TV is showing the idle screen.".into());
+        AppEvent::Player(None) | AppEvent::Browser(None) => show_idle(laptop, tv),
+        AppEvent::Browser(Some(site)) => {
+            laptop.set_now_playing_title(site.as_str().into());
+            laptop.set_now_playing_detail("Streaming in the browser on the TV. Stop closes it.".into());
             laptop.set_now_playing_progress(0.0);
-            laptop.set_paused(false);
             laptop.set_transport_enabled(false);
+            laptop.set_stop_enabled(true);
+            tv.set_message(format!("Opening {site}…").into());
         }
         AppEvent::NowPlaying(sessions) => {
             let mut sessions = sessions;
             sessions.sort_by_key(|x| SOURCES.iter().position(|k| *k == x.source));
             s.sessions.set_vec(sessions.iter().map(session_row).collect::<Vec<_>>());
         }
-        AppEvent::Toast(msg) => show_toast(s, laptop, msg),
+        AppEvent::Toast(msg) => show_toast(s, laptop, msg, TOAST_FOR),
+        AppEvent::LongToast(msg) => show_toast(s, laptop, msg, LONG_TOAST_FOR),
         other => debug!(event = ?other, "event not handled yet"),
     }
 }
@@ -262,11 +278,11 @@ fn update_cw_state(s: &UiState, laptop: &LaptopWindow) {
     laptop.set_cw_message(message.into());
 }
 
-fn show_toast(s: &mut UiState, laptop: &LaptopWindow, msg: String) {
+fn show_toast(s: &mut UiState, laptop: &LaptopWindow, msg: String, duration: Duration) {
     laptop.set_toast(msg.into());
     let weak = laptop.as_weak();
     let timer = Timer::default();
-    timer.start(slint::TimerMode::SingleShot, TOAST_FOR, move || {
+    timer.start(slint::TimerMode::SingleShot, duration, move || {
         if let Some(l) = weak.upgrade() {
             l.set_toast("".into());
         }

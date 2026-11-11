@@ -13,3 +13,4 @@ thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tvdash-core.workspace = true
+libc = "0.2"

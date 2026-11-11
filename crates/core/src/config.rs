@@ -145,6 +145,20 @@ pub struct BrowserConfig {
     pub binary: String,
     /// Dedicated profile directory; `~` is expanded with [`expand_home`].
     pub profile_dir: String,
+    /// Run Chrome through XWayland so it can be placed on the TV. Native Wayland
+    /// windows can't choose their output, so GNOME opens them on the focused display.
+    pub use_xwayland: bool,
+    /// Override where the browser window opens, as "X,Y" in desktop coordinates.
+    /// Empty = the TV output's position, as reported at startup.
+    pub window_position: String,
+}
+
+impl BrowserConfig {
+    /// Parsed `window_position` override.
+    pub fn position_override(&self) -> Option<(i32, i32)> {
+        let (x, y) = self.window_position.split_once(',')?;
+        Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -234,7 +248,12 @@ impl Default for HomelabConfig {
 
 impl Default for BrowserConfig {
     fn default() -> Self {
-        Self { binary: "google-chrome".into(), profile_dir: "~/.local/share/tvdash/browser".into() }
+        Self {
+            binary: "google-chrome".into(),
+            profile_dir: "~/.local/share/tvdash/browser".into(),
+            use_xwayland: true,
+            window_position: String::new(),
+        }
     }
 }
 
@@ -406,6 +425,16 @@ mod tests {
         assert!(GeneralConfig::default().tz().is_some());
         let bad = GeneralConfig { timezone: "Not/AZone".into(), ..Default::default() };
         assert!(bad.tz().is_none());
+    }
+
+    #[test]
+    fn browser_position_override() {
+        let mut b = BrowserConfig::default();
+        assert_eq!(b.position_override(), None);
+        b.window_position = " 1920, 0 ".into();
+        assert_eq!(b.position_override(), Some((1920, 0)));
+        b.window_position = "nope".into();
+        assert_eq!(b.position_override(), None);
     }
 
     #[test]

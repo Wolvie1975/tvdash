@@ -6,8 +6,8 @@
 //! ```
 
 use crate::models::{
-    AccountStatus, CalendarEvent, HomelabStatus, MediaItem, PlayState, RgbaImage, Session, SignInState, SourceKind,
-    Weather,
+    AccountStatus, CalendarEvent, Geometry, HomelabStatus, MediaItem, PlayState, RgbaImage, Session, SignInState,
+    SourceKind, Weather,
 };
 
 /// What tvdash itself is playing on the TV through mpv.
@@ -43,6 +43,8 @@ pub enum AppEvent {
     /// The streaming browser opened (`Some(site name)`) or closed (`None`).
     Browser(Option<String>),
     Toast(String),
+    /// A toast that stays up while the user does something (e.g. signs in on the TV).
+    LongToast(String),
 }
 
 /// Requests from the UI, handled by background tasks.
@@ -63,4 +65,6 @@ pub enum Command {
     CancelSignIn(SourceKind),
     /// Re-fetch rows now instead of waiting for the next poll.
     Refresh,
+    /// Where the TV output is, once the windows know (used to place the browser).
+    TvGeometry(Geometry),
 }

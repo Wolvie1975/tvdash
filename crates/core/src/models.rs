@@ -71,6 +71,15 @@ pub struct Session {
     pub position_ms: u64,
 }
 
+/// Position and size of an output, in desktop (logical) pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Geometry {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+}
+
 /// Decoded RGBA8 image (posters). Plain bytes so it can cross threads; the UI
 /// turns it into a `slint::Image`.
 #[derive(Clone, PartialEq, Eq)]

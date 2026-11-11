@@ -6,6 +6,7 @@ pub mod config;
 pub mod events;
 pub mod models;
 pub mod secrets;
+pub mod state;
 
 pub use config::{Config, LoadedConfig};
 pub use events::{AppEvent, Command};

@@ -33,6 +33,14 @@ cargo run --example snapshot -- laptop.png laptop
 cargo run --example snapshot -- tv.png tv
 ```
 
+## Streaming browser placement
+
+Native Wayland windows can't pick an output, so by default Chrome runs through
+XWayland (`[browser] use_xwayland = true`) with `--window-position` set to the TV's
+position as reported at startup. If it still opens on the laptop, set
+`window_position = "X,Y"` under `[browser]` to the TV's top-left corner in desktop
+coordinates. Use Google Chrome rather than Fedora's `chromium`, which lacks Widevine.
+
 ## Tests
 
 ```bash
@@ -42,15 +50,17 @@ cargo test -- --include-ignored # also the end-to-end test (needs python3)
 
 The end-to-end test in `crates/app/src/controller.rs` runs the real controller
 against `crates/app/tests/fakes/`: fake Jellyfin, fake plex.tv + Plex Media Server,
-and a fake mpv that speaks the JSON IPC protocol. For each server it covers sign-in →
+a fake mpv that speaks the JSON IPC protocol, and a fake browser. For each server it covers sign-in →
 Continue Watching → posters → play → pause/seek → stop, plus the progress reports the
-server receives (and, for Plex, discovery and session filtering).
+server receives (and, for Plex, discovery and session filtering). The streaming test
+covers site switching, Stop closing the whole process group, the first-visit hint, and
+Chrome handing off to an already-open window.
 
 ## Milestone status
 
 - [x] **M1**: workspace, config load/create, keyring read/write, two windows full screen per output, live clock, TV idle screen
 - [x] **M2**: Jellyfin Quick Connect, Continue Watching with posters, Resume on TV in mpv, Pause/±seek/Stop, progress sync
 - [x] **M3**: Plex PIN sign-in and server discovery, merged rows with source badges, play/progress sync, active sessions from both servers
-- [ ] M4: Streaming
+- [x] **M4**: Streaming tiles open each site full screen on the TV in a dedicated profile; Stop/Close closes the whole browser and the TV returns to idle
 - [ ] M5: Header widgets
 - [ ] M6: Setup + polish

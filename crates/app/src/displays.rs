@@ -8,14 +8,30 @@ use slint::winit_030::{
     WinitWindowAccessor,
     winit::{monitor::MonitorHandle, window::Fullscreen},
 };
+use tokio::sync::mpsc::UnboundedSender;
 use tracing::{info, warn};
-use tvdash_core::config::DisplayConfig;
+use tvdash_core::{Command, config::DisplayConfig, models::Geometry};
 
 use crate::{LaptopWindow, TvWindow};
 
-pub fn place(tv: &TvWindow, laptop: &LaptopWindow, display: &DisplayConfig, fullscreen: bool) {
-    spawn_placement(tv, "tv", display.tv_output.clone(), fullscreen, true);
-    spawn_placement(laptop, "laptop", display.laptop_output.clone(), fullscreen, false);
+/// `commands` receives the TV output's geometry (for placing the streaming browser).
+pub fn place(
+    tv: &TvWindow,
+    laptop: &LaptopWindow,
+    display: &DisplayConfig,
+    fullscreen: bool,
+    commands: UnboundedSender<Command>,
+) {
+    spawn_placement(tv, "tv", display.tv_output.clone(), fullscreen, Some(commands));
+    spawn_placement(laptop, "laptop", display.laptop_output.clone(), fullscreen, None);
+}
+
+/// Desktop (logical) geometry. winit reports Wayland outputs as logical × scale.
+fn geometry(m: &MonitorHandle) -> Geometry {
+    let scale = m.scale_factor();
+    let pos = m.position().to_logical::<i32>(scale);
+    let size = m.size().to_logical::<u32>(scale);
+    Geometry { x: pos.x, y: pos.y, width: size.width, height: size.height }
 }
 
 fn spawn_placement<C: ComponentHandle + 'static>(
@@ -23,8 +39,10 @@ fn spawn_placement<C: ComponentHandle + 'static>(
     role: &'static str,
     output: String,
     fullscreen: bool,
-    is_tv: bool,
+    // Set for the TV window only.
+    tv_commands: Option<UnboundedSender<Command>>,
 ) {
+    let is_tv = tv_commands.is_some();
     let component = component.clone_strong();
     let spawned = slint::spawn_local(async move {
         let window = match component.window().winit_window().await {
@@ -50,12 +68,19 @@ fn spawn_placement<C: ComponentHandle + 'static>(
             window.set_cursor_visible(false);
         }
 
+        let target = monitors.into_iter().find(|m| m.name().as_deref() == Some(output.as_str()));
+        if let (Some(m), Some(tx)) = (&target, &tv_commands) {
+            let g = geometry(m);
+            info!(?g, "TV output geometry");
+            let _ = tx.send(Command::TvGeometry(g));
+        }
+
         if !fullscreen {
             info!(role, "windowed mode; not going full screen");
             return;
         }
 
-        match monitors.into_iter().find(|m| m.name().as_deref() == Some(output.as_str())) {
+        match target {
             Some(m) => {
                 info!(role, output = %output, "full screen on configured output");
                 window.set_fullscreen(Some(Fullscreen::Borderless(Some(m))));
