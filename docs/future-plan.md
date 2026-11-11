@@ -1,6 +1,6 @@
 # tvdash — Future Iterations Plan (v1.1 → v4)
 
-Companion to `v1-plan.md`. Nothing here changes v1. Pick it up once v1's M1–M6 are done.
+Companion to `v1-plan.md`. TV-only mode has its own doc: `tv-only-plan.md`. Nothing here changes v1. Pick it up once v1's M1–M6 are done.
 
 Design canvas: https://claude.ai/artifact/UggZzEChLyVVffZNfdGnTf, page **Future iterations**.
 
@@ -16,7 +16,7 @@ Design canvas: https://claude.ai/artifact/UggZzEChLyVVffZNfdGnTf, page **Future 
 |---|---|---|
 | **v1.1** | Polish + search | Manage streaming sites · Where to watch (TMDB) · colour-coded widgets + light themes · stale/error states · display settings · crossfades + pixel shift · diagnostics |
 | **v2** | Ambient | Night mode schedule · alerts strip · severe-weather takeover · headlines · richer "up next" |
-| **v3** | Control from the couch | Phone remote · HDMI-CEC remote · next episode + skip intro · audio/subtitle/volume |
+| **v3** | Control from the couch | Phone remote · HDMI-CEC remote · next episode + skip intro · audio/subtitle/volume · **TV-only mode** |
 | **v4** | Smart home | "What should I watch?" via Ollama · watch stats · Home Assistant · cross-service watchlist |
 
 ---
@@ -319,7 +319,13 @@ Read the desktop portal's `org.freedesktop.appearance` / `color-scheme` (the `as
 
 ---
 
-## 8. v4 — Smart home
+## 8. v3 — TV-only mode (single screen)
+
+Moved to its own document: **`tv-only-plan.md`**. In short: the same app with a second layout (`display.layout = "tv"`), one full-screen window on the TV with a sliding side rail (canvas page **Single screen**, Concept 4). Needs the phone remote from §7 first.
+
+---
+
+## 9. v4 — Smart home
 
 | Feature | Approach |
 |---|---|
@@ -330,7 +336,7 @@ Read the desktop portal's `org.freedesktop.appearance` / `color-scheme` (the `as
 
 ---
 
-## 9. Open questions
+## 10. Open questions
 
 - [ ] Search entry point: a header search field on the dashboard? (Suggested.)
 - [ ] Does your laptop's HDMI port support CEC, or would you buy a USB-CEC adapter?
