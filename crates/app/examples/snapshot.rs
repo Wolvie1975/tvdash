@@ -1,5 +1,5 @@
 // Dev tool: render windows offscreen to PNG (no display needed).
-// Usage: cargo run --example snapshot -- out.png <mode> [height]
+// Usage: cargo run --example snapshot -- out.png <mode> [height] [width]
 // Modes: home, home-playing, home-code, home-streaming, library, library-search,
 //        settings, setup-0 … setup-3, tv
 use std::rc::Rc;
@@ -284,7 +284,8 @@ fn main() {
         t.window().take_snapshot().unwrap()
     } else {
         let h = std::env::args().nth(3).and_then(|h| h.parse().ok()).unwrap_or(1000);
-        w.set_size(slint::PhysicalSize::new(1600, h));
+        let width = std::env::args().nth(4).and_then(|w| w.parse().ok()).unwrap_or(1600);
+        w.set_size(slint::PhysicalSize::new(width, h));
         let l = laptop(&mode);
         l.show().unwrap();
         l.window().take_snapshot().unwrap()

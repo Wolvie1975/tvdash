@@ -22,6 +22,8 @@ use tracing::{debug, warn};
 
 #[derive(Debug, Error)]
 pub enum MpvError {
+    #[error("{binary} isn't installed. Install mpv, or set [player] mpv in config.toml")]
+    NotInstalled { binary: String },
     #[error("couldn't start mpv ({binary}): {source}")]
     Spawn {
         binary: String,
@@ -151,7 +153,10 @@ impl Mpv {
             .stderr(Stdio::inherit())
             .kill_on_drop(true)
             .spawn()
-            .map_err(|source| MpvError::Spawn { binary: opts.binary.clone(), source })?;
+            .map_err(|source| match source.kind() {
+                std::io::ErrorKind::NotFound => MpvError::NotInstalled { binary: opts.binary.clone() },
+                _ => MpvError::Spawn { binary: opts.binary.clone(), source },
+            })?;
 
         let stream = connect(&mut child, &socket).await?;
         let (read, writer) = stream.into_split();

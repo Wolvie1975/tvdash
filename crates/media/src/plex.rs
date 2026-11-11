@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use reqwest::{Method, RequestBuilder};
 use serde::{Deserialize, de::DeserializeOwned};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use tvdash_core::models::MediaKind;
 
 use crate::{MediaError, MediaItem, MediaSource, PlayState, Result, Session, SourceKind};
@@ -112,28 +112,38 @@ impl PlexAccount {
         }
         for res in resources {
             let server_token = res.access_token.clone().unwrap_or_else(|| token.to_owned());
-            for conn in res.ordered_connections() {
-                debug!(server = %res.name, uri = %conn.uri, "trying Plex connection");
-                if self.reachable(&conn.uri, &server_token).await {
-                    info!(server = %res.name, uri = %conn.uri, "using Plex connection");
-                    return Ok(DiscoveredServer {
-                        name: res.name,
-                        url: conn.uri.trim_end_matches('/').to_owned(),
-                        access_token: server_token,
-                    });
+            for uri in res.candidate_uris() {
+                debug!(server = %res.name, %uri, "trying Plex connection");
+                match self.reachable(&uri, &server_token).await {
+                    Ok(()) => {
+                        if uri.starts_with("http://") {
+                            warn!(server = %res.name, %uri, "using a plain-HTTP local address (plex.direct didn't work)");
+                        }
+                        info!(server = %res.name, %uri, "using Plex connection");
+                        return Ok(DiscoveredServer {
+                            name: res.name,
+                            url: uri.trim_end_matches('/').to_owned(),
+                            access_token: server_token,
+                        });
+                    }
+                    Err(why) => debug!(%uri, %why, "Plex connection failed"),
                 }
             }
         }
         Err(MediaError::Unreachable("none of the Plex server's addresses answered".into()))
     }
 
-    async fn reachable(&self, uri: &str, token: &str) -> bool {
+    async fn reachable(&self, uri: &str, token: &str) -> std::result::Result<(), String> {
         let rb = identify(
             self.http.get(format!("{}/identity", uri.trim_end_matches('/'))).timeout(Duration::from_secs(4)),
             &self.client_id,
             Some(token),
         );
-        matches!(rb.send().await, Ok(r) if r.status().is_success())
+        match rb.send().await {
+            Ok(r) if r.status().is_success() => Ok(()),
+            Ok(r) => Err(format!("HTTP {}", r.status())),
+            Err(e) => Err(error_chain(&e)),
+        }
     }
 }
 
@@ -162,11 +172,45 @@ struct Resource {
 #[serde(default)]
 struct Connection {
     uri: String,
+    /// Raw IP or host, e.g. `192.168.1.100`.
+    address: String,
+    port: u16,
     local: bool,
     relay: bool,
 }
 
+/// reqwest's top-level message hides the cause ("error sending request");
+/// include the sources so DNS/TLS failures are visible in the log.
+fn error_chain(e: &dyn std::error::Error) -> String {
+    let mut s = e.to_string();
+    let mut src = e.source();
+    while let Some(inner) = src {
+        s.push_str(": ");
+        s.push_str(&inner.to_string());
+        src = inner.source();
+    }
+    s
+}
+
 impl Resource {
+    /// Addresses to try, best first. Each local `*.plex.direct` address is followed
+    /// by its plain `http://IP:port` form: many routers block DNS answers that point
+    /// at private IPs ("DNS rebinding protection"), which breaks plex.direct on the
+    /// LAN. Plex's own apps fall back the same way.
+    fn candidate_uris(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        for c in self.ordered_connections() {
+            out.push(c.uri.clone());
+            if c.local && !c.relay && !c.address.is_empty() && c.port != 0 {
+                let plain = format!("http://{}:{}", c.address, c.port);
+                if !out.contains(&plain) {
+                    out.push(plain);
+                }
+            }
+        }
+        out
+    }
+
     fn ordered_connections(&self) -> Vec<Connection> {
         let mut c = self.connections.clone();
         // Stable sort keeps plex.tv's order within each group.
@@ -463,6 +507,30 @@ mod tests {
         .unwrap();
         let order: Vec<String> = r.ordered_connections().into_iter().map(|c| c.uri).collect();
         assert_eq!(order, ["https://local-a", "https://local-b", "https://remote", "https://relay"]);
+    }
+
+    #[test]
+    fn plain_local_fallback_after_plex_direct() {
+        let r: Resource = serde_json::from_value(json!({
+            "name": "s", "provides": "server", "connections": [
+                { "uri": "https://1-2-3-4.abc.plex.direct:26163", "address": "1.2.3.4", "port": 26163,
+                  "local": false, "relay": false },
+                { "uri": "https://192-168-1-100.abc.plex.direct:32400", "address": "192.168.1.100", "port": 32400,
+                  "local": true, "relay": false },
+                { "uri": "https://relay.plex.direct:8443", "address": "45.0.0.1", "port": 8443,
+                  "local": false, "relay": true }
+            ]
+        }))
+        .unwrap();
+        assert_eq!(
+            r.candidate_uris(),
+            [
+                "https://192-168-1-100.abc.plex.direct:32400",
+                "http://192.168.1.100:32400",
+                "https://1-2-3-4.abc.plex.direct:26163",
+                "https://relay.plex.direct:8443",
+            ]
+        );
     }
 
     #[test]

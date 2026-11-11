@@ -36,6 +36,8 @@ pub enum BrowserError {
         #[source]
         source: std::io::Error,
     },
+    #[error("{binary} isn't installed. Install it, or set [browser] binary in config.toml")]
+    NotInstalled { binary: String },
     #[error("couldn't start {binary}: {source}")]
     Spawn {
         binary: String,
@@ -135,7 +137,10 @@ impl Browser {
             .process_group(0) // own group, so close() reaches every helper process
             .kill_on_drop(true)
             .spawn()
-            .map_err(|source| BrowserError::Spawn { binary: opts.binary.clone(), source })?;
+            .map_err(|source| match source.kind() {
+                std::io::ErrorKind::NotFound => BrowserError::NotInstalled { binary: opts.binary.clone() },
+                _ => BrowserError::Spawn { binary: opts.binary.clone(), source },
+            })?;
         let pgid = child.id().map(|p| p as i32);
         info!(site, binary = %opts.binary, pid = ?pgid, "browser started");
         Ok(Self { child, pgid, started: Instant::now(), site: site.to_owned() })
