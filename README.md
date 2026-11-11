@@ -41,15 +41,16 @@ cargo test -- --include-ignored # also the end-to-end test (needs python3)
 ```
 
 The end-to-end test in `crates/app/src/controller.rs` runs the real controller
-against `crates/app/tests/fakes/` (a fake Jellyfin server and a fake mpv that speaks
-the JSON IPC protocol). It covers sign-in → Continue Watching → play → pause/seek →
-stop, plus the progress reports Jellyfin receives.
+against `crates/app/tests/fakes/`: fake Jellyfin, fake plex.tv + Plex Media Server,
+and a fake mpv that speaks the JSON IPC protocol. For each server it covers sign-in →
+Continue Watching → posters → play → pause/seek → stop, plus the progress reports the
+server receives (and, for Plex, discovery and session filtering).
 
 ## Milestone status
 
 - [x] **M1**: workspace, config load/create, keyring read/write, two windows full screen per output, live clock, TV idle screen
 - [x] **M2**: Jellyfin Quick Connect, Continue Watching with posters, Resume on TV in mpv, Pause/±seek/Stop, progress sync
-- [ ] M3: Plex
+- [x] **M3**: Plex PIN sign-in and server discovery, merged rows with source badges, play/progress sync, active sessions from both servers
 - [ ] M4: Streaming
 - [ ] M5: Header widgets
 - [ ] M6: Setup + polish

@@ -9,10 +9,13 @@ use tracing::debug;
 use tvdash_core::{
     AppEvent,
     config::ClockFormat,
-    models::{AccountStatus, MediaItem, SignInState, SourceKind},
+    models::{AccountStatus, MediaItem, PlayState, Session, SignInState, SourceKind},
 };
 
-use crate::{LaptopWindow, PosterCardData, Theme, TvWindow, format};
+use crate::{AccountPrompt, LaptopWindow, PosterCardData, SessionRow, Theme, TvWindow, format};
+
+/// Display order for sources everywhere (rows, prompts, sessions).
+const SOURCES: [SourceKind; 2] = [SourceKind::Jellyfin, SourceKind::Plex];
 
 const TOAST_FOR: Duration = Duration::from_secs(5);
 
@@ -28,6 +31,9 @@ pub struct UiState {
     accounts: HashMap<SourceKind, AccountStatus>,
     sign_in: HashMap<SourceKind, SignInState>,
     cards: Rc<VecModel<PosterCardData>>,
+    prompts: Rc<VecModel<AccountPrompt>>,
+    tv_prompts: Rc<VecModel<AccountPrompt>>,
+    sessions: Rc<VecModel<SessionRow>>,
     toast_timer: Option<Timer>,
 }
 
@@ -41,6 +47,9 @@ pub fn init(laptop: &LaptopWindow, tz: Option<chrono_tz::Tz>, clock: ClockFormat
         s.tz = tz;
         s.clock = Some(clock);
         laptop.set_continue_watching(ModelRc::from(s.cards.clone()));
+        laptop.set_prompts(ModelRc::from(s.prompts.clone()));
+        laptop.set_tv_prompts(ModelRc::from(s.tv_prompts.clone()));
+        laptop.set_sessions(ModelRc::from(s.sessions.clone()));
     });
 }
 
@@ -118,7 +127,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, _tv: &TvWindow, event: AppEvent
             laptop.set_now_playing_title(status.item.title.as_str().into());
             laptop.set_now_playing_detail(format!("{} · {detail}", status.item.source.label()).into());
             laptop.set_now_playing_progress(format::fraction(&status));
-            laptop.set_paused(status.state == tvdash_core::models::PlayState::Paused);
+            laptop.set_paused(status.state == PlayState::Paused);
             laptop.set_transport_enabled(true);
         }
         AppEvent::Player(None) => {
@@ -127,6 +136,11 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, _tv: &TvWindow, event: AppEvent
             laptop.set_now_playing_progress(0.0);
             laptop.set_paused(false);
             laptop.set_transport_enabled(false);
+        }
+        AppEvent::NowPlaying(sessions) => {
+            let mut sessions = sessions;
+            sessions.sort_by_key(|x| SOURCES.iter().position(|k| *k == x.source));
+            s.sessions.set_vec(sessions.iter().map(session_row).collect::<Vec<_>>());
         }
         AppEvent::Toast(msg) => show_toast(s, laptop, msg),
         other => debug!(event = ?other, "event not handled yet"),
@@ -147,36 +161,102 @@ fn card(item: &MediaItem, poster: Option<&Image>) -> PosterCardData {
 
 fn rebuild_rows(s: &mut UiState) {
     // Fixed source order keeps cards from jumping between refreshes.
-    s.rows = [SourceKind::Jellyfin, SourceKind::Plex]
-        .iter()
-        .filter_map(|k| s.continue_watching.get(k))
-        .flatten()
-        .cloned()
-        .collect();
-    let cards: Vec<PosterCardData> = s
-        .rows
-        .iter()
-        .map(|item| card(item, s.posters.get(&(item.source, item.id.clone()))))
-        .collect();
+    s.rows = SOURCES.iter().filter_map(|k| s.continue_watching.get(k)).flatten().cloned().collect();
+    let cards: Vec<PosterCardData> =
+        s.rows.iter().map(|item| card(item, s.posters.get(&(item.source, item.id.clone())))).collect();
     s.cards.set_vec(cards);
 }
 
-/// Pick what the Continue Watching area shows. Jellyfin drives it in M2.
-fn update_cw_state(s: &UiState, laptop: &LaptopWindow) {
-    let kind = SourceKind::Jellyfin;
-    let (state, message) = match (s.sign_in.get(&kind), s.accounts.get(&kind)) {
-        (Some(SignInState::Starting), _) => ("busy", String::new()),
-        (Some(SignInState::Code(code)), _) => {
-            laptop.set_signin_code(code.as_str().into());
-            ("code", String::new())
+fn session_row(x: &Session) -> SessionRow {
+    let mut detail = vec![x.device.clone()];
+    if x.state == PlayState::Paused {
+        detail.push("Paused".into());
+    }
+    detail.push(match x.item.duration_ms {
+        Some(d) => format!("{} / {}", format::duration(x.position_ms), format::duration(d)),
+        None => format::duration(x.position_ms),
+    });
+    SessionRow {
+        badge: x.source.label().into(),
+        title: format::item_line(&x.item).into(),
+        detail: detail.join(" · ").into(),
+    }
+}
+
+fn source_id(kind: SourceKind) -> &'static str {
+    match kind {
+        SourceKind::Jellyfin => "jellyfin",
+        SourceKind::Plex => "plex",
+    }
+}
+
+fn code_instructions(kind: SourceKind) -> &'static str {
+    match kind {
+        SourceKind::Jellyfin => "On a signed-in Jellyfin app, open Settings › Quick Connect and enter this code.",
+        SourceKind::Plex => "On any device, go to plex.tv/link and enter this code.",
+    }
+}
+
+/// What, if anything, an account needs from the user.
+fn prompt_for(
+    kind: SourceKind,
+    sign_in: Option<&SignInState>,
+    account: Option<&AccountStatus>,
+) -> Option<AccountPrompt> {
+    let label = kind.label();
+    let (message, action, action_id, warn) = match (sign_in, account) {
+        (Some(SignInState::Failed(e)), _) => {
+            (format!("{label} sign-in failed: {e}"), "Try again".into(), "sign-in", true)
         }
-        (Some(SignInState::Failed(e)), _) => ("error", format!("Jellyfin sign-in failed: {e}")),
-        _ if !s.rows.is_empty() => ("items", String::new()),
-        (_, Some(AccountStatus::NotSetUp)) => ("signin", String::new()),
-        (_, Some(AccountStatus::Expired)) => ("expired", String::new()),
-        (_, Some(AccountStatus::Unreachable(e))) => ("error", format!("Can't reach Jellyfin: {e}")),
-        (_, Some(AccountStatus::Connected)) if s.continue_watching.contains_key(&kind) => ("empty", String::new()),
-        _ => ("loading", String::new()),
+        (_, Some(AccountStatus::NotSetUp)) => {
+            (format!("{label} isn't connected."), format!("Sign in to {label}"), "sign-in", false)
+        }
+        (_, Some(AccountStatus::Expired)) => (format!("{label} sign-in expired."), "Reconnect".into(), "sign-in", true),
+        (_, Some(AccountStatus::Unreachable(e))) => {
+            (format!("Can't reach {label}: {e}"), "Retry".into(), "retry", true)
+        }
+        _ => return None,
+    };
+    Some(AccountPrompt {
+        source: source_id(kind).into(),
+        message: message.into(),
+        action: action.into(),
+        action_id: action_id.into(),
+        warn,
+    })
+}
+
+/// Pick what the Continue Watching area shows, and the account prompts.
+fn update_cw_state(s: &UiState, laptop: &LaptopWindow) {
+    let prompts: Vec<(SourceKind, AccountPrompt)> =
+        SOURCES.iter().filter_map(|&k| prompt_for(k, s.sign_in.get(&k), s.accounts.get(&k)).map(|p| (k, p))).collect();
+    // Expired sign-ins go on the On the TV card (they also hide that server's
+    // sessions); everything else sits with Continue Watching.
+    let (expired, others): (Vec<_>, Vec<_>) = prompts.into_iter().partition(|(k, _)| {
+        s.accounts.get(k) == Some(&AccountStatus::Expired) && !matches!(s.sign_in.get(k), Some(SignInState::Failed(_)))
+    });
+    s.tv_prompts.set_vec(expired.into_iter().map(|(_, p)| p).collect::<Vec<_>>());
+    s.prompts.set_vec(others.into_iter().map(|(_, p)| p).collect::<Vec<_>>());
+
+    // A running sign-in takes over the area.
+    let active = SOURCES.iter().find_map(|k| match s.sign_in.get(k) {
+        Some(st @ (SignInState::Starting | SignInState::Code(_))) => Some((*k, st)),
+        _ => None,
+    });
+    let (state, message) = match active {
+        Some((kind, SignInState::Code(code))) => {
+            laptop.set_signin_code(code.as_str().into());
+            laptop.set_signin_source(source_id(kind).into());
+            ("code", code_instructions(kind).to_owned())
+        }
+        Some((kind, _)) => {
+            laptop.set_signin_source(source_id(kind).into());
+            ("busy", format!("Contacting {}…", kind.label()))
+        }
+        None if !s.rows.is_empty() => ("items", String::new()),
+        None if s.prompts.row_count() > 0 => ("prompts", String::new()),
+        None if !s.continue_watching.is_empty() => ("empty", String::new()),
+        None => ("loading", String::new()),
     };
     laptop.set_cw_state(state.into());
     laptop.set_cw_message(message.into());

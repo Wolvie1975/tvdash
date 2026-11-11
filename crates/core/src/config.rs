@@ -101,6 +101,15 @@ pub struct PlexConfig {
     pub server_url: String,
     /// Generated UUID, sent as `X-Plex-Client-Identifier`.
     pub client_id: String,
+    /// plex.tv base URL. Only written to the file when overridden (tests).
+    #[serde(skip_serializing_if = "is_default_plex_account_url")]
+    pub account_url: String,
+}
+
+pub const DEFAULT_PLEX_ACCOUNT_URL: &str = "https://plex.tv";
+
+fn is_default_plex_account_url(url: &String) -> bool {
+    url == DEFAULT_PLEX_ACCOUNT_URL
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -168,10 +177,7 @@ impl Default for Config {
 
 impl Default for DisplayConfig {
     fn default() -> Self {
-        Self {
-            tv_output: "HDMI-A-1".into(),
-            laptop_output: "eDP-1".into(),
-        }
+        Self { tv_output: "HDMI-A-1".into(), laptop_output: "eDP-1".into() }
     }
 }
 
@@ -193,6 +199,7 @@ impl Default for PlexConfig {
             enabled: true,
             server_url: String::new(),
             client_id: String::new(),
+            account_url: DEFAULT_PLEX_ACCOUNT_URL.into(),
         }
     }
 }
@@ -227,10 +234,7 @@ impl Default for HomelabConfig {
 
 impl Default for BrowserConfig {
     fn default() -> Self {
-        Self {
-            binary: "google-chrome".into(),
-            profile_dir: "~/.local/share/tvdash/browser".into(),
-        }
+        Self { binary: "google-chrome".into(), profile_dir: "~/.local/share/tvdash/browser".into() }
     }
 }
 
@@ -250,10 +254,7 @@ fn default_streaming_sites() -> Vec<StreamingSite> {
         ("YouTube TV", "https://tv.youtube.com"),
     ]
     .into_iter()
-    .map(|(name, url)| StreamingSite {
-        name: name.into(),
-        url: url.into(),
-    })
+    .map(|(name, url)| StreamingSite { name: name.into(), url: url.into() })
     .collect()
 }
 
@@ -290,18 +291,13 @@ impl Config {
     pub fn load_or_create_at(path: &Path) -> Result<LoadedConfig> {
         let (mut config, created) = match fs::read_to_string(path) {
             Ok(text) => {
-                let config = toml::from_str(&text).map_err(|source| ConfigError::Parse {
-                    path: path.to_owned(),
-                    source,
-                })?;
+                let config =
+                    toml::from_str(&text).map_err(|source| ConfigError::Parse { path: path.to_owned(), source })?;
                 (config, false)
             }
             Err(e) if e.kind() == io::ErrorKind::NotFound => (Config::default(), true),
             Err(source) => {
-                return Err(ConfigError::Read {
-                    path: path.to_owned(),
-                    source,
-                });
+                return Err(ConfigError::Read { path: path.to_owned(), source });
             }
         };
 
@@ -310,11 +306,7 @@ impl Config {
             config.save_to(path)?;
         }
 
-        Ok(LoadedConfig {
-            config,
-            path: path.to_owned(),
-            created,
-        })
+        Ok(LoadedConfig { config, path: path.to_owned(), created })
     }
 
     /// Generate the Plex client ID and Jellyfin device ID if missing.
@@ -342,10 +334,7 @@ impl Config {
     /// Write the config atomically (temp file + rename).
     pub fn save_to(&self, path: &Path) -> Result<()> {
         let body = toml::to_string_pretty(self)?;
-        let write_err = |source| ConfigError::Write {
-            path: path.to_owned(),
-            source,
-        };
+        let write_err = |source| ConfigError::Write { path: path.to_owned(), source };
         if let Some(dir) = path.parent() {
             fs::create_dir_all(dir).map_err(write_err)?;
         }
@@ -359,11 +348,8 @@ impl Config {
 /// Expand a leading `~` or `~/` to the user's home directory.
 pub fn expand_home(path: &str) -> PathBuf {
     let home = || directories::BaseDirs::new().map(|b| b.home_dir().to_owned());
-    let expanded = if path == "~" {
-        home()
-    } else {
-        path.strip_prefix("~/").and_then(|rest| home().map(|h| h.join(rest)))
-    };
+    let expanded =
+        if path == "~" { home() } else { path.strip_prefix("~/").and_then(|rest| home().map(|h| h.join(rest))) };
     expanded.unwrap_or_else(|| PathBuf::from(path))
 }
 
@@ -418,10 +404,7 @@ mod tests {
     #[test]
     fn timezone_parses() {
         assert!(GeneralConfig::default().tz().is_some());
-        let bad = GeneralConfig {
-            timezone: "Not/AZone".into(),
-            ..Default::default()
-        };
+        let bad = GeneralConfig { timezone: "Not/AZone".into(), ..Default::default() };
         assert!(bad.tz().is_none());
     }
 

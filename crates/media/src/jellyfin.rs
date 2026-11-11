@@ -67,13 +67,7 @@ impl JellyfinClient {
         if base.is_empty() {
             return Err(MediaError::NotConfigured);
         }
-        Ok(Self {
-            http: crate::http_client()?,
-            base,
-            device_id: device_id.to_owned(),
-            auth,
-            started: Mutex::new(None),
-        })
+        Ok(Self { http: crate::http_client()?, base, device_id: device_id.to_owned(), auth, started: Mutex::new(None) })
     }
 
     pub fn auth(&self) -> Option<&Auth> {
@@ -95,19 +89,11 @@ impl JellyfinClient {
     async fn send(rb: RequestBuilder, context: &str) -> Result<reqwest::Response> {
         let resp = rb.send().await?;
         let status = resp.status();
-        if status.is_success() {
-            Ok(resp)
-        } else {
-            Err(MediaError::from_status(status, context))
-        }
+        if status.is_success() { Ok(resp) } else { Err(MediaError::from_status(status, context)) }
     }
 
     async fn send_json<T: DeserializeOwned>(rb: RequestBuilder, context: &str) -> Result<T> {
-        Self::send(rb, context)
-            .await?
-            .json()
-            .await
-            .map_err(|e| MediaError::Protocol(format!("{context}: {e}")))
+        Self::send(rb, context).await?.json().await.map_err(|e| MediaError::Protocol(format!("{context}: {e}")))
     }
 
     // ── Sign-in ─────────────────────────────────────────────────────
@@ -115,10 +101,7 @@ impl JellyfinClient {
     pub async fn quick_connect_initiate(&self) -> Result<QuickConnect> {
         let rb = self.request(Method::POST, "/QuickConnect/Initiate");
         match Self::send_json::<QuickConnectResult>(rb, "Quick Connect").await {
-            Ok(r) => Ok(QuickConnect {
-                code: r.code,
-                secret: r.secret,
-            }),
+            Ok(r) => Ok(QuickConnect { code: r.code, secret: r.secret }),
             // Jellyfin answers 401 when Quick Connect is switched off.
             Err(MediaError::Unauthorized) => Err(MediaError::Protocol(
                 "Quick Connect is disabled — enable it in Jellyfin's Dashboard › General".into(),
@@ -138,9 +121,7 @@ impl JellyfinClient {
     }
 
     pub async fn authenticate_with_quick_connect(&self, secret: &str) -> Result<Auth> {
-        let rb = self
-            .request(Method::POST, "/Users/AuthenticateWithQuickConnect")
-            .json(&json!({ "Secret": secret }));
+        let rb = self.request(Method::POST, "/Users/AuthenticateWithQuickConnect").json(&json!({ "Secret": secret }));
         Ok(Self::send_json::<AuthResult>(rb, "Quick Connect sign-in").await?.into())
     }
 
@@ -190,11 +171,14 @@ impl MediaSource for JellyfinClient {
 
     async fn now_playing(&self) -> Result<Vec<Session>> {
         self.user()?;
-        let rb = self
-            .request(Method::GET, "/Sessions")
-            .query(&[("activeWithinSeconds", "60")]);
+        let rb = self.request(Method::GET, "/Sessions").query(&[("activeWithinSeconds", "60")]);
         let sessions: Vec<SessionInfo> = Self::send_json(rb, "sessions").await?;
-        Ok(sessions.into_iter().filter_map(SessionInfo::into_session).collect())
+        Ok(sessions
+            .into_iter()
+            // Our own mpv playback reports as a session too; the card already shows it.
+            .filter(|s| s.device_id.as_deref() != Some(self.device_id.as_str()))
+            .filter_map(SessionInfo::into_session)
+            .collect())
     }
 
     async fn continue_watching(&self) -> Result<Vec<MediaItem>> {
@@ -202,12 +186,7 @@ impl MediaSource for JellyfinClient {
         let mut q = Self::base_item_query(20);
         q.push(("mediaTypes", "Video".into()));
         let result: ItemsResult = self
-            .get_with_fallback(
-                "/UserItems/Resume",
-                &format!("/Users/{user_id}/Items/Resume"),
-                &q,
-                "continue watching",
-            )
+            .get_with_fallback("/UserItems/Resume", &format!("/Users/{user_id}/Items/Resume"), &q, "continue watching")
             .await?;
         Ok(result.items.into_iter().map(BaseItemDto::into_media_item).collect())
     }
@@ -216,12 +195,7 @@ impl MediaSource for JellyfinClient {
         let user_id = self.user()?.user_id.clone();
         let q = Self::base_item_query(limit);
         let items: Vec<BaseItemDto> = self
-            .get_with_fallback(
-                "/Items/Latest",
-                &format!("/Users/{user_id}/Items/Latest"),
-                &q,
-                "recently added",
-            )
+            .get_with_fallback("/Items/Latest", &format!("/Users/{user_id}/Items/Latest"), &q, "recently added")
             .await?;
         Ok(items.into_iter().map(BaseItemDto::into_media_item).collect())
     }
@@ -312,10 +286,7 @@ struct AuthUser {
 
 impl From<AuthResult> for Auth {
     fn from(r: AuthResult) -> Self {
-        Auth {
-            token: r.access_token,
-            user_id: r.user.id,
-        }
+        Auth { token: r.access_token, user_id: r.user.id }
     }
 }
 
@@ -377,11 +348,7 @@ impl BaseItemDto {
             }
             _ => (name, self.production_year.map(|y| y.to_string()), None),
         };
-        let resume_ms = self
-            .user_data
-            .and_then(|u| u.playback_position_ticks)
-            .filter(|&t| t > 0)
-            .map(ticks_to_ms);
+        let resume_ms = self.user_data.and_then(|u| u.playback_position_ticks).filter(|&t| t > 0).map(ticks_to_ms);
         MediaItem {
             source: SourceKind::Jellyfin,
             id: self.id,
@@ -399,6 +366,7 @@ impl BaseItemDto {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "PascalCase", default)]
 struct SessionInfo {
+    device_id: Option<String>,
     device_name: Option<String>,
     client: Option<String>,
     now_playing_item: Option<BaseItemDto>,

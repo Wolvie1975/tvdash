@@ -1,5 +1,8 @@
 import { Theme } from "theme.slint";
-import { ActionButton, Card, Clock, PosterCard, PosterCardData, ProgressBar, SectionLabel, SiteTile, StatusChip } from "components.slint";
+import {
+    AccountPrompt, ActionButton, Card, Clock, PosterCard, PosterCardData, ProgressBar, PromptBanner,
+    SectionLabel, SessionLine, SessionRow, SiteTile, StatusChip,
+} from "components.slint";
 
 // Control dashboard (home) on the laptop panel.
 export component LaptopWindow inherits Window {
@@ -26,12 +29,20 @@ export component LaptopWindow inherits Window {
     in property <bool> transport-enabled: false;
     in property <bool> paused: false;
     in property <float> now-playing-progress: 0;
+    // Playback on other devices, from both servers.
+    in property <[SessionRow]> sessions;
+    // Servers whose sign-in expired (sessions can't be read).
+    in property <[AccountPrompt]> tv-prompts;
 
-    // Continue Watching: state is one of
-    // "loading" | "signin" | "busy" | "code" | "expired" | "error" | "empty" | "items"
+    // Continue Watching: "loading" | "busy" | "code" | "prompts" | "empty" | "items"
     in property <string> cw-state: "loading";
+    // Instructions for "busy" / "code".
     in property <string> cw-message;
     in property <string> signin-code;
+    // Which source the running sign-in belongs to ("jellyfin" | "plex").
+    in property <string> signin-source;
+    // Accounts needing attention (not set up, expired, unreachable, failed).
+    in property <[AccountPrompt]> prompts;
     in property <[PosterCardData]> continue-watching;
 
     // Transient message at the bottom of the screen ("" = hidden).
@@ -47,7 +58,7 @@ export component LaptopWindow inherits Window {
     callback open-site(int);
     callback transport(string); // "back" | "play-pause" | "forward" | "stop"
     callback play-item(int);
-    callback sign-in(string);        // "jellyfin" | "plex"
+    callback prompt-action(string, string); // (source, "sign-in" | "retry")
     callback cancel-sign-in(string);
     callback open-settings();
     callback quit();
@@ -61,14 +72,13 @@ export component LaptopWindow inherits Window {
             padding: 40px;
             spacing: Theme.gap;
 
-            // ── Header ───────────────────────────────────────────────
+            // ── Header ───────────────────────────────────────────
             HorizontalLayout {
                 spacing: Theme.gap;
                 alignment: space-between;
 
                 VerticalLayout {
                     alignment: center;
-                    spacing: 0;
                     Clock {
                         hh: root.clock-hh;
                         mm: root.clock-mm;
@@ -85,69 +95,83 @@ export component LaptopWindow inherits Window {
                     spacing: 16px;
                     alignment: end;
                     height: 112px;
-                    y: 0;
                     StatusChip { label: "WEATHER"; value: root.weather-text; }
                     StatusChip { label: "NEXT EVENT"; value: root.event-text; min-width: 300px; }
                     StatusChip { label: "HOMELAB"; value: root.homelab-text; dot: root.homelab-dot; }
                 }
             }
 
-            // ── On the TV ────────────────────────────────────────────
+            // ── On the TV ────────────────────────────────────────
             Card {
-                HorizontalLayout {
+                VerticalLayout {
                     padding: 28px;
-                    spacing: Theme.gap;
-
-                    VerticalLayout {
-                        spacing: 8px;
-                        alignment: center;
-                        horizontal-stretch: 1;
-                        SectionLabel { text: "ON THE TV"; }
-                        Text {
-                            text: root.now-playing-title;
-                            font-size: 32px;
-                            font-weight: 600;
-                            color: Theme.text-primary;
-                            overflow: elide;
-                        }
-                        Text {
-                            text: root.now-playing-detail;
-                            font-size: Theme.body-size;
-                            color: Theme.text-secondary;
-                            overflow: elide;
-                        }
-                        if root.transport-enabled: ProgressBar { value: root.now-playing-progress; }
-                    }
+                    spacing: 16px;
 
                     HorizontalLayout {
-                        spacing: 12px;
-                        alignment: end;
+                        spacing: Theme.gap;
+
                         VerticalLayout {
+                            spacing: 8px;
                             alignment: center;
-                            ActionButton { text: "−10 s"; enabled: root.transport-enabled; clicked => { root.transport("back"); } }
+                            horizontal-stretch: 1;
+                            SectionLabel { text: "ON THE TV"; }
+                            Text {
+                                text: root.now-playing-title;
+                                font-size: 32px;
+                                font-weight: 600;
+                                color: Theme.text-primary;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: root.now-playing-detail;
+                                font-size: Theme.body-size;
+                                color: Theme.text-secondary;
+                                overflow: elide;
+                            }
+                            if root.transport-enabled: ProgressBar { value: root.now-playing-progress; }
                         }
-                        VerticalLayout {
-                            alignment: center;
-                            ActionButton {
-                                text: root.paused ? "Resume" : "Pause";
-                                primary: true;
-                                enabled: root.transport-enabled;
-                                clicked => { root.transport("play-pause"); }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            alignment: end;
+                            VerticalLayout {
+                                alignment: center;
+                                ActionButton { text: "−10 s"; enabled: root.transport-enabled; clicked => { root.transport("back"); } }
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                ActionButton {
+                                    text: root.paused ? "Resume" : "Pause";
+                                    primary: true;
+                                    enabled: root.transport-enabled;
+                                    clicked => { root.transport("play-pause"); }
+                                }
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                ActionButton { text: "+30 s"; enabled: root.transport-enabled; clicked => { root.transport("forward"); } }
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                ActionButton { text: "Stop"; enabled: root.transport-enabled; clicked => { root.transport("stop"); } }
                             }
                         }
-                        VerticalLayout {
-                            alignment: center;
-                            ActionButton { text: "+30 s"; enabled: root.transport-enabled; clicked => { root.transport("forward"); } }
-                        }
-                        VerticalLayout {
-                            alignment: center;
-                            ActionButton { text: "Stop"; enabled: root.transport-enabled; clicked => { root.transport("stop"); } }
-                        }
+                    }
+
+                    if root.sessions.length > 0 || root.tv-prompts.length > 0: Rectangle {
+                        height: 1px;
+                        background: Theme.border;
+                    }
+                    if root.sessions.length > 0: SectionLabel { text: "ALSO PLAYING"; }
+                    for session in root.sessions: SessionLine { data: session; }
+                    for p in root.tv-prompts: PromptBanner {
+                        data: p;
+                        action => { root.prompt-action(p.source, p.action-id); }
                     }
                 }
             }
 
-            // ── Watch on TV ──────────────────────────────────────────
+            // ── Watch on TV ──────────────────────────────────────
             VerticalLayout {
                 spacing: 14px;
                 SectionLabel { text: "WATCH ON TV"; }
@@ -160,22 +184,31 @@ export component LaptopWindow inherits Window {
                 }
             }
 
-            // ── Continue Watching ────────────────────────────────────
+            // ── Continue Watching ────────────────────────────────
             VerticalLayout {
                 spacing: 14px;
                 vertical-stretch: 1;
                 SectionLabel { text: "CONTINUE WATCHING"; }
 
-                if root.cw-state == "items": Flickable {
+                if root.cw-state == "items": VerticalLayout {
+                    spacing: 14px;
                     vertical-stretch: 1;
-                    min-height: 290px;
-                    content-width: row.preferred-width;
-                    row := HorizontalLayout {
-                        spacing: 20px;
-                        alignment: start;
-                        for card[i] in root.continue-watching: PosterCard {
-                            data: card;
-                            clicked => { root.play-item(i); }
+                    // One source missing: slim banner above the row.
+                    for p in root.prompts: PromptBanner {
+                        data: p;
+                        action => { root.prompt-action(p.source, p.action-id); }
+                    }
+                    Flickable {
+                        vertical-stretch: 1;
+                        min-height: 290px;
+                        content-width: row.preferred-width;
+                        row := HorizontalLayout {
+                            spacing: 20px;
+                            alignment: start;
+                            for card[i] in root.continue-watching: PosterCard {
+                                data: card;
+                                clicked => { root.play-item(i); }
+                            }
                         }
                     }
                 }
@@ -196,36 +229,46 @@ export component LaptopWindow inherits Window {
                             color: Theme.text-primary;
                             horizontal-alignment: center;
                         }
-                        Text {
+                        if root.cw-state != "prompts": Text {
                             text: root.cw-state == "loading" ? "Loading…"
-                                : root.cw-state == "signin" ? "Sign in to Jellyfin to see what you're watching."
-                                : root.cw-state == "busy" ? "Contacting Jellyfin…"
-                                : root.cw-state == "code" ? "On a signed-in Jellyfin app, open Settings › Quick Connect and enter this code."
-                                : root.cw-state == "expired" ? "Jellyfin sign-in expired."
                                 : root.cw-state == "empty" ? "Nothing in progress. Start something and it'll show up here."
                                 : root.cw-message;
                             font-size: Theme.body-size;
-                            color: root.cw-state == "expired" || root.cw-state == "error" ? Theme.warn : Theme.text-muted;
+                            color: Theme.text-muted;
                             horizontal-alignment: center;
                             wrap: word-wrap;
                         }
-                        HorizontalLayout {
+                        if root.cw-state == "code" || root.cw-state == "busy": HorizontalLayout {
                             alignment: center;
-                            if root.cw-state == "signin" || root.cw-state == "expired" || root.cw-state == "error": ActionButton {
-                                text: root.cw-state == "signin" ? "Sign in to Jellyfin" : "Reconnect";
-                                primary: true;
-                                clicked => { root.sign-in("jellyfin"); }
-                            }
-                            if root.cw-state == "code" || root.cw-state == "busy": ActionButton {
+                            ActionButton {
                                 text: "Cancel";
-                                clicked => { root.cancel-sign-in("jellyfin"); }
+                                clicked => { root.cancel-sign-in(root.signin-source); }
+                            }
+                        }
+                        if root.cw-state == "prompts": VerticalLayout {
+                            spacing: 18px;
+                            alignment: center;
+                            for p in root.prompts: HorizontalLayout {
+                                alignment: center;
+                                spacing: 20px;
+                                Text {
+                                    text: p.message;
+                                    font-size: Theme.body-size;
+                                    color: p.warn ? Theme.warn : Theme.text-muted;
+                                    vertical-alignment: center;
+                                }
+                                ActionButton {
+                                    text: p.action;
+                                    primary: !p.warn;
+                                    clicked => { root.prompt-action(p.source, p.action-id); }
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // ── Footer ───────────────────────────────────────────────
+            // ── Footer ───────────────────────────────────────────
             HorizontalLayout {
                 spacing: 16px;
                 HorizontalLayout {

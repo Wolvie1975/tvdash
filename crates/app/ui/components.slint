@@ -262,3 +262,92 @@ export component ProgressBar inherits Rectangle {
         background: Theme.accent;
     }
 }
+
+// An account that needs attention.
+export struct AccountPrompt {
+    source: string,     // "jellyfin" | "plex"
+    message: string,
+    action: string,     // button label
+    action-id: string,  // "sign-in" | "retry"
+    warn: bool,         // expired / failed / unreachable (vs. simply not set up)
+}
+
+// Slim one-line version, above a populated row or on the On the TV card.
+export component PromptBanner inherits Rectangle {
+    in property <AccountPrompt> data;
+    callback action();
+
+    border-radius: 10px;
+    background: Theme.surface;
+    border-width: 1px;
+    border-color: root.data.warn ? Theme.warn.with-alpha(0.4) : Theme.border;
+
+    HorizontalLayout {
+        padding-left: 18px;
+        padding-right: 8px;
+        padding-top: 6px;
+        padding-bottom: 6px;
+        spacing: 16px;
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 10px;
+                height: 10px;
+                border-radius: 5px;
+                background: root.data.warn ? Theme.warn : Theme.text-muted;
+            }
+        }
+        Text {
+            text: root.data.message;
+            font-size: 18px;
+            color: Theme.text-secondary;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            overflow: elide;
+        }
+        ActionButton {
+            text: root.data.action;
+            clicked => { root.action(); }
+        }
+    }
+}
+
+export struct SessionRow {
+    badge: string,
+    title: string,
+    detail: string,
+}
+
+// "Also playing" line: badge · title · device and position.
+export component SessionLine inherits HorizontalLayout {
+    in property <SessionRow> data;
+    spacing: 14px;
+
+    Rectangle {
+        width: badge.preferred-width + 16px;
+        height: 26px;
+        y: (parent.height - self.height) / 2;
+        border-radius: 6px;
+        background: Theme.surface-raised;
+        badge := Text {
+            text: root.data.badge;
+            font-size: 14px;
+            font-weight: 600;
+            color: Theme.text-secondary;
+        }
+    }
+    Text {
+        text: root.data.title;
+        font-size: 20px;
+        color: Theme.text-primary;
+        vertical-alignment: center;
+        overflow: elide;
+        horizontal-stretch: 1;
+    }
+    Text {
+        text: root.data.detail;
+        font-size: 18px;
+        color: Theme.text-muted;
+        vertical-alignment: center;
+    }
+}

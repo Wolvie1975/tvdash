@@ -1,5 +1,5 @@
 // Dev tool: render windows offscreen to PNG (no display needed).
-// Usage: cargo run --example snapshot -- out.png <laptop|laptop-playing|laptop-code|tv>
+// Usage: cargo run --example snapshot -- out.png <laptop|laptop-playing|laptop-code|tv> [height]
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
 use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel};
 use std::rc::Rc;
@@ -21,6 +21,16 @@ fn fake_poster(hue: u8) -> Image {
     Image::from_rgba8(buf)
 }
 
+fn prompt(source: &str, message: &str, action: &str, warn: bool) -> AccountPrompt {
+    AccountPrompt {
+        source: source.into(),
+        message: message.into(),
+        action: action.into(),
+        action_id: "sign-in".into(),
+        warn,
+    }
+}
+
 fn laptop(mode: &str) -> LaptopWindow {
     let l = LaptopWindow::new().unwrap();
     l.set_clock_hh("21".into());
@@ -34,11 +44,13 @@ fn laptop(mode: &str) -> LaptopWindow {
     match mode {
         "laptop-code" => {
             l.set_cw_state("code".into());
-            l.set_signin_code("424242".into());
+            l.set_signin_code("WXYZ".into());
+            l.set_cw_message("On any device, go to plex.tv/link and enter this code.".into());
         }
         "laptop-playing" => {
             let cards: Vec<PosterCardData> = [
                 ("Some Show", "S2 · E5 · The Pilot", 0.33, true),
+                ("Plex Show", "S3 · E2 · Chapter One", 0.4, true),
                 ("A Film", "1999", 0.8, true),
                 ("No Poster Show", "S1 · E2", 0.1, false),
                 ("Another Show", "S4 · E1 · Return", 0.55, true),
@@ -48,7 +60,7 @@ fn laptop(mode: &str) -> LaptopWindow {
             .map(|(i, (t, s, p, has))| PosterCardData {
                 title: (*t).into(),
                 subtitle: (*s).into(),
-                badge: "Jellyfin".into(),
+                badge: if i == 1 { "Plex".into() } else { "Jellyfin".into() },
                 progress: *p,
                 has_poster: *has,
                 poster: if *has { fake_poster((i * 70) as u8) } else { Image::default() },
@@ -61,9 +73,27 @@ fn laptop(mode: &str) -> LaptopWindow {
             l.set_now_playing_progress(0.28);
             l.set_transport_enabled(true);
             l.set_paused(true);
-            l.set_toast("Signed in to Jellyfin".into());
+            let expired = prompt("plex", "Plex sign-in expired.", "Reconnect", true);
+            l.set_prompts(ModelRc::new(VecModel::from(vec![prompt(
+                "plex",
+                "Can't reach Plex: connection refused",
+                "Retry",
+                true,
+            )])));
+            l.set_tv_prompts(ModelRc::new(VecModel::from(vec![expired])));
+            l.set_sessions(ModelRc::new(VecModel::from(vec![SessionRow {
+                badge: "Jellyfin".into(),
+                title: "A Film · 1999".into(),
+                detail: "Bedroom TV · Paused · 1:02:10 / 2:00:00".into(),
+            }])));
         }
-        _ => l.set_cw_state("signin".into()),
+        _ => {
+            l.set_cw_state("prompts".into());
+            l.set_prompts(ModelRc::new(VecModel::from(vec![
+                prompt("jellyfin", "Jellyfin isn't connected.", "Sign in to Jellyfin", false),
+                prompt("plex", "Plex isn't connected.", "Sign in to Plex", false),
+            ])));
+        }
     }
     l
 }

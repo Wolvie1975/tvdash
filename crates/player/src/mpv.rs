@@ -40,10 +40,7 @@ pub type Result<T> = std::result::Result<T, MpvError>;
 
 /// Path of the IPC socket: `$XDG_RUNTIME_DIR/tvdash-mpv.sock`.
 pub fn socket_path() -> PathBuf {
-    std::env::var_os("XDG_RUNTIME_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir)
-        .join("tvdash-mpv.sock")
+    std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("tvdash-mpv.sock")
 }
 
 #[derive(Debug, Clone)]
@@ -67,7 +64,9 @@ pub enum MpvEvent {
     Duration(f64),
     Paused(bool),
     /// The file finished or was stopped; `reason` is mpv's (`eof`, `stop`, `quit`, `error`).
-    Ended { reason: String },
+    Ended {
+        reason: String,
+    },
     /// mpv quit / the IPC connection closed. Always the last event.
     Exited,
 }
@@ -123,9 +122,9 @@ pub fn parse_line(line: &str) -> Option<MpvEvent> {
                 _ => None,
             }
         }
-        "end-file" => Some(MpvEvent::Ended {
-            reason: v.get("reason").and_then(Value::as_str).unwrap_or("unknown").to_owned(),
-        }),
+        "end-file" => {
+            Some(MpvEvent::Ended { reason: v.get("reason").and_then(Value::as_str).unwrap_or("unknown").to_owned() })
+        }
         "shutdown" => Some(MpvEvent::Exited),
         _ => None,
     }
@@ -152,10 +151,7 @@ impl Mpv {
             .stderr(Stdio::inherit())
             .kill_on_drop(true)
             .spawn()
-            .map_err(|source| MpvError::Spawn {
-                binary: opts.binary.clone(),
-                source,
-            })?;
+            .map_err(|source| MpvError::Spawn { binary: opts.binary.clone(), source })?;
 
         let stream = connect(&mut child, &socket).await?;
         let (read, writer) = stream.into_split();
@@ -185,12 +181,7 @@ impl Mpv {
             let _ = tx.send(MpvEvent::Exited);
         });
 
-        let mut mpv = Self {
-            child,
-            writer,
-            events,
-            exited: false,
-        };
+        let mut mpv = Self { child, writer, events, exited: false };
         mpv.command(json!(["observe_property", OBS_TIME_POS, "time-pos"])).await?;
         mpv.command(json!(["observe_property", OBS_PAUSE, "pause"])).await?;
         mpv.command(json!(["observe_property", OBS_DURATION, "duration"])).await?;
@@ -284,11 +275,7 @@ mod tests {
 
     #[test]
     fn windowed_args_skip_fullscreen() {
-        let o = MpvOptions {
-            fullscreen: false,
-            start_ms: None,
-            ..opts()
-        };
+        let o = MpvOptions { fullscreen: false, start_ms: None, ..opts() };
         let a = build_args(&o, std::path::Path::new("/s"), "u");
         assert!(!a.iter().any(|x| x.starts_with("--fs") || x == "--fullscreen" || x.starts_with("--start")));
     }

@@ -20,11 +20,7 @@ pub fn clock_text(now: NaiveDateTime, format: ClockFormat) -> ClockText {
         ClockFormat::H24 => now.format("%H"),
         ClockFormat::H12 => now.format("%-I"),
     };
-    ClockText {
-        hh: hh.to_string(),
-        mm: now.format("%M").to_string(),
-        date: now.format("%A, %-d %B").to_string(),
-    }
+    ClockText { hh: hh.to_string(), mm: now.format("%M").to_string(), date: now.format("%A, %-d %B").to_string() }
 }
 
 /// Start the clock. Keep the returned timer alive for as long as it should tick.

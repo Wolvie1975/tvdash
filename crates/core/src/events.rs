@@ -6,8 +6,8 @@
 //! ```
 
 use crate::models::{
-    AccountStatus, CalendarEvent, HomelabStatus, MediaItem, PlayState, RgbaImage, Session, SignInState,
-    SourceKind, Weather,
+    AccountStatus, CalendarEvent, HomelabStatus, MediaItem, PlayState, RgbaImage, Session, SignInState, SourceKind,
+    Weather,
 };
 
 /// What tvdash itself is playing on the TV through mpv.

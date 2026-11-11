@@ -35,13 +35,8 @@ pub enum SecretKey {
 }
 
 impl SecretKey {
-    pub const ALL: [SecretKey; 5] = [
-        Self::PlexToken,
-        Self::JellyfinToken,
-        Self::CalendarIcsUrl,
-        Self::PortainerApiKey,
-        Self::UptimeKumaApiKey,
-    ];
+    pub const ALL: [SecretKey; 5] =
+        [Self::PlexToken, Self::JellyfinToken, Self::CalendarIcsUrl, Self::PortainerApiKey, Self::UptimeKumaApiKey];
 
     pub fn as_str(self) -> &'static str {
         match self {
@@ -67,9 +62,7 @@ fn get_raw(key: &'static str) -> Result<Option<String>> {
 }
 
 fn set_raw(key: &'static str, value: &str) -> Result<()> {
-    entry(key)?
-        .set_password(value)
-        .map_err(|source| SecretError::Keyring { key, source })
+    entry(key)?.set_password(value).map_err(|source| SecretError::Keyring { key, source })
 }
 
 fn delete_raw(key: &'static str) -> Result<()> {
@@ -101,18 +94,11 @@ pub fn self_test() -> Result<()> {
     set_raw(KEY, &value)?;
     let back = get_raw(KEY)?;
     delete_raw(KEY)?;
-    if back.as_deref() == Some(value.as_str()) {
-        Ok(())
-    } else {
-        Err(SecretError::Mismatch)
-    }
+    if back.as_deref() == Some(value.as_str()) { Ok(()) } else { Err(SecretError::Mismatch) }
 }
 
 /// Which secrets are currently present (for Settings › Accounts and logging).
 /// Never returns the values themselves.
 pub fn presence() -> Result<Vec<(SecretKey, bool)>> {
-    SecretKey::ALL
-        .into_iter()
-        .map(|k| get(k).map(|v| (k, v.is_some())))
-        .collect()
+    SecretKey::ALL.into_iter().map(|k| get(k).map(|v| (k, v.is_some()))).collect()
 }

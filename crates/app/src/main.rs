@@ -76,10 +76,7 @@ fn main() -> anyhow::Result<()> {
         .build()
         .context("starting tokio runtime")?;
 
-    slint::BackendSelector::new()
-        .backend_name("winit".into())
-        .select()
-        .context("selecting the Slint winit backend")?;
+    slint::BackendSelector::new().backend_name("winit".into()).select().context("selecting the Slint winit backend")?;
 
     let tv = TvWindow::new()?;
     let laptop = LaptopWindow::new()?;
@@ -152,9 +149,10 @@ fn wire_callbacks(laptop: &LaptopWindow, cmd_tx: mpsc::UnboundedSender<Command>)
     });
 
     let s = send.clone();
-    laptop.on_sign_in(move |source| match parse_source(&source) {
-        Some(kind) => s(Command::SignIn(kind)),
-        None => warn!(%source, "sign-in: unknown source"),
+    laptop.on_prompt_action(move |source, action| match (parse_source(&source), action.as_str()) {
+        (Some(kind), "sign-in") => s(Command::SignIn(kind)),
+        (Some(_), "retry") => s(Command::Refresh),
+        _ => warn!(%source, %action, "unknown prompt action"),
     });
 
     let s = send.clone();
