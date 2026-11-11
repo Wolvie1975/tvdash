@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppState {
+    /// Set when the first-run setup was finished or skipped.
+    pub setup_complete: bool,
     /// Site name → last time it was opened on the TV.
     pub streaming_opened: BTreeMap<String, DateTime<Utc>>,
 }

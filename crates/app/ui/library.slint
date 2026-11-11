@@ -1,0 +1,154 @@
+import { Theme } from "theme.slint";
+import { ActionButton, Card, PageHeader, PosterRow, ProgressBar, SectionLabel, TextField } from "components.slint";
+import { Library, Nav } from "state.slint";
+
+component DetailPanel inherits Card {
+    width: 400px;
+    VerticalLayout {
+        padding: 24px;
+        spacing: 14px;
+        alignment: start;
+
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: 220px;
+                height: 330px;
+                border-radius: 12px;
+                clip: true;
+                background: Theme.surface-raised;
+                if Library.detail.has-poster: Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: Library.detail.poster;
+                    image-fit: cover;
+                }
+                if !Library.detail.has-poster: Text {
+                    text: Library.detail.title;
+                    width: parent.width - 24px;
+                    font-size: Theme.body-size;
+                    color: Theme.text-muted;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+            }
+        }
+        Text { text: Library.detail.badge; font-size: 16px; font-weight: 600; color: Theme.accent; }
+        Text {
+            text: Library.detail.title;
+            font-size: 28px;
+            font-weight: 600;
+            color: Theme.text-primary;
+            wrap: word-wrap;
+        }
+        if Library.detail.subtitle != "": Text {
+            text: Library.detail.subtitle;
+            font-size: Theme.body-size;
+            color: Theme.text-secondary;
+            wrap: word-wrap;
+        }
+        Text { text: Library.detail.meta; font-size: 18px; color: Theme.text-muted; wrap: word-wrap; }
+        if Library.detail.progress > 0: ProgressBar { value: Library.detail.progress; }
+        Rectangle { height: 6px; }
+        ActionButton {
+            text: Library.detail.can-resume ? "▶  Resume on TV" : "▶  Play on TV";
+            primary: true;
+            clicked => { Library.play-detail(false); }
+        }
+        if Library.detail.can-resume: ActionButton {
+            text: "Play from the start";
+            clicked => { Library.play-detail(true); }
+        }
+        ActionButton { text: "Close"; clicked => { Library.close-detail(); } }
+    }
+}
+
+component Section inherits VerticalLayout {
+    in property <string> title;
+    in property <string> id;
+    in property <string> empty-text;
+    in property <[PosterCardData]> cards;
+    spacing: 14px;
+    SectionLabel { text: root.title; }
+    if root.cards.length > 0: PosterRow {
+        cards: root.cards;
+        hover-text: "Details";
+        selected: Library.selected-section == root.id ? Library.selected-index : -1;
+        clicked(i) => {
+            Library.selected-section = root.id;
+            Library.selected-index = i;
+            Library.select(root.id, i);
+        }
+    }
+    if root.cards.length == 0: Text {
+        text: root.empty-text;
+        font-size: Theme.body-size;
+        color: Theme.text-muted;
+    }
+}
+
+import { PosterCardData } from "components.slint";
+
+export component LibraryPage inherits VerticalLayout {
+    padding: 40px;
+    spacing: Theme.gap;
+
+    PageHeader {
+        title: "Library";
+        back => { Nav.page = "home"; }
+    }
+
+    // Filter + search
+    HorizontalLayout {
+        spacing: 12px;
+        ActionButton { text: "All"; primary: Library.filter == "all"; clicked => { Library.set-filter("all"); } }
+        ActionButton { text: "Plex"; primary: Library.filter == "plex"; clicked => { Library.set-filter("plex"); } }
+        ActionButton { text: "Jellyfin"; primary: Library.filter == "jellyfin"; clicked => { Library.set-filter("jellyfin"); } }
+        Rectangle { width: 24px; }
+        search := TextField {
+            placeholder: "Search movies and shows";
+            text <=> Library.query;
+            accepted(q) => { Library.search(q); }
+        }
+        ActionButton { text: "Search"; clicked => { Library.search(Library.query); } }
+        if Library.results-title != "": ActionButton {
+            text: "Clear";
+            clicked => {
+                Library.query = "";
+                Library.clear-search();
+            }
+        }
+    }
+
+    HorizontalLayout {
+        spacing: Theme.gap;
+        vertical-stretch: 1;
+
+        VerticalLayout {
+            spacing: Theme.gap;
+            horizontal-stretch: 1;
+            alignment: start;
+
+            if Library.results-title != "": Section {
+                title: Library.results-title;
+                id: "results";
+                cards: Library.results;
+                empty-text: Library.searching ? "Searching…" : "No matches.";
+            }
+            if Library.results-title == "": Section {
+                title: "CONTINUE WATCHING";
+                id: "continue";
+                cards: Library.continue-watching;
+                empty-text: "Nothing in progress.";
+            }
+            if Library.results-title == "": Section {
+                title: "RECENTLY ADDED";
+                id: "recent";
+                cards: Library.recently-added;
+                empty-text: "Nothing new yet.";
+            }
+        }
+
+        if Library.detail-open: DetailPanel { }
+    }
+}

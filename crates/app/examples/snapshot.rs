@@ -1,8 +1,12 @@
 // Dev tool: render windows offscreen to PNG (no display needed).
-// Usage: cargo run --example snapshot -- out.png <laptop|laptop-playing|laptop-code|laptop-streaming|tv> [height]
+// Usage: cargo run --example snapshot -- out.png <mode> [height]
+// Modes: home, home-playing, home-code, home-streaming, library, library-search,
+//        settings, setup-0 … setup-3, tv
+use std::rc::Rc;
+
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
 use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel};
-use std::rc::Rc;
+
 slint::include_modules!();
 
 struct P(Rc<MinimalSoftwareWindow>);
@@ -21,6 +25,26 @@ fn fake_poster(hue: u8) -> Image {
     Image::from_rgba8(buf)
 }
 
+fn model<T: Clone + 'static>(v: Vec<T>) -> ModelRc<T> {
+    ModelRc::new(VecModel::from(v))
+}
+
+fn cards(list: &[(&str, &str, f32, bool, &str)]) -> ModelRc<PosterCardData> {
+    model(
+        list.iter()
+            .enumerate()
+            .map(|(i, (t, s, p, has, badge))| PosterCardData {
+                title: (*t).into(),
+                subtitle: (*s).into(),
+                badge: (*badge).into(),
+                progress: *p,
+                has_poster: *has,
+                poster: if *has { fake_poster((i * 70) as u8) } else { Image::default() },
+            })
+            .collect(),
+    )
+}
+
 fn prompt(source: &str, message: &str, action: &str, warn: bool) -> AccountPrompt {
     AccountPrompt {
         source: source.into(),
@@ -31,94 +55,214 @@ fn prompt(source: &str, message: &str, action: &str, warn: bool) -> AccountPromp
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn account(
+    id: &str,
+    name: &str,
+    status: &str,
+    detail: &str,
+    state: &str,
+    primary: &str,
+    secondary: &str,
+    hint: &str,
+) -> AccountRow {
+    AccountRow {
+        id: id.into(),
+        name: name.into(),
+        status: status.into(),
+        detail: detail.into(),
+        state: state.into(),
+        primary: primary.into(),
+        primary_id: "x".into(),
+        secondary: secondary.into(),
+        secondary_id: "x".into(),
+        input_hint: hint.into(),
+        secret_input: false,
+    }
+}
+
 fn laptop(mode: &str) -> LaptopWindow {
     let l = LaptopWindow::new().unwrap();
-    l.set_clock_hh("21".into());
-    l.set_clock_mm("04".into());
-    l.set_date_text("Wednesday, 11 November".into());
+    let dash = l.global::<Dash>();
+    let theme = l.global::<Theme>();
+    dash.set_clock_hh("21".into());
+    dash.set_clock_mm("04".into());
+    dash.set_date_text("Wednesday, 11 November".into());
     let sites: Vec<SharedString> =
         ["Netflix", "Disney+", "Hulu", "Prime Video", "Apple TV+", "YouTube TV"].iter().map(|s| (*s).into()).collect();
-    l.set_streaming_sites(ModelRc::new(VecModel::from(sites)));
-    l.set_keyring_status("GNOME Keyring connected".into());
-    l.set_keyring_dot(l.global::<Theme>().get_ok());
-    let theme = l.global::<Theme>();
-    l.set_weather_text("48° Light rain".into());
-    l.set_weather_detail("H 55° · L 39°".into());
-    if mode == "laptop" {
-        l.set_event_text("Address stopped working".into());
-        l.set_event_action("Reconnect".into());
-        l.set_homelab_text("5 / 6 up".into());
-        l.set_homelab_detail("Down: NAS".into());
-        l.set_homelab_dot(theme.get_alert());
-    } else {
-        l.set_event_text("14:00 Stand, up (moved)".into());
-        l.set_event_detail("Today".into());
-        l.set_homelab_text("6 / 6 up".into());
-        l.set_homelab_detail("23 / 24 containers".into());
-        l.set_homelab_dot(theme.get_ok());
-    }
+    dash.set_streaming_sites(model(sites));
+    dash.set_keyring_status("GNOME Keyring connected".into());
+    dash.set_keyring_dot(theme.get_ok());
+    dash.set_weather_text("48° Light rain".into());
+    dash.set_weather_detail("H 55° · L 39°".into());
+    dash.set_event_text("14:00 Stand, up (moved)".into());
+    dash.set_event_detail("Today".into());
+    dash.set_homelab_text("6 / 6 up".into());
+    dash.set_homelab_detail("23 / 24 containers".into());
+    dash.set_homelab_dot(theme.get_ok());
+
+    let row = cards(&[
+        ("Some Show", "S2 · E5 · The Pilot", 0.33, true, "Jellyfin"),
+        ("Plex Show", "S3 · E2 · Chapter One", 0.4, true, "Plex"),
+        ("A Film", "1999", 0.8, true, "Jellyfin"),
+        ("No Poster Show", "S1 · E2", 0.1, false, "Plex"),
+    ]);
+
+    let sites_rows = model(
+        [
+            ("Netflix", "Set up · opened today", true),
+            ("Disney+", "Set up · opened 3 days ago", true),
+            ("Hulu", "Not signed in yet", false),
+            ("Prime Video", "Not signed in yet", false),
+            ("Apple TV+", "Not signed in yet", false),
+            ("YouTube TV", "Set up · opened yesterday", true),
+        ]
+        .iter()
+        .map(|(n, s, o)| SiteRow { name: (*n).into(), status: (*s).into(), opened: *o })
+        .collect(),
+    );
+    l.global::<Accounts>().set_sites(sites_rows);
+
     match mode {
-        "laptop-code" => {
-            l.set_cw_state("code".into());
-            l.set_signin_code("WXYZ".into());
-            l.set_cw_message("On any device, go to plex.tv/link and enter this code.".into());
+        "home-code" => {
+            dash.set_cw_state("code".into());
+            dash.set_signin_code("WXYZ".into());
+            dash.set_cw_message("On any device, go to plex.tv/link and enter this code.".into());
         }
-        "laptop-streaming" => {
-            l.set_cw_state("empty".into());
-            l.set_now_playing_title("Netflix".into());
-            l.set_now_playing_detail("Streaming in the browser on the TV. Stop closes it.".into());
-            l.set_stop_enabled(true);
-            l.set_toast(
-                "First time on Netflix: sign in on the TV with this laptop's mouse and keyboard. It stays signed in."
-                    .into(),
-            );
+        "home-streaming" => {
+            dash.set_cw_state("empty".into());
+            dash.set_now_playing_title("Netflix".into());
+            dash.set_now_playing_detail("Streaming in the browser on the TV. Stop closes it.".into());
+            dash.set_stop_enabled(true);
         }
-        "laptop-playing" => {
-            let cards: Vec<PosterCardData> = [
-                ("Some Show", "S2 · E5 · The Pilot", 0.33, true),
-                ("Plex Show", "S3 · E2 · Chapter One", 0.4, true),
-                ("A Film", "1999", 0.8, true),
-                ("No Poster Show", "S1 · E2", 0.1, false),
-                ("Another Show", "S4 · E1 · Return", 0.55, true),
-            ]
-            .iter()
-            .enumerate()
-            .map(|(i, (t, s, p, has))| PosterCardData {
-                title: (*t).into(),
-                subtitle: (*s).into(),
-                badge: if i == 1 { "Plex".into() } else { "Jellyfin".into() },
-                progress: *p,
-                has_poster: *has,
-                poster: if *has { fake_poster((i * 70) as u8) } else { Image::default() },
-            })
-            .collect();
-            l.set_continue_watching(ModelRc::new(VecModel::from(cards)));
-            l.set_cw_state("items".into());
-            l.set_now_playing_title("Some Show".into());
-            l.set_now_playing_detail("Jellyfin · S2 · E5 · The Pilot · 12:34 / 45:00 · ends 21:36".into());
-            l.set_now_playing_progress(0.28);
-            l.set_transport_enabled(true);
-            l.set_paused(true);
-            let expired = prompt("plex", "Plex sign-in expired.", "Reconnect", true);
-            l.set_prompts(ModelRc::new(VecModel::from(vec![prompt(
-                "plex",
-                "Can't reach Plex: connection refused",
-                "Retry",
-                true,
-            )])));
-            l.set_tv_prompts(ModelRc::new(VecModel::from(vec![expired])));
-            l.set_sessions(ModelRc::new(VecModel::from(vec![SessionRow {
-                badge: "Jellyfin".into(),
-                title: "A Film · 1999".into(),
+        "home-playing" => {
+            dash.set_continue_watching(row);
+            dash.set_cw_state("items".into());
+            dash.set_now_playing_title("Some Show".into());
+            dash.set_now_playing_detail("Jellyfin · S2 · E5 · The Pilot · 12:34 / 45:00 · ends 21:36".into());
+            dash.set_now_playing_progress(0.28);
+            dash.set_transport_enabled(true);
+            dash.set_paused(true);
+            dash.set_sessions(model(vec![SessionRow {
+                badge: "Plex".into(),
+                title: "Plex Film · 2001".into(),
                 detail: "Bedroom TV · Paused · 1:02:10 / 2:00:00".into(),
-            }])));
+            }]));
+        }
+        "library" | "library-search" => {
+            l.global::<Nav>().set_page("library".into());
+            let lib = l.global::<Library>();
+            lib.set_continue_watching(row.clone());
+            lib.set_recently_added(cards(&[
+                ("New Film", "2026", 0.0, true, "Plex"),
+                ("Docu Series", "S1 · E1 · Origins", 0.0, true, "Jellyfin"),
+                ("Another Film", "2025", 0.0, false, "Jellyfin"),
+            ]));
+            if mode == "library-search" {
+                lib.set_query("film".into());
+                lib.set_results_title("RESULTS FOR “FILM”".into());
+                lib.set_results(cards(&[
+                    ("A Film", "1999", 0.8, true, "Jellyfin"),
+                    ("Plex Film", "2001", 0.0, true, "Plex"),
+                    ("Another Film", "2025", 0.0, false, "Jellyfin"),
+                ]));
+                lib.set_selected_section("results".into());
+                lib.set_selected_index(0);
+                lib.set_detail_open(true);
+                lib.set_detail(DetailData {
+                    title: "A Film".into(),
+                    subtitle: "1999".into(),
+                    badge: "JELLYFIN".into(),
+                    meta: "Movie · 2 h 5 min · 25 min left".into(),
+                    poster: fake_poster(0),
+                    has_poster: true,
+                    progress: 0.8,
+                    can_resume: true,
+                });
+            }
+        }
+        "settings" => {
+            l.global::<Nav>().set_page("settings".into());
+            let acc = l.global::<Accounts>();
+            acc.set_accounts(model(vec![
+                account(
+                    "plex",
+                    "Plex",
+                    "Sign-in expired",
+                    "http://192.168.1.20:32400",
+                    "warn",
+                    "Reconnect",
+                    "Sign out",
+                    "",
+                ),
+                account("jellyfin", "Jellyfin", "Connected", "http://republic-city:8096", "ok", "", "Sign out", ""),
+                account(
+                    "calendar",
+                    "Google Calendar",
+                    "Connected",
+                    "4 events today and tomorrow",
+                    "ok",
+                    "Replace address",
+                    "Remove",
+                    "Secret address in iCal format",
+                ),
+                account(
+                    "portainer",
+                    "Portainer",
+                    "No access token",
+                    "URL is set in config.toml under [homelab]",
+                    "off",
+                    "Add token",
+                    "",
+                    "Portainer access token",
+                ),
+                account(
+                    "kuma",
+                    "Uptime Kuma",
+                    "6 / 6 monitors up",
+                    "Public status page; set in config.toml",
+                    "ok",
+                    "",
+                    "",
+                    "",
+                ),
+            ]));
+            acc.set_editing("portainer".into());
+            acc.set_confirm_clear(true);
+        }
+        m if m.starts_with("setup-") => {
+            l.global::<Nav>().set_page("setup".into());
+            let setup = l.global::<Setup>();
+            let step: i32 = m[6..].parse().unwrap();
+            setup.set_step(step);
+            setup.set_jellyfin_url("http://republic-city:8096".into());
+            if step > 0 {
+                setup.set_plex_state("done".into());
+            }
+            match step {
+                0 => {
+                    setup.set_plex_state("code".into());
+                    setup.set_plex_code("WXYZ".into());
+                }
+                1 => setup.set_jellyfin_state("idle".into()),
+                2 => {
+                    setup.set_calendar_state("error".into());
+                    setup.set_calendar_message(
+                        "That didn't work: Google says that address doesn't exist; copy it again".into(),
+                    );
+                }
+                _ => {}
+            }
         }
         _ => {
-            l.set_cw_state("prompts".into());
-            l.set_prompts(ModelRc::new(VecModel::from(vec![
+            dash.set_cw_state("prompts".into());
+            dash.set_prompts(model(vec![
                 prompt("jellyfin", "Jellyfin isn't connected.", "Sign in to Jellyfin", false),
                 prompt("plex", "Plex isn't connected.", "Sign in to Plex", false),
-            ])));
+            ]));
+            dash.set_tv_prompts(model(vec![prompt("plex", "Plex sign-in expired.", "Reconnect", true)]));
+            dash.set_event_text("Address stopped working".into());
+            dash.set_event_action("Reconnect".into());
         }
     }
     l

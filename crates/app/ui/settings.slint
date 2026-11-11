@@ -1,0 +1,179 @@
+import { Theme } from "theme.slint";
+import { ActionButton, Card, PageHeader, SectionLabel, TextField } from "components.slint";
+import { Accounts, AccountRow, Dash, Nav } from "state.slint";
+
+component AccountLine inherits VerticalLayout {
+    in property <AccountRow> account;
+    spacing: 12px;
+
+    HorizontalLayout {
+        spacing: 18px;
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 12px;
+                height: 12px;
+                border-radius: 6px;
+                background: root.account.state == "ok" ? Theme.ok
+                    : root.account.state == "warn" ? Theme.warn
+                    : root.account.state == "busy" ? Theme.accent
+                    : Theme.border;
+            }
+        }
+        VerticalLayout {
+            spacing: 4px;
+            horizontal-stretch: 1;
+            Text { text: root.account.name; font-size: Theme.body-size; font-weight: 600; color: Theme.text-primary; }
+            Text {
+                text: root.account.status;
+                font-size: 18px;
+                color: root.account.state == "warn" ? Theme.warn : Theme.text-secondary;
+                overflow: elide;
+            }
+            if root.account.detail != "": Text {
+                text: root.account.detail;
+                font-size: 16px;
+                color: Theme.text-muted;
+                overflow: elide;
+            }
+        }
+        if root.account.secondary != "": VerticalLayout {
+            alignment: center;
+            ActionButton {
+                text: root.account.secondary;
+                clicked => {
+                    if root.account.secondary-id == "edit" {
+                        Accounts.editing = root.account.id;
+                    } else {
+                        Accounts.action(root.account.id, root.account.secondary-id);
+                    }
+                }
+            }
+        }
+        if root.account.primary != "": VerticalLayout {
+            alignment: center;
+            ActionButton {
+                text: root.account.primary;
+                primary: true;
+                clicked => {
+                    if root.account.primary-id == "edit" {
+                        Accounts.editing = root.account.id;
+                    } else {
+                        Accounts.action(root.account.id, root.account.primary-id);
+                    }
+                }
+            }
+        }
+    }
+
+    if Accounts.editing == root.account.id: VerticalLayout {
+        spacing: 8px;
+        padding-left: 30px;
+        HorizontalLayout {
+            spacing: 12px;
+            field := TextField {
+                placeholder: root.account.input-hint;
+                password: root.account.secret-input;
+                accepted(v) => { Accounts.submit(root.account.id, v); }
+            }
+            ActionButton { text: "Save"; primary: true; clicked => { Accounts.submit(root.account.id, field.text); } }
+            ActionButton { text: "Cancel"; clicked => { Accounts.editing = ""; } }
+        }
+        if Accounts.edit-error != "": Text { text: Accounts.edit-error; font-size: 18px; color: Theme.warn; }
+    }
+}
+
+export component SettingsPage inherits VerticalLayout {
+    padding: 40px;
+    spacing: Theme.gap;
+
+    PageHeader {
+        title: "Settings › Accounts";
+        back => { Nav.page = "home"; }
+    }
+
+    Card {
+        VerticalLayout {
+            padding: 28px;
+            spacing: 22px;
+            SectionLabel { text: "SERVERS AND SERVICES"; }
+            for row[i] in Accounts.accounts: VerticalLayout {
+                spacing: 22px;
+                if i > 0: Rectangle { height: 1px; background: Theme.border; }
+                AccountLine { account: row; }
+            }
+        }
+    }
+
+    Card {
+        VerticalLayout {
+            padding: 28px;
+            spacing: 18px;
+            SectionLabel { text: "STREAMING SITES"; }
+            Text {
+                text: "Each site opens full screen on the TV in tvdash's own browser profile. Sign in there once with this laptop's mouse and keyboard.";
+                font-size: 18px;
+                color: Theme.text-muted;
+                wrap: word-wrap;
+            }
+            for site[i] in Accounts.sites: HorizontalLayout {
+                spacing: 18px;
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 6px;
+                        background: site.opened ? Theme.ok : Theme.border;
+                    }
+                }
+                Text {
+                    text: site.name;
+                    font-size: Theme.body-size;
+                    font-weight: 600;
+                    color: Theme.text-primary;
+                    vertical-alignment: center;
+                    width: 200px;
+                }
+                Text {
+                    text: site.status;
+                    font-size: 18px;
+                    color: Theme.text-secondary;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+                ActionButton { text: "Sign in on TV"; clicked => { Accounts.open-site(i); } }
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                alignment: start;
+                if !Accounts.confirm-clear: ActionButton {
+                    text: "Clear browser profile";
+                    clicked => { Accounts.confirm-clear = true; }
+                }
+                if Accounts.confirm-clear: Text {
+                    text: "Signs you out of every streaming site.";
+                    font-size: 18px;
+                    color: Theme.warn;
+                    vertical-alignment: center;
+                }
+                if Accounts.confirm-clear: ActionButton {
+                    text: "Yes, clear it";
+                    clicked => {
+                        Accounts.confirm-clear = false;
+                        Accounts.clear-profile();
+                    }
+                }
+                if Accounts.confirm-clear: ActionButton {
+                    text: "Cancel";
+                    clicked => { Accounts.confirm-clear = false; }
+                }
+            }
+        }
+    }
+
+    HorizontalLayout {
+        alignment: start;
+        ActionButton { text: "Run first-time setup again"; clicked => { Accounts.run-setup(); } }
+    }
+}

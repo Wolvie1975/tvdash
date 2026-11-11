@@ -5,6 +5,11 @@
 //! UI callbacks          ──► Command channel  ──► player / media tasks
 //! ```
 
+use std::collections::BTreeMap;
+
+use chrono::{DateTime, Utc};
+
+use crate::SecretKey;
 use crate::models::{
     AccountStatus, CalendarState, Geometry, HomelabStatus, MediaItem, PlayState, RgbaImage, Session, SignInState,
     SourceKind, Weather,
@@ -46,6 +51,22 @@ pub enum AppEvent {
     Toast(String),
     /// A toast that stays up while the user does something (e.g. signs in on the TV).
     LongToast(String),
+    /// Library search finished (all connected sources).
+    SearchResults {
+        query: String,
+        items: Vec<MediaItem>,
+    },
+    /// Server address in use, for Settings › Accounts (`None` after sign-out).
+    Server(SourceKind, Option<String>),
+    /// Site name → last opened, for the setup and Accounts screens.
+    Streaming(BTreeMap<String, DateTime<Utc>>),
+    /// Result of storing a secret from the UI (calendar address, Portainer token).
+    SecretSaved {
+        key: SecretKey,
+        result: Result<(), String>,
+    },
+    /// Show the first-run setup (nothing is connected yet).
+    ShowSetup,
 }
 
 /// Requests from the UI, handled by background tasks.
@@ -68,4 +89,21 @@ pub enum Command {
     Refresh,
     /// Where the TV output is, once the windows know (used to place the browser).
     TvGeometry(Geometry),
+    /// Forget a media server's sign-in (keyring token + config).
+    SignOut(SourceKind),
+    /// Use this Jellyfin server address (setup lets you change it before signing in).
+    JellyfinServer(String),
+    /// Username/password fallback for servers without Quick Connect.
+    JellyfinPassword {
+        username: String,
+        password: String,
+    },
+    /// Check a calendar address works, then store it.
+    SetCalendarUrl(String),
+    /// Store a secret entered in the UI (e.g. the Portainer token).
+    SetSecret(SecretKey, String),
+    ClearSecret(SecretKey),
+    /// Close the browser, delete its profile (all streaming sign-ins) and history.
+    ClearBrowserProfile,
+    SetupFinished,
 }

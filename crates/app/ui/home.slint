@@ -1,0 +1,244 @@
+import { Theme } from "theme.slint";
+import { ActionButton, Card, Clock, PosterRow, ProgressBar, PromptBanner, SectionLabel, SessionLine, SiteTile, StatusChip } from "components.slint";
+import { Dash, Nav } from "state.slint";
+
+// Control dashboard (home page).
+export component HomePage inherits VerticalLayout {
+    padding: 40px;
+    spacing: Theme.gap;
+
+    // ── Header ───────────────────────────────────────────────────
+    HorizontalLayout {
+        spacing: Theme.gap;
+        alignment: space-between;
+
+        VerticalLayout {
+            alignment: center;
+            Clock { hh: Dash.clock-hh; mm: Dash.clock-mm; font-px: Theme.laptop-clock-size; }
+            Text { text: Dash.date-text; font-size: Theme.title-size; color: Theme.text-secondary; }
+        }
+
+        HorizontalLayout {
+            spacing: 16px;
+            alignment: end;
+            VerticalLayout {
+                alignment: start;
+                StatusChip { label: "WEATHER"; value: Dash.weather-text; detail: Dash.weather-detail; }
+            }
+            VerticalLayout {
+                alignment: start;
+                StatusChip {
+                    label: "NEXT EVENT";
+                    value: Dash.event-text;
+                    detail: Dash.event-detail;
+                    action: Dash.event-action;
+                    min-width: 320px;
+                    max-width: 420px;
+                    action-clicked => { Dash.calendar-action(); }
+                }
+            }
+            VerticalLayout {
+                alignment: start;
+                StatusChip {
+                    label: "HOMELAB";
+                    value: Dash.homelab-text;
+                    detail: Dash.homelab-detail;
+                    dot: Dash.homelab-dot;
+                    max-width: 360px;
+                }
+            }
+        }
+    }
+
+    // ── On the TV ────────────────────────────────────────────────
+    Card {
+        VerticalLayout {
+            padding: 28px;
+            spacing: 16px;
+
+            HorizontalLayout {
+                spacing: Theme.gap;
+                VerticalLayout {
+                    spacing: 8px;
+                    alignment: center;
+                    horizontal-stretch: 1;
+                    SectionLabel { text: "ON THE TV"; }
+                    Text {
+                        text: Dash.now-playing-title;
+                        font-size: 32px;
+                        font-weight: 600;
+                        color: Theme.text-primary;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: Dash.now-playing-detail;
+                        font-size: Theme.body-size;
+                        color: Theme.text-secondary;
+                        overflow: elide;
+                    }
+                    if Dash.transport-enabled: ProgressBar { value: Dash.now-playing-progress; }
+                }
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: end;
+                    VerticalLayout {
+                        alignment: center;
+                        ActionButton { text: "−10 s"; enabled: Dash.transport-enabled; clicked => { Dash.transport("back"); } }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        ActionButton {
+                            text: Dash.paused ? "Resume" : "Pause";
+                            primary: true;
+                            enabled: Dash.transport-enabled;
+                            clicked => { Dash.transport("play-pause"); }
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        ActionButton { text: "+30 s"; enabled: Dash.transport-enabled; clicked => { Dash.transport("forward"); } }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        ActionButton {
+                            text: "Stop";
+                            enabled: Dash.transport-enabled || Dash.stop-enabled;
+                            clicked => { Dash.transport("stop"); }
+                        }
+                    }
+                }
+            }
+
+            if Dash.sessions.length > 0 || Dash.tv-prompts.length > 0: Rectangle {
+                height: 1px;
+                background: Theme.border;
+            }
+            if Dash.sessions.length > 0: SectionLabel { text: "ALSO PLAYING"; }
+            for session in Dash.sessions: SessionLine { data: session; }
+            for p in Dash.tv-prompts: PromptBanner {
+                data: p;
+                action => { Dash.prompt-action(p.source, p.action-id); }
+            }
+        }
+    }
+
+    // ── Watch on TV ──────────────────────────────────────────────
+    VerticalLayout {
+        spacing: 14px;
+        SectionLabel { text: "WATCH ON TV"; }
+        HorizontalLayout {
+            spacing: 16px;
+            for site[i] in Dash.streaming-sites: SiteTile {
+                name: site;
+                clicked => { Dash.open-site(i); }
+            }
+        }
+    }
+
+    // ── Continue Watching ────────────────────────────────────────
+    VerticalLayout {
+        spacing: 14px;
+        vertical-stretch: 1;
+        HorizontalLayout {
+            SectionLabel { text: "CONTINUE WATCHING"; horizontal-stretch: 1; vertical-alignment: center; }
+            if Dash.cw-state == "items": Text {
+                text: "See all in Library ›";
+                font-size: Theme.label-size;
+                color: see-all.has-hover ? Theme.text-primary : Theme.accent;
+                see-all := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Nav.page = "library"; }
+                }
+            }
+        }
+
+        if Dash.cw-state == "items": VerticalLayout {
+            spacing: 14px;
+            vertical-stretch: 1;
+            // One source missing: slim banner above the row.
+            for p in Dash.prompts: PromptBanner {
+                data: p;
+                action => { Dash.prompt-action(p.source, p.action-id); }
+            }
+            PosterRow {
+                vertical-stretch: 1;
+                cards: Dash.continue-watching;
+                clicked(i) => { Dash.play-item(i); }
+            }
+        }
+
+        if Dash.cw-state != "items": Card {
+            vertical-stretch: 1;
+            min-height: 200px;
+            VerticalLayout {
+                alignment: center;
+                spacing: 18px;
+                padding: 24px;
+
+                if Dash.cw-state == "code": Text {
+                    text: Dash.signin-code;
+                    font-size: 72px;
+                    font-weight: 600;
+                    letter-spacing: 12px;
+                    color: Theme.text-primary;
+                    horizontal-alignment: center;
+                }
+                if Dash.cw-state != "prompts": Text {
+                    text: Dash.cw-state == "loading" ? "Loading…"
+                        : Dash.cw-state == "empty" ? "Nothing in progress. Start something and it'll show up here."
+                        : Dash.cw-message;
+                    font-size: Theme.body-size;
+                    color: Theme.text-muted;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                if Dash.cw-state == "code" || Dash.cw-state == "busy": HorizontalLayout {
+                    alignment: center;
+                    ActionButton { text: "Cancel"; clicked => { Dash.cancel-sign-in(Dash.signin-source); } }
+                }
+                if Dash.cw-state == "prompts": VerticalLayout {
+                    spacing: 18px;
+                    alignment: center;
+                    for p in Dash.prompts: HorizontalLayout {
+                        alignment: center;
+                        spacing: 20px;
+                        Text {
+                            text: p.message;
+                            font-size: Theme.body-size;
+                            color: p.warn ? Theme.warn : Theme.text-muted;
+                            vertical-alignment: center;
+                        }
+                        ActionButton {
+                            text: p.action;
+                            primary: !p.warn;
+                            clicked => { Dash.prompt-action(p.source, p.action-id); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Footer ───────────────────────────────────────────────────
+    HorizontalLayout {
+        spacing: 16px;
+        HorizontalLayout {
+            spacing: 10px;
+            horizontal-stretch: 1;
+            VerticalLayout {
+                alignment: center;
+                Rectangle { width: 12px; height: 12px; border-radius: 6px; background: Dash.keyring-dot; }
+            }
+            Text {
+                text: Dash.keyring-status;
+                font-size: Theme.label-size;
+                color: Theme.text-muted;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+        ActionButton { text: "Library"; clicked => { Nav.page = "library"; } }
+        ActionButton { text: "Settings"; clicked => { Nav.page = "settings"; } }
+        ActionButton { text: "Quit"; clicked => { Dash.quit(); } }
+    }
+}

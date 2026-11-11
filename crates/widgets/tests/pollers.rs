@@ -113,7 +113,7 @@ async fn pollers_report_weather_calendar_and_homelab() {
     let portainer = log.iter().find(|r| r["path"] == "/api/endpoints/2/docker/containers/json").unwrap();
     assert_eq!((portainer["api_key"].as_str(), portainer["query"]["all"][0].as_str()), (Some("pk"), Some("1")));
 
-    tasks.iter().for_each(|t| t.abort());
+    tasks.abort();
     std::fs::remove_dir_all(&fake.dir).ok();
 }
 
@@ -139,7 +139,7 @@ async fn pollers_report_not_set_up_revoked_and_failures() {
         ),
         "{h:?}"
     );
-    tasks.iter().for_each(|t| t.abort());
+    tasks.abort();
 
     // Revoked calendar address; wrong Portainer key; Kuma status page missing.
     let mut config = Config::default();
@@ -159,6 +159,6 @@ async fn pollers_report_not_set_up_revoked_and_failures() {
     let AppEvent::Homelab(h) = h else { panic!() };
     assert_eq!(h.containers, Probe::Failed("HTTP 401".into()));
     assert_eq!(h.monitors, Probe::Failed("HTTP 404".into()));
-    tasks.iter().for_each(|t| t.abort());
+    tasks.abort();
     std::fs::remove_dir_all(&fake.dir).ok();
 }

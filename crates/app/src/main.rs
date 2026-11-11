@@ -1,6 +1,7 @@
 //! tvdash: laptop control dashboard + TV playback window, one process.
 
 mod bridge;
+mod callbacks;
 mod clock;
 mod controller;
 mod displays;
@@ -11,8 +12,8 @@ use std::{sync::Arc, time::Duration};
 use anyhow::{Context, bail};
 use slint::{CloseRequestResponse, ComponentHandle, ModelRc, SharedString, VecModel};
 use tokio::sync::mpsc;
-use tracing::{error, info, warn};
-use tvdash_core::{AppEvent, Command, Config, SecretKey, models::SourceKind, secrets};
+use tracing::{info, warn};
+use tvdash_core::{AppEvent, Command, Config, SecretKey, secrets};
 
 slint::include_modules!();
 
@@ -104,28 +105,33 @@ fn main() -> anyhow::Result<()> {
     let tv = TvWindow::new()?;
     let laptop = LaptopWindow::new()?;
 
-    let sites: Vec<SharedString> = config.streaming.iter().map(|s| s.name.as_str().into()).collect();
-    laptop.set_streaming_sites(ModelRc::new(VecModel::from(sites)));
+    let site_names: Vec<String> = config.streaming.iter().map(|s| s.name.clone()).collect();
+    let sites: Vec<SharedString> = site_names.iter().map(|n| n.as_str().into()).collect();
+    laptop.global::<Dash>().set_streaming_sites(ModelRc::new(VecModel::from(sites)));
 
-    bridge::init(&laptop, config.general.tz(), config.general.clock);
+    bridge::init(&laptop, config.general.tz(), config.general.clock, site_names, &config.jellyfin.server_url);
 
     // Background → UI events.
     let (event_tx, event_rx) = mpsc::unbounded_channel::<AppEvent>();
     runtime.spawn(bridge::forward(event_rx, laptop.as_weak(), tv.as_weak()));
 
-    // UI → background commands, handled by the controller.
-    let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<Command>();
-    let (controller, internal_rx) =
-        controller::Controller::new((*config).clone(), loaded.path.clone(), args.windowed, event_tx.clone());
-    runtime.spawn(controller.run(cmd_rx, internal_rx));
-    wire_callbacks(&laptop, cmd_tx.clone());
-
     // Header widgets: weather, calendar, homelab (each on its own interval).
-    {
+    let widgets = {
         let _rt = runtime.enter();
         let reader: tvdash_widgets::SecretReader = Arc::new(|k| secrets::get(k).ok().flatten());
-        tvdash_widgets::spawn(&config, reader, tvdash_widgets::Endpoints::default(), event_tx.clone());
-    }
+        tvdash_widgets::spawn(&config, reader, tvdash_widgets::Endpoints::default(), event_tx.clone())
+    };
+
+    // UI → background commands, handled by the controller.
+    let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<Command>();
+    let (mut controller, internal_rx) =
+        controller::Controller::new((*config).clone(), loaded.path.clone(), args.windowed, event_tx.clone());
+    controller.set_widget_refresh(controller::WidgetRefresh {
+        calendar: widgets.refresh_calendar.clone(),
+        homelab: widgets.refresh_homelab.clone(),
+    });
+    runtime.spawn(controller.run(cmd_rx, internal_rx));
+    callbacks::wire(&laptop, cmd_tx.clone());
 
     // M1 done-check: keyring round-trip, reported in the laptop footer.
     {
@@ -160,78 +166,6 @@ fn main() -> anyhow::Result<()> {
     drop(event_tx);
     runtime.shutdown_timeout(Duration::from_secs(1));
     Ok(())
-}
-
-fn wire_callbacks(laptop: &LaptopWindow, cmd_tx: mpsc::UnboundedSender<Command>) {
-    let send = move |cmd: Command| {
-        if cmd_tx.send(cmd).is_err() {
-            error!("command handler stopped");
-        }
-    };
-
-    let s = send.clone();
-    laptop.on_open_site(move |i| s(Command::OpenSite(i as usize)));
-
-    let s = send.clone();
-    laptop.on_play_item(move |i| match bridge::row(i as usize) {
-        Some(item) => s(Command::Play(item)),
-        None => warn!(index = i, "play: no such card"),
-    });
-
-    let s = send.clone();
-    laptop.on_prompt_action(move |source, action| match (parse_source(&source), action.as_str()) {
-        (Some(kind), "sign-in") => s(Command::SignIn(kind)),
-        (Some(_), "retry") => s(Command::Refresh),
-        _ => warn!(%source, %action, "unknown prompt action"),
-    });
-
-    let s = send.clone();
-    laptop.on_cancel_sign_in(move |source| {
-        if let Some(kind) = parse_source(&source) {
-            s(Command::CancelSignIn(kind));
-        }
-    });
-
-    let laptop_weak = laptop.as_weak();
-    laptop.on_transport(move |action| {
-        let paused = laptop_weak.upgrade().is_some_and(|l| l.get_paused());
-        let cmd = match action.as_str() {
-            "back" => Command::Seek(-10),
-            "forward" => Command::Seek(30),
-            "play-pause" if paused => Command::Resume,
-            "play-pause" => Command::Pause,
-            "stop" => Command::Stop,
-            other => {
-                warn!(action = other, "unknown transport action");
-                return;
-            }
-        };
-        send(cmd);
-    });
-
-    let weak = laptop.as_weak();
-    laptop.on_calendar_action(move || {
-        if let Some(l) = weak.upgrade() {
-            bridge::long_toast(
-                &l,
-                "Paste Google Calendar's secret iCal address with: tvdash --set-secret calendar_ics_url \
-                 (the setup screen arrives in M6)",
-            );
-        }
-    });
-
-    laptop.on_open_settings(|| info!("Settings › Accounts arrives in M6"));
-    laptop.on_quit(|| {
-        let _ = slint::quit_event_loop();
-    });
-}
-
-fn parse_source(s: &str) -> Option<SourceKind> {
-    match s {
-        "jellyfin" => Some(SourceKind::Jellyfin),
-        "plex" => Some(SourceKind::Plex),
-        _ => None,
-    }
 }
 
 fn set_secret(key: SecretKey) -> anyhow::Result<()> {

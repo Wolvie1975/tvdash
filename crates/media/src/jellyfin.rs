@@ -70,6 +70,10 @@ impl JellyfinClient {
         Ok(Self { http: crate::http_client()?, base, device_id: device_id.to_owned(), auth, started: Mutex::new(None) })
     }
 
+    pub fn base_url(&self) -> &str {
+        &self.base
+    }
+
     pub fn auth(&self) -> Option<&Auth> {
         self.auth.as_ref()
     }

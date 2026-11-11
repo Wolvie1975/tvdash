@@ -23,7 +23,10 @@ pub type Result<T> = std::result::Result<T, WidgetError>;
 
 use std::sync::Arc;
 
-use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
+use tokio::{
+    sync::{Notify, mpsc::UnboundedSender},
+    task::JoinHandle,
+};
 use tracing::{debug, info, warn};
 use tvdash_core::{
     AppEvent, Config, SecretKey,
@@ -60,15 +63,38 @@ async fn read_secret(secrets: &SecretReader, key: SecretKey) -> Option<String> {
     tokio::task::spawn_blocking(move || s(key)).await.ok().flatten().filter(|v| !v.trim().is_empty())
 }
 
+/// Running pollers. Notify a handle to poll again now (e.g. after a secret changed).
+pub struct Widgets {
+    pub tasks: Vec<JoinHandle<()>>,
+    pub refresh_calendar: Arc<Notify>,
+    pub refresh_homelab: Arc<Notify>,
+}
+
+impl Widgets {
+    pub fn abort(&self) {
+        self.tasks.iter().for_each(|t| t.abort());
+    }
+}
+
+/// Sleep for `d`, or less if `wake` is notified.
+async fn sleep_or(d: std::time::Duration, wake: &Notify) {
+    tokio::select! {
+        _ = tokio::time::sleep(d) => {}
+        _ = wake.notified() => {}
+    }
+}
+
 /// Start the three pollers. Each sends its first result right away.
 pub fn spawn(
     config: &Config,
     secrets: SecretReader,
     endpoints: Endpoints,
     events: UnboundedSender<AppEvent>,
-) -> Vec<JoinHandle<()>> {
+) -> Widgets {
     let tz = config.general.tz().unwrap_or(chrono_tz::UTC);
     let mut tasks = Vec::new();
+    let refresh_calendar = Arc::new(Notify::new());
+    let refresh_homelab = Arc::new(Notify::new());
 
     // Weather
     {
@@ -99,7 +125,7 @@ pub fn spawn(
 
     // Calendar (the secret is re-read each cycle so a newly set address is picked up)
     if config.calendar.enabled {
-        let (events, secrets) = (events.clone(), secrets.clone());
+        let (events, secrets, wake) = (events.clone(), secrets.clone(), refresh_calendar.clone());
         tasks.push(tokio::spawn(async move {
             let http = client(true);
             loop {
@@ -123,7 +149,7 @@ pub fn spawn(
                 if let Some(state) = state {
                     let _ = events.send(AppEvent::Calendar(state));
                 }
-                tokio::time::sleep(calendar::REFRESH).await;
+                sleep_or(calendar::REFRESH, &wake).await;
             }
         }));
     }
@@ -131,6 +157,7 @@ pub fn spawn(
     // Homelab
     {
         let h = config.homelab.clone();
+        let wake = refresh_homelab.clone();
         tasks.push(tokio::spawn(async move {
             let portainer_http = client(h.portainer_verify_tls);
             let http = client(true);
@@ -152,11 +179,11 @@ pub fn spawn(
                     }
                 }
                 let _ = events.send(AppEvent::Homelab(HomelabStatus { monitors, containers }));
-                tokio::time::sleep(homelab::REFRESH).await;
+                sleep_or(homelab::REFRESH, &wake).await;
             }
         }));
     }
-    tasks
+    Widgets { tasks, refresh_calendar, refresh_homelab }
 }
 
 fn failure<T>(p: &Probe<T>) -> Option<&str> {

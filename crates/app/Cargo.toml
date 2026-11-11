@@ -23,6 +23,7 @@ tvdash-core.workspace = true
 tvdash-media.workspace = true
 tvdash-player.workspace = true
 tvdash-widgets.workspace = true
+reqwest.workspace = true
 
 [build-dependencies]
 slint-build.workspace = true
@@ -30,3 +31,4 @@ slint-build.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+i-slint-backend-testing = "=1.18.1"

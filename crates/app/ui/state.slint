@@ -1,0 +1,157 @@
+// Shared UI state for the laptop window. Rust sets these through
+// `laptop.global::<Dash>()` etc.; pages read them directly.
+
+import { AccountPrompt, PosterCardData, SessionRow } from "components.slint";
+
+// Which laptop page is showing.
+export global Nav {
+    // "home" | "library" | "settings" | "setup"
+    in-out property <string> page: "home";
+}
+
+// Control dashboard (home page) + things shared with every page.
+export global Dash {
+    // Header
+    in property <string> clock-hh: "--";
+    in property <string> clock-mm: "--";
+    in property <string> date-text;
+    in property <string> weather-text: "—";
+    in property <string> weather-detail;
+    in property <string> event-text: "—";
+    in property <string> event-detail;
+    in property <string> event-action; // "Add calendar" / "Reconnect" when the calendar needs attention
+    in property <string> homelab-text: "—";
+    in property <string> homelab-detail;
+    in property <color> homelab-dot: transparent;
+
+    // On the TV
+    in property <string> now-playing-title: "Nothing playing";
+    in property <string> now-playing-detail: "The TV is showing the idle screen.";
+    in property <bool> transport-enabled: false;
+    // Stop alone (the streaming browser can only be closed, not paused).
+    in property <bool> stop-enabled: false;
+    in property <bool> paused: false;
+    in property <float> now-playing-progress: 0;
+    in property <[SessionRow]> sessions;
+    // Servers whose sign-in expired (sessions can't be read).
+    in property <[AccountPrompt]> tv-prompts;
+
+    // Continue Watching: "loading" | "busy" | "code" | "prompts" | "empty" | "items"
+    in property <string> cw-state: "loading";
+    in property <string> cw-message;
+    in property <string> signin-code;
+    in property <string> signin-source;
+    in property <[AccountPrompt]> prompts;
+    in property <[PosterCardData]> continue-watching;
+
+    in property <[string]> streaming-sites;
+
+    // Footer
+    in property <string> keyring-status: "Checking keyring…";
+    in property <color> keyring-dot: #8A9099;
+
+    // Transient message at the bottom of the window ("" = hidden).
+    in property <string> toast;
+
+    callback open-site(int);
+    callback transport(string); // "back" | "play-pause" | "forward" | "stop"
+    callback play-item(int);
+    callback prompt-action(string, string); // (source, "sign-in" | "retry")
+    callback cancel-sign-in(string);
+    callback calendar-action();
+    callback quit();
+}
+
+export struct DetailData {
+    title: string,
+    subtitle: string,
+    badge: string,
+    meta: string,       // "Episode · 45 min · 30 min left"
+    poster: image,
+    has-poster: bool,
+    progress: float,
+    can-resume: bool,
+}
+
+export global Library {
+    // "all" | "plex" | "jellyfin"
+    in-out property <string> filter: "all";
+    in-out property <string> query;
+    in property <bool> searching;
+    // Non-empty while showing search results ("Results for “x”").
+    in property <string> results-title;
+    in property <[PosterCardData]> continue-watching;
+    in property <[PosterCardData]> recently-added;
+    in property <[PosterCardData]> results;
+    in property <bool> detail-open;
+    in property <DetailData> detail;
+    // Highlighted card (set by the page on click).
+    in-out property <string> selected-section;
+    in-out property <int> selected-index: -1;
+
+    callback set-filter(string);
+    callback search(string);
+    callback clear-search();
+    // section: "continue" | "recent" | "results"
+    callback select(string, int);
+    callback play-detail(bool); // true = from the start
+    callback close-detail();
+}
+
+export struct AccountRow {
+    id: string,         // "plex" | "jellyfin" | "calendar" | "portainer"
+    name: string,
+    status: string,
+    detail: string,
+    state: string,      // "ok" | "warn" | "off" | "busy"
+    primary: string,    // button labels; "" = no button
+    primary-id: string, // "sign-in" | "sign-out" | "retry" | "cancel" | "edit" | "remove"
+    secondary: string,
+    secondary-id: string,
+    input-hint: string, // placeholder when the row takes text (calendar / token)
+    secret-input: bool,
+}
+
+export struct SiteRow {
+    name: string,
+    status: string,
+    opened: bool,
+}
+
+export global Accounts {
+    in property <[AccountRow]> accounts;
+    in property <[SiteRow]> sites;
+    // Row whose text field is open ("" = none).
+    in-out property <string> editing;
+    in property <string> edit-error;
+    in-out property <bool> confirm-clear;
+
+    // (row id, button label)
+    callback action(string, string);
+    callback submit(string, string); // (row id, value)
+    callback open-site(int);
+    callback clear-profile();
+    callback run-setup();
+}
+
+export global Setup {
+    // 0 Plex · 1 Jellyfin · 2 Calendar · 3 Streaming
+    in-out property <int> step: 0;
+    // Per sign-in: "idle" | "busy" | "code" | "done" | "error"
+    in property <string> plex-state: "idle";
+    in property <string> plex-code;
+    in property <string> plex-message;
+    in property <string> jellyfin-state: "idle";
+    in property <string> jellyfin-code;
+    in property <string> jellyfin-message;
+    in-out property <string> jellyfin-url;
+    // "idle" | "busy" | "done" | "error"
+    in property <string> calendar-state: "idle";
+    in property <string> calendar-message;
+
+    callback sign-in(string);       // "plex" | "jellyfin" (uses jellyfin-url)
+    callback cancel(string);
+    callback jellyfin-password(string, string);
+    callback set-calendar(string);
+    callback finish();
+}

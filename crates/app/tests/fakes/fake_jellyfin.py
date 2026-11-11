@@ -52,6 +52,10 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         self._log()
         p = urlparse(self.path).path
+        if p == "/cal.ics":
+            return self._send(200, raw=b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n", ctype="text/calendar")
+        if p == "/missing.ics":
+            return self._send(404)
         if p == "/QuickConnect/Connect":
             polls["n"] += 1
             return self._send(200, {"Authenticated": polls["n"] >= 2, "Secret": "s3cr3t", "Code": "424242"})
@@ -61,6 +65,12 @@ class H(BaseHTTPRequestHandler):
             return self._send(404)
         if p == "/Users/u1/Items/Resume":
             return self._send(200, {"Items": ITEMS, "TotalRecordCount": len(ITEMS)})
+        if p == "/Items/Latest":
+            return self._send(200, [{"Id": "new1", "Name": "New Film", "Type": "Movie", "ImageTags": {"Primary": "n"}}])
+        if p == "/Items":
+            term = parse_qs(urlparse(self.path).query).get("searchTerm", [""])[0].lower()
+            found = [i for i in ITEMS if term in i["Name"].lower()]
+            return self._send(200, {"Items": found, "TotalRecordCount": len(found)})
         if p.startswith("/Items/") and p.endswith("/Images/Primary"):
             return self._send(200, raw=png(), ctype="image/png")
         self._send(404)
@@ -72,6 +82,9 @@ class H(BaseHTTPRequestHandler):
         p = urlparse(self.path).path
         if p == "/QuickConnect/Initiate":
             return self._send(200, {"Secret": "s3cr3t", "Code": "424242", "Authenticated": False})
+        if p == "/Users/AuthenticateByName":
+            ok = body == {"Username": "me", "Pw": "pw"}
+            return self._send(200 if ok else 401, {"AccessToken": "tok", "User": {"Id": "u1"}} if ok else None)
         if p == "/Users/AuthenticateWithQuickConnect":
             ok = body == {"Secret": "s3cr3t"}
             return self._send(200 if ok else 400, {"AccessToken": "tok", "User": {"Id": "u1"}} if ok else None)

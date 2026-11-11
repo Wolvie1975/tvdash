@@ -73,6 +73,13 @@ class H(BaseHTTPRequestHandler):
         # Plex Media Server
         if p == "/identity":
             return self._send(200, {"MediaContainer": {"machineIdentifier": "srv"}})
+        if p == "/library/recentlyAdded":
+            return self._send(200, {"MediaContainer": {"Metadata": [
+                {"ratingKey": "300", "type": "movie", "title": "Fresh Plex Film", "year": 2026, "thumb": "/t/300"}]}})
+        if p == "/hubs/search":
+            return self._send(200, {"MediaContainer": {"Hub": [
+                {"type": "movie", "Metadata": [{"ratingKey": "200", "type": "movie", "title": "Plex Film"}]},
+                {"type": "artist", "Metadata": [{"ratingKey": "900", "type": "artist", "title": "A Band"}]}]}})
         if p == "/library/onDeck":
             return self._send(200, {"MediaContainer": {"size": len(ON_DECK), "Metadata": ON_DECK}})
         if p.startswith("/library/metadata/"):

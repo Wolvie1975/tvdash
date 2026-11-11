@@ -178,6 +178,8 @@ export struct PosterCardData {
 // Continue Watching card: 2:3 poster, source badge, progress, title.
 export component PosterCard inherits Rectangle {
     in property <PosterCardData> data;
+    in property <string> hover-text: "▶  Resume on TV";
+    in property <bool> selected: false;
     callback clicked();
 
     width: 150px;
@@ -191,7 +193,7 @@ export component PosterCard inherits Rectangle {
             border-radius: 10px;
             clip: true;
             background: Theme.surface-raised;
-            border-width: touch.has-hover ? 2px : 0;
+            border-width: touch.has-hover || root.selected ? 2px : 0;
             border-color: Theme.accent;
 
             if !root.data.has-poster: Text {
@@ -230,7 +232,7 @@ export component PosterCard inherits Rectangle {
             if touch.has-hover: Rectangle {
                 background: #00000080;
                 Text {
-                    text: "▶  Resume on TV";
+                    text: root.hover-text;
                     font-size: Theme.body-size;
                     font-weight: 600;
                     color: Theme.text-primary;
@@ -369,6 +371,85 @@ export component SessionLine inherits HorizontalLayout {
         text: root.data.detail;
         font-size: 18px;
         color: Theme.text-muted;
+        vertical-alignment: center;
+    }
+}
+
+// Horizontally scrolling row of poster cards.
+export component PosterRow inherits Flickable {
+    in property <[PosterCardData]> cards;
+    in property <string> hover-text: "▶  Resume on TV";
+    in property <int> selected: -1;
+    callback clicked(int);
+
+    min-height: 290px;
+    content-width: row.preferred-width;
+    row := HorizontalLayout {
+        spacing: 20px;
+        alignment: start;
+        for c[i] in root.cards: PosterCard {
+            data: c;
+            hover-text: root.hover-text;
+            selected: i == root.selected;
+            clicked => { root.clicked(i); }
+        }
+    }
+}
+
+// Single-line text entry in the dashboard style.
+export component TextField inherits Rectangle {
+    in property <string> placeholder;
+    in-out property <string> text <=> input.text;
+    in property <bool> password: false;
+    callback accepted(string);
+
+    min-height: Theme.hit-target;
+    min-width: 200px;
+    horizontal-stretch: 1;
+    border-radius: 10px;
+    background: Theme.surface-raised;
+    border-width: 1px;
+    border-color: input.has-focus ? Theme.accent : Theme.border;
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        Rectangle {
+            if input.text == "": Text {
+                width: parent.width;
+                height: parent.height;
+                text: root.placeholder;
+                font-size: Theme.body-size;
+                color: Theme.text-muted;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            input := TextInput {
+                width: parent.width;
+                height: parent.height;
+                font-size: Theme.body-size;
+                color: Theme.text-primary;
+                vertical-alignment: center;
+                single-line: true;
+                input-type: root.password ? InputType.password : InputType.text;
+                accepted => { root.accepted(self.text); }
+            }
+        }
+    }
+}
+
+// Title row for secondary pages, with a Back button.
+export component PageHeader inherits HorizontalLayout {
+    in property <string> title;
+    callback back();
+    spacing: 20px;
+    alignment: start;
+    ActionButton { text: "‹  Back"; clicked => { root.back(); } }
+    Text {
+        text: root.title;
+        font-size: 36px;
+        font-weight: 600;
+        color: Theme.text-primary;
         vertical-alignment: center;
     }
 }

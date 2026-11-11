@@ -39,6 +39,35 @@ pub fn item_detail(item: &MediaItem) -> String {
     parts.join(" · ")
 }
 
+/// "45 min" / "2 h 5 min".
+pub fn length(ms: u64) -> String {
+    let mins = (ms + 30_000) / 60_000;
+    match (mins / 60, mins % 60) {
+        (0, m) => format!("{m} min"),
+        (h, 0) => format!("{h} h"),
+        (h, m) => format!("{h} h {m} min"),
+    }
+}
+
+/// Detail-panel line: "Episode · 45 min · 30 min left", "Movie · 2 h 5 min".
+pub fn item_meta(item: &MediaItem) -> String {
+    use tvdash_core::models::MediaKind;
+    let mut parts: Vec<String> = Vec::new();
+    match item.kind {
+        MediaKind::Movie => parts.push("Movie".into()),
+        MediaKind::Series => parts.push("Show".into()),
+        MediaKind::Episode => parts.push("Episode".into()),
+        MediaKind::Other => {}
+    }
+    if let Some(d) = item.duration_ms.filter(|&d| d > 0) {
+        parts.push(length(d));
+        if let Some(pos) = item.resume_ms {
+            parts.push(format!("{} left", length(d.saturating_sub(pos))));
+        }
+    }
+    parts.join(" · ")
+}
+
 /// "12:34 / 45:00 · ends 21:40" (end time only while playing and known).
 pub fn progress_line(status: &PlayerStatus, now: NaiveDateTime, format: ClockFormat) -> String {
     let pos = duration(status.position_ms);
@@ -88,6 +117,18 @@ mod tests {
             position_ms: 754_000,
             duration_ms: Some(2_700_000),
         }
+    }
+
+    #[test]
+    fn meta_line() {
+        let mut item = status(PlayState::Playing).item;
+        assert_eq!(item_meta(&item), "Episode · 45 min");
+        item.resume_ms = Some(900_000);
+        assert_eq!(item_meta(&item), "Episode · 45 min · 30 min left");
+        item.duration_ms = Some(7_500_000);
+        item.kind = MediaKind::Movie;
+        item.resume_ms = None;
+        assert_eq!(item_meta(&item), "Movie · 2 h 5 min");
     }
 
     #[test]

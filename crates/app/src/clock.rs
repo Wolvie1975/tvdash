@@ -41,9 +41,10 @@ pub fn start(laptop: &LaptopWindow, tv: &TvWindow, general: &GeneralConfig) -> T
             return;
         }
         if let Some(l) = laptop.upgrade() {
-            l.set_clock_hh(text.hh.as_str().into());
-            l.set_clock_mm(text.mm.as_str().into());
-            l.set_date_text(text.date.as_str().into());
+            let dash = l.global::<crate::Dash>();
+            dash.set_clock_hh(text.hh.as_str().into());
+            dash.set_clock_mm(text.mm.as_str().into());
+            dash.set_date_text(text.date.as_str().into());
         }
         if let Some(t) = tv.upgrade() {
             t.set_clock_hh(text.hh.as_str().into());

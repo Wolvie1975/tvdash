@@ -43,6 +43,7 @@ const QUICK_CONNECT_POLL: Duration = Duration::from_secs(2);
 const QUICK_CONNECT_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const SESSIONS_EVERY: Duration = Duration::from_secs(15);
 const PLEX_PIN_POLL: Duration = Duration::from_secs(2);
+const RECENTLY_ADDED: u32 = 20;
 
 /// Messages from tasks the controller spawned.
 pub enum Internal {
@@ -74,6 +75,15 @@ pub struct Controller {
     state: AppState,
     state_path: Option<PathBuf>,
     posters_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
+    /// Lets the controller poke the widget pollers after a secret changes.
+    widgets: Option<WidgetRefresh>,
+}
+
+/// "Poll now" handles for the header widgets.
+#[derive(Clone)]
+pub struct WidgetRefresh {
+    pub calendar: Arc<tokio::sync::Notify>,
+    pub homelab: Arc<tokio::sync::Notify>,
 }
 
 enum Step {
@@ -110,8 +120,13 @@ impl Controller {
             state: AppState::default(),
             state_path: tvdash_core::state::default_path(),
             posters_requested: Arc::default(),
+            widgets: None,
         };
         (c, internal_rx)
+    }
+
+    pub fn set_widget_refresh(&mut self, w: WidgetRefresh) {
+        self.widgets = Some(w);
     }
 
     fn emit(&self, event: AppEvent) {
@@ -187,7 +202,36 @@ impl Controller {
         if self.config.plex.enabled {
             self.init_plex().await;
         }
+        self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
+        if let Some(j) = &self.jellyfin {
+            self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(j.base_url().to_owned())));
+        }
+        if self.plex.is_some() {
+            self.emit(AppEvent::Server(SourceKind::Plex, Some(self.config.plex.server_url.clone())));
+        }
+        // First run: nothing connected and setup never finished.
+        if !self.state.setup_complete && self.jellyfin.is_none() && self.plex.is_none() {
+            self.emit(AppEvent::ShowSetup);
+        }
         self.refresh();
+    }
+
+    fn save_state(&self) {
+        if let Some(path) = &self.state_path
+            && let Err(e) = self.state.save(path)
+        {
+            warn!(error = %e, "couldn't save app state");
+        }
+    }
+
+    fn update_config(&mut self, change: impl FnOnce(&mut Config)) {
+        match Config::update_at(&self.config_path, change) {
+            Ok(c) => self.config = c,
+            Err(e) => {
+                error!(error = %e, "couldn't save config");
+                self.toast(format!("Couldn't save the config: {e}"));
+            }
+        }
     }
 
     async fn init_jellyfin(&mut self) {
@@ -254,8 +298,180 @@ impl Controller {
                 debug!(?g, "TV geometry");
                 self.tv_geometry = Some(g);
             }
-            Command::Search(_) => info!(command = ?cmd, "not implemented yet"),
+            Command::Search(query) => self.search(query),
+            Command::SignOut(kind) => self.sign_out(kind).await,
+            Command::JellyfinServer(url) => {
+                let url = url.trim().trim_end_matches('/').to_owned();
+                if !url.is_empty() && url != self.config.jellyfin.server_url {
+                    info!(%url, "Jellyfin server address changed");
+                    self.update_config(|c| c.jellyfin.server_url = url);
+                }
+            }
+            Command::JellyfinPassword { username, password } => self.jellyfin_password(username, password),
+            Command::SetCalendarUrl(url) => self.set_calendar_url(url),
+            Command::SetSecret(key, value) => {
+                let result = store_secret(key, value).await;
+                if key == SecretKey::PortainerApiKey
+                    && let Some(w) = &self.widgets
+                {
+                    w.homelab.notify_one();
+                }
+                self.emit(AppEvent::SecretSaved { key, result });
+            }
+            Command::ClearSecret(key) => {
+                let result = match tokio::task::spawn_blocking(move || secrets::delete(key)).await {
+                    Ok(r) => r.map_err(|e| e.to_string()),
+                    Err(e) => Err(e.to_string()),
+                };
+                if let Some(w) = &self.widgets {
+                    w.calendar.notify_one();
+                    w.homelab.notify_one();
+                }
+                self.emit(AppEvent::SecretSaved { key, result });
+            }
+            Command::ClearBrowserProfile => self.clear_browser_profile().await,
+            Command::SetupFinished => {
+                self.state.setup_complete = true;
+                self.save_state();
+            }
         }
+    }
+
+    // ── Accounts ────────────────────────────────────────────────────
+
+    async fn sign_out(&mut self, kind: SourceKind) {
+        if let Some(task) = self.sign_in.remove(&kind) {
+            task.abort();
+        }
+        if self.playback.as_ref().is_some_and(|p| p.status.item.source == kind) {
+            self.stop_playback().await;
+        }
+        let key = match kind {
+            SourceKind::Jellyfin => SecretKey::JellyfinToken,
+            SourceKind::Plex => SecretKey::PlexToken,
+        };
+        if let Err(e) = tokio::task::spawn_blocking(move || secrets::delete(key)).await.unwrap_or(Ok(())) {
+            warn!(error = %e, "couldn't remove token from the keyring");
+        }
+        match kind {
+            SourceKind::Jellyfin => {
+                self.jellyfin = None;
+                self.update_config(|c| c.jellyfin.user_id.clear());
+            }
+            SourceKind::Plex => {
+                self.plex = None;
+                self.update_config(|c| c.plex.server_url.clear());
+            }
+        }
+        info!(source = kind.label(), "signed out");
+        self.emit(AppEvent::Server(kind, None));
+        self.emit(AppEvent::ContinueWatching(kind, Vec::new()));
+        self.emit(AppEvent::RecentlyAdded(kind, Vec::new()));
+        self.emit(AppEvent::Account(kind, AccountStatus::NotSetUp));
+        self.poll_sessions();
+        self.toast(format!("Signed out of {}", kind.label()));
+    }
+
+    fn jellyfin_password(&mut self, username: String, password: String) {
+        if let Some(old) = self.sign_in.remove(&SourceKind::Jellyfin) {
+            old.abort();
+        }
+        let cfg = self.config.jellyfin.clone();
+        let (events, internal) = (self.events.clone(), self.internal.clone());
+        let task = tokio::spawn(async move {
+            let send = |s| {
+                let _ = events.send(AppEvent::SignIn(SourceKind::Jellyfin, s));
+            };
+            send(SignInState::Starting);
+            let result = match JellyfinClient::new(&cfg.server_url, &cfg.device_id, None) {
+                Ok(c) => c.authenticate_by_name(&username, &password).await,
+                Err(e) => Err(e),
+            };
+            match result {
+                Ok(auth) => {
+                    let _ = internal.send(Internal::JellyfinSignedIn(auth));
+                }
+                Err(MediaError::Unauthorized) => send(SignInState::Failed("wrong username or password".into())),
+                Err(e) => send(SignInState::Failed(e.to_string())),
+            }
+        });
+        self.sign_in.insert(SourceKind::Jellyfin, task);
+    }
+
+    /// Fetch the address once; store it only if it's a working calendar feed.
+    fn set_calendar_url(&self, url: String) {
+        let (events, refresh) = (self.events.clone(), self.widgets.as_ref().map(|w| w.calendar.clone()));
+        tokio::spawn(async move {
+            let url = url.trim().to_owned();
+            let http = reqwest::Client::builder().timeout(Duration::from_secs(20)).build().expect("HTTP client");
+            let check = if !url.starts_with("https://") && !url.starts_with("http://") {
+                Err("that doesn't look like a web address".to_owned())
+            } else {
+                match tvdash_widgets::calendar::fetch(&http, &url).await {
+                    Ok(body) if body.contains("BEGIN:VCALENDAR") => Ok(()),
+                    Ok(_) => Err("that address isn't an iCal feed".into()),
+                    Err(tvdash_widgets::WidgetError::Revoked) => {
+                        Err("Google says that address doesn't exist; copy it again".into())
+                    }
+                    Err(e) => Err(format!("couldn't fetch it: {e}")),
+                }
+            };
+            let result = match check {
+                Ok(()) => store_secret(SecretKey::CalendarIcsUrl, url).await,
+                Err(e) => Err(e),
+            };
+            if result.is_ok()
+                && let Some(r) = refresh
+            {
+                r.notify_one();
+            }
+            let _ = events.send(AppEvent::SecretSaved { key: SecretKey::CalendarIcsUrl, result });
+        });
+    }
+
+    async fn clear_browser_profile(&mut self) {
+        self.close_browser().await;
+        let dir = expand_home(&self.config.browser.profile_dir);
+        let home = std::env::var_os("HOME").map(PathBuf::from);
+        if !safe_to_delete(&dir, home.as_deref()) {
+            error!(dir = %dir.display(), "refusing to delete suspicious browser profile path");
+            self.toast(format!("Not deleting {}: check [browser] profile_dir", dir.display()));
+            return;
+        }
+        match std::fs::remove_dir_all(&dir) {
+            Ok(()) => info!(dir = %dir.display(), "browser profile deleted"),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                self.toast(format!("Couldn't delete the browser profile: {e}"));
+                return;
+            }
+        }
+        self.state.streaming_opened.clear();
+        self.save_state();
+        self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
+        self.toast("Browser profile cleared: streaming sites are signed out");
+    }
+
+    fn search(&self, query: String) {
+        let sources = self.sources();
+        let (events, requested) = (self.events.clone(), self.posters_requested.clone());
+        tokio::spawn(async move {
+            let q = query.trim().to_owned();
+            if q.is_empty() {
+                return;
+            }
+            let mut items = Vec::new();
+            for source in sources {
+                match source.search(&q).await {
+                    Ok(found) => {
+                        fetch_posters(source.clone(), found.clone(), requested.clone(), events.clone());
+                        items.extend(found);
+                    }
+                    Err(e) => warn!(source = source.kind().label(), error = %e, "search failed"),
+                }
+            }
+            let _ = events.send(AppEvent::SearchResults { query, items });
+        });
     }
 
     // ── Library rows ────────────────────────────────────────────────
@@ -302,12 +518,20 @@ impl Controller {
                     Ok(items) => {
                         let _ = events.send(AppEvent::Account(kind, AccountStatus::Connected));
                         let _ = events.send(AppEvent::ContinueWatching(kind, items.clone()));
-                        fetch_posters(source, items, requested, events);
+                        fetch_posters(source.clone(), items, requested.clone(), events.clone());
                     }
                     Err(e) => {
                         warn!(source = kind.label(), error = %e, "continue watching failed");
                         let _ = events.send(AppEvent::Account(kind, account_status(&e)));
+                        return;
                     }
+                }
+                match source.recently_added(RECENTLY_ADDED).await {
+                    Ok(items) => {
+                        let _ = events.send(AppEvent::RecentlyAdded(kind, items.clone()));
+                        fetch_posters(source, items, requested, events);
+                    }
+                    Err(e) => warn!(source = kind.label(), error = %e, "recently added failed"),
                 }
             });
         }
@@ -388,6 +612,7 @@ impl Controller {
                 self.plex = Some(Arc::new(c));
                 info!(server = %server.name, url = %server.url, "Plex signed in");
                 self.emit(AppEvent::SignIn(SourceKind::Plex, SignInState::Done));
+                self.emit(AppEvent::Server(SourceKind::Plex, Some(server.url.clone())));
                 self.emit(AppEvent::Account(SourceKind::Plex, AccountStatus::Connected));
                 self.toast(format!("Plex server: {}", server.name));
                 self.refresh();
@@ -415,6 +640,7 @@ impl Controller {
                 self.jellyfin = Some(Arc::new(c));
                 info!("Jellyfin signed in");
                 self.emit(AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Done));
+                self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(self.config.jellyfin.server_url.clone())));
                 self.emit(AppEvent::Account(SourceKind::Jellyfin, AccountStatus::Connected));
                 self.refresh();
             }
@@ -434,6 +660,9 @@ impl Controller {
         let url = match source.stream_url(&item).await {
             Ok(u) => u,
             Err(e) => {
+                if matches!(e, MediaError::Unauthorized) {
+                    self.emit(AppEvent::Account(item.source, AccountStatus::Expired));
+                }
                 self.toast(format!("Can't play: {e}"));
                 return;
             }
@@ -510,11 +739,8 @@ impl Controller {
                 site.name
             )));
         }
-        if let Some(path) = &self.state_path
-            && let Err(e) = self.state.save(path)
-        {
-            warn!(error = %e, "couldn't save app state");
-        }
+        self.save_state();
+        self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
     }
 
     async fn close_browser(&mut self) {
@@ -664,6 +890,41 @@ async fn plex_pin_sign_in(
     Ok((token, server))
 }
 
+/// Refuse to delete anything that could be a real directory rather than our
+/// browser profile: `/`, `/home`, `$HOME` itself, or anything shallower.
+fn safe_to_delete(dir: &std::path::Path, home: Option<&std::path::Path>) -> bool {
+    let deep_enough = dir.is_absolute() && dir.components().count() >= 4;
+    let is_home_or_parent = home.is_some_and(|h| h.starts_with(dir));
+    deep_enough && !is_home_or_parent
+}
+
+#[cfg(test)]
+mod tests {
+    use super::safe_to_delete;
+    use std::path::Path;
+
+    #[test]
+    fn profile_delete_guard() {
+        let home = Some(Path::new("/home/me"));
+        assert!(safe_to_delete(Path::new("/home/me/.local/share/tvdash/browser"), home));
+        assert!(safe_to_delete(Path::new("/tmp/tvdash-e2e/x/profile"), home));
+        for bad in ["/", "/tmp", "/home", "/home/me", "relative/path/that/is/deep"] {
+            assert!(!safe_to_delete(Path::new(bad), home), "{bad}");
+        }
+    }
+}
+
+async fn store_secret(key: SecretKey, value: String) -> Result<(), String> {
+    let value = value.trim().to_owned();
+    if value.is_empty() {
+        return Err("nothing to save".into());
+    }
+    match tokio::task::spawn_blocking(move || secrets::set(key, &value)).await {
+        Ok(r) => r.map_err(|e| e.to_string()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 async fn read_secret(key: SecretKey) -> Option<String> {
     match tokio::task::spawn_blocking(move || secrets::get(key)).await {
         Ok(Ok(v)) => v,
@@ -759,8 +1020,8 @@ mod e2e {
         events: UnboundedReceiver<AppEvent>,
         cmd: UnboundedSender<Command>,
         config_path: PathBuf,
-        /// Latest non-empty `NowPlaying`, whichever wait it arrived during.
-        last_sessions: Option<Vec<tvdash_core::models::Session>>,
+        /// Every event seen so far, whichever wait it arrived during.
+        seen: Vec<AppEvent>,
     }
 
     impl Harness {
@@ -813,7 +1074,7 @@ mod e2e {
             let (mut controller, internal_rx) = Controller::new(config, config_path.clone(), false, ev_tx);
             controller.state_path = Some(dir.join("state.toml"));
             tokio::spawn(controller.run(cmd_rx, internal_rx));
-            Self { dir, port, server_log, mpv_log, _server: server, events, cmd, config_path, last_sessions: None }
+            Self { dir, port, server_log, mpv_log, _server: server, events, cmd, config_path, seen: Vec::new() }
         }
 
         fn send(&self, c: Command) {
@@ -827,11 +1088,7 @@ mod e2e {
                     if std::env::var_os("E2E_DEBUG").is_some() {
                         eprintln!("event: {ev:?}");
                     }
-                    if let AppEvent::NowPlaying(s) = &ev
-                        && !s.is_empty()
-                    {
-                        self.last_sessions = Some(s.clone());
-                    }
+                    self.seen.push(ev.clone());
                     if let Some(v) = pick(&ev) {
                         return v;
                     }
@@ -839,6 +1096,14 @@ mod e2e {
             })
             .await
             .expect("timed out waiting for event")
+        }
+
+        /// Like `wait_for`, but also matches events that already arrived (latest first).
+        async fn find_or_wait<T>(&mut self, mut pick: impl FnMut(&AppEvent) -> Option<T>) -> T {
+            if let Some(v) = self.seen.iter().rev().find_map(&mut pick) {
+                return v;
+            }
+            self.wait_for(pick).await
         }
 
         async fn wait_posters(&mut self, n: usize) {
@@ -989,6 +1254,74 @@ mod e2e {
         h.wait_for(|e| matches!(e, AppEvent::Player(Some(_))).then_some(())).await;
         h.send(Command::Stop);
         h.wait_for(|e| matches!(e, AppEvent::Player(None)).then_some(())).await;
+
+        // Library: Recently Added (10.9 route) and search.
+        let recent = h
+            .find_or_wait(|e| match e {
+                AppEvent::RecentlyAdded(SourceKind::Jellyfin, items) if !items.is_empty() => Some(items.clone()),
+                _ => None,
+            })
+            .await;
+        assert_eq!(recent[0].title, "New Film");
+        h.send(Command::Search("film".into()));
+        let (query, found) = h
+            .wait_for(|e| match e {
+                AppEvent::SearchResults { query, items } => Some((query.clone(), items.clone())),
+                _ => None,
+            })
+            .await;
+        assert_eq!((query.as_str(), found.len(), found[0].title.as_str()), ("film", 1, "A Film"));
+        let search = h.server_log().into_iter().rfind(|r| r["path"] == "/Items").unwrap();
+        assert_eq!(search["query"]["includeItemTypes"][0], "Movie,Series,Episode");
+
+        // Calendar address is checked before it's stored.
+        let base = format!("http://127.0.0.1:{}", h.port);
+        for (url, want) in [
+            ("not a url".to_string(), "doesn't look like a web address"),
+            (format!("{base}/missing.ics"), "copy it again"),
+            (format!("{base}/QuickConnect/Connect"), "isn't an iCal feed"),
+        ] {
+            h.send(Command::SetCalendarUrl(url));
+            let r = h
+                .wait_for(|e| match e {
+                    AppEvent::SecretSaved { key: SecretKey::CalendarIcsUrl, result } => Some(result.clone()),
+                    _ => None,
+                })
+                .await;
+            assert!(r.as_ref().is_err_and(|e| e.contains(want)), "{r:?} should mention {want:?}");
+        }
+        // A real feed passes the check (storing may fail here: no keyring in CI).
+        h.send(Command::SetCalendarUrl(format!("{base}/cal.ics")));
+        let r = h
+            .wait_for(|e| match e {
+                AppEvent::SecretSaved { key: SecretKey::CalendarIcsUrl, result } => Some(result.clone()),
+                _ => None,
+            })
+            .await;
+        assert!(r.as_ref().is_ok() || r.as_ref().is_err_and(|e| e.contains("keyring")), "{r:?}");
+
+        // Sign out: rows cleared, account back to "not connected", config forgets the user.
+        h.send(Command::SignOut(SourceKind::Jellyfin));
+        h.wait_for(|e| matches!(e, AppEvent::Server(SourceKind::Jellyfin, None)).then_some(())).await;
+        h.wait_for(|e| matches!(e, AppEvent::ContinueWatching(SourceKind::Jellyfin, v) if v.is_empty()).then_some(()))
+            .await;
+        h.wait_for(|e| matches!(e, AppEvent::Account(SourceKind::Jellyfin, AccountStatus::NotSetUp)).then_some(()))
+            .await;
+        assert_eq!(Config::load_or_create_at(&h.config_path).unwrap().config.jellyfin.user_id, "");
+
+        // Password fallback: wrong, then right.
+        h.send(Command::JellyfinPassword { username: "me".into(), password: "nope".into() });
+        let failed = h
+            .wait_for(|e| match e {
+                AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Failed(m)) => Some(m.clone()),
+                _ => None,
+            })
+            .await;
+        assert_eq!(failed, "wrong username or password");
+        h.send(Command::JellyfinPassword { username: "me".into(), password: "pw".into() });
+        h.wait_for(|e| matches!(e, AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Done)).then_some(())).await;
+        h.wait_for(|e| matches!(e, AppEvent::ContinueWatching(SourceKind::Jellyfin, v) if !v.is_empty()).then_some(()))
+            .await;
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1031,16 +1364,12 @@ mod e2e {
         h.wait_posters(2).await;
 
         // Sessions: the other device only; our own client id is filtered out.
-        let sessions = match h.last_sessions.clone() {
-            Some(s) => s,
-            None => {
-                h.wait_for(|e| match e {
-                    AppEvent::NowPlaying(s) if !s.is_empty() => Some(s.clone()),
-                    _ => None,
-                })
-                .await
-            }
-        };
+        let sessions = h
+            .find_or_wait(|e| match e {
+                AppEvent::NowPlaying(s) if !s.is_empty() => Some(s.clone()),
+                _ => None,
+            })
+            .await;
         assert_eq!(sessions.len(), 1);
         assert_eq!((sessions[0].device.as_str(), sessions[0].state), ("Bedroom TV", PlayState::Paused));
 
@@ -1067,6 +1396,23 @@ mod e2e {
         assert_eq!(stopped["query"]["duration"][0], "3000000");
         assert!(stopped["query"]["time"][0].as_str().unwrap().parse::<u64>().unwrap() > 1_200_000);
 
+        // Library: Recently Added and search (music hubs skipped).
+        let recent = h
+            .find_or_wait(|e| match e {
+                AppEvent::RecentlyAdded(SourceKind::Plex, items) if !items.is_empty() => Some(items.clone()),
+                _ => None,
+            })
+            .await;
+        assert_eq!(recent[0].title, "Fresh Plex Film");
+        h.send(Command::Search("film".into()));
+        let found = h
+            .wait_for(|e| match e {
+                AppEvent::SearchResults { items, .. } => Some(items.clone()),
+                _ => None,
+            })
+            .await;
+        assert_eq!(found.iter().map(|i| i.title.as_str()).collect::<Vec<_>>(), ["Plex Film"]);
+
         let (argv, cmds) = h.mpv_log();
         assert!(argv.contains(&"--start=1200.000".into()));
         assert_eq!(argv.last().unwrap(), &format!("{server_url}/library/parts/9101/file.mkv?X-Plex-Token=ptok"));
@@ -1085,6 +1431,9 @@ mod e2e {
         .await;
         let browser_log = h.dir.join("browser.log");
         let profile = h.dir.join("profile");
+
+        // Nothing connected and setup never finished → first-run setup.
+        h.find_or_wait(|e| matches!(e, AppEvent::ShowSetup).then_some(())).await;
 
         h.send(Command::TvGeometry(Geometry { x: 1920, y: 0, width: 3840, height: 2160 }));
 
@@ -1165,5 +1514,17 @@ mod e2e {
         unsafe {
             std::env::remove_var("FAKE_BROWSER_MODE");
         }
+
+        // Clear browser profile: directory gone, every site back to "not signed in".
+        std::fs::write(profile.join("Cookies"), b"x").unwrap();
+        h.send(Command::ClearBrowserProfile);
+        h.wait_for(|e| matches!(e, AppEvent::Streaming(m) if m.is_empty()).then_some(())).await;
+        assert!(!profile.exists(), "profile deleted");
+        assert!(AppState::load(&h.dir.join("state.toml")).streaming_opened.is_empty());
+
+        // Finishing setup is remembered.
+        h.send(Command::SetupFinished);
+        sleep(Duration::from_millis(200)).await;
+        assert!(AppState::load(&h.dir.join("state.toml")).setup_complete);
     }
 }
