@@ -3,7 +3,8 @@
 Rust + Slint desktop app for a Fedora laptop connected to a TV. The laptop panel shows a
 mouse-driven control dashboard, and the TV (HDMI, the primary display) handles playback only:
 Plex and Jellyfin play through mpv, streaming sites open in a full-screen browser, and a dim
-idle screen shows otherwise. See [docs/running.md](docs/running.md) for day-to-day use (start, stop, update, fixes) and
+idle screen shows otherwise. See [docs/running.md](docs/running.md) for day-to-day use (start, stop, update, fixes),
+[docs/deploying.md](docs/deploying.md) for setting it up on another machine, and
 [docs/v1-plan.md](docs/v1-plan.md) for the V1 plan, and
 [docs/future-plan.md](docs/future-plan.md) for v1.1 onwards ([docs/tv-only-plan.md](docs/tv-only-plan.md) for the single-screen layout).
 

@@ -5,8 +5,8 @@
 #   packaging/install.sh --autostart  also start tvdash at login
 #   packaging/install.sh --uninstall  remove it (config, keyring and browser profile are kept)
 #
-# Run it on the machine that will drive the TV, from the project folder, after
-# `cargo build --release` (inside or outside the dev container).
+# Run it on the machine that will drive the TV: from the project folder after
+# `cargo build --release`, or from an unpacked bundle made by packaging/bundle.sh.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -22,7 +22,13 @@ if [[ "${1:-}" == "--uninstall" ]]; then
     exit 0
 fi
 
-src="$repo/target/release/tvdash"
+# A bundle (packaging/bundle.sh) ships the binary next to this script;
+# in the project folder it's the release build.
+if [[ -x "$here/tvdash" ]]; then
+    src="$here/tvdash"
+else
+    src="$repo/target/release/tvdash"
+fi
 if [[ ! -x "$src" ]]; then
     echo "No release build at $src. Build it first:  cargo build --release" >&2
     exit 1
