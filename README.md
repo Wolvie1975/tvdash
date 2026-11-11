@@ -21,6 +21,8 @@ sudo dnf install fontconfig-devel   # needed to build Slint; Wayland/xkbcommon l
 cargo run --release                 # full screen on the outputs in [display]
 cargo run -- --windowed             # development on a single display
 cargo run -- --check-keyring        # GNOME Keyring round-trip and the list of stored secrets
+cargo run -- --set-secret calendar_ics_url   # paste a secret (read from stdin)
+cargo run -- --clear-secret portainer_api_key
 ```
 
 The first run writes a default config and logs an `available monitor` line for each output.
@@ -32,6 +34,20 @@ To render both windows to PNG without a display (useful in the devcontainer):
 cargo run --example snapshot -- laptop.png laptop
 cargo run --example snapshot -- tv.png tv
 ```
+
+## Header widgets
+
+| Chip | Needs | Refresh |
+|---|---|---|
+| Weather | `latitude` / `longitude` under `[general]` (Open-Meteo, no key) | 10 min |
+| Next event | Google Calendar's *Secret address in iCal format*: `tvdash --set-secret calendar_ics_url` | 5 min |
+| Homelab | `[homelab]` URLs; Portainer token: `tvdash --set-secret portainer_api_key`; an Uptime Kuma status page whose slug is `uptime_kuma_status_page` | 1 min |
+
+Portainer's default certificate is self-signed. If its chip line says unavailable, set
+`portainer_verify_tls = false` under `[homelab]`. The next-event chip re-picks every
+minute, so "Now" and "Tomorrow" stay current between fetches. The TV's idle screen
+shows the same event as "Up next". If Google rejects the address (after a reset in
+Calendar settings), the chip shows **Reconnect**.
 
 ## Streaming browser placement
 
@@ -58,7 +74,8 @@ The end-to-end test in `crates/app/src/controller.rs` runs the real controller
 against `crates/app/tests/fakes/`: fake Jellyfin, fake plex.tv + Plex Media Server,
 a fake mpv that speaks the JSON IPC protocol, and a fake browser. For each server it covers sign-in →
 Continue Watching → posters → play → pause/seek → stop, plus the progress reports the
-server receives (and, for Plex, discovery and session filtering). The streaming test
+server receives (and, for Plex, discovery and session filtering). The widget pollers have their own end-to-end test in `crates/widgets/tests/` (fake
+Open-Meteo, calendar feed, Portainer and Uptime Kuma). The streaming test
 covers site switching, Stop closing the whole process group, the first-visit hint, and
 Chrome handing off to an already-open window.
 
@@ -68,5 +85,5 @@ Chrome handing off to an already-open window.
 - [x] **M2**: Jellyfin Quick Connect, Continue Watching with posters, Resume on TV in mpv, Pause/±seek/Stop, progress sync
 - [x] **M3**: Plex PIN sign-in and server discovery, merged rows with source badges, play/progress sync, active sessions from both servers
 - [x] **M4**: Streaming tiles open each site full screen on the TV in a dedicated profile; Stop/Close closes the whole browser and the TV returns to idle
-- [ ] M5: Header widgets
+- [x] **M5**: Weather (10 min), next calendar event (5 min, recurrences expanded), homelab "N / N up" (1 min); calendar Reconnect state
 - [ ] M6: Setup + polish

@@ -38,6 +38,11 @@ impl SecretKey {
     pub const ALL: [SecretKey; 5] =
         [Self::PlexToken, Self::JellyfinToken, Self::CalendarIcsUrl, Self::PortainerApiKey, Self::UptimeKumaApiKey];
 
+    /// Inverse of [`Self::as_str`].
+    pub fn parse(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|k| k.as_str() == name)
+    }
+
     pub fn as_str(self) -> &'static str {
         match self {
             Self::PlexToken => "plex_token",

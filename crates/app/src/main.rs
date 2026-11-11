@@ -12,7 +12,7 @@ use anyhow::{Context, bail};
 use slint::{CloseRequestResponse, ComponentHandle, ModelRc, SharedString, VecModel};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
-use tvdash_core::{AppEvent, Command, Config, models::SourceKind, secrets};
+use tvdash_core::{AppEvent, Command, Config, SecretKey, models::SourceKind, secrets};
 
 slint::include_modules!();
 
@@ -22,6 +22,11 @@ Usage: tvdash [OPTIONS]
 Options:
   --windowed        Don't go full screen (development on a single display)
   --check-keyring   Test GNOME Keyring read/write, list which secrets are set, and exit
+  --set-secret KEY  Read a value from stdin and store it in the keyring, e.g.
+                    tvdash --set-secret calendar_ics_url
+  --clear-secret KEY  Remove a secret from the keyring
+                    KEY: plex_token, jellyfin_token, calendar_ics_url,
+                         portainer_api_key, uptime_kuma_api_key
   -h, --help        Show this help
 
 Logging: set RUST_LOG (default: info), e.g. RUST_LOG=tvdash=debug";
@@ -30,14 +35,24 @@ Logging: set RUST_LOG (default: info), e.g. RUST_LOG=tvdash=debug";
 struct Args {
     windowed: bool,
     check_keyring: bool,
+    set_secret: Option<SecretKey>,
+    clear_secret: Option<SecretKey>,
+}
+
+fn secret_arg(value: Option<String>) -> anyhow::Result<SecretKey> {
+    let name = value.ok_or_else(|| anyhow::anyhow!("missing KEY\n\n{USAGE}"))?;
+    SecretKey::parse(&name).ok_or_else(|| anyhow::anyhow!("unknown secret {name:?}\n\n{USAGE}"))
 }
 
 fn parse_args() -> anyhow::Result<Args> {
     let mut args = Args::default();
-    for arg in std::env::args().skip(1) {
+    let mut argv = std::env::args().skip(1);
+    while let Some(arg) = argv.next() {
         match arg.as_str() {
             "--windowed" => args.windowed = true,
             "--check-keyring" => args.check_keyring = true,
+            "--set-secret" => args.set_secret = Some(secret_arg(argv.next())?),
+            "--clear-secret" => args.clear_secret = Some(secret_arg(argv.next())?),
             "-h" | "--help" => {
                 println!("{USAGE}");
                 std::process::exit(0);
@@ -59,6 +74,14 @@ fn main() -> anyhow::Result<()> {
     let args = parse_args()?;
     if args.check_keyring {
         return check_keyring();
+    }
+    if let Some(key) = args.set_secret {
+        return set_secret(key);
+    }
+    if let Some(key) = args.clear_secret {
+        secrets::delete(key)?;
+        println!("{} removed from the keyring", key.as_str());
+        return Ok(());
     }
 
     let loaded = Config::load_or_create().context("loading config")?;
@@ -96,6 +119,13 @@ fn main() -> anyhow::Result<()> {
         controller::Controller::new((*config).clone(), loaded.path.clone(), args.windowed, event_tx.clone());
     runtime.spawn(controller.run(cmd_rx, internal_rx));
     wire_callbacks(&laptop, cmd_tx.clone());
+
+    // Header widgets: weather, calendar, homelab (each on its own interval).
+    {
+        let _rt = runtime.enter();
+        let reader: tvdash_widgets::SecretReader = Arc::new(|k| secrets::get(k).ok().flatten());
+        tvdash_widgets::spawn(&config, reader, tvdash_widgets::Endpoints::default(), event_tx.clone());
+    }
 
     // M1 done-check: keyring round-trip, reported in the laptop footer.
     {
@@ -179,6 +209,17 @@ fn wire_callbacks(laptop: &LaptopWindow, cmd_tx: mpsc::UnboundedSender<Command>)
         send(cmd);
     });
 
+    let weak = laptop.as_weak();
+    laptop.on_calendar_action(move || {
+        if let Some(l) = weak.upgrade() {
+            bridge::long_toast(
+                &l,
+                "Paste Google Calendar's secret iCal address with: tvdash --set-secret calendar_ics_url \
+                 (the setup screen arrives in M6)",
+            );
+        }
+    });
+
     laptop.on_open_settings(|| info!("Settings › Accounts arrives in M6"));
     laptop.on_quit(|| {
         let _ = slint::quit_event_loop();
@@ -191,6 +232,26 @@ fn parse_source(s: &str) -> Option<SourceKind> {
         "plex" => Some(SourceKind::Plex),
         _ => None,
     }
+}
+
+fn set_secret(key: SecretKey) -> anyhow::Result<()> {
+    use std::io::{IsTerminal, Read};
+    if std::io::stdin().is_terminal() {
+        eprint!("Paste the value for {} and press Enter: ", key.as_str());
+    }
+    let mut value = String::new();
+    if std::io::stdin().is_terminal() {
+        std::io::stdin().read_line(&mut value)?;
+    } else {
+        std::io::stdin().read_to_string(&mut value)?;
+    }
+    let value = value.trim();
+    if value.is_empty() {
+        bail!("empty value; nothing stored");
+    }
+    secrets::set(key, value).context("storing in the keyring")?;
+    println!("{} stored in the keyring (service \"{}\")", key.as_str(), tvdash_core::APP_NAME);
+    Ok(())
 }
 
 fn check_keyring() -> anyhow::Result<()> {

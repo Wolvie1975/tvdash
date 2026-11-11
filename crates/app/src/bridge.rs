@@ -9,7 +9,7 @@ use tracing::debug;
 use tvdash_core::{
     AppEvent,
     config::ClockFormat,
-    models::{AccountStatus, MediaItem, PlayState, Session, SignInState, SourceKind},
+    models::{AccountStatus, CalendarState, MediaItem, PlayState, Session, SignInState, SourceKind},
 };
 
 use crate::{AccountPrompt, LaptopWindow, PosterCardData, SessionRow, Theme, TvWindow, format};
@@ -35,6 +35,7 @@ pub struct UiState {
     prompts: Rc<VecModel<AccountPrompt>>,
     tv_prompts: Rc<VecModel<AccountPrompt>>,
     sessions: Rc<VecModel<SessionRow>>,
+    calendar: Option<CalendarState>,
     toast_timer: Option<Timer>,
 }
 
@@ -157,10 +158,70 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             sessions.sort_by_key(|x| SOURCES.iter().position(|k| *k == x.source));
             s.sessions.set_vec(sessions.iter().map(session_row).collect::<Vec<_>>());
         }
+        AppEvent::Weather(Some(w)) => {
+            let c = format::weather_chip(&w);
+            laptop.set_weather_text(c.value.into());
+            laptop.set_weather_detail(c.detail.into());
+        }
+        AppEvent::Weather(None) => {
+            laptop.set_weather_text("No location".into());
+            laptop.set_weather_detail("Set latitude/longitude".into());
+        }
+        AppEvent::Calendar(state) => {
+            s.calendar = Some(state);
+            update_calendar(s, laptop, tv);
+        }
+        AppEvent::Homelab(h) => {
+            let c = format::homelab_chip(&h);
+            laptop.set_homelab_text(c.value.into());
+            laptop.set_homelab_detail(c.detail.into());
+            laptop.set_homelab_dot(severity_color(&theme, c.severity));
+        }
         AppEvent::Toast(msg) => show_toast(s, laptop, msg, TOAST_FOR),
         AppEvent::LongToast(msg) => show_toast(s, laptop, msg, LONG_TOAST_FOR),
         other => debug!(event = ?other, "event not handled yet"),
     }
+}
+
+fn severity_color(theme: &Theme, s: format::Severity) -> slint::Color {
+    match s {
+        format::Severity::None => slint::Color::default(), // transparent: no dot
+        format::Severity::Ok => theme.get_ok(),
+        format::Severity::Warn => theme.get_warn(),
+        format::Severity::Alert => theme.get_alert(),
+    }
+}
+
+/// Show a 30 s toast from UI-thread code.
+pub fn long_toast(laptop: &LaptopWindow, msg: &str) {
+    STATE.with_borrow_mut(|s| show_toast(s, laptop, msg.to_owned(), LONG_TOAST_FOR));
+}
+
+/// Re-pick the next event; called on new data and every minute by the clock.
+pub fn on_minute(laptop: &LaptopWindow, tv: &TvWindow) {
+    STATE.with_borrow(|s| update_calendar(s, laptop, tv));
+}
+
+fn update_calendar(s: &UiState, laptop: &LaptopWindow, tv: &TvWindow) {
+    let (value, detail, action, up_next) = match &s.calendar {
+        None => return,
+        Some(CalendarState::NotSetUp) => ("Not set up".into(), String::new(), "Add calendar", String::new()),
+        Some(CalendarState::Revoked) => ("Address stopped working".into(), String::new(), "Reconnect", String::new()),
+        Some(CalendarState::Events(events)) => {
+            let now = chrono::Utc::now();
+            match tvdash_widgets::calendar::next(events, now) {
+                Some(e) => {
+                    let (c, tv_line) = format::event_chip(e, now, s.tz, s.clock.unwrap_or(ClockFormat::H24));
+                    (c.value, c.detail, "", tv_line)
+                }
+                None => ("Nothing today".into(), "or tomorrow".into(), "", String::new()),
+            }
+        }
+    };
+    laptop.set_event_text(value.into());
+    laptop.set_event_detail(detail.into());
+    laptop.set_event_action(action.into());
+    tv.set_up_next(up_next.into());
 }
 
 fn card(item: &MediaItem, poster: Option<&Image>) -> PosterCardData {

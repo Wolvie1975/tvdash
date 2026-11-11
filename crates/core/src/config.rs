@@ -135,6 +135,8 @@ pub struct CalendarConfig {
 pub struct HomelabConfig {
     pub portainer_url: String,
     pub portainer_endpoint_id: u32,
+    /// Portainer ships a self-signed certificate; set false to accept it.
+    pub portainer_verify_tls: bool,
     pub uptime_kuma_url: String,
     pub uptime_kuma_status_page: String,
 }
@@ -240,6 +242,7 @@ impl Default for HomelabConfig {
         Self {
             portainer_url: "https://portainer.local:9443".into(),
             portainer_endpoint_id: 1,
+            portainer_verify_tls: true,
             uptime_kuma_url: "http://uptime.local:3001".into(),
             uptime_kuma_status_page: "homelab".into(),
         }

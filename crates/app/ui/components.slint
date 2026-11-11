@@ -86,10 +86,16 @@ export component ActionButton inherits Rectangle {
 export component StatusChip inherits Rectangle {
     in property <string> label;
     in property <string> value;
+    in property <string> detail;
     in property <color> dot: transparent;
+    // Non-empty shows a button instead of the detail line (e.g. "Reconnect").
+    in property <string> action;
+    callback action-clicked();
 
     background: Theme.surface;
     border-radius: Theme.radius;
+    border-width: root.action != "" ? 1px : 0;
+    border-color: Theme.warn.with-alpha(0.4);
     min-width: 220px;
 
     VerticalLayout {
@@ -98,12 +104,14 @@ export component StatusChip inherits Rectangle {
         SectionLabel { text: root.label; }
         HorizontalLayout {
             spacing: 10px;
-            if root.dot != transparent: Rectangle {
-                width: 12px;
-                height: 12px;
-                y: (parent.height - self.height) / 2;
-                border-radius: 6px;
-                background: root.dot;
+            if root.dot != transparent: VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 6px;
+                    background: root.dot;
+                }
             }
             Text {
                 text: root.value;
@@ -111,6 +119,19 @@ export component StatusChip inherits Rectangle {
                 color: Theme.text-primary;
                 overflow: elide;
                 vertical-alignment: center;
+            }
+        }
+        if root.action == "" && root.detail != "": Text {
+            text: root.detail;
+            font-size: 18px;
+            color: Theme.text-secondary;
+            overflow: elide;
+        }
+        if root.action != "": HorizontalLayout {
+            alignment: start;
+            ActionButton {
+                text: root.action;
+                clicked => { root.action-clicked(); }
             }
         }
     }

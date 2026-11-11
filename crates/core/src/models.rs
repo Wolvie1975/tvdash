@@ -120,22 +120,58 @@ pub enum AccountStatus {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Weather {
     pub temperature: f64,
+    /// WMO weather code (Open-Meteo `weather_code`).
+    pub code: u8,
     pub condition: String,
     pub high: Option<f64>,
     pub low: Option<f64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// One calendar occurrence (recurrences already expanded).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CalendarEvent {
     pub title: String,
     pub start: chrono::DateTime<chrono::Utc>,
+    pub end: chrono::DateTime<chrono::Utc>,
     pub all_day: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CalendarState {
+    /// No secret address in the keyring yet.
+    NotSetUp,
+    /// Google rejected the address (it was reset): the chip shows Reconnect.
+    Revoked,
+    /// Occurrences from today through tomorrow, sorted by start.
+    Events(Vec<CalendarEvent>),
+}
+
+/// Result of polling one homelab source.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Probe<T> {
+    NotConfigured,
+    Failed(String),
+    Ok(T),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MonitorCounts {
+    pub up: u32,
+    pub total: u32,
+    /// Names of monitors that are down.
+    pub down: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContainerCounts {
+    pub running: u32,
+    pub total: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HomelabStatus {
-    pub monitors_up: u32,
-    pub monitors_total: u32,
-    pub containers_running: u32,
-    pub containers_total: u32,
+    /// Uptime Kuma status page.
+    pub monitors: Probe<MonitorCounts>,
+    /// Portainer containers.
+    pub containers: Probe<ContainerCounts>,
 }

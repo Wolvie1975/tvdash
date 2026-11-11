@@ -6,7 +6,7 @@
 //! ```
 
 use crate::models::{
-    AccountStatus, CalendarEvent, Geometry, HomelabStatus, MediaItem, PlayState, RgbaImage, Session, SignInState,
+    AccountStatus, CalendarState, Geometry, HomelabStatus, MediaItem, PlayState, RgbaImage, Session, SignInState,
     SourceKind, Weather,
 };
 
@@ -35,8 +35,9 @@ pub enum AppEvent {
         item_id: String,
         image: RgbaImage,
     },
-    Weather(Weather),
-    NextEvent(Option<CalendarEvent>),
+    /// `None`: no location configured.
+    Weather(Option<Weather>),
+    Calendar(CalendarState),
     Homelab(HomelabStatus),
     /// Local playback changed; `None` means the TV is back to idle.
     Player(Option<PlayerStatus>),

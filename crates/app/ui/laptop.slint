@@ -19,8 +19,12 @@ export component LaptopWindow inherits Window {
     in property <string> clock-mm: "--";
     in property <string> date-text;
     in property <string> weather-text: "—";
+    in property <string> weather-detail;
     in property <string> event-text: "—";
+    in property <string> event-detail;
+    in property <string> event-action; // "Add" / "Reconnect" when the calendar needs attention
     in property <string> homelab-text: "—";
+    in property <string> homelab-detail;
     in property <color> homelab-dot: transparent;
 
     // On the TV
@@ -62,6 +66,7 @@ export component LaptopWindow inherits Window {
     callback play-item(int);
     callback prompt-action(string, string); // (source, "sign-in" | "retry")
     callback cancel-sign-in(string);
+    callback calendar-action();
     callback open-settings();
     callback quit();
 
@@ -96,10 +101,32 @@ export component LaptopWindow inherits Window {
                 HorizontalLayout {
                     spacing: 16px;
                     alignment: end;
-                    height: 112px;
-                    StatusChip { label: "WEATHER"; value: root.weather-text; }
-                    StatusChip { label: "NEXT EVENT"; value: root.event-text; min-width: 300px; }
-                    StatusChip { label: "HOMELAB"; value: root.homelab-text; dot: root.homelab-dot; }
+                    VerticalLayout {
+                        alignment: start;
+                        StatusChip { label: "WEATHER"; value: root.weather-text; detail: root.weather-detail; }
+                    }
+                    VerticalLayout {
+                        alignment: start;
+                        StatusChip {
+                            label: "NEXT EVENT";
+                            value: root.event-text;
+                            detail: root.event-detail;
+                            action: root.event-action;
+                            min-width: 320px;
+                            max-width: 420px;
+                            action-clicked => { root.calendar-action(); }
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: start;
+                        StatusChip {
+                            label: "HOMELAB";
+                            value: root.homelab-text;
+                            detail: root.homelab-detail;
+                            dot: root.homelab-dot;
+                            max-width: 360px;
+                        }
+                    }
                 }
             }
 

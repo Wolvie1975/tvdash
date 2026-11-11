@@ -41,6 +41,22 @@ fn laptop(mode: &str) -> LaptopWindow {
     l.set_streaming_sites(ModelRc::new(VecModel::from(sites)));
     l.set_keyring_status("GNOME Keyring connected".into());
     l.set_keyring_dot(l.global::<Theme>().get_ok());
+    let theme = l.global::<Theme>();
+    l.set_weather_text("48° Light rain".into());
+    l.set_weather_detail("H 55° · L 39°".into());
+    if mode == "laptop" {
+        l.set_event_text("Address stopped working".into());
+        l.set_event_action("Reconnect".into());
+        l.set_homelab_text("5 / 6 up".into());
+        l.set_homelab_detail("Down: NAS".into());
+        l.set_homelab_dot(theme.get_alert());
+    } else {
+        l.set_event_text("14:00 Stand, up (moved)".into());
+        l.set_event_detail("Today".into());
+        l.set_homelab_text("6 / 6 up".into());
+        l.set_homelab_detail("23 / 24 containers".into());
+        l.set_homelab_dot(theme.get_ok());
+    }
     match mode {
         "laptop-code" => {
             l.set_cw_state("code".into());
@@ -119,6 +135,7 @@ fn main() {
         t.set_clock_hh("21".into());
         t.set_clock_mm("04".into());
         t.set_date_text("Wednesday, 11 November".into());
+        t.set_up_next("14:00 Stand, up (moved)".into());
         t.show().unwrap();
         t.window().take_snapshot().unwrap()
     } else {
