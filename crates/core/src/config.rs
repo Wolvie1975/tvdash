@@ -249,7 +249,8 @@ impl Default for HomelabConfig {
 impl Default for BrowserConfig {
     fn default() -> Self {
         Self {
-            binary: "google-chrome".into(),
+            // Any Chromium-based browser with Widevine works (Chrome, Edge, Vivaldi).
+            binary: "brave-browser".into(),
             profile_dir: "~/.local/share/tvdash/browser".into(),
             use_xwayland: true,
             window_position: String::new(),

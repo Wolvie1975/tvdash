@@ -1,7 +1,7 @@
 //! Streaming sites in a dedicated, full-screen browser profile (M4).
 //!
 //! ```text
-//! google-chrome --user-data-dir=$HOME/.local/share/tvdash/browser \
+//! brave-browser --user-data-dir=$HOME/.local/share/tvdash/browser \
 //!   --app=<url> --start-fullscreen --no-first-run
 //! ```
 //!
@@ -13,8 +13,9 @@
 //! the whole group (Chrome saves cookies and sign-ins on SIGTERM), then SIGKILL if
 //! it hasn't exited after a few seconds.
 //!
-//! Fedora's `chromium` lacks Widevine, so streaming sites won't play in it; use
-//! Google Chrome, or Firefox with DRM enabled.
+//! Any Chromium-based browser works if it has Widevine DRM: Brave (enable it when
+//! prompted), Google Chrome, Edge, Vivaldi. Fedora's `chromium` lacks Widevine, so
+//! streaming sites won't play in it. Firefox works with DRM enabled.
 
 use std::{
     path::{Path, PathBuf},
@@ -47,9 +48,14 @@ pub type Result<T> = std::result::Result<T, BrowserError>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BrowserKind {
-    /// Google Chrome / Chromium / anything else Chromium-based.
+    /// Brave, Chrome, Edge, Vivaldi, Chromium: anything Chromium-based.
     Chromium,
     Firefox,
+}
+
+/// Brave ships Widevine switched off and asks before enabling it.
+pub fn is_brave(binary: &str) -> bool {
+    Path::new(binary).file_name().and_then(|n| n.to_str()).unwrap_or(binary).contains("brave")
 }
 
 impl BrowserKind {
@@ -193,7 +199,7 @@ mod tests {
 
     #[test]
     fn chrome_args() {
-        let a = build_args(&opts("/usr/bin/google-chrome"), "https://www.netflix.com");
+        let a = build_args(&opts("/usr/bin/brave-browser"), "https://www.netflix.com");
         for want in [
             "--user-data-dir=/p",
             "--app=https://www.netflix.com",
@@ -212,6 +218,14 @@ mod tests {
         let o = BrowserOptions { use_xwayland: false, geometry: None, fullscreen: false, ..opts("google-chrome") };
         let a = build_args(&o, "u");
         assert!(!a.iter().any(|x| x.contains("ozone") || x.contains("window-") || x.contains("fullscreen")));
+    }
+
+    #[test]
+    fn detects_brave() {
+        assert!(is_brave("/usr/bin/brave-browser"));
+        assert!(is_brave("brave-browser-beta"));
+        assert!(!is_brave("google-chrome"));
+        assert_eq!(BrowserKind::detect("brave-browser"), BrowserKind::Chromium);
     }
 
     #[test]

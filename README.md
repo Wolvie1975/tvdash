@@ -39,7 +39,13 @@ Native Wayland windows can't pick an output, so by default Chrome runs through
 XWayland (`[browser] use_xwayland = true`) with `--window-position` set to the TV's
 position as reported at startup. If it still opens on the laptop, set
 `window_position = "X,Y"` under `[browser]` to the TV's top-left corner in desktop
-coordinates. Use Google Chrome rather than Fedora's `chromium`, which lacks Widevine.
+coordinates.
+
+The default browser is Brave (`binary = "brave-browser"`, from Brave's RPM repo, not
+the Flatpak). Brave ships Widevine DRM switched off: the first time a streaming site
+needs it, Brave asks to enable it, so choose **Enable** in the TV window. That turns it
+on for tvdash's own profile. Other Chromium browsers with Widevine (Chrome, Edge,
+Vivaldi) work too; Fedora's `chromium` doesn't.
 
 ## Tests
 

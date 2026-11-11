@@ -30,7 +30,7 @@ use tvdash_media::{
     plex::{DiscoveredServer, PlexAccount, PlexClient},
 };
 use tvdash_player::{
-    browser::{Browser, BrowserOptions},
+    browser::{Browser, BrowserOptions, is_brave},
     mpv::{Mpv, MpvEvent, MpvOptions},
 };
 
@@ -500,8 +500,13 @@ impl Controller {
         self.emit(AppEvent::Browser(Some(site.name.clone())));
 
         if self.state.mark_opened(&site.name, chrono::Utc::now()) {
+            let widevine = if is_brave(&opts.binary) {
+                " If Brave asks to enable Widevine, choose Enable (once per profile)."
+            } else {
+                ""
+            };
             self.emit(AppEvent::LongToast(format!(
-                "First time on {}: sign in on the TV with this laptop's mouse and keyboard. It stays signed in.",
+                "First time on {}: sign in on the TV with this laptop's mouse and keyboard. It stays signed in.{widevine}",
                 site.name
             )));
         }
