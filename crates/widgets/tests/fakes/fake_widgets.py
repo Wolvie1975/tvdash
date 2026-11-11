@@ -30,6 +30,15 @@ class H(BaseHTTPRequestHandler):
         if p == "/v1/forecast":
             return self._send(200, {"current": {"temperature_2m": 48.4, "weather_code": 61},
                                     "daily": {"temperature_2m_max": [55.1], "temperature_2m_min": [38.6]}})
+        if p == "/v1/search":
+            if q.get("name", [""])[0].lower().startswith("chic"):
+                return self._send(200, {"results": [
+                    {"name": "Chicago", "latitude": 41.85, "longitude": -87.65, "admin1": "Illinois",
+                     "country": "United States", "timezone": "America/Chicago"},
+                    {"name": "Chico", "latitude": 39.73, "longitude": -121.84, "admin1": "California",
+                     "country": "United States", "timezone": "America/Los_Angeles"},
+                ]})
+            return self._send(200, {"generationtime_ms": 0.1})
         self._send(404)
 
 srv = ThreadingHTTPServer(("127.0.0.1", 0), H)

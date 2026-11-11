@@ -393,6 +393,7 @@ mod tests {
             UiConfig {
                 tz: None,
                 clock: ClockFormat::H24,
+                location: String::new(),
                 seconds: false,
                 paths: vec![],
                 units: Units::Fahrenheit,

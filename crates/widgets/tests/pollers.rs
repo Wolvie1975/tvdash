@@ -96,3 +96,17 @@ async fn weather_poller_reports_forecast() {
     w.abort();
     std::fs::remove_dir_all(&fake.dir).ok();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs python3; run with --ignored"]
+async fn geocoding_finds_places() {
+    let fake = start_fake().await;
+    let base = format!("http://127.0.0.1:{}", fake.port);
+    let http = reqwest::Client::new();
+    let found = tvdash_widgets::weather::geocode(&http, &base, "Chicago").await.unwrap();
+    assert_eq!(found[0].label, "Chicago, Illinois, United States");
+    assert_eq!((found[0].latitude, found[0].longitude, found[0].timezone.as_str()), (41.85, -87.65, "America/Chicago"));
+    assert_eq!(found.len(), 2);
+    assert!(tvdash_widgets::weather::geocode(&http, &base, "Nowhere").await.unwrap().is_empty());
+    std::fs::remove_dir_all(&fake.dir).ok();
+}

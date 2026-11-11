@@ -281,6 +281,15 @@ export global Display {
     in-out property <bool> h12: false;
     in-out property <bool> seconds: false;
     callback changed();
+
+    // Weather location.
+    in property <string> location-name;     // "" = not set
+    in-out property <string> place-query;
+    in property <bool> place-searching;
+    in property <string> place-message;     // "No place called …" / errors
+    in property <[string]> places;          // matches to pick from
+    callback find-place(string);
+    callback pick-place(int);
 }
 
 export struct HealthRow {

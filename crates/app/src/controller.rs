@@ -370,6 +370,41 @@ impl Controller {
             Command::JellyfinPassword { username, password } => self.jellyfin_password(username, password),
             Command::ClearBrowserProfile => self.clear_browser_profile().await,
             Command::SetTheme(mode) => self.update_config(|c| c.general.theme = mode),
+            Command::FindPlace(query) => {
+                let events = self.events.clone();
+                tokio::spawn(async move {
+                    let http = reqwest::Client::builder()
+                        .timeout(Duration::from_secs(15))
+                        .user_agent(concat!("tvdash/", env!("CARGO_PKG_VERSION")))
+                        .build()
+                        .expect("HTTP client");
+                    let base = std::env::var("TVDASH_GEOCODING_URL")
+                        .unwrap_or_else(|_| tvdash_widgets::weather::GEOCODING_BASE.into());
+                    let result =
+                        tvdash_widgets::weather::geocode(&http, &base, &query).await.map_err(|e| e.to_string());
+                    let _ = events.send(AppEvent::Places { query, result });
+                });
+            }
+            Command::SetLocation(place) => {
+                let tz = place.timezone.clone();
+                self.update_config(|c| {
+                    c.general.location = place.label.clone();
+                    c.general.latitude = place.latitude;
+                    c.general.longitude = place.longitude;
+                    if !tz.is_empty() {
+                        c.general.timezone = tz.clone();
+                    }
+                });
+                if let Some(tx) = &self.general_tx {
+                    let _ = tx.send(self.config.general.clone());
+                }
+                info!(location = %place.label, "weather location set");
+                self.emit(AppEvent::Location {
+                    name: place.label.clone(),
+                    timezone: self.config.general.timezone.clone(),
+                });
+                self.toast(format!("Weather location: {}", place.label));
+            }
             Command::Home => {
                 self.stop_playback().await;
                 self.close_browser().await;
@@ -1946,5 +1981,33 @@ mod e2e {
             .await;
         assert!(matches!(status, AccountStatus::Unreachable(ref e) if e.contains("didn't accept")), "{status:?}");
         std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "needs python3; run with --ignored"]
+    async fn setting_the_location_saves_it() {
+        let _serial = SERIAL.lock().await;
+        let mut h = Harness::start("fake_jellyfin.py", |c, _| {
+            c.jellyfin.enabled = false;
+            c.plex.enabled = false;
+        })
+        .await;
+        let place = tvdash_core::models::Place {
+            label: "Chicago, Illinois, United States".into(),
+            latitude: 41.85,
+            longitude: -87.65,
+            timezone: "America/Chicago".into(),
+        };
+        h.send(Command::SetLocation(place));
+        let (name, tz) = h
+            .wait_for(|e| match e {
+                AppEvent::Location { name, timezone } => Some((name.clone(), timezone.clone())),
+                _ => None,
+            })
+            .await;
+        assert_eq!((name.as_str(), tz.as_str()), ("Chicago, Illinois, United States", "America/Chicago"));
+        let g = Config::load_or_create_at(&h.config_path).unwrap().config.general;
+        assert_eq!((g.latitude, g.longitude, g.location.as_str()), (41.85, -87.65, "Chicago, Illinois, United States"));
+        assert_eq!(g.timezone, "America/Chicago");
     }
 }

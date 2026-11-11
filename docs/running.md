@@ -62,7 +62,7 @@ tvdash --check-keyring
 
 | Setting | Where | What it does |
 |---|---|---|
-| `latitude`, `longitude` | `[general]` | Location for the weather (off until set) |
+| `location`, `latitude`, `longitude` | `[general]` | The weather location. Easier from Settings › Display › Location (search for your city) |
 | `units`, `clock`, `seconds` | `[general]` | Easier from Settings › Display |
 | `timezone` | `[general]` | e.g. `"America/Chicago"` |
 | `theme` | `[general]` | `"dark"` (default), `"stone"` or `"mist"`; the header switch changes it for you |

@@ -356,6 +356,14 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
             l.global::<Nav>().set_page("settings".into());
             l.global::<Nav>().set_settings_tab("display".into());
             l.global::<Display>().set_seconds(true);
+            let d = l.global::<Display>();
+            d.set_location_name("Chicago, Illinois, United States".into());
+            d.set_place_query("spring".into());
+            d.set_places(model(vec![
+                "Springfield, Illinois, United States".into(),
+                "Springfield, Missouri, United States".into(),
+                "Springfield, Massachusetts, United States".into(),
+            ]));
         }
         "settings-diagnostics" => {
             l.global::<Nav>().set_page("settings".into());

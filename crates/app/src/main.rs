@@ -161,6 +161,7 @@ fn main() -> anyhow::Result<()> {
         bridge::UiConfig {
             tz: config.general.tz(),
             clock: config.general.clock,
+            location: config.general.location.clone(),
             seconds: config.general.seconds,
             paths: [
                 ("Log file", log_path()),

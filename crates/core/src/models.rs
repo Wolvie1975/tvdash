@@ -127,6 +127,17 @@ pub struct Weather {
     pub low: Option<f64>,
 }
 
+/// A place found by name (Settings › Display › Location).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Place {
+    /// "Chicago, Illinois, United States"
+    pub label: String,
+    pub latitude: f64,
+    pub longitude: f64,
+    /// IANA zone, e.g. "America/Chicago" (may be empty).
+    pub timezone: String,
+}
+
 /// Where to watch groups, best first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum WatchTier {

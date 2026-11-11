@@ -85,6 +85,26 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     });
 
     let (weak, s) = (laptop.as_weak(), send.clone());
+    laptop.global::<crate::Display>().on_find_place(move |q| {
+        let Some(l) = weak.upgrade() else { return };
+        let d = l.global::<crate::Display>();
+        if q.trim().is_empty() {
+            return;
+        }
+        d.set_place_query(q.clone());
+        d.set_place_searching(true);
+        d.set_place_message("".into());
+        s(Command::FindPlace(q.trim().to_owned()));
+    });
+
+    let s = send.clone();
+    laptop.global::<crate::Display>().on_pick_place(move |i| {
+        if let Some(place) = bridge::place(i as usize) {
+            s(Command::SetLocation(place));
+        }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
     dash.on_set_theme(move |theme| {
         let mode = bridge::theme_mode(theme);
         if let Some(l) = weak.upgrade() {

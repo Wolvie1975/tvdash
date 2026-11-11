@@ -28,7 +28,7 @@ idle screen shows otherwise. See [docs/running.md](docs/running.md) for day-to-d
 
 4. The first run writes `~/.config/tvdash/config.toml` and logs an `available monitor` line
    for each output. Copy those connector names into `[display]` (`tv_output`,
-   `laptop_output`), and set `latitude` / `longitude` under `[general]` for the weather.
+   `laptop_output`). For the weather, pick your city in Settings › Display › Location.
 5. With nothing connected yet, tvdash opens **first-time setup** on the laptop:
    1. **Plex**: get a code and enter it at plex.tv/link. tvdash finds your server.
    2. **Jellyfin**: check the server address, then use Quick Connect (enable it in the
@@ -116,8 +116,9 @@ Availability data is JustWatch's, via TMDB; the page credits both as TMDB requir
 
 ## Header widgets
 
-Weather comes from Open-Meteo (no key) and refreshes every 10 minutes. Set `latitude` /
-`longitude` under `[general]` to turn it on. Calendar and homelab were removed on
+Weather comes from Open-Meteo (no key) and refreshes every 10 minutes. Turn it on in
+Settings › Display › Location: search for your city and pick it (that also sets the clock's
+time zone). The coordinates are saved as `latitude` / `longitude` under `[general]`. Calendar and homelab were removed on
 2026-11-11 (see the scope change in [docs/v1-plan.md](docs/v1-plan.md)); tvdash deletes
 their old keyring entries on start, and old `[calendar]` / `[homelab]` config sections
 are ignored.

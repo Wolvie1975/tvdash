@@ -315,6 +315,39 @@ component DisplayTab inherits VerticalLayout {
             padding: 28px;
             spacing: 24px;
             SectionLabel { text: "DISPLAY"; }
+            VerticalLayout {
+                spacing: 14px;
+                SettingLine {
+                    title: "Location";
+                    detail: Display.location-name != "" ? Display.location-name + " · for the weather and the clock's time zone"
+                        : "Not set: the weather stays off until you pick a place.";
+                    HorizontalLayout {
+                        spacing: 12px;
+                        width: 560px;
+                        place := TextField {
+                            placeholder: "Search for a city";
+                            text <=> Display.place-query;
+                            accepted(q) => { Display.find-place(q); }
+                        }
+                        ActionButton { text: "Search"; icon: "search"; clicked => { Display.find-place(place.text); } }
+                    }
+                }
+                if Display.place-searching: Text { text: "Looking it up…"; font-size: 18px; color: Theme.text-secondary; horizontal-alignment: right; }
+                if Display.place-message != "": Text { text: Display.place-message; font-size: 18px; color: Theme.warn; horizontal-alignment: right; }
+                if Display.places.length > 0: HorizontalLayout {
+                    alignment: end;
+                    VerticalLayout {
+                        width: 560px;
+                        spacing: 8px;
+                        Text { text: "Pick your place:"; font-size: 17px; color: Theme.text-secondary; }
+                        for p[i] in Display.places: ActionButton {
+                            text: p;
+                            clicked => { Display.pick-place(i); }
+                        }
+                    }
+                }
+            }
+            Rectangle { height: 1px; background: Theme.border; }
             SettingLine {
                 title: "Temperature";
                 detail: "Weather in the header.";

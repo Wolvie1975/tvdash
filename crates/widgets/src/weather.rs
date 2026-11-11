@@ -3,12 +3,16 @@
 use std::time::Duration;
 
 use serde::Deserialize;
-use tvdash_core::{config::Units, models::Weather};
+use tvdash_core::{
+    config::Units,
+    models::{Place, Weather},
+};
 
 use crate::{Result, WidgetError};
 
 pub const REFRESH: Duration = Duration::from_secs(10 * 60);
 pub const DEFAULT_BASE: &str = "https://api.open-meteo.com";
+pub const GEOCODING_BASE: &str = "https://geocoding-api.open-meteo.com";
 
 /// `None` when no location is configured (0, 0 is the default placeholder).
 pub fn location(lat: f64, lon: f64) -> Option<(f64, f64)> {
@@ -52,6 +56,49 @@ pub async fn fetch(
         high: f.daily.temperature_2m_max.first().copied().flatten(),
         low: f.daily.temperature_2m_min.first().copied().flatten(),
     })
+}
+
+/// Places matching a name (Open-Meteo geocoding, no key), best match first.
+pub async fn geocode(http: &reqwest::Client, base: &str, name: &str) -> Result<Vec<Place>> {
+    #[derive(Deserialize)]
+    struct Resp {
+        #[serde(default)]
+        results: Vec<Raw>,
+    }
+    #[derive(Deserialize)]
+    struct Raw {
+        name: String,
+        latitude: f64,
+        longitude: f64,
+        #[serde(default)]
+        admin1: Option<String>,
+        #[serde(default)]
+        country: Option<String>,
+        #[serde(default)]
+        timezone: Option<String>,
+    }
+    let resp = http
+        .get(format!("{}/v1/search", base.trim_end_matches('/')))
+        .query(&[("name", name.trim()), ("count", "8"), ("language", "en"), ("format", "json")])
+        .send()
+        .await?;
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(WidgetError::Status(status.as_u16()));
+    }
+    let r: Resp = resp.json().await?;
+    Ok(r.results
+        .into_iter()
+        .map(|p| {
+            let label = [Some(p.name.clone()), p.admin1, p.country]
+                .into_iter()
+                .flatten()
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+                .join(", ");
+            Place { label, latitude: p.latitude, longitude: p.longitude, timezone: p.timezone.unwrap_or_default() }
+        })
+        .collect())
 }
 
 /// WMO weather interpretation codes, as used by Open-Meteo.

@@ -59,6 +59,15 @@ component WeatherCard inherits Rectangle {
     border-radius: Theme.radius;
     min-width: 380px;
     min-height: 104px;
+    // No location yet: tapping goes to Settings › Display › Location.
+    TouchArea {
+        enabled: !Dash.weather-on;
+        mouse-cursor: Dash.weather-on ? default : pointer;
+        clicked => {
+            Nav.settings-tab = "display";
+            Nav.page = "settings";
+        }
+    }
     // Amber dot when the last fetch failed.
     if Dash.weather-warn: Rectangle {
         x: parent.width - 26px;
@@ -82,12 +91,12 @@ component WeatherCard inherits Rectangle {
             alignment: center;
             spacing: 2px;
             Text {
-                text: Dash.weather-on ? Dash.weather-temp : "No location";
+                text: Dash.weather-on ? Dash.weather-temp : "Weather";
                 font-size: Dash.weather-on ? 34px : 24px;
                 color: Theme.text-primary;
             }
             Text {
-                text: !Dash.weather-on ? "Set latitude and longitude in config.toml"
+                text: !Dash.weather-on ? "Tap to set your location"
                     : Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail;
                 font-size: 18px;
                 color: Dash.weather-warn && Dash.weather-note != "" ? Theme.warn : Theme.text-secondary;

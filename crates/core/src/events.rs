@@ -96,6 +96,16 @@ pub enum AppEvent {
     Streaming(BTreeMap<String, DateTime<Utc>>),
     /// Show the first-run setup (nothing is connected yet).
     ShowSetup,
+    /// Places matching a search (Settings › Display › Location).
+    Places {
+        query: String,
+        result: Result<Vec<crate::models::Place>, String>,
+    },
+    /// The weather location changed (name, and the zone the clocks should use).
+    Location {
+        name: String,
+        timezone: String,
+    },
     /// A service was polled (Settings › Diagnostics): `Ok(note)` or `Err(reason)`.
     Health {
         service: Service,
@@ -192,6 +202,10 @@ pub enum Command {
     /// Close the browser, delete its profile (all streaming sign-ins) and history.
     ClearBrowserProfile,
     SetupFinished,
+    /// Look up places by name for the weather location.
+    FindPlace(String),
+    /// Use this place for the weather (and its time zone for the clocks).
+    SetLocation(crate::models::Place),
     /// Back to Home: stop mpv (progress is saved) or close the browser.
     Home,
     /// Two screens or TV only (saved; used on the next start).

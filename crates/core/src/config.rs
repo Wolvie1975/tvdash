@@ -114,6 +114,8 @@ pub struct GeneralConfig {
     pub seconds: bool,
     /// Laptop theme, switched from the dashboard header.
     pub theme: ThemeMode,
+    /// Name shown for the location, e.g. "Chicago, Illinois, United States".
+    pub location: String,
     pub latitude: f64,
     pub longitude: f64,
     /// IANA zone name, e.g. `America/Chicago`. Empty or invalid → system local time.
@@ -292,6 +294,7 @@ impl Default for GeneralConfig {
             clock: ClockFormat::H24,
             seconds: false,
             theme: ThemeMode::Dark,
+            location: String::new(),
             latitude: 0.0,
             longitude: 0.0,
             timezone: "America/Chicago".into(),

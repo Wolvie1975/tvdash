@@ -38,6 +38,13 @@ pub fn clock_text(now: NaiveDateTime, format: ClockFormat) -> ClockText {
 thread_local! {
     /// (12/24 h, seconds), changeable from Settings › Display.
     static FORMAT: Cell<(ClockFormat, bool)> = const { Cell::new((ClockFormat::H24, false)) };
+    /// Time zone (None = system local), changes with the weather location.
+    static TZ: Cell<Option<chrono_tz::Tz>> = const { Cell::new(None) };
+}
+
+/// Change the time zone the clocks show.
+pub fn set_tz(tz: Option<chrono_tz::Tz>) {
+    TZ.set(tz);
 }
 
 /// Change the clock format; the next tick (≤ 0.5 s) shows it.
@@ -47,14 +54,14 @@ pub fn set_format(format: ClockFormat, seconds: bool) {
 
 /// Start the clock. Keep the returned timer alive for as long as it should tick.
 pub fn start(laptop: &LaptopWindow, tv: &TvWindow, general: &GeneralConfig) -> Timer {
-    let tz = general.tz();
+    set_tz(general.tz());
     set_format(general.clock, general.seconds);
     let laptop = laptop.as_weak();
     let tv = tv.as_weak();
     let mut last: Option<ClockText> = None;
 
     let mut tick = move || {
-        let now = match tz {
+        let now = match TZ.get() {
             Some(tz) => Utc::now().with_timezone(&tz).naive_local(),
             None => Local::now().naive_local(),
         };

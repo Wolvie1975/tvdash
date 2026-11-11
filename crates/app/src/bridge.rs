@@ -52,6 +52,8 @@ pub struct UiState {
     /// Last weather and when it arrived; the last fetch error, if the latest fetch failed.
     weather: Option<(Weather, DateTime<Utc>)>,
     weather_err: Option<String>,
+    /// Last place search results (Settings › Display › Location).
+    places: Vec<tvdash_core::models::Place>,
     /// Settings › Diagnostics: last success and last error per service.
     health: HashMap<Service, Health>,
     /// Service logos (from TMDB) by site name.
@@ -98,6 +100,8 @@ const WEATHER_STALE: chrono::TimeDelta = chrono::TimeDelta::minutes(20);
 /// Settings the UI needs from the config.
 pub struct UiConfig {
     pub tz: Option<chrono_tz::Tz>,
+    /// Weather location name ("" = not set).
+    pub location: String,
     pub clock: ClockFormat,
     pub seconds: bool,
     /// "Log file: …" lines for Settings › Diagnostics.
@@ -132,12 +136,18 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         d.set_celsius(c.units == Units::Celsius);
         d.set_h12(c.clock == ClockFormat::H12);
         d.set_seconds(c.seconds);
+        d.set_location_name(c.location.as_str().into());
         let paths: Vec<slint::SharedString> = c.paths.iter().map(|p| p.as_str().into()).collect();
         laptop.global::<Diagnostics>().set_paths(ModelRc::new(VecModel::from(paths)));
         refresh_diagnostics(s, laptop);
         apply_theme(s, laptop, c.theme);
         refresh_accounts(s, laptop);
     });
+}
+
+/// The place picked from the search results (for SetLocation).
+pub fn place(index: usize) -> Option<tvdash_core::models::Place> {
+    STATE.with_borrow(|s| s.places.get(index).cloned())
 }
 
 /// Settings › Display changed: re-render times and temperatures (the weather
@@ -472,6 +482,38 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::Weather(None) => {
             s.weather = None;
             dash.set_weather_on(false);
+        }
+        AppEvent::Places { query, result } => {
+            let d = laptop.global::<Display>();
+            if d.get_place_query().trim() != query.trim() {
+                return; // an older search
+            }
+            d.set_place_searching(false);
+            let (places, message) = match result {
+                Ok(p) if p.is_empty() => (p, format!("No place called “{}”. Try a city name.", query.trim())),
+                Ok(p) => (p, String::new()),
+                Err(e) => (Vec::new(), format!("Couldn't look it up: {e}")),
+            };
+            let labels: Vec<slint::SharedString> = places.iter().map(|p| p.label.as_str().into()).collect();
+            d.set_places(ModelRc::new(VecModel::from(labels)));
+            d.set_place_message(message.into());
+            s.places = places;
+        }
+        AppEvent::Location { name, timezone } => {
+            let d = laptop.global::<Display>();
+            d.set_location_name(name.into());
+            d.set_places(ModelRc::default());
+            d.set_place_query("".into());
+            s.places.clear();
+            let tz = (!timezone.is_empty()).then(|| timezone.parse().ok()).flatten();
+            if tz.is_some() {
+                s.tz = tz;
+                crate::clock::set_tz(tz);
+            }
+            // The old reading belonged to the old place.
+            s.weather = None;
+            laptop.global::<Dash>().set_weather_on(false);
+            refresh_tv_card(s, laptop);
         }
         AppEvent::Tmdb(status) => {
             let acc = laptop.global::<Accounts>();
@@ -1040,6 +1082,7 @@ mod tests {
             UiConfig {
                 tz: Some(chrono_tz::America::Chicago),
                 clock: ClockFormat::H24,
+                location: String::new(),
                 seconds: false,
                 paths: vec!["Log file: /tmp/tvdash.log".into()],
                 units: Units::Fahrenheit,
@@ -1208,6 +1251,42 @@ mod tests {
         // Display settings: the reading keeps its units until the new fetch arrives.
         set_display(&l, Units::Celsius, ClockFormat::H12, true);
         assert_eq!(dash.get_weather_temp(), "51°F");
+    }
+
+    #[test]
+    fn location_search_pick_and_timezone() {
+        use tvdash_core::models::Place;
+        let (l, t) = windows();
+        let d = l.global::<Display>();
+        let place =
+            |label: &str, tz: &str| Place { label: label.into(), latitude: 1.0, longitude: 2.0, timezone: tz.into() };
+        d.set_place_query("chic".into());
+        // Results for an older query are ignored.
+        send(&l, &t, AppEvent::Places { query: "ch".into(), result: Ok(vec![place("Old", "")]) });
+        assert_eq!(d.get_places().row_count(), 0);
+        send(
+            &l,
+            &t,
+            AppEvent::Places {
+                query: "chic".into(),
+                result: Ok(vec![place("Chicago, Illinois, United States", "America/Chicago"), place("Chico", "")]),
+            },
+        );
+        assert_eq!(d.get_places().row_count(), 2);
+        assert_eq!(super::place(0).unwrap().label, "Chicago, Illinois, United States");
+        send(&l, &t, AppEvent::Places { query: "chic".into(), result: Ok(vec![]) });
+        assert!(d.get_place_message().contains("No place called “chic”"));
+
+        // Picked: name shown, results cleared, clocks follow the place's zone.
+        STATE.with_borrow_mut(|s| s.tz = None);
+        send(
+            &l,
+            &t,
+            AppEvent::Location { name: "Chicago, Illinois, United States".into(), timezone: "America/Chicago".into() },
+        );
+        assert_eq!(d.get_location_name(), "Chicago, Illinois, United States");
+        assert_eq!((d.get_places().row_count(), d.get_place_query().as_str()), (0, ""));
+        assert_eq!(STATE.with_borrow(|s| s.tz), Some(chrono_tz::America::Chicago));
     }
 
     #[test]

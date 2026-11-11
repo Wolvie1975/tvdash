@@ -187,7 +187,7 @@ tv_output = "HDMI-1"
 | Settings › Diagnostics | Green dots for Plex, Jellyfin, GNOME Keyring; Weather once a location is set; TMDB after a search |
 | Play something from Continue Watching | Picture and sound on the TV (no picture → the codec step in §3) |
 | Tap a streaming tile | The site opens full screen on the TV |
-| Weather | Set `latitude` and `longitude` under `[general]` (restart after editing the file) |
+| Weather | Settings › Display › **Location**: search for your city and pick it (or tap the weather card) |
 
 ---
 
