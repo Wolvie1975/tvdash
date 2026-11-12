@@ -144,7 +144,7 @@ minute). A **Movies / TV / Series** switch changes every section:
 | **Big box** (7 cols) | **Finish a season**: seasons with 1–3 episodes left, fewest first, one bar segment per episode | **Continue watching**: movies started, not finished, one bar with the time left |
 | **Added this week** (6 cols, 6 posters) | Shows added, or with an episode added, since Monday 00:00 | Movies added since Monday |
 | **Watch again** (6 cols, 6 posters) | Shows watched all the way through | Movies played more than once |
-| **Genres** | The six biggest, with counts | Same, for movies |
+| **Bottom row** | **Genres**: the six biggest, with counts | **Collections** (see [collections.md](collections.md)); movie genres are chips in Browse all |
 | Header button | Browse all shows | Browse all movies |
 
 | Shelf | Plex fields |
@@ -156,14 +156,24 @@ minute). A **Movies / TV / Series** switch changes every section:
 | Watch again | `viewCount > 1` (movies); `viewedLeafCount == leafCount` (shows) |
 | Genres | `Genre` tags, counted per section |
 
-**Browse all** (also a shelf's count, a genre tile, or a shelf poster): every movie or show,
-or that shelf or genre, newest first, in a poster grid with **Unwatched only**. Picking one
+**Sort** (header, left of Browse all): A–Z, Z–A or Recently added (default), by Plex's sort
+title ("The Long Drive Home" under L). It orders Added this week, Watch again (which show
+titles under their posters) and Browse all, and is remembered per tab in `config.toml`
+(`[library] sort_movies` / `sort_tv`).
+
+**Browse all** (also a shelf's count, a genre tile, or a movie poster on a shelf): every
+movie or show, or that shelf or genre, in the chosen order, with **Unwatched only** and genre
+chips. A show opens its [show page](show-page.md) instead of the detail panel. Picking one
 opens a detail panel: poster, title, year · runtime · genre, watched count or episodes
 watched, description, **Play / Resume on TV** and **Play from the start**.
 
 The whole library (movies, shows, seasons, newest episodes, with TMDB IDs) is read at
 start, after sign-in, every 30 minutes and when the Library opens. Posters are fetched only
 for what's on screen (the first 120 in Browse), six at a time.
+
+## 7b. Show page
+
+See [show-page.md](show-page.md).
 
 ## 8. Screensaver: sentence clock
 

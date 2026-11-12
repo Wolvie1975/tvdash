@@ -36,6 +36,7 @@ next, and the practical details that aren't obvious from the code.
 | TV-only layout, step 1 | Built: side rail, 10-foot screens, arrow/OK/Back navigation, ambient clock, `tvdash --home`, live layout switch |
 | TV-only layout, step 2 (2026-11-12) | Built: Plex video plays inside the tvdash window through libmpv. Falls back to mpv's own window without libmpv or if drawing fails |
 | Cleanup (2026-11-12) | `bridge.rs` split into `bridge/` (home, library, accounts, status); repeated controller code folded |
+| Collections, sort, show page (2026-11-12) | Built on the same branch: Collections row and collection pages ([collections.md](collections.md)); Library Sort menu saved per tab; genre chips in Browse all; show page with tabs / pills / picker and episode list ([show-page.md](show-page.md)) |
 | Dashboard & Library update (2026-11-12) | Built on branch `dashboard-library-update`: Plex only; header on a 1fr 2fr 1fr grid; three equal boxes; ten fixed apps with bundled logos (replaces site management and TMDB logos); search panel (replaces Where to watch); Library smart shelves + Browse all; sentence-clock screensaver with a portal idle inhibitor; 12-hour default. [Details](dashboard-library-update.md) |
 
 Decisions made along the way:
