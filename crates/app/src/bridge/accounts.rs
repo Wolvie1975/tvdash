@@ -1,12 +1,11 @@
-//! Settings › Accounts (Plex, TMDB) and Streaming rows, the site
-//! editor's TMDB lookups, and first-run setup.
+//! Settings › Accounts (Plex, TMDB) and Streaming rows, and first-run setup.
 
 use chrono::{DateTime, Utc};
 use slint::ComponentHandle;
 use tvdash_core::models::{AccountStatus, SignInState, SourceKind};
 
 use super::{STATE, TOAST_FOR, UiState, home, on_setup, show_toast};
-use crate::{AccountRow, Accounts, LaptopWindow, Setup, SiteEditor, SiteRow};
+use crate::{AccountRow, Accounts, LaptopWindow, Setup, SiteRow};
 
 pub(super) fn source_id(kind: SourceKind) -> &'static str {
     match kind {
@@ -56,20 +55,6 @@ pub(super) fn on_tmdb(s: &mut UiState, laptop: &LaptopWindow, status: AccountSta
     }
     s.tmdb = Some(status);
     refresh(s, laptop);
-}
-
-/// TMDB providers found for the site open in the editor.
-pub(super) fn on_provider_matches(laptop: &LaptopWindow, name: &str, ids: &[u32], names: &[String]) {
-    let ed = laptop.global::<SiteEditor>();
-    if ed.get_open() && ed.get_name().trim().eq_ignore_ascii_case(name.trim()) {
-        if ids.is_empty() {
-            ed.set_note(format!("TMDB has no provider called “{name}”. Enter its IDs by hand.").into());
-        } else {
-            let list: Vec<String> = ids.iter().map(u32::to_string).collect();
-            ed.set_providers(list.join(", ").into());
-            ed.set_note(format!("Found: {}", names.join(", ")).into());
-        }
-    }
 }
 
 // ── Rows ────────────────────────────────────────────────────────────
@@ -124,7 +109,7 @@ fn tmdb_row(s: &UiState) -> AccountRow {
     let (replace, remove) = (("Replace token", "edit"), ("Remove", "remove"));
     match &s.tmdb {
         Some(AccountStatus::Connected) => {
-            row("Connected", "Search, where things stream, and service logos".into(), "ok", NONE, replace)
+            row("Connected", "Search and where things stream".into(), "ok", NONE, replace)
         }
         Some(AccountStatus::Expired) => row("TMDB rejected the token", String::new(), "warn", replace, remove),
         Some(AccountStatus::Unreachable(e)) => {
@@ -197,17 +182,13 @@ pub(super) fn refresh(s: &UiState, laptop: &LaptopWindow) {
         .enumerate()
         .map(|(i, site)| {
             let opened = s.streaming.get(&site.name);
-            let (bg, fg) = home::site_colors(s, i);
             SiteRow {
                 index: i as i32,
                 name: site.name.as_str().into(),
                 url: site.url.as_str().into(),
                 status: site_status(opened).into(),
                 opened: opened.is_some(),
-                hidden: site.hidden,
-                monogram: home::monogram(&site.name).into(),
-                bg,
-                fg,
+                logo: home::app_logo(s, i).unwrap_or_default(),
             }
         })
         .collect();

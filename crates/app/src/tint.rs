@@ -99,15 +99,6 @@ pub fn site_hue(name: &str, index: usize) -> f32 {
     SPARE[index % SPARE.len()]
 }
 
-/// (background, foreground) of a streaming tile's monogram.
-pub fn site_colors(hue: f32, mode: ThemeMode) -> (Color, Color) {
-    if mode.is_light() {
-        (hsl(hue, 0.25, 0.8), hsl(hue, 0.6, 0.23))
-    } else {
-        (hsl(hue, 0.35, 0.16), hsl(hue, 0.8, 0.74))
-    }
-}
-
 fn rgb(hex: u32) -> Color {
     Color::from_rgb_u8((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
 }
@@ -209,8 +200,6 @@ mod tests {
                     assert!(contrast(t.on_accent, t.accent) >= 4.5, "button label {ctx}");
                     assert!(contrast(text(mode), t.btn) >= 4.5, "button text {ctx}");
                 }
-                let (bg, fg) = site_colors(deg as f32, mode);
-                assert!(contrast(fg, bg) >= 4.5, "tile {mode:?} {deg}°: {}", contrast(fg, bg));
             }
         }
     }

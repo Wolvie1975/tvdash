@@ -9,7 +9,6 @@ use super::*;
 fn windows() -> (LaptopWindow, TvWindow) {
     i_slint_backend_testing::init_no_event_loop();
     let (l, t) = (LaptopWindow::new().unwrap(), TvWindow::new().unwrap());
-    let sites = vec!["Netflix".to_string(), "Hulu".to_string()];
     init(
         &l,
         UiConfig {
@@ -20,10 +19,7 @@ fn windows() -> (LaptopWindow, TvWindow) {
             paths: vec!["Log file: /tmp/tvdash.log".into()],
             units: Units::Fahrenheit,
             theme: ThemeMode::Dark,
-            sites: sites
-                .into_iter()
-                .map(|name| StreamingSite { url: format!("https://{name}.example"), name, ..Default::default() })
-                .collect(),
+            sites: tvdash_core::config::resolve_apps(&[]),
         },
     );
     (l, t)
@@ -86,8 +82,7 @@ fn tv_card_follows_playback_browser_and_theme() {
     let (l, t) = windows();
     let dash = l.global::<Dash>();
     assert_eq!(dash.get_tv().mode, "idle");
-    assert_eq!(dash.get_streaming_sites().row_count(), 2);
-    assert_eq!(dash.get_streaming_sites().row_data(0).unwrap().monogram, "N");
+    assert_eq!(dash.get_streaming_sites().row_count(), 10);
 
     // Something to resume: the card offers it, tinted from its poster.
     send(&l, &t, AppEvent::ContinueWatching(SourceKind::Plex, vec![item(SourceKind::Plex, "p1", "Plex Film")]));
@@ -116,36 +111,30 @@ fn tv_card_follows_playback_browser_and_theme() {
     send(&l, &t, AppEvent::Player(None));
     send(&l, &t, AppEvent::Browser(Some("Hulu".into())));
     let tv = dash.get_tv();
-    assert_eq!((tv.mode.as_str(), tv.monogram.as_str()), ("streaming", "H"));
+    assert_eq!((tv.mode.as_str(), tv.monogram.as_str(), tv.has_logo), ("streaming", "H", true));
     send(&l, &t, AppEvent::Browser(None));
     assert_eq!(dash.get_tv().mode, "next");
     assert_eq!(t.get_message(), "");
 
     // Theme: laptop switches, tiles and tint follow; the TV stays dark.
-    let dark_tile = dash.get_streaming_sites().row_data(0).unwrap().bg;
+    let dark_tile = dash.get_streaming_sites().row_data(0).unwrap().logo;
     set_theme(&l, ThemeMode::Stone);
     assert_eq!(l.global::<Theme>().get_mode(), UiTheme::Stone);
-    assert_ne!(dash.get_streaming_sites().row_data(0).unwrap().bg, dark_tile);
+    assert_ne!(dash.get_streaming_sites().row_data(0).unwrap().logo, dark_tile, "light-theme logo");
     assert_eq!(t.global::<Theme>().get_mode(), UiTheme::Dark);
 }
 
 #[test]
-fn hidden_sites_leave_the_dashboard_only() {
-    let (l, t) = windows();
-    let site = |name: &str, hidden| StreamingSite {
-        name: name.into(),
-        url: "https://x.example".into(),
-        hidden,
-        ..Default::default()
-    };
-    send(&l, &t, AppEvent::Sites(vec![site("Netflix", false), site("Hulu", true), site("Max", false)]));
+fn ten_fixed_apps_with_logos() {
+    let (l, _t) = windows();
     let tiles = l.global::<Dash>().get_streaming_sites();
-    let got: Vec<(i32, String)> = tiles.iter().map(|t| (t.index, t.name.to_string())).collect();
-    assert_eq!(got, [(0, "Netflix".to_string()), (2, "Max".into())], "tiles keep config positions");
+    let names: Vec<String> = tiles.iter().map(|t| t.name.to_string()).collect();
+    assert_eq!(names, tvdash_core::config::APPS.map(|a| a.name.to_string()));
+    assert!(tiles.iter().all(|t| t.logo.size().width > 0), "every tile has its logo");
+    assert!(tiles.iter().enumerate().all(|(i, t)| t.index == i as i32));
     let rows = l.global::<Accounts>().get_sites();
-    assert_eq!(rows.row_count(), 3);
-    assert!(rows.row_data(1).unwrap().hidden);
-    assert_eq!(sites().len(), 3);
+    assert_eq!(rows.row_count(), 10);
+    assert_eq!(rows.row_data(5).unwrap().url, "https://www.netflix.com");
 }
 
 #[test]
@@ -273,6 +262,6 @@ fn expired_states_and_streaming_sites() {
 
     send(&l, &t, AppEvent::Streaming(BTreeMap::from([("Netflix".to_string(), Utc::now())])));
     let sites = l.global::<Accounts>().get_sites();
-    assert_eq!(sites.row_data(0).unwrap().status, "Set up · opened today");
-    assert_eq!(sites.row_data(1).unwrap().status, "Not signed in yet");
+    assert_eq!(sites.row_data(5).unwrap().status, "Set up · opened today");
+    assert_eq!(sites.row_data(3).unwrap().status, "Not signed in yet");
 }

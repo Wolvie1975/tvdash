@@ -3,14 +3,14 @@
 
 use slint::{ComponentHandle, Image, Model, ModelRc, VecModel};
 use tvdash_core::{
-    config::{ClockFormat, ThemeMode},
+    config::{APPS, ClockFormat, ThemeMode},
     events::PlayerStatus,
     models::{AccountStatus, MediaItem, PlayState, RgbaImage, Session, SignInState, SourceKind},
 };
 
 use super::{SOURCES, UiState, accounts, in_order, to_image};
 use crate::{
-    AccountPrompt, Dash, LaptopWindow, Library, PosterCardData, SessionRow, SiteTileData, TvCard, TvWindow, format,
+    AccountPrompt, Dash, LaptopWindow, Library, PosterCardData, SessionRow, SiteTileData, TvCard, TvWindow, format, logos,
     tint::{self, Hue},
 };
 
@@ -89,14 +89,14 @@ pub(super) fn on_poster(
 
 // ── Streaming tiles ─────────────────────────────────────────────────
 
-/// (background, foreground) of a site's monogram in the current theme.
-pub(super) fn site_colors(s: &UiState, index: usize) -> (slint::Color, slint::Color) {
-    let name = s.sites.get(index).map(|x| x.name.as_str()).unwrap_or_default();
-    tint::site_colors(tint::site_hue(name, index), s.theme)
+/// The bundled logo of app `index` for the current theme.
+pub(super) fn app_logo(s: &UiState, index: usize) -> Option<Image> {
+    let app = APPS.get(index)?;
+    logos::logo(app.id, s.theme == ThemeMode::Dark)
 }
 
-/// First letter of a site name ("Disney+" → "D", "Apple TV+" → "A").
-pub(super) fn monogram(name: &str) -> String {
+/// First letter of a name ("Disney+" → "D"), shown when there's no logo.
+fn monogram(name: &str) -> String {
     name.chars().find(|c| c.is_alphanumeric()).map(|c| c.to_uppercase().collect()).unwrap_or_default()
 }
 
@@ -105,19 +105,10 @@ pub(super) fn refresh_tiles(s: &UiState, laptop: &LaptopWindow) {
         .sites
         .iter()
         .enumerate()
-        .filter(|(_, site)| !site.hidden)
-        .map(|(i, site)| {
-            let (bg, fg) = site_colors(s, i);
-            let logo = s.logos.get(&site.name);
-            SiteTileData {
-                index: i as i32,
-                name: site.name.as_str().into(),
-                monogram: monogram(&site.name).into(),
-                bg,
-                fg,
-                has_logo: logo.is_some(),
-                logo: logo.cloned().unwrap_or_default(),
-            }
+        .map(|(i, site)| SiteTileData {
+            index: i as i32,
+            name: site.name.as_str().into(),
+            logo: app_logo(s, i).unwrap_or_default(),
         })
         .collect();
     laptop.global::<Dash>().set_streaming_sites(ModelRc::new(VecModel::from(tiles)));
@@ -180,12 +171,15 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
     }
     if let Some(site) = &s.browser {
         let index = s.sites.iter().position(|x| x.name == *site).unwrap_or(0);
+        let logo = s.sites.iter().position(|x| x.name == *site).and_then(|i| app_logo(s, i));
         let card = TvCard {
             mode: "streaming".into(),
             source: "Browser".into(),
             title: site.as_str().into(),
             subtitle: "Streaming full screen on the TV. Close the browser to go back to the idle screen.".into(),
             monogram: monogram(site).into(),
+            has_logo: logo.is_some(),
+            logo: logo.unwrap_or_default(),
             ..base
         };
         return (card, Hue { degrees: tint::site_hue(site, index), saturation: 0.7 });

@@ -107,8 +107,6 @@ pub enum AppEvent {
         service: Service,
         result: Result<String, String>,
     },
-    /// The streaming sites changed (all of them, hidden ones too, in tile order).
-    Sites(Vec<crate::config::StreamingSite>),
     /// TMDB token state (Where to watch).
     Tmdb(AccountStatus),
     /// Where to watch results so far (re-sent as availability arrives).
@@ -124,14 +122,6 @@ pub enum AppEvent {
         is_tv: bool,
         image: RgbaImage,
     },
-    /// Service logos for the dashboard tiles: site name → logo.
-    SiteLogos(Vec<(String, RgbaImage)>),
-    /// TMDB providers whose name matches a site name (the editor's Find button).
-    ProviderMatches {
-        name: String,
-        ids: Vec<u32>,
-        names: Vec<String>,
-    },
 }
 
 /// Requests from the UI, handled by background tasks.
@@ -143,25 +133,9 @@ pub enum Command {
     /// Relative seek in seconds (negative = back).
     Seek(i64),
     Stop,
-    /// Open `config.streaming[index]` on the TV.
+    /// Open app `index` (`config.streaming[index]`, same order as `APPS`) on the TV.
     OpenSite(usize),
-    /// Add (`index: None`) or replace a streaming site. Already validated.
-    SaveSite {
-        index: Option<usize>,
-        site: crate::config::StreamingSite,
-    },
-    /// Remove a site; optionally open the browser's cookie settings for its domain.
-    RemoveSite {
-        index: usize,
-        clear_cookies: bool,
-    },
-    /// Move a site to another position (tile order).
-    MoveSite {
-        from: usize,
-        to: usize,
-    },
-    SetSiteHidden(usize, bool),
-    /// Open an address on the TV in the streaming profile (Test on TV, TMDB page).
+    /// Open an address on the TV in the streaming profile (TMDB's page for a title).
     OpenUrl {
         label: String,
         url: String,
@@ -175,8 +149,6 @@ pub enum Command {
     },
     /// Check and store the TMDB read access token; empty removes it.
     SetTmdbToken(String),
-    /// Look up TMDB provider IDs for a site name.
-    FindProviders(String),
     CloseBrowser,
     Search(String),
     /// Start the interactive sign-in for a media server.

@@ -3,8 +3,7 @@ import { HomePage } from "home.slint";
 import { LibraryPage } from "library.slint";
 import { SettingsPage } from "settings.slint";
 import { SetupPage } from "setup.slint";
-import { Dash, Nav, SiteEditor } from "state.slint";
-import { SiteEditorDialog } from "site_editor.slint";
+import { Dash, Nav } from "state.slint";
 import { WatchPage } from "watch.slint";
 import { TvShell } from "tv/shell.slint";
 
@@ -40,8 +39,6 @@ export component LaptopWindow inherits Window {
     }
 
     if Nav.layout == "tv": TvShell { width: root.width; height: root.height; }
-
-    if SiteEditor.open: SiteEditorDialog { width: root.width; height: root.height; }
 
     if Dash.toast != "": Rectangle {
         x: (parent.width - self.width) / 2;

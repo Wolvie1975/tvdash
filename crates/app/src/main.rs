@@ -7,6 +7,7 @@ mod controller;
 mod displays;
 mod format;
 mod instance;
+mod logos;
 mod tint;
 mod tv_nav;
 mod video;

@@ -254,27 +254,6 @@ impl Tmdb {
     }
 }
 
-/// Providers whose name matches a site name: "Disney+" → Disney Plus; "Prime
-/// Video" → Amazon Prime Video and its "with Ads" tier; channel variants too.
-pub fn match_providers<'a>(site_name: &str, providers: &'a [Provider]) -> Vec<&'a Provider> {
-    let norm = |s: &str| {
-        s.to_lowercase()
-            .replace('+', " plus")
-            .chars()
-            .filter(|c| c.is_alphanumeric() || c.is_whitespace())
-            .collect::<String>()
-            .split_whitespace()
-            .filter(|w| !matches!(*w, "the" | "tv" | "amazon" | "channel" | "with" | "ads" | "standard" | "premium"))
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
-    let want = norm(site_name);
-    if want.is_empty() {
-        return Vec::new();
-    }
-    providers.iter().filter(|p| norm(&p.provider_name) == want).collect()
-}
-
 /// TMDB ID and kind of a library item, for matching.
 pub type LibraryKey = (bool, u32);
 
@@ -353,14 +332,8 @@ mod tests {
         Offer { provider_id: id, provider_name: name.into(), logo_path: None }
     }
 
-    fn site(name: &str, ids: &[u32], hidden: bool) -> StreamingSite {
-        StreamingSite {
-            name: name.into(),
-            url: "https://x".into(),
-            tmdb_providers: ids.to_vec(),
-            hidden,
-            ..Default::default()
-        }
+    fn site(name: &str, ids: &[u32]) -> StreamingSite {
+        StreamingSite { name: name.into(), url: "https://x".into(), tmdb_providers: ids.to_vec(), ..Default::default() }
     }
 
     fn hit(id: u32, rank: usize) -> Hit {
@@ -391,8 +364,7 @@ mod tests {
 
     #[test]
     fn hits_name_services_and_keep_relevance_inside_groups() {
-        // Hidden sites still count as yours.
-        let sites = [site("Netflix", &[8], false), site("Hulu", &[15], true)];
+        let sites = [site("Netflix", &[8]), site("Hulu", &[15])];
         let offers = Offers {
             flatrate: vec![offer(15, "Hulu"), offer(1899, "Max")],
             rent: vec![offer(2, "Apple TV")],
@@ -434,25 +406,4 @@ mod tests {
         assert!(watch_hit(&tv, None, &sites, &library).library.is_none());
     }
 
-    #[test]
-    fn provider_names_match_sites() {
-        let p = |id, n: &str| Provider { provider_id: id, provider_name: n.into(), logo_path: None };
-        let list = [
-            p(8, "Netflix"),
-            p(1796, "Netflix Standard with Ads"),
-            p(337, "Disney Plus"),
-            p(9, "Amazon Prime Video"),
-            p(2100, "Amazon Prime Video with Ads"),
-            p(350, "Apple TV Plus"),
-            p(2, "Apple TV"),
-            p(15, "Hulu"),
-        ];
-        let ids = |name| match_providers(name, &list).iter().map(|p| p.provider_id).collect::<Vec<_>>();
-        assert_eq!(ids("Netflix"), [8, 1796]);
-        assert_eq!(ids("Disney+"), [337]);
-        assert_eq!(ids("Prime Video"), [9, 2100]);
-        assert_eq!(ids("Apple TV+"), [350]);
-        assert_eq!(ids("Hulu"), [15]);
-        assert!(ids("").is_empty());
-    }
 }

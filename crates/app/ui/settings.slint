@@ -1,7 +1,7 @@
 import { Theme } from "theme.slint";
 import { Icon } from "icons.slint";
 import { ActionButton, Card, CheckBox, PageHeader, SectionLabel, TextField } from "components.slint";
-import { Accounts, AccountRow, Dash, Diagnostics, Display, HealthRow, Nav, SiteEditor, SiteRow, TvUi } from "state.slint";
+import { Accounts, AccountRow, Dash, Diagnostics, Display, HealthRow, Nav, SiteRow, TvUi } from "state.slint";
 import { Theme as T, UiTheme } from "theme.slint";
 
 component AccountLine inherits VerticalLayout {
@@ -99,32 +99,29 @@ component Tab inherits Rectangle {
     }
 }
 
-component IconAction inherits ActionButton {
-    width: Theme.hit-target;
-}
-
 component StreamingLine inherits HorizontalLayout {
     in property <SiteRow> site;
-    in property <bool> first;
-    in property <bool> last;
-    spacing: 14px;
-    opacity: root.site.hidden ? 0.6 : 1;
+    spacing: 18px;
 
-    VerticalLayout {
-        alignment: center;
-        Rectangle {
-            width: 52px;
-            height: 52px;
-            border-radius: 14px;
-            background: root.site.bg;
-            Text { text: root.site.monogram; font-size: 24px; font-weight: 600; color: root.site.fg; }
+    Rectangle {
+        width: 150px;
+        height: 64px;
+        border-radius: 14px;
+        background: Theme.surface-raised;
+        Image {
+            width: parent.width * 0.78;
+            height: parent.height * 0.62;
+            source: root.site.logo;
+            image-fit: contain;
+            accessible-role: image;
+            accessible-label: root.site.name;
         }
     }
     VerticalLayout {
         alignment: center;
         spacing: 4px;
         horizontal-stretch: 1;
-        Text { text: root.site.name + (root.site.hidden ? " · hidden" : ""); font-size: Theme.body-size; font-weight: 600; color: Theme.text-primary; overflow: elide; }
+        Text { text: root.site.name; font-size: Theme.body-size; font-weight: 600; color: Theme.text-primary; overflow: elide; }
         Text { text: root.site.url; font-size: 16px; color: Theme.text-muted; overflow: elide; }
     }
     Text {
@@ -135,34 +132,6 @@ component StreamingLine inherits HorizontalLayout {
         width: 270px;
     }
     VerticalLayout { alignment: center; ActionButton { text: "Sign in on TV"; clicked => { Accounts.open-site(root.site.index); } } }
-    VerticalLayout { alignment: center; ActionButton { text: "Edit"; icon: "edit"; clicked => { SiteEditor.edit(root.site.index); } } }
-    VerticalLayout {
-        alignment: center;
-        ActionButton {
-            text: root.site.hidden ? "Show" : "Hide";
-            icon: root.site.hidden ? "eye" : "eye-off";
-            width: 124px;
-            clicked => { SiteEditor.set-hidden(root.site.index, !root.site.hidden); }
-        }
-    }
-    VerticalLayout {
-        alignment: center;
-        IconAction {
-            icon: "up";
-            enabled: !root.first;
-            accessible-label: "Move " + root.site.name + " up";
-            clicked => { SiteEditor.move(root.site.index, root.site.index - 1); }
-        }
-    }
-    VerticalLayout {
-        alignment: center;
-        IconAction {
-            icon: "down";
-            enabled: !root.last;
-            accessible-label: "Move " + root.site.name + " down";
-            clicked => { SiteEditor.move(root.site.index, root.site.index + 1); }
-        }
-    }
 }
 
 component AccountsTab inherits VerticalLayout {
@@ -207,12 +176,9 @@ component StreamingTab inherits VerticalLayout {
         VerticalLayout {
             padding: 28px;
             spacing: 18px;
-            HorizontalLayout {
-                SectionLabel { text: "STREAMING SITES · TILE ORDER"; horizontal-stretch: 1; vertical-alignment: center; }
-                ActionButton { text: "Add site"; icon: "plus"; primary: true; clicked => { SiteEditor.add(); } }
-            }
+            SectionLabel { text: "WATCH ON TV · 10 APPS"; }
             Text {
-                text: "Each site opens full screen on the TV in tvdash's own browser profile; sign in there once with this laptop. Hidden sites leave the dashboard but still count as your services in Where to watch.";
+                text: "Each app opens full screen on the TV in tvdash's own browser profile; sign in there once with this laptop. To change an address, edit [[streaming]] in config.toml.";
                 font-size: 18px;
                 color: Theme.text-secondary;
                 wrap: word-wrap;
@@ -220,9 +186,8 @@ component StreamingTab inherits VerticalLayout {
             for site[i] in Accounts.sites: VerticalLayout {
                 spacing: 18px;
                 if i > 0: Rectangle { height: 1px; background: Theme.border; }
-                StreamingLine { site: site; first: i == 0; last: i == Accounts.sites.length - 1; }
+                StreamingLine { site: site; }
             }
-            if Accounts.sites.length == 0: Text { text: "No streaming sites yet. Add one to get a tile on the dashboard."; font-size: Theme.body-size; color: Theme.text-secondary; }
         }
     }
     Card {

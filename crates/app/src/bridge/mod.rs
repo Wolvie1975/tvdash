@@ -55,7 +55,7 @@ pub struct UiState {
     pub clock: Option<ClockFormat>,
     units: Option<Units>,
     theme: ThemeMode,
-    /// Streaming sites in tile order, hidden ones included.
+    /// The ten Watch on TV apps, in tile order (same order as `APPS`).
     sites: Vec<StreamingSite>,
     /// What tvdash is showing on the TV: mpv playback, or the browser's site.
     player: Option<PlayerStatus>,
@@ -74,8 +74,6 @@ pub struct UiState {
     places: Vec<tvdash_core::models::Place>,
     /// Settings › Diagnostics: last success and last error per service.
     health: HashMap<Service, status::Health>,
-    /// Service logos (from TMDB) by site name.
-    logos: HashMap<String, Image>,
     /// Dominant hue of each poster, for tints.
     hues: HashMap<(SourceKind, String), Hue>,
     accounts: HashMap<SourceKind, AccountStatus>,
@@ -156,11 +154,6 @@ pub fn place(index: usize) -> Option<tvdash_core::models::Place> {
     STATE.with_borrow(|s| s.places.get(index).cloned())
 }
 
-/// The sites as the UI knows them (for the editor).
-pub fn sites() -> Vec<StreamingSite> {
-    STATE.with_borrow(|s| s.sites.clone())
-}
-
 /// Settings › Display changed: re-render times and temperatures (the weather
 /// poller fetches again in the new units by itself).
 pub fn set_display(laptop: &LaptopWindow, units: Units, clock: ClockFormat, seconds: bool) {
@@ -210,6 +203,7 @@ fn apply_theme(s: &mut UiState, laptop: &LaptopWindow, mode: ThemeMode) {
     s.theme = mode;
     laptop.global::<Theme>().set_mode(ui_theme(mode));
     home::refresh_tiles(s, laptop);
+    accounts::refresh(s, laptop);
     home::rebuild_rows(s);
     library::rebuild(s, laptop);
     home::refresh_tv_card(s, laptop);
@@ -274,16 +268,6 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::Tmdb(status) => accounts::on_tmdb(s, laptop, status),
         AppEvent::WatchResults { query, hits, error } => crate::watch_ui::on_results(laptop, query, hits, error),
         AppEvent::WatchPoster { tmdb_id, is_tv, image } => crate::watch_ui::on_poster(laptop, tmdb_id, is_tv, image),
-        AppEvent::SiteLogos(logos) => {
-            s.logos = logos.into_iter().map(|(name, img)| (name, to_image(&img))).collect();
-            home::refresh_tiles(s, laptop);
-        }
-        AppEvent::ProviderMatches { name, ids, names } => accounts::on_provider_matches(laptop, &name, &ids, &names),
-        AppEvent::Sites(sites) => {
-            s.sites = sites;
-            home::refresh_tiles(s, laptop);
-            accounts::refresh(s, laptop);
-        }
         AppEvent::Streaming(map) => {
             s.streaming = map;
             accounts::refresh(s, laptop);

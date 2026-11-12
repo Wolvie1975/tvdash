@@ -1,7 +1,7 @@
 // Dev tool: render windows offscreen to PNG (no display needed).
 // Usage: cargo run --example snapshot -- out.png <mode> [height] [width]
 // THEME=stone|mist picks a light theme (default dark).
-// Modes: watch, settings-streaming, site-editor (CONFIRM=1), home, home-playing, home-next, home-code, home-streaming, library, library-search,
+// Modes: watch, settings-streaming, home, home-playing, home-next, home-code, home-streaming, library, library-search,
 //        settings, setup-0, setup-1, tv
 use std::rc::Rc;
 
@@ -14,7 +14,10 @@ slint::include_modules!();
 #[allow(dead_code)]
 mod tint;
 
-use tvdash_core::config::ThemeMode;
+#[path = "../src/logos.rs"]
+mod logos;
+
+use tvdash_core::config::{APPS, ThemeMode};
 
 struct P(Rc<MinimalSoftwareWindow>);
 impl slint::platform::Platform for P {
@@ -101,20 +104,14 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
     dash.set_clock_mm("04".into());
     dash.set_weekday("Wednesday".into());
     dash.set_date_text("November 11".into());
-    let tiles: Vec<SiteTileData> = ["Netflix", "Disney+", "Hulu", "Prime Video", "Apple TV+", "YouTube TV", "Max"]
+    let dark = theme_mode == ThemeMode::Dark;
+    let tiles: Vec<SiteTileData> = APPS
         .iter()
         .enumerate()
-        .map(|(i, n)| {
-            let (bg, fg) = tint::site_colors(tint::site_hue(n, i), theme_mode);
-            SiteTileData {
-                index: i as i32,
-                name: (*n).into(),
-                monogram: n[..1].into(),
-                bg,
-                fg,
-                logo: Image::default(),
-                has_logo: false,
-            }
+        .map(|(i, a)| SiteTileData {
+            index: i as i32,
+            name: a.name.into(),
+            logo: logos::logo(a.id, dark).unwrap_or_default(),
         })
         .collect();
     dash.set_streaming_sites(model(tiles));
@@ -133,32 +130,19 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
         ("No Poster Show", "S1 · E2", 0.1, false, "Plex"),
     ]);
 
+    let opened = ["Set up · opened today", "Not signed in yet", "Set up · opened 3 days ago"];
     let sites_rows = model(
-        [
-            ("Netflix", "Set up · opened today", true),
-            ("Disney+", "Set up · opened 3 days ago", true),
-            ("Hulu", "Not signed in yet", false),
-            ("Prime Video", "Not signed in yet", false),
-            ("Apple TV+", "Not signed in yet", false),
-            ("YouTube TV", "Set up · opened yesterday", true),
-        ]
-        .iter()
-        .enumerate()
-        .map(|(i, (n, s, o))| {
-            let (bg, fg) = tint::site_colors(tint::site_hue(n, i), theme_mode);
-            SiteRow {
+        APPS.iter()
+            .enumerate()
+            .map(|(i, a)| SiteRow {
                 index: i as i32,
-                name: (*n).into(),
-                url: format!("https://www.{}.com", n.to_lowercase().replace([' ', '+'], "")).into(),
-                status: (*s).into(),
-                opened: *o,
-                hidden: i == 4,
-                monogram: n[..1].into(),
-                bg,
-                fg,
-            }
-        })
-        .collect(),
+                name: a.name.into(),
+                url: a.url.into(),
+                status: opened[i % 3].into(),
+                opened: i % 3 != 1,
+                logo: logos::logo(a.id, dark).unwrap_or_default(),
+            })
+            .collect(),
     );
     l.global::<Accounts>().set_sites(sites_rows);
 
@@ -177,6 +161,8 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                 title: "Netflix".into(),
                 subtitle: "Streaming full screen on the TV. Close the browser to go back to the idle screen.".into(),
                 monogram: "N".into(),
+                logo: logos::logo("netflix", dark).unwrap_or_default(),
+                has_logo: true,
                 ..Default::default()
             });
             dash.set_tint(tint::card_tint(tint::Hue { degrees: 338.0, saturation: 0.7 }, theme_mode));
@@ -397,17 +383,6 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
         "settings-streaming" => {
             l.global::<Nav>().set_page("settings".into());
             l.global::<Nav>().set_settings_tab("streaming".into());
-        }
-        "site-editor" => {
-            let ed = l.global::<SiteEditor>();
-            ed.set_index(1);
-            ed.set_name("Disney+".into());
-            ed.set_url("https://www.disneyplus.com".into());
-            ed.set_search("https://www.disneyplus.com/search".into());
-            ed.set_providers("337".into());
-            ed.set_error("Put {title} in the search page where the title goes.".into());
-            ed.set_confirm_remove(std::env::var("CONFIRM").is_ok());
-            ed.set_open(true);
         }
         "settings" => {
             l.global::<Nav>().set_page("settings".into());

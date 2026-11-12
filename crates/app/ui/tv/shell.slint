@@ -217,23 +217,9 @@ component ServiceTile inherits Rectangle {
     background: Theme.surface-raised;
     border-width: 1px;
     border-color: Theme.border;
-    VerticalLayout {
-        alignment: center;
-        spacing: 12px;
-        HorizontalLayout {
-            alignment: center;
-            Rectangle {
-                width: 72px;
-                height: 72px;
-                border-radius: 18px;
-                clip: true;
-                background: root.site.has-logo ? transparent : root.site.bg;
-                if root.site.has-logo: Image { width: parent.width; height: parent.height; source: root.site.logo; image-fit: cover; }
-                if !root.site.has-logo: Text { text: root.site.monogram; font-size: 36px; font-weight: 600; color: root.site.fg; }
-            }
-        }
-        Text { text: root.site.name; font-size: 26px; color: Theme.text-primary; horizontal-alignment: center; overflow: elide; }
-    }
+    accessible-role: button;
+    accessible-label: root.site.name;
+    Image { width: parent.width * 0.78; height: parent.height * 0.6; source: root.site.logo; image-fit: contain; }
     Ring { on: root.focused; corner: 20px; height: parent.height + 20px; width: parent.width + 20px; }
 }
 

@@ -41,18 +41,16 @@ export struct TvCard {
     paused: bool,
     poster: image,
     has-poster: bool,
-    monogram: string,   // shown instead of a poster (streaming site initial)
+    monogram: string,   // shown instead of a poster when there's no logo
+    logo: image,        // the app's logo while it streams
+    has-logo: bool,
 }
 
-// A Watch on TV tile.
+// A Watch on TV tile (one of the ten fixed apps).
 export struct SiteTileData {
-    index: int,         // position in the config (hidden sites included)
+    index: int,         // position in the app list
     name: string,
-    monogram: string,
-    bg: color,
-    fg: color,
-    logo: image,
-    has-logo: bool,
+    logo: image,        // for the current theme
 }
 
 // Control dashboard (home page) + things shared with every page.
@@ -158,15 +156,12 @@ export struct AccountRow {
 }
 
 export struct SiteRow {
-    index: int,         // position in the config
+    index: int,         // position in the app list
     name: string,
     url: string,
     status: string,
     opened: bool,
-    hidden: bool,
-    monogram: string,
-    bg: color,
-    fg: color,
+    logo: image,
 }
 
 export global Accounts {
@@ -198,31 +193,6 @@ export global Setup {
     callback finish();
 }
 
-// Add / edit a streaming site (a dialog over any page).
-export global SiteEditor {
-    in-out property <bool> open;
-    // Config position being edited; -1 = adding a new site.
-    in-out property <int> index: -1;
-    in-out property <string> name;
-    in-out property <string> url;
-    in-out property <string> search;
-    in-out property <string> providers; // "8, 1796"
-    in property <string> error;
-    in-out property <bool> confirm-remove;
-    in-out property <bool> clear-cookies: true;
-    // Result of Find (TMDB provider names that matched).
-    in property <string> note;
-
-    callback add();
-    callback edit(int);
-    callback save();
-    callback test();
-    callback remove();
-    callback move(int, int);        // (from, to)
-    callback set-hidden(int, bool);
-    callback find();                // look up TMDB provider IDs for the name
-}
-
 // A Where to watch result.
 export struct WatchCard {
     key: string,        // "movie:603" | "tv:1399"
@@ -237,7 +207,7 @@ export struct WatchCard {
 export struct WatchAction {
     label: string,
     kind: string,       // "play" | "library" | "open" | "tmdb"
-    site: int,          // config index for "open"
+    site: int,          // app index for "open"
     primary: bool,
 }
 

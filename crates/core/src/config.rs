@@ -184,7 +184,121 @@ pub struct PlayerConfig {
     pub mpv: String,
 }
 
-/// A Watch on TV tile. Array order in the config = tile order.
+/// One of the fixed Watch on TV apps (see [`APPS`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct App {
+    /// File stem of its bundled logo, e.g. `disney-plus` (`assets/logos/disney-plus.svg`).
+    pub id: &'static str,
+    pub name: &'static str,
+    /// Start page, opened full screen on the TV.
+    pub url: &'static str,
+    /// Search page with `{title}` where the title goes (Where to watch), if the service has one.
+    pub search_url: Option<&'static str>,
+    /// TMDB watch-provider IDs this app counts as.
+    pub tmdb_providers: &'static [u32],
+    /// TMDB provider names that also count (matched exactly, ignoring case and punctuation).
+    pub tmdb_names: &'static [&'static str],
+}
+
+/// The Watch on TV apps, in tile order. Fixed: there's no add or remove; only
+/// the addresses can be changed, in `[[streaming]]` in the config.
+pub const APPS: [App; 10] = [
+    App {
+        id: "youtube-tv",
+        name: "YouTube TV",
+        url: "https://tv.youtube.com",
+        search_url: None,
+        tmdb_providers: &[],
+        tmdb_names: &["YouTube TV"],
+    },
+    App {
+        id: "youtube",
+        name: "YouTube",
+        url: "https://www.youtube.com",
+        search_url: Some("https://www.youtube.com/results?search_query={title}"),
+        tmdb_providers: &[192, 188],
+        tmdb_names: &["YouTube", "YouTube Premium"],
+    },
+    App {
+        id: "disney-plus",
+        name: "Disney+",
+        url: "https://www.disneyplus.com",
+        search_url: None,
+        tmdb_providers: &[337],
+        tmdb_names: &["Disney Plus"],
+    },
+    App {
+        id: "hulu",
+        name: "Hulu",
+        url: "https://www.hulu.com",
+        search_url: Some("https://www.hulu.com/search?q={title}"),
+        tmdb_providers: &[15],
+        tmdb_names: &["Hulu"],
+    },
+    App {
+        id: "apple-tv",
+        name: "Apple TV",
+        url: "https://tv.apple.com",
+        search_url: Some("https://tv.apple.com/search?term={title}"),
+        tmdb_providers: &[350],
+        tmdb_names: &["Apple TV Plus"],
+    },
+    App {
+        id: "netflix",
+        name: "Netflix",
+        url: "https://www.netflix.com",
+        search_url: Some("https://www.netflix.com/search?q={title}"),
+        tmdb_providers: &[8, 1796],
+        tmdb_names: &["Netflix", "Netflix Standard with Ads", "Netflix basic with Ads"],
+    },
+    App {
+        id: "fandango-at-home",
+        name: "Fandango at Home",
+        url: "https://athome.fandango.com",
+        search_url: None,
+        tmdb_providers: &[7, 332],
+        tmdb_names: &["Fandango At Home", "Fandango At Home Free", "Vudu", "Vudu Free"],
+    },
+    App {
+        id: "prime-video",
+        name: "Prime Video",
+        url: "https://www.primevideo.com",
+        search_url: Some("https://www.primevideo.com/search/ref=atv_nb_sr?phrase={title}"),
+        tmdb_providers: &[9, 2100],
+        tmdb_names: &["Amazon Prime Video", "Amazon Prime Video with Ads"],
+    },
+    App {
+        id: "crunchyroll",
+        name: "Crunchyroll",
+        url: "https://www.crunchyroll.com",
+        search_url: Some("https://www.crunchyroll.com/search?q={title}"),
+        tmdb_providers: &[283],
+        tmdb_names: &["Crunchyroll"],
+    },
+    App {
+        id: "tubi",
+        name: "Tubi",
+        url: "https://tubitv.com",
+        search_url: Some("https://tubitv.com/search/{title}"),
+        tmdb_providers: &[73],
+        tmdb_names: &["Tubi TV", "Tubi"],
+    },
+];
+
+/// Lower-case letters and digits only: "Disney+" and "disney plus" → "disney…".
+fn name_key(name: &str) -> String {
+    name.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
+}
+
+impl App {
+    /// Does a TMDB provider name count as this app?
+    pub fn has_tmdb_name(&self, provider_name: &str) -> bool {
+        let key = name_key(provider_name);
+        self.tmdb_names.iter().any(|n| name_key(n) == key)
+    }
+}
+
+/// A Watch on TV app as configured: one entry per [`APPS`] item, in the same order.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct StreamingSite {
     pub name: String,
@@ -194,42 +308,12 @@ pub struct StreamingSite {
     /// (used by Where to watch).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub search_url: Option<String>,
-    /// TMDB watch-provider IDs this site counts as (Where to watch).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// TMDB watch-provider IDs this site counts as (from [`APPS`], not the file).
+    #[serde(skip)]
     pub tmdb_providers: Vec<u32>,
-    /// Hidden from the dashboard; still counts as one of your services.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub hidden: bool,
-    /// Tile logo to use instead of TMDB's: a PNG, JPEG or WebP file (`~/` allowed).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub logo: Option<String>,
 }
 
 impl StreamingSite {
-    /// Check a site before saving it. `others` are the other sites (for unique names).
-    pub fn validate(&self, others: &[&StreamingSite]) -> std::result::Result<(), String> {
-        let name = self.name.trim();
-        if name.is_empty() {
-            return Err("Give the tile a name.".into());
-        }
-        if others.iter().any(|o| o.name.trim().eq_ignore_ascii_case(name)) {
-            return Err(format!("There's already a site called {name}."));
-        }
-        let web = |u: &str| u.starts_with("https://") || u.starts_with("http://");
-        if !web(self.url.trim()) {
-            return Err("The start page must be a web address (https://…).".into());
-        }
-        if let Some(search) = self.search_url.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            if !web(search) {
-                return Err("The search page must be a web address (https://…).".into());
-            }
-            if !search.contains("{title}") {
-                return Err("Put {title} in the search page where the title goes.".into());
-            }
-        }
-        Ok(())
-    }
-
     /// Where to open a title: the search page with `{title}` filled in, else the start page.
     pub fn open_url(&self, title: &str) -> String {
         match self.search_url.as_deref() {
@@ -244,6 +328,28 @@ impl StreamingSite {
         let host = rest.split(['/', '?', '#']).next()?;
         (!host.is_empty()).then_some(host)
     }
+}
+
+/// The ten apps with any addresses the config overrides. Entries are matched by
+/// name ("Apple TV+" counts as Apple TV); anything else in the file is dropped.
+pub fn resolve_apps(configured: &[StreamingSite]) -> Vec<StreamingSite> {
+    let web = |u: &str| u.starts_with("https://") || u.starts_with("http://");
+    APPS.iter()
+        .map(|app| {
+            let entry = configured.iter().find(|s| name_key(&s.name) == name_key(app.name));
+            let url = entry.map(|e| e.url.trim()).filter(|u| web(u)).unwrap_or(app.url);
+            let search_url = match entry.and_then(|e| e.search_url.as_deref()).map(str::trim) {
+                Some(u) if web(u) && u.contains("{title}") => Some(u.to_owned()),
+                _ => app.search_url.map(str::to_owned),
+            };
+            StreamingSite {
+                name: app.name.into(),
+                url: url.into(),
+                search_url,
+                tmdb_providers: app.tmdb_providers.to_vec(),
+            }
+        })
+        .collect()
 }
 
 /// Percent-encode everything but unreserved characters (RFC 3986).
@@ -266,7 +372,7 @@ impl Default for Config {
             plex: PlexConfig::default(),
             browser: BrowserConfig::default(),
             player: PlayerConfig::default(),
-            streaming: default_streaming_sites(),
+            streaming: resolve_apps(&[]),
         }
     }
 }
@@ -321,20 +427,6 @@ impl Default for PlayerConfig {
     }
 }
 
-fn default_streaming_sites() -> Vec<StreamingSite> {
-    [
-        ("Netflix", "https://www.netflix.com"),
-        ("Disney+", "https://www.disneyplus.com"),
-        ("Hulu", "https://www.hulu.com"),
-        ("Prime Video", "https://www.primevideo.com"),
-        ("Apple TV+", "https://tv.apple.com"),
-        ("YouTube TV", "https://tv.youtube.com"),
-    ]
-    .into_iter()
-    .map(|(name, url)| StreamingSite { name: name.into(), url: url.into(), ..Default::default() })
-    .collect()
-}
-
 const HEADER: &str = "\
 # tvdash configuration.
 # The Plex and TMDB tokens are kept in GNOME Keyring, not here.
@@ -379,7 +471,10 @@ impl Config {
         };
 
         let ids_added = config.ensure_ids();
-        if created || ids_added {
+        let apps = resolve_apps(&config.streaming);
+        let apps_changed = apps != config.streaming;
+        config.streaming = apps;
+        if created || ids_added || apps_changed {
             config.save_to(path)?;
         }
 
@@ -442,7 +537,7 @@ mod tests {
         assert!(loaded.created);
         assert!(path.exists());
         assert!(!loaded.config.plex.client_id.is_empty());
-        assert_eq!(loaded.config.streaming.len(), 6);
+        assert_eq!(loaded.config.streaming.len(), 10);
 
         // Second load reads the same file and keeps the same IDs.
         let again = Config::load_or_create_at(&path).unwrap();
@@ -475,34 +570,42 @@ mod tests {
     }
 
     #[test]
-    fn streaming_site_fields() {
-        // v1 entries load; new fields stay out of the file until used.
-        let c: Config = toml::from_str("[[streaming]]\nname = \"Hulu\"\nurl = \"https://www.hulu.com\"\n").unwrap();
-        assert_eq!(
-            c.streaming[0],
-            StreamingSite { name: "Hulu".into(), url: "https://www.hulu.com".into(), ..Default::default() }
-        );
-        let text = toml::to_string_pretty(&c).unwrap();
-        assert!(!text.contains("hidden") && !text.contains("tmdb_providers") && !text.contains("search_url"));
+    fn apps_are_fixed_and_only_addresses_change() {
+        // An old file: renamed Apple TV+, a custom Netflix address, a removed site,
+        // and fields that no longer exist.
+        let path = temp_path("apps");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            "[[streaming]]\nname = \"Netflix\"\nurl = \"https://www.netflix.com/browse\"\nhidden = true\n\
+             tmdb_providers = [1]\n\n[[streaming]]\nname = \"Max\"\nurl = \"https://www.max.com\"\n\n\
+             [[streaming]]\nname = \"Apple TV+\"\nurl = \"not a url\"\nlogo = \"~/x.png\"\n",
+        )
+        .unwrap();
+        let c = Config::load_or_create_at(&path).unwrap().config;
+        let names: Vec<&str> = c.streaming.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, APPS.map(|a| a.name));
+        let netflix = &c.streaming[5];
+        assert_eq!(netflix.url, "https://www.netflix.com/browse", "address kept");
+        assert_eq!(netflix.tmdb_providers, [8, 1796], "providers come from the code");
+        assert_eq!(c.streaming[4].url, "https://tv.apple.com", "bad address → default");
+        // Saved back normalised: ten entries, Max gone, no provider IDs in the file.
+        let text = fs::read_to_string(&path).unwrap();
+        assert_eq!(text.matches("[[streaming]]").count(), 10);
+        assert!(!text.contains("Max") && !text.contains("tmdb_providers") && !text.contains("hidden"));
+        fs::remove_dir_all(path.parent().unwrap()).ok();
+    }
 
-        let mut s = c.streaming[0].clone();
-        s.search_url = Some("https://www.hulu.com/search?q={title}".into());
-        s.tmdb_providers = vec![15];
-        s.hidden = true;
-        assert_eq!(s.open_url("Rick & Morty"), "https://www.hulu.com/search?q=Rick%20%26%20Morty");
-        assert_eq!(s.domain(), Some("www.hulu.com"));
-        let back: StreamingSite = toml::from_str(&toml::to_string(&s).unwrap()).unwrap();
-        assert_eq!(back, s);
-
-        let netflix = StreamingSite { name: "netflix".into(), ..s.clone() };
-        assert!(s.validate(&[]).is_ok());
-        assert!(s.validate(&[&netflix]).is_ok());
-        let dup = StreamingSite { name: "HULU".into(), ..s.clone() };
-        assert!(s.validate(&[&dup]).unwrap_err().contains("already"));
-        let bad = StreamingSite { search_url: Some("https://x.com/search".into()), ..s.clone() };
-        assert!(bad.validate(&[]).unwrap_err().contains("{title}"));
-        let bad = StreamingSite { url: "hulu.com".into(), ..s };
-        assert!(bad.validate(&[]).is_err());
+    #[test]
+    fn open_url_and_names() {
+        let hulu = &resolve_apps(&[])[3];
+        assert_eq!(hulu.open_url("Rick & Morty"), "https://www.hulu.com/search?q=Rick%20%26%20Morty");
+        assert_eq!(hulu.domain(), Some("www.hulu.com"));
+        let yt_tv = &resolve_apps(&[])[0];
+        assert_eq!(yt_tv.open_url("x"), "https://tv.youtube.com", "no search page: start page");
+        assert!(APPS[2].has_tmdb_name("Disney Plus"));
+        assert!(APPS[0].has_tmdb_name("YouTube TV") && !APPS[0].has_tmdb_name("YouTube"));
+        assert!(!APPS[4].has_tmdb_name("Apple TV"), "the store isn't the subscription");
     }
 
     #[test]
@@ -510,7 +613,8 @@ mod tests {
         let mut c = Config::default();
         c.ensure_ids();
         let text = toml::to_string_pretty(&c).unwrap();
-        let back: Config = toml::from_str(&text).unwrap();
+        let mut back: Config = toml::from_str(&text).unwrap();
+        back.streaming = resolve_apps(&back.streaming);
         assert_eq!(c, back);
     }
 

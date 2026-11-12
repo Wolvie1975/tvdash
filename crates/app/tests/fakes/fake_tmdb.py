@@ -31,14 +31,14 @@ P = lambda i, n, logo=None: {"provider_id": i, "provider_name": n, "logo_path": 
 OFFERS = {
     "movie/603": {"US": {"link": "https://tmdb.example/603/watch", "flatrate": [P(8, "Netflix")],
                          "rent": [P(2, "Apple TV")]}},
-    "tv/1399": {"US": {"flatrate": [P(1899, "Max")]}},
+    "tv/1399": {"US": {"flatrate": [P(2528, "YouTube TV")]}},
     "movie/604": {"US": {"buy": [P(2, "Apple TV")]}},
     "movie/605": {},
     "movie/606": {"US": {"rent": [P(2, "Apple TV")]}, "GB": {"flatrate": [P(8, "Netflix")]}},
 }
 PROVIDERS = {
     "movie": [P(8, "Netflix", "/netflix.png"), P(1796, "Netflix Standard with Ads", None), P(2, "Apple TV", "/a.png")],
-    "tv": [P(8, "Netflix", "/netflix.png"), P(15, "Hulu", "/hulu.png"), P(1899, "Max", "/max.png")],
+    "tv": [P(8, "Netflix", "/netflix.png"), P(15, "Hulu", "/hulu.png"), P(2528, "YouTube TV", "/ytt.png")],
 }
 
 class H(BaseHTTPRequestHandler):
