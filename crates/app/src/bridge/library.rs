@@ -1,91 +1,462 @@
-//! The Library page: Continue Watching and Recently Added, search, and the detail panel.
+//! The Library: smart shelves (laptop), Browse all with its detail panel, and
+//! the TV layout's Continue Watching / Recently Added rows.
 
-use slint::ComponentHandle;
-use tvdash_core::models::MediaItem;
+use std::cell::RefCell;
+
+use chrono::Utc;
+use slint::{ComponentHandle, ModelRc, VecModel};
+use tokio::sync::mpsc::UnboundedSender;
+use tvdash_core::{
+    Command,
+    models::{AccountStatus, LibraryData, MediaItem, MediaKind, SourceKind},
+};
 
 use super::{STATE, UiState, home::cards_for, in_order};
-use crate::{DetailData, LaptopWindow, Library, format};
+use crate::{
+    Browse, DetailData, GenreTile, LaptopWindow, Library, PickData, ShelfItem, format,
+    shelves::{self, BoxItem, Tab},
+    tint::{self, Hue},
+};
 
-pub(super) fn rebuild(s: &mut UiState, laptop: &LaptopWindow) {
+/// Posters asked for at once for the Browse grid.
+const BROWSE_POSTERS: usize = 120;
+/// Posters on a shelf.
+const SHELF_POSTERS: usize = 6;
+/// Genre tile hues: blue, amber, violet, red, green, teal.
+const GENRE_HUES: [f32; 6] = [215.0, 45.0, 265.0, 355.0, 140.0, 195.0];
+
+thread_local! {
+    /// For poster requests (shelves and the grid only fetch what they show).
+    static COMMANDS: RefCell<Option<UnboundedSender<Command>>> = const { RefCell::new(None) };
+}
+
+pub fn set_commands(tx: UnboundedSender<Command>) {
+    COMMANDS.set(Some(tx));
+}
+
+fn want_posters(items: Vec<MediaItem>) {
+    let items: Vec<MediaItem> = items.into_iter().filter(|i| i.poster.is_some()).collect();
+    if !items.is_empty() {
+        COMMANDS.with_borrow(|tx| {
+            if let Some(tx) = tx {
+                let _ = tx.send(Command::Posters(items));
+            }
+        });
+    }
+}
+
+/// Library state on the UI thread.
+#[derive(Default)]
+pub struct LibraryUi {
+    /// `None` until the library has been read (and after sign-out).
+    pub data: Option<LibraryData>,
+    pub tab: Option<Tab>,
+    /// Tonight's pick per tab (kept until Shuffle or it stops qualifying).
+    pick_tv: Option<String>,
+    pick_movies: Option<String>,
+    pub pick: Option<MediaItem>,
+    pub boxed: Vec<BoxItem>,
+    pub added: Vec<MediaItem>,
+    pub again: Vec<MediaItem>,
+    added_cards: std::rc::Rc<VecModel<crate::PosterCardData>>,
+    again_cards: std::rc::Rc<VecModel<crate::PosterCardData>>,
+    // Browse all
+    filter: String,
+    pub browse: Vec<MediaItem>,
+    browse_cards: std::rc::Rc<VecModel<crate::PosterCardData>>,
+}
+
+pub(super) fn init(s: &UiState, laptop: &LaptopWindow) {
     let lib = laptop.global::<Library>();
+    lib.set_continue_watching(ModelRc::from(s.lib_continue_cards.clone()));
+    lib.set_recently_added(ModelRc::from(s.lib_recent_cards.clone()));
+    lib.set_added(ModelRc::from(s.lib.added_cards.clone()));
+    lib.set_again(ModelRc::from(s.lib.again_cards.clone()));
+    laptop.global::<Browse>().set_cards(ModelRc::from(s.lib.browse_cards.clone()));
+}
+
+fn tab(s: &UiState) -> Tab {
+    s.lib.tab.unwrap_or(Tab::Tv)
+}
+
+/// Everything that depends on Continue Watching, Recently Added or the theme.
+pub(super) fn rebuild(s: &mut UiState, laptop: &LaptopWindow) {
     s.lib_continue = in_order(&s.continue_watching);
     s.lib_recent = in_order(&s.recently_added);
-    s.lib_results = s.search.as_ref().map(|(_, i)| i.clone()).unwrap_or_default();
     s.lib_continue_cards.set_vec(cards_for(s, &s.lib_continue));
     s.lib_recent_cards.set_vec(cards_for(s, &s.lib_recent));
-    s.lib_result_cards.set_vec(cards_for(s, &s.lib_results));
-    lib.set_results_title(match &s.search {
-        Some((q, _)) => format!("RESULTS FOR “{}”", q.to_uppercase()).into(),
-        None => "".into(),
-    });
-    // Selection indexes are stale after a rebuild.
-    lib.set_selected_index(-1);
+    laptop.global::<Library>().set_state(state(s).into());
+    show_shelves(s, laptop);
+    s.lib.browse_cards.set_vec(cards_for(s, &s.lib.browse));
 }
 
-pub(super) fn on_results(s: &mut UiState, laptop: &LaptopWindow, query: String, items: Vec<MediaItem>) {
-    // Ignore results for a query the user has since changed.
-    if s.search.as_ref().is_some_and(|(q, _)| *q == query) {
-        s.search = Some((query, items));
-        laptop.global::<Library>().set_searching(false);
-        rebuild(s, laptop);
+pub(super) fn state(s: &UiState) -> &'static str {
+    match (&s.lib.data, s.accounts.get(&SourceKind::Plex)) {
+        (Some(_), _) => "ready",
+        (None, Some(AccountStatus::NotSetUp)) => "signin",
+        _ => "loading",
     }
 }
 
-/// Returns false for an empty query (nothing to send).
-pub fn start_search(laptop: &LaptopWindow, query: &str) -> bool {
-    let q = query.trim();
-    if q.is_empty() {
-        return false;
+/// The library was read (or emptied by a sign-out).
+pub(super) fn on_library(s: &mut UiState, laptop: &LaptopWindow, data: LibraryData) {
+    let empty = data == LibraryData::default();
+    s.lib.data = (!empty || s.accounts.get(&SourceKind::Plex) == Some(&AccountStatus::Connected)).then_some(data);
+    work_out_shelves(s, laptop);
+    if !s.lib.filter.is_empty() {
+        refilter(s, laptop);
     }
-    STATE.with_borrow_mut(|s| {
-        s.search = Some((q.to_owned(), Vec::new()));
-        laptop.global::<Library>().set_searching(true);
-        rebuild(s, laptop);
-    });
-    true
 }
 
-pub fn clear_search(laptop: &LaptopWindow) {
-    STATE.with_borrow_mut(|s| {
-        s.search = None;
-        laptop.global::<Library>().set_searching(false);
-        rebuild(s, laptop);
-    });
+/// Work the shelves out for the current tab, keep or choose Tonight's pick, and show them.
+fn work_out_shelves(s: &mut UiState, laptop: &LaptopWindow) {
+    laptop.global::<Library>().set_state(state(s).into());
+    let Some(data) = s.lib.data.as_ref() else { return };
+    let tab = tab(s);
+    let since = shelves::week_start(s.tz, Utc::now());
+    let candidates = shelves::pick_candidates(data, tab);
+    let kept = match tab {
+        Tab::Tv => &s.lib.pick_tv,
+        Tab::Movies => &s.lib.pick_movies,
+    };
+    let pick = kept
+        .as_ref()
+        .and_then(|id| candidates.iter().find(|c| c.id == *id))
+        .or_else(|| candidates.get(shelves::random(candidates.len())))
+        .map(|m| (*m).clone());
+    let id = pick.as_ref().map(|p| p.id.clone());
+    match tab {
+        Tab::Tv => s.lib.pick_tv = id,
+        Tab::Movies => s.lib.pick_movies = id,
+    }
+    s.lib.pick = pick;
+    s.lib.boxed = match tab {
+        Tab::Tv => shelves::finish_a_season(data),
+        Tab::Movies => shelves::movies_in_progress(data),
+    };
+    s.lib.added = shelves::added_since(data, tab, since);
+    s.lib.again = shelves::watch_again(data, tab);
+    let genres = shelves::genres(data, tab);
+
+    let lib = laptop.global::<Library>();
+    let (title, rule, empty) = match tab {
+        Tab::Tv => ("FINISH A SEASON", "Shows with 3 or fewer episodes left", "No season is close to done."),
+        Tab::Movies => ("CONTINUE WATCHING", "Movies you started and didn't finish", "No movies in progress."),
+    };
+    lib.set_box_title(title.into());
+    lib.set_box_rule(rule.into());
+    lib.set_box_empty(empty.into());
+    lib.set_added_rule(
+        match tab {
+            Tab::Tv => "New shows and new episodes since Monday",
+            Tab::Movies => "New movies in your Plex library since Monday",
+        }
+        .into(),
+    );
+    lib.set_again_rule(
+        match tab {
+            Tab::Tv => "Shows you've watched all the way through",
+            Tab::Movies => "Movies you've played more than once",
+        }
+        .into(),
+    );
+    lib.set_added_count(s.lib.added.len() as i32);
+    lib.set_again_count(s.lib.again.len() as i32);
+    let tiles: Vec<GenreTile> = genres
+        .iter()
+        .zip(GENRE_HUES)
+        .map(|((name, n), deg)| {
+            let t = tint::card_tint(Hue { degrees: deg, saturation: 0.6 }, s.theme);
+            GenreTile { name: name.as_str().into(), count: n.to_string().into(), bg: t.card, edge: t.edge, sec: t.sec }
+        })
+        .collect();
+    lib.set_genres(ModelRc::new(VecModel::from(tiles)));
+
+    let mut wanted: Vec<MediaItem> = s.lib.pick.iter().cloned().collect();
+    wanted.extend(s.lib.boxed.iter().map(|b| b.item.clone()));
+    wanted.extend(s.lib.added.iter().take(SHELF_POSTERS).cloned());
+    wanted.extend(s.lib.again.iter().take(SHELF_POSTERS).cloned());
+    want_posters(wanted);
+    show_shelves(s, laptop);
 }
 
-/// Open the detail panel for a library card.
-pub fn select(laptop: &LaptopWindow, section: &str, index: usize) {
-    STATE.with_borrow_mut(|s| {
-        let list = match section {
-            "continue" => &s.lib_continue,
-            "recent" => &s.lib_recent,
-            _ => &s.lib_results,
+/// Fill the shelf models from the worked-out lists (posters and theme colours too).
+fn show_shelves(s: &UiState, laptop: &LaptopWindow) {
+    let lib = laptop.global::<Library>();
+    let hue_of = |i: &MediaItem| s.hues.get(&(i.source, i.id.clone())).copied().unwrap_or(tint::DEFAULT);
+    let poster_of = |i: &MediaItem| s.posters.get(&(i.source, i.id.clone())).cloned();
+
+    lib.set_has_pick(s.lib.pick.is_some());
+    let pick_hue = s.lib.pick.as_ref().map(hue_of).unwrap_or(tint::DEFAULT);
+    lib.set_pick_tint(tint::card_tint(pick_hue, s.theme));
+    if let Some(p) = &s.lib.pick {
+        let poster = poster_of(p);
+        let (meta, why, action) = match p.kind {
+            MediaKind::Series => {
+                let n = p.leaf_count.unwrap_or(0);
+                (
+                    format!("Unwatched series · {n} episode{} · Plex", if n == 1 { "" } else { "s" }),
+                    "A show you haven't started yet.".to_owned(),
+                    "Start S1 · E1 on TV",
+                )
+            }
+            _ => {
+                let mut m = vec!["Unwatched · Movie".to_owned()];
+                m.extend(p.duration_ms.map(format::length));
+                m.push("Plex".into());
+                (m.join(" · "), "Picked at random from movies you haven't watched.".to_owned(), "Play on TV")
+            }
         };
-        let Some(item) = list.get(index).cloned() else { return };
-        let poster = s.posters.get(&(item.source, item.id.clone())).cloned();
-        let lib = laptop.global::<Library>();
-        lib.set_detail(DetailData {
-            title: item.title.as_str().into(),
-            subtitle: format::item_detail(&item).into(),
-            badge: item.source.label().to_uppercase().into(),
-            meta: format::item_meta(&item).into(),
+        lib.set_pick(PickData {
+            title: p.title.as_str().into(),
+            meta: meta.into(),
+            why: why.into(),
+            action: action.into(),
             has_poster: poster.is_some(),
             poster: poster.unwrap_or_default(),
-            progress: item.progress().unwrap_or(0.0),
-            can_resume: item.resume_ms.is_some(),
         });
-        lib.set_detail_open(true);
-        s.selected = Some(item);
+    }
+
+    let boxed: Vec<ShelfItem> = s
+        .lib
+        .boxed
+        .iter()
+        .map(|b| {
+            let t = tint::card_tint(hue_of(&b.item), s.theme);
+            let poster = poster_of(&b.item);
+            ShelfItem {
+                title: b.item.title.as_str().into(),
+                line: b.left.as_str().into(),
+                has_poster: poster.is_some(),
+                poster: poster.unwrap_or_default(),
+                card: t.card,
+                art: t.poster,
+                accent: t.accent,
+                sec: t.sec,
+                segments: b.segments as i32,
+                done: b.done as i32,
+                progress: b.progress,
+            }
+        })
+        .collect();
+    lib.set_box_items(ModelRc::new(VecModel::from(boxed)));
+    s.lib.added_cards.set_vec(cards_for(s, &s.lib.added[..s.lib.added.len().min(SHELF_POSTERS)]));
+    s.lib.again_cards.set_vec(cards_for(s, &s.lib.again[..s.lib.again.len().min(SHELF_POSTERS)]));
+}
+
+/// A poster arrived: show it wherever the Library uses that item.
+pub(super) fn on_poster(s: &UiState, laptop: &LaptopWindow, key: &(SourceKind, String)) {
+    let is = |i: &MediaItem| i.source == key.0 && i.id == key.1;
+    let on_shelves = s.lib.pick.as_ref().is_some_and(is)
+        || s.lib.boxed.iter().any(|b| is(&b.item))
+        || s.lib.added.iter().take(SHELF_POSTERS).any(is)
+        || s.lib.again.iter().take(SHELF_POSTERS).any(is);
+    if on_shelves {
+        show_shelves(s, laptop);
+    }
+    if let Some(i) = s.lib.browse.iter().position(is) {
+        if let Some(card) = cards_for(s, &s.lib.browse[i..=i]).pop() {
+            use slint::Model;
+            s.lib.browse_cards.set_row_data(i, card);
+        }
+        let b = laptop.global::<Browse>();
+        if b.get_detail_open() && b.get_selected() == i as i32 {
+            b.set_detail(detail(s, &s.lib.browse[i]));
+        }
+    }
+}
+
+// ── Actions ─────────────────────────────────────────────────────────
+
+pub fn set_tab(laptop: &LaptopWindow, name: &str) {
+    laptop.global::<Library>().set_tab(name.into());
+    STATE.with_borrow_mut(|s| {
+        s.lib.tab = Some(Tab::parse(name));
+        work_out_shelves(s, laptop);
     });
 }
 
+pub fn shuffle(laptop: &LaptopWindow) {
+    STATE.with_borrow_mut(|s| {
+        let Some(data) = s.lib.data.as_ref() else { return };
+        let tab = tab(s);
+        let current = s.lib.pick.as_ref().map(|p| p.id.clone());
+        let others: Vec<String> = shelves::pick_candidates(data, tab)
+            .into_iter()
+            .filter(|c| Some(&c.id) != current.as_ref())
+            .map(|c| c.id.clone())
+            .collect();
+        if others.is_empty() {
+            return;
+        }
+        let id = Some(others[shelves::random(others.len())].clone());
+        match tab {
+            Tab::Tv => s.lib.pick_tv = id,
+            Tab::Movies => s.lib.pick_movies = id,
+        }
+        work_out_shelves(s, laptop);
+    });
+}
+
+/// What playing a library item means: a movie or episode plays; a show plays
+/// its episode in progress, else its next one.
+pub fn play_command(item: &MediaItem) -> Command {
+    match item.kind {
+        MediaKind::Series => match crate::watch_ui::resume_for_show(&item.id) {
+            Some(ep) => Command::Play(ep),
+            None => Command::PlayShow(item.clone()),
+        },
+        _ => Command::Play(item.clone()),
+    }
+}
+
+pub fn pick() -> Option<MediaItem> {
+    STATE.with_borrow(|s| s.lib.pick.clone())
+}
+
+pub fn box_item(index: usize) -> Option<MediaItem> {
+    STATE.with_borrow(|s| s.lib.boxed.get(index).map(|b| b.item.clone()))
+}
+
+/// Open Browse all on `filter` ("all", "added", "again", "genre:<name>").
+pub fn browse(laptop: &LaptopWindow, filter: &str) {
+    STATE.with_borrow_mut(|s| {
+        s.lib.filter = filter.to_owned();
+        let b = laptop.global::<Browse>();
+        b.set_unwatched_only(false);
+        b.set_detail_open(false);
+        b.set_selected(-1);
+        refilter(s, laptop);
+    });
+    laptop.global::<crate::Nav>().set_page("browse".into());
+}
+
+/// A shelf poster: Browse that shelf with it selected.
+pub fn open_item(laptop: &LaptopWindow, shelf: &str, index: usize) {
+    let id = STATE.with_borrow(|s| match shelf {
+        "added" => s.lib.added.get(index).map(|i| i.id.clone()),
+        _ => s.lib.again.get(index).map(|i| i.id.clone()),
+    });
+    browse(laptop, shelf);
+    STATE.with_borrow_mut(|s| {
+        if let Some(i) = id.and_then(|id| s.lib.browse.iter().position(|x| x.id == id)) {
+            browse_select(s, laptop, i);
+        }
+    });
+}
+
+pub fn set_unwatched(laptop: &LaptopWindow, on: bool) {
+    laptop.global::<Browse>().set_unwatched_only(on);
+    STATE.with_borrow_mut(|s| refilter(s, laptop));
+}
+
+fn refilter(s: &mut UiState, laptop: &LaptopWindow) {
+    let b = laptop.global::<Browse>();
+    let tab = tab(s);
+    let since = shelves::week_start(s.tz, Utc::now());
+    s.lib.browse = s
+        .lib
+        .data
+        .as_ref()
+        .map(|d| shelves::browse(d, tab, &s.lib.filter, since, b.get_unwatched_only()))
+        .unwrap_or_default();
+    let what = if tab == Tab::Movies { "movies" } else { "shows" };
+    let title = match s.lib.filter.as_str() {
+        "added" => "Added this week".to_owned(),
+        "again" => "Watch again".to_owned(),
+        f => match f.strip_prefix("genre:") {
+            Some(g) => format!("{g} · {what}"),
+            None => format!("All {what}"),
+        },
+    };
+    b.set_title(title.into());
+    let n = s.lib.browse.len();
+    b.set_count_text(format!("{n} title{}", if n == 1 { "" } else { "s" }).into());
+    s.lib.browse_cards.set_vec(cards_for(s, &s.lib.browse));
+    b.set_detail_open(false);
+    b.set_selected(-1);
+    want_posters(s.lib.browse.iter().take(BROWSE_POSTERS).cloned().collect());
+}
+
+pub fn select(laptop: &LaptopWindow, index: usize) {
+    STATE.with_borrow_mut(|s| browse_select(s, laptop, index));
+}
+
+fn browse_select(s: &mut UiState, laptop: &LaptopWindow, index: usize) {
+    let Some(item) = s.lib.browse.get(index).cloned() else { return };
+    let b = laptop.global::<Browse>();
+    b.set_detail(detail(s, &item));
+    b.set_selected(index as i32);
+    b.set_detail_open(true);
+    want_posters(vec![item.clone()]);
+    s.selected = Some(item);
+}
+
+fn detail(s: &UiState, item: &MediaItem) -> DetailData {
+    let poster = s.posters.get(&(item.source, item.id.clone())).cloned();
+    let mut meta = vec![if item.kind == MediaKind::Series { "TV series" } else { "Movie" }.to_owned()];
+    meta.extend(item.year.map(|y| y.to_string()));
+    if item.kind != MediaKind::Series {
+        meta.extend(item.duration_ms.filter(|&d| d > 0).map(format::length));
+    }
+    meta.extend(item.genres.first().cloned());
+    let (extra, action, can_resume) = match item.kind {
+        MediaKind::Series => {
+            let (all, seen) = (item.leaf_count.unwrap_or(0), item.viewed_leaf_count.unwrap_or(0));
+            let resume = crate::watch_ui::resume_for_show(&item.id);
+            let action = match &resume {
+                Some(ep) => format!("Resume {} on TV", ep.episode_label.clone().unwrap_or_default()),
+                None if seen == 0 => "Start S1 · E1 on TV".into(),
+                None => "Play next episode on TV".into(),
+            };
+            (format!("{seen} of {all} episodes watched"), action, false)
+        }
+        _ => {
+            let extra = match item.view_count {
+                0 => String::new(),
+                1 => "Watched once".into(),
+                n => format!("Watched {n} times"),
+            };
+            let action = if item.resume_ms.is_some() { "Resume on TV" } else { "Play on TV" };
+            (extra, action.into(), item.resume_ms.is_some())
+        }
+    };
+    DetailData {
+        title: item.title.as_str().into(),
+        subtitle: format::time_left(item).unwrap_or_default().into(),
+        badge: item.source.label().to_uppercase().into(),
+        meta: meta.join(" · ").into(),
+        extra: extra.into(),
+        overview: item.summary.clone().unwrap_or_default().into(),
+        action: action.into(),
+        has_poster: poster.is_some(),
+        poster: poster.unwrap_or_default(),
+        progress: item.progress().unwrap_or(0.0),
+        can_resume,
+    }
+}
+
+/// TV layout: a Continue Watching or Recently Added card.
+pub fn select_row(section: &str, index: usize) {
+    STATE.with_borrow_mut(|s| {
+        let list = if section == "continue" { &s.lib_continue } else { &s.lib_recent };
+        s.selected = list.get(index).cloned();
+    });
+}
+
+/// The item picked in Browse (or the TV layout).
 pub fn selected() -> Option<MediaItem> {
     STATE.with_borrow(|s| s.selected.clone())
 }
 
-pub fn close_detail(laptop: &LaptopWindow) {
-    STATE.with_borrow_mut(|s| s.selected = None);
-    let lib = laptop.global::<Library>();
-    lib.set_detail_open(false);
-    lib.set_selected_index(-1);
+/// Items on the Library's shelves (for tests).
+#[cfg(test)]
+pub fn shelf_ids() -> (Option<String>, Vec<String>, std::collections::HashSet<String>) {
+    STATE.with_borrow(|s| {
+        (
+            s.lib.pick.as_ref().map(|p| p.id.clone()),
+            s.lib.boxed.iter().map(|b| b.item.id.clone()).collect(),
+            s.lib.added.iter().map(|i| i.id.clone()).collect(),
+        )
+    })
 }

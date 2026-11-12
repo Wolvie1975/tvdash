@@ -2,7 +2,10 @@
 //! and check what the pages would show.
 
 use slint::Model;
-use tvdash_core::models::{MediaKind, PlayState, RgbaImage};
+use tvdash_core::{
+    Command,
+    models::{LibraryData, MediaKind, PlayState, RgbaImage},
+};
 
 use super::*;
 
@@ -212,39 +215,94 @@ fn location_search_pick_and_timezone() {
 }
 
 #[test]
-fn library_search_and_detail() {
+fn library_shelves_browse_and_detail() {
     let (l, t) = windows();
     let lib = l.global::<Library>();
-    send(&l, &t, AppEvent::ContinueWatching(SourceKind::Plex, vec![item(SourceKind::Plex, "p1", "Plex Film")]));
-    send(&l, &t, AppEvent::RecentlyAdded(SourceKind::Plex, vec![item(SourceKind::Plex, "p2", "New One")]));
-    assert_eq!((lib.get_continue_watching().row_count(), lib.get_recently_added().row_count()), (1, 1));
-    assert_eq!(l.global::<Dash>().get_cw_state(), "items");
+    let browse_ui = l.global::<crate::Browse>();
+    send(&l, &t, AppEvent::Account(SourceKind::Plex, AccountStatus::NotSetUp));
+    assert_eq!(lib.get_state(), "signin");
+    send(&l, &t, AppEvent::Account(SourceKind::Plex, AccountStatus::Connected));
+    assert_eq!(lib.get_state(), "loading");
 
-    // Search: stale results for an old query are ignored.
-    assert!(start_search(&l, " film "));
-    assert!(lib.get_searching());
-    assert_eq!(lib.get_results_title(), "RESULTS FOR “FILM”");
-    send(&l, &t, AppEvent::SearchResults { query: "old".into(), items: vec![item(SourceKind::Plex, "x", "Stale")] });
-    assert_eq!(lib.get_results().row_count(), 0);
-    let found = vec![item(SourceKind::Plex, "p1", "Plex Film")];
-    send(&l, &t, AppEvent::SearchResults { query: "film".into(), items: found });
-    assert!(!lib.get_searching());
-    assert_eq!(lib.get_results().row_count(), 1);
+    let now = chrono::Utc::now().timestamp();
+    let movie = |id: &str, views, resume: Option<u64>, genre: &str| MediaItem {
+        kind: MediaKind::Movie,
+        view_count: views,
+        resume_ms: resume,
+        added_at: Some(now),
+        genres: vec![genre.into()],
+        summary: Some(format!("About {id}.")),
+        ..item(SourceKind::Plex, id, id)
+    };
+    let show = |id: &str, leaves, viewed| MediaItem {
+        kind: MediaKind::Series,
+        leaf_count: Some(leaves),
+        viewed_leaf_count: Some(viewed),
+        added_at: Some(0),
+        genres: vec!["Drama".into()],
+        ..item(SourceKind::Plex, id, id)
+    };
+    let data = LibraryData {
+        movies: vec![movie("a", 0, None, "Drama"), movie("b", 0, None, "Comedy"), movie("c", 3, Some(60_000), "Drama")],
+        shows: vec![show("s1", 8, 0), show("s2", 10, 10), show("s3", 20, 18)],
+        seasons: vec![tvdash_core::models::Season {
+            show_id: "s3".into(),
+            show_title: "s3".into(),
+            index: Some(2),
+            leaf_count: 10,
+            viewed_leaf_count: 8,
+        }],
+        new_episodes: vec![],
+    };
+    send(&l, &t, AppEvent::Library(SourceKind::Plex, data));
+    assert_eq!(lib.get_state(), "ready");
 
-    // Detail panel, then its poster arrives.
-    select(&l, "results", 0);
-    assert!(lib.get_detail_open());
-    let d = lib.get_detail();
-    assert_eq!((d.title.as_str(), d.badge.as_str(), d.can_resume), ("Plex Film", "PLEX", true));
-    assert_eq!(d.meta, "Movie · 2 h · 1 h left");
-    assert!(!d.has_poster);
-    let image = RgbaImage { width: 1, height: 1, pixels: vec![255; 4] };
-    send(&l, &t, AppEvent::Poster { source: SourceKind::Plex, item_id: "p1".into(), image });
-    assert!(lib.get_detail().has_poster);
-    assert!(lib.get_results().row_data(0).unwrap().has_poster);
-    assert_eq!(selected().unwrap().id, "p1");
-    clear_search(&l);
-    assert_eq!(lib.get_results_title(), "");
+    // TV / Series first: the one unstarted show, the season to finish, a show to watch again.
+    let (pick, boxed, _) = library::shelf_ids();
+    assert_eq!((pick.as_deref(), boxed.as_slice()), (Some("s1"), &["s3".to_string()][..]));
+    assert_eq!(lib.get_pick().action, "Start S1 · E1 on TV");
+    let item0 = lib.get_box_items().row_data(0).unwrap();
+    assert_eq!((item0.line.as_str(), item0.segments, item0.done), ("Season 2 · 2 episodes left", 10, 8));
+    assert_eq!(lib.get_again_count(), 1);
+    assert_eq!(lib.get_genres().row_data(0).unwrap().name, "Drama");
+
+    // Movies: a random unwatched one; Shuffle moves to the other.
+    set_tab(&l, "movies");
+    let first = library::shelf_ids().0.unwrap();
+    assert!(first == "a" || first == "b", "{first}");
+    shuffle(&l);
+    let second = library::shelf_ids().0.unwrap();
+    assert_ne!(first, second);
+    assert_eq!(lib.get_box_title(), "CONTINUE WATCHING");
+    assert_eq!(lib.get_box_items().row_data(0).unwrap().title, "c");
+    assert_eq!((lib.get_added_count(), lib.get_again_count()), (3, 1));
+
+    // Browse a genre, then pick a movie for the detail panel.
+    browse(&l, "genre:Drama");
+    assert_eq!(l.global::<Nav>().get_page(), "browse");
+    assert_eq!((browse_ui.get_title().as_str(), browse_ui.get_count_text().as_str()), ("Drama · movies", "2 titles"));
+    select(&l, 1);
+    let d = browse_ui.get_detail();
+    assert_eq!((d.title.as_str(), d.action.as_str(), d.can_resume), ("c", "Resume on TV", true));
+    assert_eq!((d.extra.as_str(), d.overview.as_str()), ("Watched 3 times", "About c."));
+    assert_eq!(selected().unwrap().id, "c");
+    set_unwatched(&l, true);
+    assert_eq!(browse_ui.get_count_text(), "1 title");
+    assert!(!browse_ui.get_detail_open(), "the list changed under the panel");
+
+    // A shelf poster opens Browse on that shelf with it selected.
+    open_item(&l, "again", 0);
+    assert_eq!((browse_ui.get_title().as_str(), browse_ui.get_selected()), ("Watch again", 0));
+    assert_eq!(browse_ui.get_detail().title, "c");
+
+    // A show in progress resumes its episode; otherwise its next one plays.
+    let s1 = show("s1", 8, 0);
+    assert!(matches!(play_command(&s1), Command::PlayShow(ref x) if x.id == "s1"));
+
+    // Sign-out empties it.
+    send(&l, &t, AppEvent::Account(SourceKind::Plex, AccountStatus::NotSetUp));
+    send(&l, &t, AppEvent::Library(SourceKind::Plex, LibraryData::default()));
+    assert_eq!(lib.get_state(), "signin");
 }
 
 #[test]

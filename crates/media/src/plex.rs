@@ -9,14 +9,16 @@ use std::time::Duration;
 use reqwest::{Method, RequestBuilder};
 use serde::{Deserialize, de::DeserializeOwned};
 use tracing::{debug, info, warn};
-use tvdash_core::models::MediaKind;
+use tvdash_core::models::{MediaKind, Season};
 
-use crate::{MediaError, MediaItem, MediaSource, PlayState, Result, Session, SourceKind};
+use crate::{LibraryData, MediaError, MediaItem, MediaSource, PlayState, Result, Session, SourceKind};
 
 /// Product name sent as `X-Plex-Product`.
 pub const PRODUCT: &str = tvdash_core::APP_NAME;
 pub const DEFAULT_ACCOUNT_URL: &str = "https://plex.tv";
 const DEVICE_NAME: &str = "tv-laptop";
+/// Newest episodes fetched per show section ("Added this week").
+const NEW_EPISODES: u32 = 100;
 
 fn identify(rb: RequestBuilder, client_id: &str, token: Option<&str>) -> RequestBuilder {
     let rb = rb
@@ -321,19 +323,35 @@ impl MediaSource for PlexClient {
         pick_next(eps).ok_or(MediaError::NotFound)
     }
 
-    async fn tmdb_library(&self) -> Result<Vec<(u32, MediaItem)>> {
+    async fn library(&self) -> Result<LibraryData> {
         let r: Container = send_json(self.request(Method::GET, "/library/sections"), "library sections").await?;
-        let mut out = Vec::new();
-        for dir in r.media_container.directory.into_iter().filter(|d| d.kind == "movie" || d.kind == "show") {
-            let q = [("includeGuids", "1".to_owned())];
-            let meta = self.metadata(&format!("/library/sections/{}/all", dir.key), &q, "library").await?;
-            for m in meta {
-                let tmdb = m.guid.iter().find_map(|g| g.id.strip_prefix("tmdb://")?.parse::<u32>().ok());
-                if let (Some(id), Some(item)) = (tmdb, m.into_media_item()) {
-                    out.push((id, item));
+        let mut out = LibraryData::default();
+        for dir in r.media_container.directory {
+            let all = format!("/library/sections/{}/all", dir.key);
+            match dir.kind.as_str() {
+                "movie" => {
+                    let q = [("includeGuids", "1".to_owned())];
+                    out.movies.extend(Self::items(self.metadata(&all, &q, "movies").await?));
                 }
+                "show" => {
+                    let q = [("includeGuids", "1".to_owned())];
+                    out.shows.extend(Self::items(self.metadata(&all, &q, "shows").await?));
+                    let q = [("type", "3".to_owned())];
+                    out.seasons.extend(
+                        self.metadata(&all, &q, "seasons").await?.into_iter().filter_map(Metadata::into_season),
+                    );
+                    let q = [
+                        ("type", "4".to_owned()),
+                        ("sort", "addedAt:desc".to_owned()),
+                        ("X-Plex-Container-Start", "0".to_owned()),
+                        ("X-Plex-Container-Size", NEW_EPISODES.to_string()),
+                    ];
+                    out.new_episodes.extend(Self::items(self.metadata(&all, &q, "new episodes").await?));
+                }
+                _ => {}
             }
         }
+        out.new_episodes.sort_by_key(|e| std::cmp::Reverse(e.added_at));
         Ok(out)
     }
 
@@ -450,6 +468,8 @@ struct Metadata {
     thumb: Option<String>,
     grandparent_thumb: Option<String>,
     grandparent_rating_key: Option<String>,
+    parent_rating_key: Option<String>,
+    parent_title: Option<String>,
     content_rating: Option<String>,
     summary: Option<String>,
     #[serde(rename = "Genre")]
@@ -538,6 +558,17 @@ impl Metadata {
             leaf_count: self.leaf_count,
             viewed_leaf_count: self.viewed_leaf_count,
             added_at: self.added_at,
+            tmdb_id: self.guid.iter().find_map(|g| g.id.strip_prefix("tmdb://")?.parse().ok()),
+        })
+    }
+
+    fn into_season(self) -> Option<Season> {
+        (self.kind == "season").then(|| Season {
+            show_id: self.parent_rating_key.unwrap_or_default(),
+            show_title: self.parent_title.unwrap_or_default(),
+            index: self.index,
+            leaf_count: self.leaf_count.unwrap_or(0),
+            viewed_leaf_count: self.viewed_leaf_count.unwrap_or(0),
         })
     }
 
@@ -587,6 +618,28 @@ mod tests {
         assert_eq!(items[1].subtitle.as_deref(), Some("1999"));
         assert_eq!(items[1].resume_ms, None);
         assert!(items.iter().all(|i| i.source == SourceKind::Plex));
+    }
+
+    #[test]
+    fn maps_library_fields_and_seasons() {
+        let m: Metadata = serde_json::from_value(json!({
+            "ratingKey": "5", "type": "show", "title": "S", "leafCount": 10, "viewedLeafCount": 4, "addedAt": 1_700_000_000,
+            "Guid": [{ "id": "imdb://tt1" }, { "id": "tmdb://999" }]
+        }))
+        .unwrap();
+        let show = m.into_media_item().unwrap();
+        assert_eq!((show.leaf_count, show.viewed_leaf_count, show.added_at), (Some(10), Some(4), Some(1_700_000_000)));
+        assert_eq!(show.tmdb_id, Some(999));
+        let m: Metadata = serde_json::from_value(json!({
+            "ratingKey": "6", "type": "season", "parentRatingKey": "5", "parentTitle": "S", "index": 2,
+            "leafCount": 8, "viewedLeafCount": 6
+        }))
+        .unwrap();
+        let season = m.into_season().unwrap();
+        assert_eq!(
+            (season.show_id.as_str(), season.index, season.leaf_count, season.viewed_leaf_count),
+            ("5", Some(2), 8, 6)
+        );
     }
 
     #[test]

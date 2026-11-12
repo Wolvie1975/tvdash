@@ -10,7 +10,8 @@ use std::collections::BTreeMap;
 use chrono::{DateTime, Utc};
 
 use crate::models::{
-    AccountStatus, Geometry, MediaItem, PlayState, RgbaImage, Session, SignInState, SourceKind, WatchHit, Weather,
+    AccountStatus, Geometry, LibraryData, MediaItem, PlayState, RgbaImage, Session, SignInState, SourceKind, WatchHit,
+    Weather,
 };
 
 /// What tvdash itself is playing on the TV through mpv.
@@ -65,6 +66,8 @@ pub enum AppEvent {
     SignIn(SourceKind, SignInState),
     NowPlaying(Vec<Session>),
     ContinueWatching(SourceKind, Vec<MediaItem>),
+    /// The whole library (Library shelves). Empty after sign-out.
+    Library(SourceKind, LibraryData),
     RecentlyAdded(SourceKind, Vec<MediaItem>),
     /// Everything the server knows about an item (summary, genres, rating) for
     /// the On the TV box: what's playing, or the top Continue Watching item.
@@ -84,11 +87,6 @@ pub enum AppEvent {
     Toast(String),
     /// A toast that stays up while the user does something (e.g. signs in on the TV).
     LongToast(String),
-    /// Library search finished (all connected sources).
-    SearchResults {
-        query: String,
-        items: Vec<MediaItem>,
-    },
     /// Server address in use, for Settings › Accounts (`None` after sign-out).
     Server(SourceKind, Option<String>),
     /// Site name → last opened, for the setup and Accounts screens.
@@ -155,12 +153,15 @@ pub enum Command {
     /// Check and store the TMDB read access token; empty removes it.
     SetTmdbToken(String),
     CloseBrowser,
-    Search(String),
     /// Start the interactive sign-in for a media server.
     SignIn(SourceKind),
     CancelSignIn(SourceKind),
     /// Re-fetch rows now instead of waiting for the next poll.
     Refresh,
+    /// Re-read the library (the Library page opened); skipped if it's a minute old or less.
+    RefreshLibrary,
+    /// Fetch posters for these items (shelves, the Browse grid). Already-fetched ones are skipped.
+    Posters(Vec<MediaItem>),
     /// Where the TV output is, once the windows know (used to place the browser).
     TvGeometry(Geometry),
     /// Forget a media server's sign-in (keyring token + config).

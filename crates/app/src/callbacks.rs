@@ -15,6 +15,7 @@ fn parse_source(s: &str) -> Option<SourceKind> {
 }
 
 pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
+    bridge::set_commands(cmd_tx.clone());
     let send = move |cmd: Command| {
         if cmd_tx.send(cmd).is_err() {
             error!("command handler stopped");
@@ -134,50 +135,93 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
 
 fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     let lib = laptop.global::<Library>();
+    let browse = laptop.global::<crate::Browse>();
 
-    let (weak, s) = (laptop.as_weak(), send.clone());
-    lib.on_search(move |q| {
-        if let Some(l) = weak.upgrade()
-            && bridge::start_search(&l, &q)
-        {
-            s(Command::Search(q.trim().to_owned()));
+    // Opening the Library re-reads Plex (unless it was read a minute ago).
+    let s = send.clone();
+    laptop.global::<Nav>().on_opened(move |page| {
+        if page == "library" {
+            s(Command::RefreshLibrary);
         }
     });
 
     let weak = laptop.as_weak();
-    lib.on_clear_search(move || {
+    lib.on_set_tab(move |t| {
         if let Some(l) = weak.upgrade() {
-            bridge::clear_search(&l);
+            bridge::set_tab(&l, &t);
         }
     });
 
     let weak = laptop.as_weak();
-    lib.on_select(move |section, i| {
+    lib.on_shuffle(move || {
         if let Some(l) = weak.upgrade() {
-            bridge::select(&l, &section, i as usize);
+            bridge::shuffle(&l);
+        }
+    });
+
+    let s = send.clone();
+    lib.on_play_pick(move || {
+        if let Some(item) = bridge::pick() {
+            s(bridge::play_command(&item));
+        }
+    });
+
+    let s = send.clone();
+    lib.on_play_box(move |i| {
+        if let Some(item) = bridge::box_item(i as usize) {
+            s(bridge::play_command(&item));
         }
     });
 
     let weak = laptop.as_weak();
-    lib.on_play_detail(move |from_start| {
-        let Some(mut item) = bridge::selected() else { return };
-        if from_start {
-            item.resume_ms = None;
-        }
-        send(Command::Play(item));
-        // Back to the dashboard, where the transport buttons are.
+    lib.on_open_item(move |shelf, i| {
         if let Some(l) = weak.upgrade() {
-            bridge::close_detail(&l);
-            l.global::<Nav>().set_page("home".into());
+            bridge::open_item(&l, &shelf, i as usize);
         }
     });
 
     let weak = laptop.as_weak();
-    lib.on_close_detail(move || {
+    lib.on_browse(move |filter| {
         if let Some(l) = weak.upgrade() {
-            bridge::close_detail(&l);
+            bridge::browse(&l, &filter);
         }
     });
+
+    let weak = laptop.as_weak();
+    browse.on_select(move |i| {
+        if let Some(l) = weak.upgrade() {
+            bridge::select(&l, i as usize);
+        }
+    });
+
+    let weak = laptop.as_weak();
+    browse.on_set_unwatched(move |on| {
+        if let Some(l) = weak.upgrade() {
+            bridge::set_unwatched(&l, on);
+        }
+    });
+
+    // Play from Browse (or the TV layout's rows); back to wherever the
+    // transport buttons are.
+    let play = {
+        let weak = laptop.as_weak();
+        let s = send.clone();
+        move |from_start: bool| {
+            let Some(mut item) = bridge::selected() else { return };
+            if from_start {
+                item.resume_ms = None;
+            }
+            s(bridge::play_command(&item));
+            if let Some(l) = weak.upgrade()
+                && l.global::<Nav>().get_layout() == "dual"
+            {
+                l.global::<Nav>().set_page("home".into());
+            }
+        }
+    };
+    browse.on_play(play.clone());
+    lib.on_play_detail(play);
+    lib.on_select(|section, i| bridge::select_row(&section, i as usize));
 }
 
 fn wire_accounts(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {

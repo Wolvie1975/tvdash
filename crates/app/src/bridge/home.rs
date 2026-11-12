@@ -10,8 +10,7 @@ use tvdash_core::{
 
 use super::{SOURCES, UiState, accounts, in_order, to_image};
 use crate::{
-    AccountPrompt, Dash, LaptopWindow, Library, PosterCardData, SessionRow, SiteTileData, TvCard, TvWindow, format,
-    logos,
+    AccountPrompt, Dash, LaptopWindow, PosterCardData, SessionRow, SiteTileData, TvCard, TvWindow, format, logos,
     tint::{self, Hue},
 };
 
@@ -79,7 +78,6 @@ pub(super) fn on_poster(
         (&s.rows_movies, &s.cards_movies),
         (&s.lib_continue, &s.lib_continue_cards),
         (&s.lib_recent, &s.lib_recent_cards),
-        (&s.lib_results, &s.lib_result_cards),
     ];
     for (items, model) in models {
         for (i, item) in items.iter().enumerate() {
@@ -88,14 +86,8 @@ pub(super) fn on_poster(
             }
         }
     }
-    if s.selected.as_ref().is_some_and(|i| i.source == source && i.id == key.1) {
-        let lib = laptop.global::<Library>();
-        let mut d = lib.get_detail();
-        d.poster = img.clone();
-        d.has_poster = true;
-        lib.set_detail(d);
-    }
-    s.posters.insert(key, img);
+    s.posters.insert(key.clone(), img);
+    super::library::on_poster(s, laptop, &key);
     refresh_tv_card(s, laptop);
 }
 

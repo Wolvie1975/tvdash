@@ -1,6 +1,6 @@
 import { Theme, UiTheme } from "theme.slint";
 import { Icon } from "icons.slint";
-import { ActionButton, Clock, PosterCard, PosterCardData, ProgressBar, PromptBanner, SectionLabel, TextField } from "components.slint";
+import { ActionButton, Clock, PosterCardData, PosterGrid, ProgressBar, PromptBanner, SectionLabel, TextField } from "components.slint";
 import { Dash, Nav, SiteTileData, Watch, WatchCard } from "state.slint";
 
 // Laptop dashboard: a header (search · time, date and weather · theme and
@@ -490,27 +490,6 @@ component TabButton inherits Rectangle {
     touch := TouchArea {
         mouse-cursor: pointer;
         clicked => { root.clicked(); }
-    }
-}
-
-// Three posters a row; scroll down for more.
-component PosterGrid inherits Flickable {
-    in property <[PosterCardData]> cards;
-    callback clicked(int);
-    property <int> columns: 3;
-    property <length> gap-x: 16px;
-    property <length> gap-y: 22px;
-    property <length> art-w: (self.width - (self.columns - 1) * self.gap-x) / self.columns;
-    // 2:3 art, 8 px gap, one line of title.
-    property <length> card-h: self.art-w * 1.5 + 8px + 22px;
-    property <int> rows: Math.ceil(self.cards.length / self.columns);
-    content-height: max(self.height, self.rows * (self.card-h + self.gap-y) - self.gap-y);
-    for c[i] in root.cards: PosterCard {
-        x: Math.mod(i, root.columns) * (root.art-w + root.gap-x);
-        y: Math.floor(i / root.columns) * (root.card-h + root.gap-y);
-        art-width: root.art-w;
-        data: c;
-        clicked => { root.clicked(i); }
     }
 }
 

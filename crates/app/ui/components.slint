@@ -174,8 +174,8 @@ export component PosterCard inherits Rectangle {
                 image-fit: cover;
             }
 
-            // Source badge
-            Rectangle {
+            // Badge: episode, time left, or watched.
+            if root.data.badge != "": Rectangle {
                 x: 8px;
                 y: 8px;
                 width: badge-text.preferred-width + 16px;
@@ -221,6 +221,29 @@ export component PosterCard inherits Rectangle {
     touch := TouchArea {
         mouse-cursor: pointer;
         clicked => { root.clicked(); }
+    }
+}
+
+// Posters in rows of `columns`; scroll down for more.
+export component PosterGrid inherits Flickable {
+    in property <[PosterCardData]> cards;
+    in property <int> columns: 3;
+    in property <int> selected: -1;
+    in property <length> gap-x: 16px;
+    in property <length> gap-y: 22px;
+    callback clicked(int);
+    property <length> art-w: (self.width - (self.columns - 1) * self.gap-x) / self.columns;
+    // 2:3 art, 8 px gap, one line of title.
+    property <length> card-h: self.art-w * 1.5 + 8px + 22px;
+    property <int> rows: Math.ceil(self.cards.length / self.columns);
+    content-height: max(self.height, self.rows * (self.card-h + self.gap-y) - self.gap-y);
+    for c[i] in root.cards: PosterCard {
+        x: Math.mod(i, root.columns) * (root.art-w + root.gap-x);
+        y: Math.floor(i / root.columns) * (root.card-h + root.gap-y);
+        art-width: root.art-w;
+        data: c;
+        selected: i == root.selected;
+        clicked => { root.clicked(i); }
     }
 }
 

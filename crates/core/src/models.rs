@@ -77,6 +77,29 @@ pub struct MediaItem {
     /// When it was added to the library (Unix seconds).
     #[serde(default)]
     pub added_at: Option<i64>,
+    /// TMDB ID (movies and shows, from the library listing).
+    #[serde(default)]
+    pub tmdb_id: Option<u32>,
+}
+
+/// One season of a show, for "Finish a season".
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Season {
+    pub show_id: String,
+    pub show_title: String,
+    pub index: Option<u32>,
+    pub leaf_count: u32,
+    pub viewed_leaf_count: u32,
+}
+
+/// Everything the Library's shelves are worked out from (one media server).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct LibraryData {
+    pub movies: Vec<MediaItem>,
+    pub shows: Vec<MediaItem>,
+    pub seasons: Vec<Season>,
+    /// The most recently added episodes (newest first).
+    pub new_episodes: Vec<MediaItem>,
 }
 
 impl MediaItem {

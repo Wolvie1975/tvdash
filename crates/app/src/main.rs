@@ -8,6 +8,7 @@ mod displays;
 mod format;
 mod instance;
 mod logos;
+mod shelves;
 mod tint;
 mod tv_nav;
 mod video;

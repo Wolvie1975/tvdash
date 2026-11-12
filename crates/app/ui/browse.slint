@@ -1,0 +1,116 @@
+import { Theme } from "theme.slint";
+import { ActionButton, CheckBox, PosterGrid, ProgressBar } from "components.slint";
+import { BackButton } from "library.slint";
+import { Browse, Nav } from "state.slint";
+
+// Browse all: every movie or show (or one shelf or genre) in a grid, with a
+// detail panel for the one you pick.
+
+component DetailPanel inherits Rectangle {
+    width: 520px;
+    border-radius: Theme.card-radius;
+    background: Theme.surface;
+    clip: true;
+
+    VerticalLayout {
+        padding: 28px;
+        spacing: 12px;
+        HorizontalLayout {
+            spacing: 20px;
+            Rectangle {
+                width: 180px;
+                height: 270px;
+                border-radius: 14px;
+                clip: true;
+                background: Theme.surface-raised;
+                if Browse.detail.has-poster: Image { width: parent.width; height: parent.height; source: Browse.detail.poster; image-fit: cover; }
+            }
+            VerticalLayout {
+                alignment: start;
+                spacing: 12px;
+                HorizontalLayout {
+                    alignment: start;
+                    Rectangle {
+                        width: badge.preferred-width + 24px;
+                        height: 28px;
+                        border-radius: 14px;
+                        background: Theme.text-primary;
+                        badge := Text { text: Browse.detail.badge; font-size: 15px; font-weight: 600; color: Theme.bg; }
+                    }
+                }
+                Text { text: Browse.detail.title; font-size: 34px; font-weight: 600; color: Theme.text-primary; wrap: word-wrap; }
+                if Browse.detail.subtitle != "": Text { text: Browse.detail.subtitle; font-size: 19px; color: Theme.text-secondary; wrap: word-wrap; }
+            }
+        }
+        Text { text: Browse.detail.meta; font-size: 19px; color: Theme.text-secondary; wrap: word-wrap; }
+        if Browse.detail.extra != "": Text { text: Browse.detail.extra; font-size: 17px; color: Theme.text-secondary; wrap: word-wrap; }
+        if Browse.detail.progress > 0: ProgressBar { value: Browse.detail.progress; }
+        Rectangle {
+            vertical-stretch: 1;
+            clip: true;
+            Text {
+                y: 0;
+                width: parent.width;
+                text: Browse.detail.overview != "" ? Browse.detail.overview : "No description on the server";
+                font-size: 18px;
+                color: Theme.text-secondary;
+                wrap: word-wrap;
+                vertical-alignment: top;
+            }
+        }
+        ActionButton {
+            height: 68px;
+            text: Browse.detail.action;
+            icon: "play";
+            primary: true;
+            clicked => { Browse.play(false); }
+        }
+        if Browse.detail.can-resume: ActionButton { height: 56px; text: "Play from the start"; clicked => { Browse.play(true); } }
+    }
+}
+
+export component BrowsePage inherits VerticalLayout {
+    padding-top: 40px;
+    padding-bottom: 40px;
+    padding-left: 64px;
+    padding-right: 64px;
+    spacing: Theme.gap;
+
+    HorizontalLayout {
+        height: 64px;
+        spacing: 24px;
+        BackButton { text: "Library"; clicked => { Nav.page = "library"; } }
+        Text { text: Browse.title; font-size: 36px; font-weight: 500; color: Theme.text-primary; vertical-alignment: center; }
+        Text { text: Browse.count-text; font-size: 20px; color: Theme.text-muted; vertical-alignment: center; }
+        Rectangle { horizontal-stretch: 1; }
+        VerticalLayout {
+            alignment: center;
+            CheckBox {
+                text: "Unwatched only";
+                checked: Browse.unwatched-only;
+                toggled(on) => { Browse.set-unwatched(on); }
+            }
+        }
+    }
+
+    HorizontalLayout {
+        vertical-stretch: 1;
+        spacing: Theme.gap;
+        if Browse.cards.length > 0: PosterGrid {
+            horizontal-stretch: 1;
+            cards: Browse.cards;
+            columns: Browse.detail-open ? 6 : 8;
+            selected: Browse.selected;
+            clicked(i) => { Browse.select(i); }
+        }
+        if Browse.cards.length == 0: Text {
+            horizontal-stretch: 1;
+            text: "Nothing here.";
+            font-size: Theme.body-size;
+            color: Theme.text-secondary;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        if Browse.detail-open: DetailPanel { }
+    }
+}

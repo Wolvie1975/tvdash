@@ -42,11 +42,22 @@ const POSTER_HEIGHT: u32 = 480;
 const SESSIONS_EVERY: Duration = Duration::from_secs(15);
 const PLEX_PIN_POLL: Duration = Duration::from_secs(2);
 const RECENTLY_ADDED: u32 = 20;
+/// How often the whole library is re-read (shelves, search's library matches).
+const LIBRARY_EVERY: Duration = Duration::from_secs(30 * 60);
+/// A Library page visit re-reads it unless it's this fresh.
+const LIBRARY_FRESH: Duration = Duration::from_secs(60);
+/// Posters downloaded at once (the Browse grid can ask for hundreds).
+const POSTERS_AT_ONCE: usize = 6;
 
 /// Messages from tasks the controller spawned.
 pub enum Internal {
-    PlexSignedIn { account_token: String, server: DiscoveredServer },
+    PlexSignedIn {
+        account_token: String,
+        server: DiscoveredServer,
+    },
     Refresh,
+    /// A source's library was read.
+    Library(SourceKind, tvdash_core::models::LibraryData),
 }
 
 /// What plays a Plex item: mpv in its own window, or libmpv drawing
@@ -121,6 +132,9 @@ pub struct Controller {
     state: AppState,
     state_path: Option<PathBuf>,
     posters_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
+    poster_limit: Arc<tokio::sync::Semaphore>,
+    /// When the library was last read.
+    library_at: Option<std::time::Instant>,
     /// Where to watch (TMDB).
     pub(crate) watch: Watch,
     /// Tells the widget pollers about display setting changes (units).
@@ -166,6 +180,8 @@ impl Controller {
             state: AppState::default(),
             state_path: tvdash_core::state::default_path(),
             posters_requested: Arc::default(),
+            poster_limit: Arc::new(tokio::sync::Semaphore::new(POSTERS_AT_ONCE)),
+            library_at: None,
             general_tx: None,
             video: None,
             layout: Layout::Dual,
@@ -244,11 +260,15 @@ impl Controller {
                 Step::BrowserExited => self.on_browser_exited(),
                 Step::Internal(Internal::PlexSignedIn { account_token, server }) => {
                     self.on_plex_signed_in(account_token, server).await;
-                    self.watch.refresh_library(self.sources(), true);
+                    self.refresh_library(Duration::ZERO);
                 }
                 Step::Internal(Internal::Refresh) | Step::Refresh => {
                     self.refresh();
-                    self.watch.refresh_library(self.sources(), false);
+                    self.refresh_library(LIBRARY_EVERY);
+                }
+                Step::Internal(Internal::Library(kind, data)) => {
+                    self.watch.set_library(kind, &data);
+                    self.emit(AppEvent::Library(kind, data));
                 }
                 Step::Sessions => self.poll_sessions(),
                 Step::Progress => self.report_tick(),
@@ -267,7 +287,7 @@ impl Controller {
         }
         self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
         self.watch.init().await;
-        self.watch.refresh_library(self.sources(), true);
+        self.refresh_library(Duration::ZERO);
         if self.plex.is_some() {
             self.emit(AppEvent::Server(SourceKind::Plex, Some(self.config.plex.server_url.clone())));
         }
@@ -353,6 +373,13 @@ impl Controller {
                 self.emit(AppEvent::SignIn(kind, SignInState::Cancelled));
             }
             Command::Refresh => self.refresh(),
+            Command::RefreshLibrary => self.refresh_library(LIBRARY_FRESH),
+            Command::Posters(items) => {
+                for source in self.sources() {
+                    let mine: Vec<MediaItem> = items.iter().filter(|i| i.source == source.kind()).cloned().collect();
+                    self.fetch_posters(source, mine);
+                }
+            }
             Command::OpenSite(i) => self.open_site(i).await,
             Command::OpenUrl { label, url } => {
                 self.clear_tv().await;
@@ -371,14 +398,12 @@ impl Controller {
             }
             Command::SetTmdbToken(token) => {
                 self.watch.set_token(token).await;
-                self.watch.refresh_library(self.sources(), true);
             }
             Command::CloseBrowser => self.close_browser().await,
             Command::TvGeometry(g) => {
                 debug!(?g, "TV geometry");
                 self.tv_geometry = Some(g);
             }
-            Command::Search(query) => self.search(query),
             Command::SignOut(kind) => self.sign_out(kind).await,
             Command::ClearBrowserProfile => self.clear_browser_profile().await,
             Command::SetTheme(mode) => self.update_config(|c| c.general.theme = mode),
@@ -472,6 +497,8 @@ impl Controller {
         info!(source = kind.label(), "signed out");
         self.emit(AppEvent::Server(kind, None));
         self.emit(AppEvent::ContinueWatching(kind, Vec::new()));
+        self.emit(AppEvent::Library(kind, Default::default()));
+        self.library_at = None;
         self.emit(AppEvent::RecentlyAdded(kind, Vec::new()));
         self.emit(AppEvent::Account(kind, AccountStatus::NotSetUp));
         self.poll_sessions();
@@ -536,28 +563,6 @@ impl Controller {
         self.toast("Browser profile cleared: streaming sites are signed out");
     }
 
-    fn search(&self, query: String) {
-        let sources = self.sources();
-        let (events, requested) = (self.events.clone(), self.posters_requested.clone());
-        tokio::spawn(async move {
-            let q = query.trim().to_owned();
-            if q.is_empty() {
-                return;
-            }
-            let mut items = Vec::new();
-            for source in sources {
-                match source.search(&q).await {
-                    Ok(found) => {
-                        fetch_posters(source.clone(), found.clone(), requested.clone(), events.clone());
-                        items.extend(found);
-                    }
-                    Err(e) => warn!(source = source.kind().label(), error = %e, "search failed"),
-                }
-            }
-            let _ = events.send(AppEvent::SearchResults { query, items });
-        });
-    }
-
     // ── Library rows ────────────────────────────────────────────────
 
     fn sources(&self) -> Vec<Arc<dyn MediaSource>> {
@@ -588,11 +593,41 @@ impl Controller {
         });
     }
 
+    /// Re-read every source's library unless it was read less than `max_age` ago.
+    fn refresh_library(&mut self, max_age: Duration) {
+        if self.library_at.is_some_and(|t| t.elapsed() < max_age) || self.sources().is_empty() {
+            return;
+        }
+        self.library_at = Some(std::time::Instant::now());
+        for source in self.sources() {
+            let internal = self.internal.clone();
+            tokio::spawn(async move {
+                let kind = source.kind();
+                match source.library().await {
+                    Ok(data) => {
+                        debug!(
+                            source = kind.label(),
+                            movies = data.movies.len(),
+                            shows = data.shows.len(),
+                            "library read"
+                        );
+                        let _ = internal.send(Internal::Library(kind, data));
+                    }
+                    Err(e) => warn!(source = kind.label(), error = %e, "couldn't read the library"),
+                }
+            });
+        }
+    }
+
+    fn fetch_posters(&self, source: Arc<dyn MediaSource>, items: Vec<MediaItem>) {
+        fetch_posters(source, items, self.posters_requested.clone(), self.poster_limit.clone(), self.events.clone());
+    }
+
     fn refresh(&self) {
         self.poll_sessions();
         for source in self.sources() {
             let events = self.events.clone();
-            let requested = self.posters_requested.clone();
+            let (requested, limit) = (self.posters_requested.clone(), self.poster_limit.clone());
             tokio::spawn(async move {
                 let kind = source.kind();
                 match source.continue_watching().await {
@@ -604,7 +639,7 @@ impl Controller {
                         if let Some(top) = items.first() {
                             fetch_details(source.clone(), top.clone(), events.clone());
                         }
-                        fetch_posters(source.clone(), items, requested.clone(), events.clone());
+                        fetch_posters(source.clone(), items, requested.clone(), limit.clone(), events.clone());
                     }
                     Err(e) => {
                         warn!(source = kind.label(), error = %e, "continue watching failed");
@@ -616,7 +651,7 @@ impl Controller {
                 match source.recently_added(RECENTLY_ADDED).await {
                     Ok(items) => {
                         let _ = events.send(AppEvent::RecentlyAdded(kind, items.clone()));
-                        fetch_posters(source, items, requested, events);
+                        fetch_posters(source, items, requested, limit, events);
                     }
                     Err(e) => warn!(source = kind.label(), error = %e, "recently added failed"),
                 }
@@ -1085,6 +1120,7 @@ fn fetch_posters(
     source: Arc<dyn MediaSource>,
     items: Vec<MediaItem>,
     requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
+    limit: Arc<tokio::sync::Semaphore>,
     events: UnboundedSender<AppEvent>,
 ) {
     for item in items.into_iter().filter(|i| i.poster.is_some()) {
@@ -1092,8 +1128,9 @@ fn fetch_posters(
         if !requested.lock().unwrap().insert(key.clone()) {
             continue;
         }
-        let (source, requested, events) = (source.clone(), requested.clone(), events.clone());
+        let (source, requested, limit, events) = (source.clone(), requested.clone(), limit.clone(), events.clone());
         tokio::spawn(async move {
+            let _permit = limit.acquire_owned().await;
             let decoded = match source.poster(&item, POSTER_HEIGHT).await {
                 Ok(bytes) => tokio::task::spawn_blocking(move || decode(&bytes)).await.ok().flatten(),
                 Err(e) => {
@@ -1467,14 +1504,17 @@ mod e2e {
             })
             .await;
         assert_eq!(recent[0].title, "Fresh Plex Film");
-        h.send(Command::Search("film".into()));
-        let found = h
-            .wait_for(|e| match e {
-                AppEvent::SearchResults { items, .. } => Some(items.clone()),
+        // The whole library, for the shelves.
+        let lib = h
+            .find_or_wait(|e| match e {
+                AppEvent::Library(SourceKind::Plex, l) if !l.movies.is_empty() => Some(l.clone()),
                 _ => None,
             })
             .await;
-        assert_eq!(found.iter().map(|i| i.title.as_str()).collect::<Vec<_>>(), ["Plex Film"]);
+        assert_eq!((lib.movies.len(), lib.shows.len(), lib.seasons.len()), (2, 2, 2));
+        assert_eq!(lib.movies[0].tmdb_id, Some(604));
+        assert_eq!((lib.shows[1].title.as_str(), lib.shows[1].viewed_leaf_count), ("Unstarted Show", Some(0)));
+        assert_eq!(lib.new_episodes.first().map(|e| e.id.as_str()), Some("102"), "newest episode first");
 
         let (argv, cmds) = h.mpv_log();
         assert!(argv.contains(&"--start=1200.000".into()));

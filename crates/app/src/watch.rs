@@ -5,7 +5,6 @@ use std::{
     collections::HashMap,
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
 };
 
 use tokio::{
@@ -17,16 +16,13 @@ use tvdash_core::{
     AppEvent, SecretKey,
     config::{APPS, StreamingSite},
     events::Service,
-    models::{AccountStatus, MediaItem, MediaKind, SourceKind},
+    models::{AccountStatus, LibraryData, MediaItem, MediaKind, SourceKind},
     secrets,
 };
 use tvdash_discover::{Cache, Endpoints, LibraryKey, Offers, Tmdb, TmdbError};
-use tvdash_media::MediaSource;
 
 use crate::controller::decode;
 
-/// How often the library's TMDB IDs are re-read.
-const LIBRARY_EVERY: Duration = Duration::from_secs(30 * 60);
 const POSTER_SIZE: &str = "w185";
 
 type Library = Arc<Mutex<HashMap<SourceKind, HashMap<LibraryKey, MediaItem>>>>;
@@ -39,7 +35,6 @@ pub struct Watch {
     tmdb: Option<Arc<Tmdb>>,
     cache: Option<Arc<Cache>>,
     library: Library,
-    library_built: Option<Instant>,
     search: Option<JoinHandle<()>>,
 }
 
@@ -59,7 +54,6 @@ impl Watch {
             tmdb: None,
             cache,
             library: Library::default(),
-            library_built: None,
             search: None,
         }
     }
@@ -120,30 +114,17 @@ impl Watch {
         self.emit(AppEvent::Toast("TMDB connected: search is ready".into()));
     }
 
-    /// Re-read every source's TMDB IDs (at most every 30 min unless `force`).
-    pub fn refresh_library(&mut self, sources: Vec<Arc<dyn MediaSource>>, force: bool) {
-        if self.tmdb.is_none() || (!force && self.library_built.is_some_and(|t| t.elapsed() < LIBRARY_EVERY)) {
-            return;
-        }
-        self.library_built = Some(Instant::now());
-        for source in sources {
-            let library = self.library.clone();
-            tokio::spawn(async move {
-                let kind = source.kind();
-                match source.tmdb_library().await {
-                    Ok(items) => {
-                        let map: HashMap<LibraryKey, MediaItem> = items
-                            .into_iter()
-                            .filter(|(_, i)| matches!(i.kind, MediaKind::Movie | MediaKind::Series))
-                            .map(|(id, i)| ((i.kind == MediaKind::Series, id), i))
-                            .collect();
-                        debug!(source = kind.label(), titles = map.len(), "library TMDB IDs");
-                        library.lock().unwrap().insert(kind, map);
-                    }
-                    Err(e) => warn!(source = kind.label(), error = %e, "couldn't read library TMDB IDs"),
-                }
-            });
-        }
+    /// A source's library was (re-)read: keep its movies and shows by TMDB ID.
+    pub fn set_library(&self, kind: SourceKind, data: &LibraryData) {
+        let map: HashMap<LibraryKey, MediaItem> = data
+            .movies
+            .iter()
+            .chain(&data.shows)
+            .filter(|i| matches!(i.kind, MediaKind::Movie | MediaKind::Series))
+            .filter_map(|i| Some(((i.kind == MediaKind::Series, i.tmdb_id?), i.clone())))
+            .collect();
+        debug!(source = kind.label(), titles = map.len(), "library TMDB IDs");
+        self.library.lock().unwrap().insert(kind, map);
     }
 
     /// Forget a signed-out source's titles.

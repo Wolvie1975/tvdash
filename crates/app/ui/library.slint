@@ -1,152 +1,418 @@
 import { Theme } from "theme.slint";
-import { ActionButton, Card, PageHeader, PosterRow, ProgressBar, SectionLabel, TextField } from "components.slint";
-import { Library, Nav } from "state.slint";
+import { Icon } from "icons.slint";
+import { ActionButton, PosterCardData, SectionLabel } from "components.slint";
+import { Dash, Library, Nav, ShelfItem } from "state.slint";
 
-component DetailPanel inherits Card {
-    width: 400px;
-    VerticalLayout {
-        padding: 24px;
-        spacing: 14px;
-        alignment: start;
+// Library: smart shelves with a Movies / TV / Series switch. Every shelf is
+// worked out locally from what Plex reports.
 
-        HorizontalLayout {
-            alignment: center;
-            Rectangle {
-                width: 220px;
-                height: 330px;
-                border-radius: 12px;
-                clip: true;
-                background: Theme.surface-raised;
-                if Library.detail.has-poster: Image {
-                    width: parent.width;
-                    height: parent.height;
-                    source: Library.detail.poster;
-                    image-fit: cover;
-                }
-                if !Library.detail.has-poster: Text {
-                    text: Library.detail.title;
-                    width: parent.width - 24px;
-                    font-size: Theme.body-size;
-                    color: Theme.text-muted;
-                    horizontal-alignment: center;
-                    wrap: word-wrap;
-                }
-            }
-        }
-        Text { text: Library.detail.badge; font-size: 16px; font-weight: 600; letter-spacing: 1.5px; color: Theme.text-secondary; }
-        Text {
-            text: Library.detail.title;
-            font-size: 28px;
-            font-weight: 600;
-            color: Theme.text-primary;
-            wrap: word-wrap;
-        }
-        if Library.detail.subtitle != "": Text {
-            text: Library.detail.subtitle;
-            font-size: Theme.body-size;
-            color: Theme.text-secondary;
-            wrap: word-wrap;
-        }
-        Text { text: Library.detail.meta; font-size: 18px; color: Theme.text-muted; wrap: word-wrap; }
-        if Library.detail.progress > 0: ProgressBar { value: Library.detail.progress; }
-        Rectangle { height: 6px; }
-        ActionButton {
-            text: Library.detail.can-resume ? "Resume on TV" : "Play on TV";
-            icon: "play";
-            primary: true;
-            clicked => { Library.play-detail(false); }
-        }
-        if Library.detail.can-resume: ActionButton {
-            text: "Play from the start";
-            clicked => { Library.play-detail(true); }
-        }
-        ActionButton { text: "Close"; clicked => { Library.close-detail(); } }
+export component BackButton inherits Rectangle {
+    in property <string> text;
+    callback clicked();
+    height: 64px;
+    width: row.preferred-width + 44px;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.border;
+    background: touch.pressed ? Theme.surface-raised : Theme.surface;
+    accessible-role: button;
+    accessible-label: "Back to " + root.text;
+    accessible-action-default => { root.clicked(); }
+    row := HorizontalLayout {
+        alignment: center;
+        spacing: 10px;
+        VerticalLayout { alignment: center; Icon { name: "back-arrow"; tint: Theme.text-primary; size: 22px; line: 2px; } }
+        Text { text: root.text; font-size: 22px; color: Theme.text-primary; vertical-alignment: center; }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
     }
 }
 
-component Section inherits VerticalLayout {
+component Switch inherits Rectangle {
+    background: Theme.surface;
+    border-width: 1px;
+    border-color: Theme.border;
+    border-radius: Theme.radius;
+    width: row.preferred-width;
+    height: 64px;
+    row := HorizontalLayout {
+        padding: 4px;
+        for t in [{ id: "movies", label: "Movies" }, { id: "tv", label: "TV / Series" }]: Rectangle {
+            property <bool> on: Library.tab == t.id;
+            border-radius: 14px;
+            background: self.on ? Theme.text-primary : touch.pressed ? Theme.surface-raised : transparent;
+            accessible-role: button;
+            accessible-label: t.label;
+            accessible-checked: self.on;
+            accessible-action-default => { Library.set-tab(t.id); }
+            HorizontalLayout {
+                padding-left: 26px;
+                padding-right: 26px;
+                Text { text: t.label; font-size: 21px; font-weight: 500; color: on ? Theme.bg : Theme.text-secondary; vertical-alignment: center; }
+            }
+            touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { Library.set-tab(t.id); }
+            }
+        }
+    }
+}
+
+component Poster inherits Rectangle {
+    in property <PosterCardData> data;
+    callback clicked();
+    border-radius: 12px;
+    clip: true;
+    background: root.data.placeholder;
+    accessible-role: button;
+    accessible-label: root.data.title;
+    accessible-action-default => { root.clicked(); }
+    if root.data.has-poster: Image { width: parent.width; height: parent.height; source: root.data.poster; image-fit: cover; }
+    if !root.data.has-poster: Text {
+        width: parent.width - 16px;
+        text: root.data.title;
+        font-size: 15px;
+        color: Theme.on-scrim;
+        horizontal-alignment: center;
+        wrap: word-wrap;
+    }
+    Rectangle {
+        border-radius: 12px;
+        border-width: touch.pressed ? 3px : 0;
+        border-color: Theme.accent;
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// ── Tonight's pick ───────────────────────────────────────────────────
+
+component PickCard inherits Rectangle {
+    border-radius: Theme.card-radius;
+    background: Library.pick-tint.card;
+    clip: true;
+    animate background { duration: 400ms; }
+
+    HorizontalLayout {
+        Rectangle {
+            width: 190px;
+            background: Library.pick-tint.poster;
+            if Library.has-pick && Library.pick.has-poster: Image {
+                width: parent.width;
+                height: parent.height;
+                source: Library.pick.poster;
+                image-fit: cover;
+            }
+        }
+        VerticalLayout {
+            padding: 32px;
+            spacing: 12px;
+            Text {
+                text: "TONIGHT'S PICK";
+                font-size: 18px;
+                font-weight: 600;
+                letter-spacing: 1.8px;
+                color: Library.pick-tint.accent;
+            }
+            if Library.has-pick: Text {
+                text: Library.pick.title;
+                font-size: 44px;
+                font-weight: 600;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+                overflow: elide;
+                max-height: 100px;
+            }
+            if Library.has-pick: Text { text: Library.pick.meta; font-size: 20px; color: Library.pick-tint.sec; overflow: elide; }
+            Text {
+                text: Library.has-pick ? Library.pick.why
+                    : Library.tab == "movies" ? "You've seen every movie in your library." : "You've started every show in your library.";
+                font-size: 18px;
+                color: Library.pick-tint.sec;
+                wrap: word-wrap;
+            }
+            Rectangle { vertical-stretch: 1; }
+            if Library.has-pick: HorizontalLayout {
+                spacing: 12px;
+                height: 64px;
+                ActionButton {
+                    text: Library.pick.action;
+                    icon: "play";
+                    primary: true;
+                    horizontal-stretch: 1;
+                    font-px: 21px;
+                    fill: Library.pick-tint.accent;
+                    ink: Library.pick-tint.on-accent;
+                    clicked => { Library.play-pick(); }
+                }
+                ActionButton {
+                    text: "Shuffle";
+                    icon: "shuffle";
+                    font-px: 20px;
+                    fill: transparent;
+                    edge: Library.pick-tint.edge;
+                    clicked => { Library.shuffle(); }
+                }
+            }
+        }
+    }
+}
+
+// ── The big box: finish a season / continue watching ─────────────────
+
+component BoxCard inherits Rectangle {
+    in property <ShelfItem> item;
+    callback clicked();
+    border-radius: 20px;
+    background: root.item.card;
+    clip: true;
+    accessible-role: button;
+    accessible-label: root.item.title + ", " + root.item.line;
+    accessible-action-default => { root.clicked(); }
+
+    VerticalLayout {
+        Rectangle {
+            height: 150px;
+            background: root.item.art;
+            clip: true;
+            if root.item.has-poster: Image { width: parent.width; height: parent.height; source: root.item.poster; image-fit: cover; }
+        }
+        VerticalLayout {
+            padding: 16px;
+            padding-left: 18px;
+            padding-right: 18px;
+            spacing: 6px;
+            Text { text: root.item.title; font-size: 22px; font-weight: 500; color: Theme.text-primary; overflow: elide; }
+            Text { text: root.item.line; font-size: 17px; color: root.item.sec; overflow: elide; }
+            // One segment per episode, or one bar for a movie.
+            bar := Rectangle {
+                height: 8px;
+                property <length> gap: root.item.segments > 0 ? 5px : 0;
+                property <int> n: max(1, root.item.segments);
+                property <length> seg: (self.width - (self.n - 1) * self.gap) / self.n;
+                if root.item.segments == 0: Rectangle {
+                    border-radius: 4px;
+                    background: #E8EAED2E;
+                    clip: true;
+                    Rectangle { x: 0; width: parent.width * root.item.progress; background: root.item.accent; }
+                }
+                for i in root.item.segments: Rectangle {
+                    x: i * (bar.seg + bar.gap);
+                    width: bar.seg;
+                    border-radius: 4px;
+                    background: i < root.item.done ? root.item.accent : #E8EAED2E;
+                }
+            }
+        }
+        Rectangle { vertical-stretch: 1; }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component BigBox inherits Rectangle {
+    border-radius: Theme.card-radius;
+    background: Theme.surface;
+    VerticalLayout {
+        padding-top: 28px;
+        padding-bottom: 28px;
+        padding-left: 32px;
+        padding-right: 32px;
+        spacing: 18px;
+        HorizontalLayout {
+            SectionLabel { text: Library.box-title; horizontal-stretch: 1; }
+            Text { text: Library.box-rule; font-size: 18px; color: Theme.text-muted; }
+        }
+        cards := Rectangle {
+            vertical-stretch: 1;
+            property <length> w: (self.width - 2 * 18px) / 3;
+            for item[i] in Library.box-items: BoxCard {
+                x: i * (cards.w + 18px);
+                width: cards.w;
+                height: cards.height;
+                item: item;
+                clicked => { Library.play-box(i); }
+            }
+            if Library.box-items.length == 0: Text {
+                text: Library.box-empty;
+                font-size: Theme.body-size;
+                color: Theme.text-secondary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                wrap: word-wrap;
+            }
+        }
+    }
+}
+
+// ── Shelves ──────────────────────────────────────────────────────────
+
+component Shelf inherits Rectangle {
     in property <string> title;
     in property <string> id;
-    in property <string> empty-text;
+    in property <string> rule;
+    in property <string> empty;
+    in property <int> count;
     in property <[PosterCardData]> cards;
-    spacing: 14px;
-    SectionLabel { text: root.title; }
-    if root.cards.length > 0: PosterRow {
-        cards: root.cards;
-        art-width: 150px;
-        show-subtitle: true;
-        selected: Library.selected-section == root.id ? Library.selected-index : -1;
-        clicked(i) => {
-            Library.selected-section = root.id;
-            Library.selected-index = i;
-            Library.select(root.id, i);
+    border-radius: Theme.card-radius;
+    background: Theme.surface;
+
+    VerticalLayout {
+        padding-top: 24px;
+        padding-bottom: 24px;
+        padding-left: 28px;
+        padding-right: 28px;
+        spacing: 12px;
+        HorizontalLayout {
+            Text { text: root.title; font-size: 24px; font-weight: 500; color: Theme.text-primary; horizontal-stretch: 1; vertical-alignment: center; }
+            if root.count > 0: Rectangle {
+                min-height: 48px;
+                width: more.preferred-width + 8px;
+                accessible-role: button;
+                accessible-label: "All " + root.count + " in " + root.title;
+                accessible-action-default => { Library.browse(root.id); }
+                more := Text { text: root.count + " ›"; font-size: 18px; color: link.pressed ? Theme.text-primary : Theme.text-muted; }
+                link := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Library.browse(root.id); }
+                }
+            }
         }
-    }
-    if root.cards.length == 0: Text {
-        text: root.empty-text;
-        font-size: Theme.body-size;
-        color: Theme.text-muted;
+        Text { text: root.rule; font-size: 17px; color: Theme.text-secondary; }
+        posters := Rectangle {
+            vertical-stretch: 1;
+            property <length> gap: 12px;
+            property <length> w: (self.width - 5 * self.gap) / 6;
+            for c[i] in root.cards: Poster {
+                x: i * (posters.w + posters.gap);
+                width: posters.w;
+                height: min(posters.height, posters.w * 1.5);
+                data: c;
+                clicked => { Library.open-item(root.id, i); }
+            }
+            if root.cards.length == 0: Text {
+                text: root.empty;
+                font-size: Theme.body-size;
+                color: Theme.text-secondary;
+                vertical-alignment: center;
+            }
+        }
     }
 }
 
-import { PosterCardData } from "components.slint";
+component GenreRow inherits VerticalLayout {
+    alignment: start;
+    spacing: 12px;
+    SectionLabel { text: "GENRES"; }
+    tiles := Rectangle {
+        height: 64px;
+        property <length> gap: 16px;
+        property <length> w: (self.width - 5 * self.gap) / 6;
+        for g[i] in Library.genres: Rectangle {
+            x: i * (tiles.w + tiles.gap);
+            width: tiles.w;
+            border-radius: Theme.radius;
+            background: touch.pressed ? g.edge : g.bg;
+            border-width: 1px;
+            border-color: g.edge;
+            accessible-role: button;
+            accessible-label: g.name + ", " + g.count;
+            accessible-action-default => { Library.browse("genre:" + g.name); }
+            HorizontalLayout {
+                padding-left: 22px;
+                padding-right: 22px;
+                Text { text: g.name; font-size: 21px; font-weight: 500; color: Theme.text-primary; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
+                Text { text: g.count; font-size: 17px; color: g.sec; vertical-alignment: center; }
+            }
+            touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { Library.browse("genre:" + g.name); }
+            }
+        }
+    }
+}
 
 export component LibraryPage inherits VerticalLayout {
-    padding: 40px;
+    padding-top: 40px;
+    padding-bottom: 40px;
+    padding-left: 64px;
+    padding-right: 64px;
     spacing: Theme.gap;
 
-    PageHeader {
-        title: "Library";
-        back => { Nav.page = "home"; }
-    }
-
-    // Search
     HorizontalLayout {
-        spacing: 12px;
-        search := TextField {
-            placeholder: "Search movies and shows";
-            text <=> Library.query;
-            accepted(q) => { Library.search(q); }
-        }
-        ActionButton { text: "Search"; clicked => { Library.search(Library.query); } }
-        if Library.results-title != "": ActionButton {
-            text: "Clear";
-            clicked => {
-                Library.query = "";
-                Library.clear-search();
-            }
+        height: 64px;
+        spacing: 24px;
+        BackButton { text: "Dashboard"; clicked => { Nav.page = "home"; } }
+        Text { text: "Library"; font-size: 40px; font-weight: 500; color: Theme.text-primary; vertical-alignment: center; }
+        VerticalLayout { alignment: center; padding-left: 12px; Switch { } }
+        Rectangle { horizontal-stretch: 1; }
+        if Library.state == "ready": ActionButton {
+            text: Library.tab == "movies" ? "Browse all movies" : "Browse all shows";
+            font-px: 20px;
+            clicked => { Library.browse("all"); }
         }
     }
 
-    HorizontalLayout {
-        spacing: Theme.gap;
+    if Library.state != "ready": VerticalLayout {
         vertical-stretch: 1;
-
-        VerticalLayout {
-            spacing: Theme.gap;
-            horizontal-stretch: 1;
-            alignment: start;
-
-            if Library.results-title != "": Section {
-                title: Library.results-title;
-                id: "results";
-                cards: Library.results;
-                empty-text: Library.searching ? "Searching…" : "No matches.";
-            }
-            if Library.results-title == "": Section {
-                title: "CONTINUE WATCHING";
-                id: "continue";
-                cards: Library.continue-watching;
-                empty-text: "Nothing in progress.";
-            }
-            if Library.results-title == "": Section {
-                title: "RECENTLY ADDED";
-                id: "recent";
-                cards: Library.recently-added;
-                empty-text: "Nothing new yet.";
-            }
+        alignment: center;
+        spacing: 20px;
+        Text {
+            text: Library.state == "signin" ? "Sign in to Plex to see your library." : "Reading your library…";
+            font-size: 26px;
+            color: Theme.text-secondary;
+            horizontal-alignment: center;
         }
+        if Library.state == "signin": HorizontalLayout {
+            alignment: center;
+            ActionButton { text: "Sign in to Plex"; primary: true; clicked => { Dash.prompt-action("plex", "sign-in"); } }
+        }
+    }
 
-        if Library.detail-open: DetailPanel { }
+    // 12 columns: pick 5 + box 7; two shelves of 6; genres across.
+    if Library.state == "ready": grid := Rectangle {
+        vertical-stretch: 1;
+        min-height: 820px;
+        property <length> unit: (self.width - 11 * Theme.gap) / 12;
+        property <length> row1: 360px;
+        property <length> row2: 330px;
+        PickCard { x: 0; y: 0; width: grid.unit * 5 + Theme.gap * 4; height: grid.row1; }
+        BigBox { x: (grid.unit + Theme.gap) * 5; y: 0; width: grid.unit * 7 + Theme.gap * 6; height: grid.row1; }
+        Shelf {
+            x: 0;
+            y: grid.row1 + Theme.gap;
+            width: grid.unit * 6 + Theme.gap * 5;
+            height: grid.row2;
+            title: "Added this week";
+            id: "added";
+            rule: Library.added-rule;
+            empty: "Nothing new since Monday.";
+            count: Library.added-count;
+            cards: Library.added;
+        }
+        Shelf {
+            x: (grid.unit + Theme.gap) * 6;
+            y: grid.row1 + Theme.gap;
+            width: grid.unit * 6 + Theme.gap * 5;
+            height: grid.row2;
+            title: "Watch again";
+            id: "again";
+            rule: Library.again-rule;
+            empty: "Nothing yet.";
+            count: Library.again-count;
+            cards: Library.again;
+        }
+        GenreRow {
+            x: 0;
+            y: grid.row1 + grid.row2 + Theme.gap * 2;
+            width: grid.width;
+            height: self.preferred-height;
+        }
     }
 }

@@ -57,6 +57,13 @@ SEASONS = [
      "index": 1, "leafCount": 8, "viewedLeafCount": 0, "thumb": "/t/401"},
 ]
 
+EPISODES = [  # newest first, as asked for (sort=addedAt:desc)
+    {"ratingKey": "102", "type": "episode", "title": "Chapter Two", "grandparentTitle": "Plex Show",
+     "grandparentRatingKey": "100", "parentIndex": 3, "index": 3, "addedAt": 1_800_000_000},
+    {"ratingKey": "101", "type": "episode", "title": "Chapter One", "grandparentTitle": "Plex Show",
+     "grandparentRatingKey": "100", "parentIndex": 3, "index": 2, "addedAt": 1_600_000_000},
+]
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 
@@ -115,7 +122,7 @@ class H(BaseHTTPRequestHandler):
         if p.startswith("/library/sections/") and p.endswith("/all"):
             section = p.split("/")[3]
             kind = q.get("type", [""])[0]
-            items = SEASONS if kind == "3" else LIBRARY.get(section, [])
+            items = SEASONS if kind == "3" else EPISODES if kind == "4" else LIBRARY.get(section, [])
             if "includeGuids" not in q:
                 items = [{k: v for k, v in i.items() if k != "Guid"} for i in items]
             return self._send(200, {"MediaContainer": {"size": len(items), "Metadata": items}})

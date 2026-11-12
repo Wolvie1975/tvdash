@@ -1,6 +1,7 @@
 import { Theme } from "theme.slint";
 import { HomePage } from "home.slint";
 import { LibraryPage } from "library.slint";
+import { BrowsePage } from "browse.slint";
 import { SettingsPage } from "settings.slint";
 import { SetupPage } from "setup.slint";
 import { Dash, Nav } from "state.slint";
@@ -20,7 +21,10 @@ export component LaptopWindow inherits Window {
 
     // Scroll back to the top whenever the page changes.
     property <string> current-page: Nav.page;
-    changed current-page => { scroller.content-y = 0; }
+    changed current-page => {
+        scroller.content-y = 0;
+        Nav.opened(self.current-page);
+    }
 
     // Scrolls vertically if the panel is shorter than the content.
     scroller := Flickable {
@@ -31,6 +35,7 @@ export component LaptopWindow inherits Window {
             height: scroller.content-height;
             if Nav.page == "home": HomePage { }
             if Nav.page == "library": LibraryPage { }
+            if Nav.page == "browse": BrowsePage { }
             if Nav.page == "settings": SettingsPage { }
             if Nav.page == "setup": SetupPage { }
         }

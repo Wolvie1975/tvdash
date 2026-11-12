@@ -4,14 +4,17 @@
 import { AccountPrompt, PosterCardData, SessionRow } from "components.slint";
 import { UiTheme } from "theme.slint";
 
+
 // Which laptop page is showing.
 export global Nav {
-    // "home" | "library" | "settings" | "setup"
+    // "home" | "library" | "browse" | "settings" | "setup"
     in-out property <string> page: "home";
     // "dual" (laptop dashboard) | "tv" (everything on the TV, 10-foot)
     in property <string> layout: "dual";
     // Settings tab: "accounts" | "streaming" | "display" | "diagnostics"
     in-out property <string> settings-tab: "accounts";
+    // A page was opened (the Library re-reads Plex).
+    callback opened(string);
 }
 
 // Colours for the On the TV card, taken from the poster's hue (set by Rust per theme).
@@ -128,33 +131,99 @@ export struct DetailData {
     title: string,
     subtitle: string,
     badge: string,
-    meta: string,       // "Episode · 45 min · 30 min left"
+    meta: string,       // "Movie · 2024 · 1 h 52 min · Mystery"
+    extra: string,      // "22 of 30 episodes watched"
+    overview: string,
+    action: string,     // "Resume on TV" | "Play on TV"
     poster: image,
     has-poster: bool,
     progress: float,
-    can-resume: bool,
+    can-resume: bool,   // offer "Play from the start" too
+}
+
+// A card in the Library's big box: a season to finish, or a movie to finish.
+export struct ShelfItem {
+    title: string,
+    line: string,       // "Season 1 · 2 episodes left" | "22 min left"
+    poster: image,
+    has-poster: bool,
+    card: color,
+    art: color,         // behind the poster while it loads
+    accent: color,
+    sec: color,
+    segments: int,      // one per episode; 0 = one continuous bar
+    done: int,
+    progress: float,
+}
+
+export struct GenreTile {
+    name: string,
+    count: string,
+    bg: color,
+    edge: color,
+    sec: color,
+}
+
+// Tonight's pick.
+export struct PickData {
+    title: string,
+    meta: string,       // "Unwatched series · 8 episodes · Plex"
+    why: string,
+    action: string,     // "Start S1 · E1 on TV" | "Play on TV"
+    poster: image,
+    has-poster: bool,
 }
 
 export global Library {
-    in-out property <string> query;
-    in property <bool> searching;
-    // Non-empty while showing search results ("Results for “x”").
-    in property <string> results-title;
+    // The TV layout's Library screen (Continue Watching, Recently Added).
     in property <[PosterCardData]> continue-watching;
     in property <[PosterCardData]> recently-added;
-    in property <[PosterCardData]> results;
-    in property <bool> detail-open;
-    in property <DetailData> detail;
-    // Highlighted card (set by the page on click).
-    in-out property <string> selected-section;
-    in-out property <int> selected-index: -1;
-
-    callback search(string);
-    callback clear-search();
-    // section: "continue" | "recent" | "results"
+    // section: "continue" | "recent"
     callback select(string, int);
     callback play-detail(bool); // true = from the start
-    callback close-detail();
+
+    // Smart shelves (laptop). "tv" | "movies"
+    in-out property <string> tab: "tv";
+    // "loading" | "signin" | "ready"
+    in property <string> state: "loading";
+    in property <bool> has-pick;
+    in property <PickData> pick;
+    in property <Tint> pick-tint;
+    in property <string> box-title;     // "FINISH A SEASON" | "CONTINUE WATCHING"
+    in property <string> box-rule;
+    in property <string> box-empty;
+    in property <[ShelfItem]> box-items;
+    in property <[PosterCardData]> added;
+    in property <int> added-count;
+    in property <string> added-rule;
+    in property <[PosterCardData]> again;
+    in property <int> again-count;
+    in property <string> again-rule;
+    in property <[GenreTile]> genres;
+
+    callback set-tab(string);
+    callback shuffle();
+    callback play-pick();
+    callback play-box(int);
+    // A poster on a shelf: Browse that shelf with it selected. shelf: "added" | "again"
+    callback open-item(string, int);
+    // filter: "all" | "added" | "again" | "genre:<name>"
+    callback browse(string);
+}
+
+// Browse all: the full grid and the detail panel.
+export global Browse {
+    in property <string> title;         // "All shows", "Drama · movies"
+    in property <string> count-text;    // "86 titles"
+    in-out property <bool> unwatched-only;
+    in property <[PosterCardData]> cards;
+    in-out property <int> selected: -1;
+    in property <bool> detail-open;
+    in property <DetailData> detail;
+
+    callback select(int);
+    callback play(bool);                // true = from the start
+    callback set-unwatched(bool);
 }
 
 export struct AccountRow {

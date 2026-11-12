@@ -5,7 +5,7 @@
 pub mod plex;
 
 use thiserror::Error;
-pub use tvdash_core::models::{MediaItem, PlayState, Session, SourceKind};
+pub use tvdash_core::models::{LibraryData, MediaItem, PlayState, Session, SourceKind};
 
 #[derive(Debug, Error)]
 pub enum MediaError {
@@ -65,8 +65,9 @@ pub trait MediaSource: Send + Sync {
     /// The episode to play for a show: the one in progress, else the first
     /// unwatched, else the first.
     async fn next_episode(&self, show_id: &str) -> Result<MediaItem>;
-    /// Every movie and show with its TMDB ID (for Where to watch's library matches).
-    async fn tmdb_library(&self) -> Result<Vec<(u32, MediaItem)>>;
+    /// Every movie, show and season, with watch counts and TMDB IDs (Library
+    /// shelves; search's library matches).
+    async fn library(&self) -> Result<LibraryData>;
 }
 
 /// Shared HTTP client settings for media servers.

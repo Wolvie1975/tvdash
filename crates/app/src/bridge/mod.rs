@@ -5,7 +5,7 @@
 //! main window), so this one module feeds both. By concern:
 //!
 //! - [`home`]: Continue Watching cards, the On the TV card, sessions, tiles, posters
-//! - [`library`]: the Library page, its search and the detail panel
+//! - [`library`]: the Library's shelves, Browse all and its detail panel
 //! - [`accounts`]: Settings › Accounts and Streaming rows, the site editor, first-run setup
 //! - [`status`]: weather, location, Settings › Diagnostics
 
@@ -35,7 +35,10 @@ use tvdash_core::{
 
 pub use accounts::sync_setup;
 pub use home::{row, tab_row};
-pub use library::{clear_search, close_detail, select, selected, start_search};
+pub use library::{
+    box_item, browse, open_item, pick, play_command, select, select_row, selected, set_commands, set_tab,
+    set_unwatched, shuffle,
+};
 
 use crate::{
     AccountPrompt, AccountRow, Accounts, Dash, Diagnostics, Display, LaptopWindow, Library, Nav, PosterCardData,
@@ -86,10 +89,9 @@ pub struct UiState {
     sign_in: HashMap<SourceKind, SignInState>,
     streaming: BTreeMap<String, DateTime<Utc>>,
     // Library
-    search: Option<(String, Vec<MediaItem>)>,
+    lib: library::LibraryUi,
     lib_continue: Vec<MediaItem>,
     lib_recent: Vec<MediaItem>,
-    lib_results: Vec<MediaItem>,
     selected: Option<MediaItem>,
     // Models
     cards: Rc<VecModel<PosterCardData>>,
@@ -100,7 +102,6 @@ pub struct UiState {
     sessions: Rc<VecModel<SessionRow>>,
     lib_continue_cards: Rc<VecModel<PosterCardData>>,
     lib_recent_cards: Rc<VecModel<PosterCardData>>,
-    lib_result_cards: Rc<VecModel<PosterCardData>>,
     account_rows: Rc<VecModel<AccountRow>>,
     site_rows: Rc<VecModel<SiteRow>>,
     toast_timer: Option<Timer>,
@@ -138,10 +139,7 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         dash.set_prompts(ModelRc::from(s.prompts.clone()));
         dash.set_tv_prompts(ModelRc::from(s.tv_prompts.clone()));
         dash.set_sessions(ModelRc::from(s.sessions.clone()));
-        let lib = laptop.global::<Library>();
-        lib.set_continue_watching(ModelRc::from(s.lib_continue_cards.clone()));
-        lib.set_recently_added(ModelRc::from(s.lib_recent_cards.clone()));
-        lib.set_results(ModelRc::from(s.lib_result_cards.clone()));
+        library::init(s, laptop);
         let acc = laptop.global::<Accounts>();
         acc.set_accounts(ModelRc::from(s.account_rows.clone()));
         acc.set_sites(ModelRc::from(s.site_rows.clone()));
@@ -246,7 +244,9 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::Account(kind, status) => {
             s.accounts.insert(kind, status);
             home::update_cw_state(s, laptop);
+            laptop.global::<Library>().set_state(library::state(s).into());
         }
+        AppEvent::Library(_, data) => library::on_library(s, laptop, data),
         AppEvent::Server(kind, url) => {
             match url {
                 Some(u) => s.servers.insert(kind, u),
@@ -266,7 +266,6 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             s.recently_added.insert(kind, items);
             library::rebuild(s, laptop);
         }
-        AppEvent::SearchResults { query, items } => library::on_results(s, laptop, query, items),
         AppEvent::Poster { source, item_id, image } => home::on_poster(s, laptop, source, item_id, &image),
         AppEvent::Details(item) => {
             s.details.insert((item.source, item.id.clone()), item);

@@ -9,9 +9,14 @@ use tvdash_core::{
 
 /// Current wall-clock time in the configured zone (system local if `None`).
 pub fn now_local(tz: Option<chrono_tz::Tz>) -> NaiveDateTime {
+    now_local_at(tz, Utc::now())
+}
+
+/// `now` as wall-clock time in the configured zone (system local if `None`).
+pub fn now_local_at(tz: Option<chrono_tz::Tz>, now: chrono::DateTime<Utc>) -> NaiveDateTime {
     match tz {
-        Some(tz) => Utc::now().with_timezone(&tz).naive_local(),
-        None => Local::now().naive_local(),
+        Some(tz) => now.with_timezone(&tz).naive_local(),
+        None => now.with_timezone(&Local).naive_local(),
     }
 }
 
@@ -51,24 +56,6 @@ pub fn length(ms: u64) -> String {
         (h, 0) => format!("{h} h"),
         (h, m) => format!("{h} h {m} min"),
     }
-}
-
-/// Detail-panel line: "Episode · 45 min · 30 min left", "Movie · 2 h 5 min".
-pub fn item_meta(item: &MediaItem) -> String {
-    let mut parts: Vec<String> = Vec::new();
-    match item.kind {
-        MediaKind::Movie => parts.push("Movie".into()),
-        MediaKind::Series => parts.push("Show".into()),
-        MediaKind::Episode => parts.push("Episode".into()),
-        MediaKind::Other => {}
-    }
-    if let Some(d) = item.duration_ms.filter(|&d| d > 0) {
-        parts.push(length(d));
-        if let Some(pos) = item.resume_ms {
-            parts.push(format!("{} left", length(d.saturating_sub(pos))));
-        }
-    }
-    parts.join(" · ")
 }
 
 /// "12:34 / 45:00 · ends 21:40" (end time only while playing and known).
@@ -141,11 +128,14 @@ pub fn genres(item: &MediaItem) -> String {
     item.genres.iter().take(3).cloned().collect::<Vec<_>>().join(" · ")
 }
 
-/// Poster badge on Continue Watching: "S1 · E3" for an episode, "22 min left" for a movie.
+/// Poster badge: "S1 · E3" for an episode, "22 min left" for a movie in
+/// progress, "Watched" for one seen; nothing otherwise.
 pub fn badge(item: &MediaItem) -> String {
     match item.kind {
         MediaKind::Episode => item.episode_label.clone().unwrap_or_else(|| "Episode".into()),
-        _ => time_left(item).unwrap_or_else(|| "Movie".into()),
+        MediaKind::Series if item.leaf_count.is_some() && item.viewed_leaf_count == item.leaf_count => "Watched".into(),
+        MediaKind::Series => String::new(),
+        _ => time_left(item).unwrap_or_else(|| if item.view_count > 0 { "Watched".into() } else { String::new() }),
     }
 }
 
@@ -180,18 +170,6 @@ mod tests {
             position_ms: 754_000,
             duration_ms: Some(2_700_000),
         }
-    }
-
-    #[test]
-    fn meta_line() {
-        let mut item = status(PlayState::Playing).item;
-        assert_eq!(item_meta(&item), "Episode · 45 min");
-        item.resume_ms = Some(900_000);
-        assert_eq!(item_meta(&item), "Episode · 45 min · 30 min left");
-        item.duration_ms = Some(7_500_000);
-        item.kind = MediaKind::Movie;
-        item.resume_ms = None;
-        assert_eq!(item_meta(&item), "Movie · 2 h 5 min");
     }
 
     #[test]
@@ -309,5 +287,8 @@ mod box_tests {
         assert_eq!(episode_line(&movie), "");
         assert_eq!(facts(&movie), "2 h");
         assert_eq!(badge(&movie), "22 min left");
+        let seen = MediaItem { resume_ms: None, view_count: 1, ..movie.clone() };
+        assert_eq!(badge(&seen), "Watched");
+        assert_eq!(badge(&MediaItem { view_count: 0, ..seen }), "", "nothing to say");
     }
 }

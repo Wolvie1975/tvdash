@@ -1,7 +1,7 @@
 // Dev tool: render windows offscreen to PNG (no display needed).
 // Usage: cargo run --example snapshot -- out.png <mode> [height] [width]
 // THEME=stone|mist picks a light theme (default dark).
-// Modes: home-search, settings-streaming, home, home-playing, home-next, home-code, home-streaming, library, library-search,
+// Modes: home-search, settings-streaming, home, home-playing, home-next, home-code, home-streaming, library (LIB_TAB=movies), browse,
 //        settings, setup-0, setup-1, tv
 use std::rc::Rc;
 
@@ -256,37 +256,144 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                 )]));
             }
         }
-        "library" | "library-search" => {
+        "library" => {
             l.global::<Nav>().set_page("library".into());
             let lib = l.global::<Library>();
-            lib.set_continue_watching(row.clone());
-            lib.set_recently_added(cards(&[
-                ("New Film", "2026", 0.0, true, "Plex"),
-                ("Docu Series", "S1 · E1 · Origins", 0.0, true, "Plex"),
-                ("Another Film", "2025", 0.0, false, "Plex"),
-            ]));
-            if mode == "library-search" {
-                lib.set_query("film".into());
-                lib.set_results_title("RESULTS FOR “FILM”".into());
-                lib.set_results(cards(&[
-                    ("A Film", "1999", 0.8, true, "Plex"),
-                    ("Plex Film", "2001", 0.0, true, "Plex"),
-                    ("Another Film", "2025", 0.0, false, "Plex"),
-                ]));
-                lib.set_selected_section("results".into());
-                lib.set_selected_index(0);
-                lib.set_detail_open(true);
-                lib.set_detail(DetailData {
-                    title: "A Film".into(),
-                    subtitle: "1999".into(),
-                    badge: "PLEX".into(),
-                    meta: "Movie · 2 h 5 min · 25 min left".into(),
-                    poster: fake_poster(0),
+            lib.set_state("ready".into());
+            let movies = std::env::var("LIB_TAB").as_deref() == Ok("movies");
+            lib.set_tab(if movies { "movies" } else { "tv" }.into());
+            let hue = |d: f32| tint::Hue { degrees: d, saturation: 0.7 };
+            lib.set_has_pick(true);
+            lib.set_pick_tint(tint::card_tint(hue(if movies { 265.0 } else { 195.0 }), theme_mode));
+            lib.set_pick(if movies {
+                PickData {
+                    title: "Paper Moon City".into(),
+                    meta: "Unwatched · Movie · 1 h 58 min · Plex".into(),
+                    why: "Picked at random from movies you haven't watched.".into(),
+                    action: "Play on TV".into(),
+                    poster: fake_poster(160),
                     has_poster: true,
-                    progress: 0.8,
-                    can_resume: true,
-                });
+                }
+            } else {
+                PickData {
+                    title: "Northbound".into(),
+                    meta: "Unwatched series · 16 episodes · Plex".into(),
+                    why: "A show you haven't started yet.".into(),
+                    action: "Start S1 · E1 on TV".into(),
+                    poster: fake_poster(90),
+                    has_poster: true,
+                }
+            });
+            let shelf = |title: &str, line: &str, d: f32, segments: i32, done: i32, progress: f32| {
+                let t = tint::card_tint(hue(d), theme_mode);
+                ShelfItem {
+                    title: title.into(),
+                    line: line.into(),
+                    poster: fake_poster(d as u8),
+                    has_poster: true,
+                    card: t.card,
+                    art: t.poster,
+                    accent: t.accent,
+                    sec: t.sec,
+                    segments,
+                    done,
+                    progress,
+                }
+            };
+            if movies {
+                lib.set_box_title("CONTINUE WATCHING".into());
+                lib.set_box_rule("Movies you started and didn't finish".into());
+                lib.set_box_items(model(vec![
+                    shelf("The Quiet Year", "1 h 5 min left", 45.0, 0, 0, 0.35),
+                    shelf("Iron Valley", "22 min left", 20.0, 0, 0, 0.8),
+                    shelf("Low Tide", "1 h 20 min left", 60.0, 0, 0, 0.08),
+                ]));
+            } else {
+                lib.set_box_title("FINISH A SEASON".into());
+                lib.set_box_rule("Shows with 3 or fewer episodes left".into());
+                lib.set_box_items(model(vec![
+                    shelf("Harbor Lights", "Season 1 · 2 episodes left", 215.0, 10, 8, 0.8),
+                    shelf("Field Notes", "Season 1 · 1 episode left", 140.0, 10, 9, 0.9),
+                    shelf("Night Shift", "Season 4 · 3 episodes left", 355.0, 8, 5, 0.6),
+                ]));
             }
+            let six = |names: [&str; 6]| {
+                let list: Vec<(&str, &str, f32, bool, &str)> = names.iter().map(|n| (*n, "", 0.0, true, "")).collect();
+                cards(&list)
+            };
+            lib.set_added(six([
+                "Glass Rivers",
+                "Second Summer",
+                "The Long Way",
+                "Ember Street",
+                "Saltwater",
+                "Quiet Hours",
+            ]));
+            lib.set_added_count(9);
+            lib.set_added_rule("New shows and new episodes since Monday".into());
+            lib.set_again(six(["North Pier", "Halfway House", "Red Kite", "Small Hours", "The Orchard", "Static"]));
+            lib.set_again_count(14);
+            lib.set_again_rule("Shows you've watched all the way through".into());
+            let genres: Vec<GenreTile> =
+                [("Drama", 38), ("Comedy", 24), ("Sci-fi", 12), ("Crime", 15), ("Documentary", 9), ("Animation", 11)]
+                    .iter()
+                    .zip([215.0, 45.0, 265.0, 355.0, 140.0, 195.0])
+                    .map(|((n, c), d)| {
+                        let t = tint::card_tint(tint::Hue { degrees: d, saturation: 0.6 }, theme_mode);
+                        GenreTile {
+                            name: (*n).into(),
+                            count: c.to_string().into(),
+                            bg: t.card,
+                            edge: t.edge,
+                            sec: t.sec,
+                        }
+                    })
+                    .collect();
+            lib.set_genres(model(genres));
+        }
+        "browse" => {
+            l.global::<Nav>().set_page("browse".into());
+            let b = l.global::<Browse>();
+            b.set_title("All movies".into());
+            b.set_count_text("412 titles".into());
+            let names = [
+                "Harbor Lights",
+                "The Quiet Year",
+                "Paper Moon City",
+                "Iron Valley",
+                "Low Tide",
+                "Northbound",
+                "The Orchard",
+                "Static",
+                "Glass Rivers",
+                "Second Summer",
+                "The Long Way",
+                "Ember Street",
+                "Saltwater",
+                "Quiet Hours",
+                "North Pier",
+            ];
+            let list: Vec<(&str, &str, f32, bool, &str)> = names
+                .iter()
+                .enumerate()
+                .map(|(i, n)| (*n, "", if i % 4 == 1 { 0.4 } else { 0.0 }, i != 7, "Movie"))
+                .collect();
+            b.set_cards(cards(&list));
+            b.set_selected(2);
+            b.set_detail_open(true);
+            b.set_detail(DetailData {
+                title: "Paper Moon City".into(),
+                subtitle: "".into(),
+                badge: "PLEX".into(),
+                meta: "Movie · 2024 · 1 h 52 min · Mystery".into(),
+                extra: "Watched once".into(),
+                overview: "A night-shift cartographer finds a district on the old maps that was never built, and a tram line that still runs to it.".into(),
+                action: "Play on TV".into(),
+                poster: fake_poster(160),
+                has_poster: true,
+                progress: 0.0,
+                can_resume: false,
+            });
         }
         m if m.starts_with("tv-") => {
             l.global::<Nav>().set_layout("tv".into());
