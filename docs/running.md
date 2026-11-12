@@ -42,10 +42,10 @@ another.
 
 Everything is under **Settings › Accounts** on the dashboard:
 
-- **Plex / Jellyfin:** Sign in, Sign out, Reconnect.
-- **TMDB (Where to watch):** paste your TMDB API Read Access Token (themoviedb.org ›
-  Settings › API). It turns on Where to watch and the service logos on the tiles.
-- **Streaming sites** (Settings › Streaming): **Sign in on TV** opens the site on the TV. Sign in with the
+- **Plex:** Sign in, Sign out, Reconnect.
+- **TMDB (search):** paste your TMDB API Read Access Token (themoviedb.org ›
+  Settings › API). It turns on the dashboard's search panel.
+- **Streaming apps** (Settings › Streaming): **Sign in on TV** opens the app on the TV. Sign in with the
   laptop's mouse and keyboard, then press **Stop**.
 - **Run first-time setup again** walks through all of these in order.
 
@@ -63,13 +63,12 @@ tvdash --check-keyring
 | Setting | Where | What it does |
 |---|---|---|
 | `location`, `latitude`, `longitude` | `[general]` | The weather location. Easier from Settings › Display › Location (search for your city) |
-| `units`, `clock`, `seconds` | `[general]` | Easier from Settings › Display |
+| `units`, `clock`, `seconds` | `[general]` | Easier from Settings › Display. `clock` is `"12h"` (default) or `"24h"` |
 | `timezone` | `[general]` | e.g. `"America/Chicago"` |
 | `theme` | `[general]` | `"dark"` (default), `"stone"` or `"mist"`; the header switch changes it for you |
 | `tv_output`, `laptop_output` | `[display]` | Which screen is which (see above) |
-| `server_url` | `[jellyfin]` | Your Jellyfin server address |
-| `binary` | `[browser]` | Browser for streaming sites (default `brave-browser`) |
-| `[[streaming]]` entries | end of file | The Watch on TV tiles, in order: `name`, `url`, optional `search_url` (with `{title}`), `tmdb_providers`, `hidden`. Easier from Settings › Streaming or by holding a tile |
+| `binary` | `[browser]` | Browser for streaming apps (default `brave-browser`) |
+| `[[streaming]]` entries | end of file | The ten Watch on TV apps (fixed list and order): change an app's `url`, or its `search_url` (with `{title}` where the title goes). Other entries are dropped |
 
 ## Updating after code changes
 
@@ -85,7 +84,7 @@ Quit tvdash and start it again to run the new version.
 
 | Problem | Fix |
 |---|---|
-| Plex or Jellyfin plays **sound but no picture** (black screen), or tvdash says "mpv can't decode the video" | Fedora's own FFmpeg (`ffmpeg-free`) can't decode most H.264 films or any HEVC. Switch to RPM Fusion's full FFmpeg: `sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm`, then `sudo dnf swap ffmpeg-free ffmpeg --allowerasing`. Check with `mpv --vd=help \| grep -wE "h264\|hevc"` (both should be listed), then play the title again; no restart needed |
+| Plex plays **sound but no picture** (black screen), or tvdash says "mpv can't decode the video" | Fedora's own FFmpeg (`ffmpeg-free`) can't decode most H.264 films or any HEVC. Switch to RPM Fusion's full FFmpeg: `sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm`, then `sudo dnf swap ffmpeg-free ffmpeg --allowerasing`. Check with `mpv --vd=help \| grep -wE "h264\|hevc"` (both should be listed), then play the title again; no restart needed |
 | Plex sign-in says no address answered | Your router may block `*.plex.direct` names. tvdash falls back to the server's local address; if that fails too, check the server is on and the laptop is on the same network |
 | Streaming site says DRM or won't play | In the Brave window on the TV, accept the prompt to enable **Widevine**. If you missed it: Brave → Settings → Extensions → turn on Widevine, then reopen the site |
 | A streaming site opens on the laptop instead of the TV | Set `window_position = "X,Y"` under `[browser]` to the TV's top-left corner (e.g. `"1920,0"` if the TV is to the right of a 1920-wide panel) |

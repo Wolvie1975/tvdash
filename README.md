@@ -2,10 +2,11 @@
 
 Rust + Slint desktop app for a Fedora laptop connected to a TV. The laptop panel shows a
 mouse-driven control dashboard, and the TV (HDMI, the primary display) handles playback only:
-Plex and Jellyfin play through mpv, streaming sites open in a full-screen browser, and a dim
-idle screen shows otherwise. See [docs/running.md](docs/running.md) for day-to-day use (start, stop, update, fixes),
-[docs/deploying.md](docs/deploying.md) for setting it up on another machine, and
-[docs/v1-plan.md](docs/v1-plan.md) for the V1 plan, and
+Plex plays through mpv, ten streaming apps open in a full-screen browser, and a dim idle
+screen shows otherwise. See [docs/running.md](docs/running.md) for day-to-day use (start, stop, update, fixes),
+[docs/deploying.md](docs/deploying.md) for setting it up on another machine,
+[docs/dashboard-library-update.md](docs/dashboard-library-update.md) for the current dashboard,
+Library and screensaver, [docs/v1-plan.md](docs/v1-plan.md) for the V1 plan, and
 [docs/future-plan.md](docs/future-plan.md) for v1.1 onwards ([docs/tv-only-plan.md](docs/tv-only-plan.md) for the single-screen layout).
 
 ## Install and first run (Fedora 44)
@@ -31,14 +32,12 @@ idle screen shows otherwise. See [docs/running.md](docs/running.md) for day-to-d
    `laptop_output`). For the weather, pick your city in Settings › Display › Location.
 5. With nothing connected yet, tvdash opens **first-time setup** on the laptop:
    1. **Plex**: get a code and enter it at plex.tv/link. tvdash finds your server.
-   2. **Jellyfin**: check the server address, then use Quick Connect (enable it in the
-      Jellyfin dashboard), or a username and password.
-   3. **Streaming**: open each site on the TV once and sign in with the laptop's mouse and
+   2. **Streaming**: open each app on the TV once and sign in with the laptop's mouse and
       keyboard.
 
    Every step can be skipped. Settings › Accounts can run setup again.
 
-The Plex and Jellyfin tokens live in GNOME Keyring (service `tvdash`), never in the
+The Plex and TMDB tokens live in GNOME Keyring (service `tvdash`), never in the
 config file.
 
 ## Installing on the machine that drives the TV
@@ -64,23 +63,26 @@ for the TV, and logs which ones it chose.
 
 | Page | What's there |
 |---|---|
-| **Home** | Header: clock, theme switch (Dark / Stone / Mist), weather, Settings. Left: **On the TV**, tinted from the poster, with transport buttons (or **Up next** with Resume on TV when the TV is idle) and other devices' sessions. Right: Watch on TV tiles and Continue Watching (tap to resume on the TV, swipe for more) |
-| **Where to watch** | Search icon in the header. Any movie or show, grouped: In your library (Resume/Play on TV), On your services (Open on TV, using the site's search page), Costs extra, Not streaming. "Only what I can watch now" hides the last two |
-| **Library** | All / Plex / Jellyfin filter, search, Continue Watching, Recently Added; click a poster for details, **Resume on TV** or **Play from the start** |
-| **Settings › Accounts** | Plex, Jellyfin and the TMDB token with Sign in / Sign out / Reconnect; keyring status |
-| **Settings › Streaming** | Every site in tile order: Edit, Hide/Show, move up/down, Add site, Sign in on TV; **Clear browser profile** |
-| **Settings › Display** | °F/°C, 24/12-hour, seconds, theme (all live) |
-| **Settings › Diagnostics** | Last success and last error per service (Plex, Jellyfin, TMDB, weather, keyring, mpv, browser), and where the log, settings and caches are |
+| **Home** | Header: **Search** and **Screensaver** left; time, date and weather centred; theme switch (Dark / Stone / Mist) and Settings right. Three equal boxes: **On the TV** (title, episode, year · rating · runtime · genre, poster and description; transport buttons while playing, or **Up next** with Resume on TV), **Watch on TV** (ten app logos) and **Continue Watching** (TV / Series · Movies, tap a poster to resume on the TV) |
+| **Search** | The Search button slides a panel over the right two boxes. Type a movie or show: In your library (Resume / Play on TV), On your apps (Open on TV, using the app's search page), Costs extra, Not streaming |
+| **Screensaver** | "It's 9:04 PM on Thursday. Outside, 51° and partly sunny." and what's on the TV. Always dark; any tap or key wakes the dashboard (that tap does nothing else) |
+| **Library** | "See all ›" on Continue Watching. Smart shelves for Movies or TV / Series: Tonight's pick (with Shuffle), Finish a season / Continue watching, Added this week, Watch again, Genres. **Browse all** (or a shelf's count, a genre, a poster) opens the full grid with a detail panel |
+| **Settings › Accounts** | Plex and the TMDB token with Sign in / Sign out / Reconnect; keyring status |
+| **Settings › Streaming** | The ten apps with their addresses and **Sign in on TV**; **Clear browser profile** |
+| **Settings › Display** | °F/°C, 12/24-hour, seconds, theme (all live) |
+| **Settings › Diagnostics** | Last success and last error per service (Plex, TMDB, weather, keyring, mpv, browser), and where the log, settings and caches are |
 | *(all tabs)* | **Quit tvdash** in the Settings header with **Sign in on TV**; **Clear browser profile** (signs out of every streaming site) |
 
-An expired Plex or Jellyfin sign-in shows **Reconnect** on the On the TV card.
+An expired Plex sign-in shows **Reconnect** on the On the TV box. While a video plays or a
+streaming app is open, tvdash asks GNOME (through the desktop portal) not to blank the laptop
+screen.
 
 Command-line options:
 
 ```bash
 tvdash --windowed                       # don't go full screen (single-display development)
 tvdash --check-keyring                  # keyring round-trip and the list of stored secrets
-tvdash --set-secret jellyfin_token      # paste a secret (read from stdin)
+tvdash --set-secret tmdb_api_key       # paste a secret (read from stdin)
 tvdash --clear-secret plex_token
 ```
 
@@ -94,7 +96,7 @@ Two screens; it switches right away and is remembered), or try it once with `tvd
 next, Continue Watching, your services), Library, Services and Settings, driven by arrows,
 Enter (OK) and Esc/Backspace (Back). After 5 quiet minutes on Home it shows an ambient clock.
 
-Plex and Jellyfin videos play **inside the tvdash window** (through libmpv, from Fedora's
+Plex videos play **inside the tvdash window** (through libmpv, from Fedora's
 `mpv-libs`, which comes with `mpv`). They start full screen:
 
 | Key | Full-screen video |
@@ -119,23 +121,21 @@ To check in-window video on a machine without signing in to anything:
 cargo run --release --example video -- ~/Videos/some-film.mkv     # or any URL mpv plays
 ```
 
-## Where to watch (TMDB)
+## Search (TMDB)
 
 Needs a TMDB **API Read Access Token** (themoviedb.org › Settings › API). Paste it in
-Settings › Accounts › TMDB (or `tvdash --set-secret tmdb_api_key`). With it:
+Settings › Accounts › TMDB (or `tvdash --set-secret tmdb_api_key`). Searches then show
+what's in Plex (matched by TMDB ID), what's included with your ten apps, and what costs
+extra. Availability is cached for a day in `~/.local/share/tvdash/cache.db`; the provider
+list for a week. Availability data is JustWatch's, via TMDB; the panel credits both as TMDB
+requires.
 
-- the dashboard tiles show each service's logo;
-- sites without TMDB provider IDs get them matched by name (the editor's **Find** does the
-  same by hand; add ad tiers and channel variants as extra IDs);
-- searches show what's in Plex/Jellyfin (matched by TMDB ID), what's included with your sites
-  (hidden ones count), and what costs extra. Availability is cached for a day in
-  `~/.local/share/tvdash/cache.db`; the provider list for a week. Logos are downloaded once
-  and kept in `~/.local/share/tvdash/logos/`.
+## Watch on TV apps
 
-To use your own tile logo for a site (with or without TMDB), point `logo` at a PNG, JPEG or
-WebP file in its `[[streaming]]` entry: `logo = "~/Pictures/netflix.png"`.
-
-Availability data is JustWatch's, via TMDB; the page credits both as TMDB requires.
+A fixed list: YouTube TV, YouTube, Disney+, Hulu, Apple TV, Netflix, Fandango at Home,
+Prime Video, Crunchyroll, Tubi. Their logos are bundled (`assets/logos/`, sources in
+`SOURCES.md` there). To change an address, edit its `[[streaming]]` entry in the config
+(`url`, and `search_url` with `{title}` where the title goes); other entries are dropped.
 
 ## Header widgets
 
@@ -165,11 +165,11 @@ Widevine (Chrome, Edge, Vivaldi) work too; Fedora's `chromium` doesn't.
 | Crate | Package | Role |
 |---|---|---|
 | `crates/core` | `tvdash-core` | Config, keyring secrets, app state file, models, `AppEvent`/`Command` |
-| `crates/media` | `tvdash-media` | `MediaSource` trait; Plex and Jellyfin clients |
+| `crates/media` | `tvdash-media` | `MediaSource` trait; the Plex client |
 | `crates/player` | `tvdash-player` | mpv JSON IPC and the streaming browser launcher |
 | `crates/widgets` | `tvdash-widgets` | Weather poller |
-| `crates/discover` | `tvdash-discover` | TMDB client, SQLite cache, Where to watch ranking |
-| `crates/app` | `tvdash` | Slint UI (`ui/*.slint`: home, library, settings, setup, TV), controller, `main()` |
+| `crates/discover` | `tvdash-discover` | TMDB client, SQLite cache, search ranking |
+| `crates/app` | `tvdash` | Slint UI (`ui/*.slint`: home, library, browse, saver, settings, setup, TV), controller, Library shelves (`shelves.rs`), `main()` |
 
 The controller (`crates/app/src/controller.rs`) owns everything with side effects: media
 sources, sign-in flows, mpv and the browser. UI callbacks send it `Command`s
@@ -178,9 +178,10 @@ sources, sign-in flows, mpv and the browser. UI callbacks send it `Command`s
 To render the windows to PNG without a display (useful in the devcontainer):
 
 ```bash
-cargo run --example snapshot -- out.png home-playing   # also: home, home-code, home-streaming,
-                                                       # library, library-search, settings,
-                                                       # setup-0 … setup-2, tv
+cargo run --example snapshot -- out.png home-playing   # also: home, home-next, home-search,
+                                                       # home-code, home-streaming, library
+                                                       # (LIB_TAB=movies), browse, saver,
+                                                       # saver-idle, settings, setup-0, setup-1, tv
 ```
 
 ## Tests
@@ -191,10 +192,10 @@ cargo test -- --include-ignored  # also the end-to-end tests (need python3 and l
 ```
 
 The end-to-end tests run the real controller against `crates/app/tests/fakes/`: a fake
-Jellyfin server, a fake plex.tv + Plex Media Server, a fake mpv that speaks the JSON IPC
-protocol, and a fake browser. For each server they cover sign-in (Quick Connect, PIN,
-password), Continue Watching, Recently Added, search, posters, play, pause/seek, stop, the
-progress reports the server receives, and sign-out. The streaming test covers site
+plex.tv + Plex Media Server, a fake TMDB, a fake mpv that speaks the JSON IPC protocol, and
+a fake browser. They cover PIN sign-in, Continue Watching, Recently Added, item details, the
+whole library read, posters, play, pause/seek, stop, the progress reports the server
+receives, search ranking and sign-out. The streaming test covers site
 switching, Stop closing the whole process group, the first-visit hint, Chrome handing
 off to an already-open window, clearing the profile and the first-run setup trigger.
 The weather poller has its own end-to-end test in `crates/widgets/tests/`.
@@ -209,3 +210,4 @@ The weather poller has its own end-to-end test in `crates/widgets/tests/`.
 - [x] **M6**: First-run setup, Settings › Accounts, expired-sign-in states, Library with search, filters, Recently Added and a detail panel
 - [x] **Redesign**: two columns, On the TV tinted from the poster, touch-first, Dark / Stone / Mist
 - [x] **v1.1**: manage streaming sites; Where to watch (TMDB); service logos; Settings › Display; weather stale/error states; Diagnostics and a log file; TV pixel shift; crossfades
+- [x] **Dashboard & Library update** (2026-11-12): Plex only; three-box dashboard; ten fixed apps with bundled logos; search panel; smart-shelf Library and Browse all; sentence-clock screensaver; 12-hour clocks by default

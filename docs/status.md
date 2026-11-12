@@ -5,16 +5,23 @@ next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-1. **Push.** Commits `6f755a2`, `26f728c` and `8d2a071` are local only. Push from VS Code
-   (Source Control › Sync, or `git push` in a VS Code terminal). Claude's shell can't reach
-   VS Code's GitHub login, so it can't push.
-2. **Install on the TV machine.** The release build in `target/release/` is current
-   (`8d2a071`). On the Fedora host, in the project folder:
+1. **Review and merge the dashboard & Library update.** Branch `dashboard-library-update`
+   (local only): Jellyfin removed, three-box dashboard, ten fixed apps with logos, search
+   panel, smart-shelf Library, sentence-clock screensaver. See
+   [dashboard-library-update.md](dashboard-library-update.md). Push from VS Code (Claude's
+   shell can't reach VS Code's GitHub login).
+2. **Install on the TV machine**, after a release build (`cargo build --release`):
    ```bash
    packaging/install.sh          # warns if mpv-libs (libmpv) is missing: sudo dnf install mpv-libs
    ```
-   Then Settings › Quit tvdash and start it again from the app menu.
-3. **Check in-window video on the real TV** (TV-only layout). It has only been seen on a
+   Then Settings › Quit tvdash and start it again from the app menu. The first start
+   rewrites `[[streaming]]` in the config to the ten apps and drops `[jellyfin]`.
+3. **Clock:** 12-hour is the new default, but an existing config already says
+   `clock = "24h"`; switch it in Settings › Display.
+4. **On the laptop:** check each app tile opens the right page on the TV (addresses can be
+   fixed in `[[streaming]]`), whether GNOME's on-screen keyboard appears in the search
+   field, and that the screen stays on while something plays.
+5. **Check in-window video on the real TV** (TV-only layout). It has only been seen on a
    virtual display with Mesa's software OpenGL, not on Wayland with a real GPU. See
    [Things to check](#things-to-check-on-the-tv-machine).
 
@@ -22,17 +29,20 @@ next, and the practical details that aren't obvious from the code.
 
 | Area | State |
 |---|---|
-| v1 (M1–M6) | Built: Plex + Jellyfin sign-in, Continue Watching, mpv playback with progress sync, streaming sites in Brave, weather, first-run setup, Library |
+| v1 (M1–M6) | Built: Plex + Jellyfin sign-in (Jellyfin since removed), Continue Watching, mpv playback with progress sync, streaming sites in Brave, weather, first-run setup, Library |
 | Laptop redesign | Built: two columns, poster tint, Dark / Stone / Mist, touch-first, 5-column service grid with Add service and long-press edit |
 | v1.1 | Built: manage streaming sites, Where to watch (TMDB), service logos, Display settings, stale/error states, Diagnostics, pixel shift, crossfades |
 | Tile logos (2026-11-12) | TMDB logos kept on disk in `~/.local/share/tvdash/logos/`; per-site `logo = "path"` override in `[[streaming]]` |
 | TV-only layout, step 1 | Built: side rail, 10-foot screens, arrow/OK/Back navigation, ambient clock, `tvdash --home`, live layout switch |
-| TV-only layout, step 2 (2026-11-12) | Built: Plex/Jellyfin video plays inside the tvdash window through libmpv. Falls back to mpv's own window without libmpv or if drawing fails |
+| TV-only layout, step 2 (2026-11-12) | Built: Plex video plays inside the tvdash window through libmpv. Falls back to mpv's own window without libmpv or if drawing fails |
 | Cleanup (2026-11-12) | `bridge.rs` split into `bridge/` (home, library, accounts, status); repeated controller code folded |
+| Dashboard & Library update (2026-11-12) | Built on branch `dashboard-library-update`: Plex only; header on a 1fr 2fr 1fr grid; three equal boxes; ten fixed apps with bundled logos (replaces site management and TMDB logos); search panel (replaces Where to watch); Library smart shelves + Browse all; sentence-clock screensaver with a portal idle inhibitor; 12-hour default. [Details](dashboard-library-update.md) |
 
 Decisions made along the way:
 - **Themes:** no "Follow system" option. Keep the three explicit themes (Dark / Stone / Mist).
-- **Favicon fallback for tile logos:** skipped. Without a logo, tiles show the name.
+- **Favicon fallback for tile logos:** skipped. (Superseded: the ten apps now have bundled logos.)
+- **Jellyfin:** removed (2026-11-12); Plex covers it.
+- **Tonight's pick ending before night mode:** skipped until night mode exists.
 - **Calendar and homelab:** removed from scope for good (2026-11-11).
 - **Two-screen layout:** keeps using mpv's own window. In-window video is TV-only.
 
@@ -99,12 +109,15 @@ More: [running.md](running.md) (day to day), [deploying.md](deploying.md) (anoth
 |---|---|
 | Startup, CLI, libmpv load | `crates/app/src/main.rs` |
 | Everything with side effects (sign-in, playback, browser, config) | `crates/app/src/controller.rs` |
-| Events → UI models | `crates/app/src/bridge/` (`home`, `library`, `accounts`, `status`) |
+| Events → UI models | `crates/app/src/bridge/` (`home`, `library`, `saver`, `accounts`, `status`) |
+| Library shelf rules (no UI) | `crates/app/src/shelves.rs` |
+| App list, logos | `APPS` in `crates/core/src/config.rs`; `crates/app/src/logos.rs`, `assets/logos/` |
+| Screen-blanking inhibitor | `crates/app/src/inhibit.rs` |
 | TV-only keys and focus | `crates/app/src/tv_nav.rs`; UI in `crates/app/ui/tv/shell.slint` |
 | In-window video drawing (UI thread, OpenGL) | `crates/app/src/video.rs` |
 | libmpv bindings, player, render context | `crates/player/src/libmpv.rs` |
 | mpv in its own window (JSON IPC) | `crates/player/src/mpv.rs` |
-| TMDB, logos, Where to watch | `crates/app/src/watch.rs`, `crates/discover/` |
+| TMDB search (the panel) | `crates/app/src/watch.rs`, `watch_ui.rs`, `crates/discover/` |
 | Config, keyring, state | `crates/core/src/` |
 
 Gotchas worth remembering:

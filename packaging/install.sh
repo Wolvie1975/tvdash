@@ -58,7 +58,7 @@ check() {
     fi
 }
 echo "Checking runtime dependencies:"
-check mpv "Plex/Jellyfin playback won't work. Install: sudo dnf install mpv"
+check mpv "Plex playback won't work. Install: sudo dnf install mpv"
 if ! ldconfig -p 2>/dev/null | grep -q 'libmpv\.so\.2'; then
     echo "  ! libmpv not found: in the TV-only layout videos open in mpv's own window instead of inside tvdash. Install: sudo dnf install mpv-libs"
     missing=1

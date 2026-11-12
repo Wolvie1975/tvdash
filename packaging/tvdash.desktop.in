@@ -2,7 +2,7 @@
 Type=Application
 Name=tvdash
 GenericName=TV Dashboard
-Comment=Laptop control dashboard and TV playback for Plex, Jellyfin and streaming sites
+Comment=Laptop control dashboard and TV playback for Plex and streaming apps
 Exec=@BIN@
 Icon=tvdash
 Terminal=false
