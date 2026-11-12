@@ -30,6 +30,32 @@ ON_DECK = [
      "duration": 6_000_000, "thumb": "/library/metadata/200/thumb/1"},
 ]
 
+# Library sections: 1 = movies, 2 = shows (Where to watch matches, Library shelves).
+LIBRARY = {
+    "1": [
+        {"ratingKey": "m604", "type": "movie", "title": "The Matrix Reloaded", "year": 2003, "duration": 8_280_000,
+         "viewCount": 0, "addedAt": 1_700_000_000, "Genre": [{"tag": "Action"}, {"tag": "Science Fiction"}],
+         "Guid": [{"id": "imdb://tt0234215"}, {"id": "tmdb://604"}], "thumb": "/t/m604"},
+        {"ratingKey": "200", "type": "movie", "title": "Plex Film", "year": 2001, "duration": 6_000_000,
+         "viewOffset": 1_500_000, "viewCount": 2, "addedAt": 1_600_000_000, "Genre": [{"tag": "Drama"}],
+         "thumb": "/library/metadata/200/thumb/1"},
+    ],
+    "2": [
+        {"ratingKey": "100", "type": "show", "title": "Plex Show", "year": 2020, "leafCount": 30,
+         "viewedLeafCount": 22, "addedAt": 1_600_000_000, "Genre": [{"tag": "Drama"}],
+         "Guid": [{"id": "tmdb://999"}], "thumb": "/library/metadata/100/thumb/1"},
+        {"ratingKey": "400", "type": "show", "title": "Unstarted Show", "year": 2024, "leafCount": 8,
+         "viewedLeafCount": 0, "childCount": 1, "addedAt": 1_700_000_000, "Genre": [{"tag": "Comedy"}],
+         "thumb": "/t/400"},
+    ],
+}
+SEASONS = [
+    {"ratingKey": "103", "type": "season", "title": "Season 3", "parentRatingKey": "100", "parentTitle": "Plex Show",
+     "index": 3, "leafCount": 10, "viewedLeafCount": 8, "thumb": "/t/103", "parentThumb": "/library/metadata/100/thumb/1"},
+    {"ratingKey": "401", "type": "season", "title": "Season 1", "parentRatingKey": "400", "parentTitle": "Unstarted Show",
+     "index": 1, "leafCount": 8, "viewedLeafCount": 0, "thumb": "/t/401"},
+]
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 
@@ -80,6 +106,18 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"MediaContainer": {"Hub": [
                 {"type": "movie", "Metadata": [{"ratingKey": "200", "type": "movie", "title": "Plex Film"}]},
                 {"type": "artist", "Metadata": [{"ratingKey": "900", "type": "artist", "title": "A Band"}]}]}})
+        if p == "/library/sections":
+            return self._send(200, {"MediaContainer": {"Directory": [
+                {"key": "1", "type": "movie", "title": "Movies"},
+                {"key": "2", "type": "show", "title": "TV Shows"},
+                {"key": "3", "type": "artist", "title": "Music"}]}})
+        if p.startswith("/library/sections/") and p.endswith("/all"):
+            section = p.split("/")[3]
+            kind = q.get("type", [""])[0]
+            items = SEASONS if kind == "3" else LIBRARY.get(section, [])
+            if "includeGuids" not in q:
+                items = [{k: v for k, v in i.items() if k != "Guid"} for i in items]
+            return self._send(200, {"MediaContainer": {"size": len(items), "Metadata": items}})
         if p == "/library/onDeck":
             return self._send(200, {"MediaContainer": {"size": len(ON_DECK), "Metadata": ON_DECK}})
         if p.startswith("/library/metadata/"):

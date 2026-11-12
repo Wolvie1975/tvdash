@@ -33,9 +33,9 @@ Options:
                     bind it to a GNOME keyboard shortcut
   --check-keyring   Test GNOME Keyring read/write, list which secrets are set, and exit
   --set-secret KEY  Read a value from stdin and store it in the keyring, e.g.
-                    tvdash --set-secret jellyfin_token
+                    tvdash --set-secret tmdb_api_key
   --clear-secret KEY  Remove a secret from the keyring
-                    KEY: plex_token, jellyfin_token
+                    KEY: plex_token, tmdb_api_key
   -h, --help        Show this help
 
 Logging: set RUST_LOG (default: info), e.g. RUST_LOG=tvdash=debug";
@@ -182,7 +182,6 @@ fn main() -> anyhow::Result<()> {
             units: config.general.units,
             theme: config.general.theme,
             sites: config.streaming.clone(),
-            jellyfin_url: config.jellyfin.server_url.clone(),
         },
     );
 

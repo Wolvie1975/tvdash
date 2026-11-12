@@ -1,26 +1,16 @@
-//! The Library page: Continue Watching and Recently Added from both servers,
-//! the source filter, search, and the detail panel.
+//! The Library page: Continue Watching and Recently Added, search, and the detail panel.
 
 use slint::ComponentHandle;
-use tvdash_core::models::{MediaItem, SourceKind};
+use tvdash_core::models::MediaItem;
 
 use super::{STATE, UiState, home::cards_for, in_order};
 use crate::{DetailData, LaptopWindow, Library, format};
 
-fn filter_items(items: Vec<MediaItem>, filter: &str) -> Vec<MediaItem> {
-    match filter {
-        "plex" => items.into_iter().filter(|i| i.source == SourceKind::Plex).collect(),
-        "jellyfin" => items.into_iter().filter(|i| i.source == SourceKind::Jellyfin).collect(),
-        _ => items,
-    }
-}
-
 pub(super) fn rebuild(s: &mut UiState, laptop: &LaptopWindow) {
     let lib = laptop.global::<Library>();
-    let filter = lib.get_filter();
-    s.lib_continue = filter_items(in_order(&s.continue_watching), &filter);
-    s.lib_recent = filter_items(in_order(&s.recently_added), &filter);
-    s.lib_results = filter_items(s.search.as_ref().map(|(_, i)| i.clone()).unwrap_or_default(), &filter);
+    s.lib_continue = in_order(&s.continue_watching);
+    s.lib_recent = in_order(&s.recently_added);
+    s.lib_results = s.search.as_ref().map(|(_, i)| i.clone()).unwrap_or_default();
     s.lib_continue_cards.set_vec(cards_for(s, &s.lib_continue));
     s.lib_recent_cards.set_vec(cards_for(s, &s.lib_recent));
     s.lib_result_cards.set_vec(cards_for(s, &s.lib_results));
@@ -39,12 +29,6 @@ pub(super) fn on_results(s: &mut UiState, laptop: &LaptopWindow, query: String, 
         laptop.global::<Library>().set_searching(false);
         rebuild(s, laptop);
     }
-}
-
-/// Filter buttons.
-pub fn set_filter(laptop: &LaptopWindow, filter: &str) {
-    laptop.global::<Library>().set_filter(filter.into());
-    STATE.with_borrow_mut(|s| rebuild(s, laptop));
 }
 
 /// Returns false for an empty query (nothing to send).

@@ -26,7 +26,6 @@ use tvdash_core::{
 };
 use tvdash_media::{
     MediaError, MediaSource,
-    jellyfin::{Auth, JellyfinClient},
     plex::{DiscoveredServer, PlexAccount, PlexClient},
 };
 use tvdash_player::{
@@ -40,15 +39,12 @@ use crate::{format, watch::Watch};
 const REFRESH_EVERY: Duration = Duration::from_secs(120);
 const PROGRESS_EVERY: Duration = Duration::from_secs(10);
 const POSTER_HEIGHT: u32 = 480;
-const QUICK_CONNECT_POLL: Duration = Duration::from_secs(2);
-const QUICK_CONNECT_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const SESSIONS_EVERY: Duration = Duration::from_secs(15);
 const PLEX_PIN_POLL: Duration = Duration::from_secs(2);
 const RECENTLY_ADDED: u32 = 20;
 
 /// Messages from tasks the controller spawned.
 pub enum Internal {
-    JellyfinSignedIn(Auth),
     PlexSignedIn {
         account_token: String,
         server: DiscoveredServer,
@@ -58,7 +54,7 @@ pub enum Internal {
     FillProviders(Vec<(String, Vec<u32>)>),
 }
 
-/// What plays a Plex/Jellyfin item: mpv in its own window, or libmpv drawing
+/// What plays a Plex item: mpv in its own window, or libmpv drawing
 /// inside the tvdash window (TV-only layout).
 enum Player {
     Window(Mpv),
@@ -122,7 +118,6 @@ pub struct Controller {
     windowed: bool,
     events: UnboundedSender<AppEvent>,
     internal: UnboundedSender<Internal>,
-    jellyfin: Option<Arc<JellyfinClient>>,
     plex: Option<Arc<PlexClient>>,
     sign_in: HashMap<SourceKind, JoinHandle<()>>,
     playback: Option<Playback>,
@@ -168,7 +163,6 @@ impl Controller {
             windowed,
             events: events.clone(),
             internal,
-            jellyfin: None,
             plex: None,
             sign_in: HashMap::new(),
             playback: None,
@@ -254,10 +248,6 @@ impl Controller {
                 Step::Command(c) => self.on_command(c).await,
                 Step::Mpv(e) => self.on_mpv(e).await,
                 Step::BrowserExited => self.on_browser_exited(),
-                Step::Internal(Internal::JellyfinSignedIn(auth)) => {
-                    self.on_jellyfin_signed_in(auth).await;
-                    self.watch.refresh_library(self.sources(), true);
-                }
                 Step::Internal(Internal::PlexSignedIn { account_token, server }) => {
                     self.on_plex_signed_in(account_token, server).await;
                     self.watch.refresh_library(self.sources(), true);
@@ -279,9 +269,6 @@ impl Controller {
         if let Some(path) = &self.state_path {
             self.state = AppState::load(path);
         }
-        if self.config.jellyfin.enabled {
-            self.init_jellyfin().await;
-        }
         if self.config.plex.enabled {
             self.init_plex().await;
         }
@@ -289,14 +276,11 @@ impl Controller {
         self.emit_sites();
         self.watch.init(&self.config.streaming).await;
         self.watch.refresh_library(self.sources(), true);
-        if let Some(j) = &self.jellyfin {
-            self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(j.base_url().to_owned())));
-        }
         if self.plex.is_some() {
             self.emit(AppEvent::Server(SourceKind::Plex, Some(self.config.plex.server_url.clone())));
         }
         // First run: nothing connected and setup never finished.
-        if !self.state.setup_complete && self.jellyfin.is_none() && self.plex.is_none() {
+        if !self.state.setup_complete && self.plex.is_none() {
             self.emit(AppEvent::ShowSetup);
         }
         self.refresh();
@@ -317,22 +301,6 @@ impl Controller {
                 error!(error = %e, "couldn't save config");
                 self.toast(format!("Couldn't save the config: {e}"));
             }
-        }
-    }
-
-    async fn init_jellyfin(&mut self) {
-        let cfg = &self.config.jellyfin;
-        match (read_secret(SecretKey::JellyfinToken).await, cfg.user_id.is_empty()) {
-            (Some(token), false) => {
-                let auth = Auth { token, user_id: cfg.user_id.clone() };
-                match JellyfinClient::new(&cfg.server_url, &cfg.device_id, Some(auth)) {
-                    Ok(c) => self.jellyfin = Some(Arc::new(c)),
-                    Err(e) => {
-                        self.emit(AppEvent::Account(SourceKind::Jellyfin, AccountStatus::Unreachable(e.to_string())))
-                    }
-                }
-            }
-            _ => self.emit(AppEvent::Account(SourceKind::Jellyfin, AccountStatus::NotSetUp)),
         }
     }
 
@@ -375,19 +343,7 @@ impl Controller {
             }
             Command::Overlay => self.show_overlay(Some(5000)).await,
             Command::VideoFailed(reason) => self.video_failed(reason).await,
-            Command::SignIn(SourceKind::Jellyfin) => {
-                let cfg = self.config.jellyfin.clone();
-                self.spawn_sign_in(
-                    SourceKind::Jellyfin,
-                    |show_code| async move {
-                        jellyfin_quick_connect(&cfg.server_url, &cfg.device_id, show_code)
-                            .await
-                            .map_err(|e| e.to_string())
-                    },
-                    Internal::JellyfinSignedIn,
-                );
-            }
-            Command::SignIn(SourceKind::Plex) => {
+            Command::SignIn(_) => {
                 let cfg = self.config.plex.clone();
                 self.spawn_sign_in(
                     SourceKind::Plex,
@@ -450,14 +406,6 @@ impl Controller {
             }
             Command::Search(query) => self.search(query),
             Command::SignOut(kind) => self.sign_out(kind).await,
-            Command::JellyfinServer(url) => {
-                let url = url.trim().trim_end_matches('/').to_owned();
-                if !url.is_empty() && url != self.config.jellyfin.server_url {
-                    info!(%url, "Jellyfin server address changed");
-                    self.update_config(|c| c.jellyfin.server_url = url);
-                }
-            }
-            Command::JellyfinPassword { username, password } => self.jellyfin_password(username, password),
             Command::ClearBrowserProfile => self.clear_browser_profile().await,
             Command::SetTheme(mode) => self.update_config(|c| c.general.theme = mode),
             Command::FindPlace(query) => {
@@ -535,17 +483,12 @@ impl Controller {
             self.stop_playback().await;
         }
         let key = match kind {
-            SourceKind::Jellyfin => SecretKey::JellyfinToken,
             SourceKind::Plex => SecretKey::PlexToken,
         };
         if let Err(e) = tokio::task::spawn_blocking(move || secrets::delete(key)).await.unwrap_or(Ok(())) {
             warn!(error = %e, "couldn't remove token from the keyring");
         }
         match kind {
-            SourceKind::Jellyfin => {
-                self.jellyfin = None;
-                self.update_config(|c| c.jellyfin.user_id.clear());
-            }
             SourceKind::Plex => {
                 self.plex = None;
                 self.update_config(|c| c.plex.server_url.clear());
@@ -559,21 +502,6 @@ impl Controller {
         self.emit(AppEvent::Account(kind, AccountStatus::NotSetUp));
         self.poll_sessions();
         self.toast(format!("Signed out of {}", kind.label()));
-    }
-
-    fn jellyfin_password(&mut self, username: String, password: String) {
-        let cfg = self.config.jellyfin.clone();
-        self.spawn_sign_in(
-            SourceKind::Jellyfin,
-            |_| async move {
-                let client = JellyfinClient::new(&cfg.server_url, &cfg.device_id, None).map_err(|e| e.to_string())?;
-                client.authenticate_by_name(&username, &password).await.map_err(|e| match e {
-                    MediaError::Unauthorized => "wrong username or password".into(),
-                    e => e.to_string(),
-                })
-            },
-            Internal::JellyfinSignedIn,
-        );
     }
 
     /// Run a sign-in flow for `kind`, replacing one already running. Reports
@@ -660,9 +588,6 @@ impl Controller {
 
     fn sources(&self) -> Vec<Arc<dyn MediaSource>> {
         let mut v: Vec<Arc<dyn MediaSource>> = Vec::new();
-        if let Some(j) = &self.jellyfin {
-            v.push(j.clone());
-        }
         if let Some(p) = &self.plex {
             v.push(p.clone());
         }
@@ -673,7 +598,7 @@ impl Controller {
         self.sources().into_iter().find(|s| s.kind() == kind)
     }
 
-    /// Active sessions on both servers, merged (other devices only; ours is the card itself).
+    /// Active sessions on the server (other devices only; ours is the card itself).
     fn poll_sessions(&self) {
         let sources = self.sources();
         let events = self.events.clone();
@@ -750,30 +675,6 @@ impl Controller {
                 self.refresh();
             }
             Err(e) => self.emit(AppEvent::SignIn(SourceKind::Plex, SignInState::Failed(e.to_string()))),
-        }
-    }
-
-    async fn on_jellyfin_signed_in(&mut self, auth: Auth) {
-        self.sign_in.remove(&SourceKind::Jellyfin);
-        let token = auth.token.clone();
-        let stored = tokio::task::spawn_blocking(move || secrets::set(SecretKey::JellyfinToken, &token)).await;
-        if !matches!(stored, Ok(Ok(()))) {
-            error!(?stored, "couldn't store the Jellyfin token in the keyring");
-            self.toast("Signed in, but the token couldn't be saved to the keyring");
-        }
-        let user_id = auth.user_id.clone();
-        self.update_config(|c| c.jellyfin.user_id = user_id);
-        let cfg = &self.config.jellyfin;
-        match JellyfinClient::new(&cfg.server_url, &cfg.device_id, Some(auth)) {
-            Ok(c) => {
-                self.jellyfin = Some(Arc::new(c));
-                info!("Jellyfin signed in");
-                self.emit(AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Done));
-                self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(self.config.jellyfin.server_url.clone())));
-                self.emit(AppEvent::Account(SourceKind::Jellyfin, AccountStatus::Connected));
-                self.refresh();
-            }
-            Err(e) => self.emit(AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Failed(e.to_string()))),
         }
     }
 
@@ -1176,27 +1077,6 @@ fn account_status(e: &MediaError) -> AccountStatus {
     }
 }
 
-async fn jellyfin_quick_connect(
-    server_url: &str,
-    device_id: &str,
-    show_code: impl Fn(String),
-) -> tvdash_media::Result<Auth> {
-    let client = JellyfinClient::new(server_url, device_id, None)?;
-    let qc = client.quick_connect_initiate().await?;
-    show_code(qc.code.clone());
-    let deadline = tokio::time::Instant::now() + QUICK_CONNECT_TIMEOUT;
-    loop {
-        tokio::time::sleep(QUICK_CONNECT_POLL).await;
-        if client.quick_connect_approved(&qc.secret).await? {
-            break;
-        }
-        if tokio::time::Instant::now() > deadline {
-            return Err(MediaError::Protocol("the code expired — try again".into()));
-        }
-    }
-    client.authenticate_with_quick_connect(&qc.secret).await
-}
-
 async fn plex_pin_sign_in(
     account_url: &str,
     client_id: &str,
@@ -1517,133 +1397,6 @@ mod e2e {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore = "needs python3; run with --ignored"]
-    async fn jellyfin_sign_in_continue_watching_play_pause_stop() {
-        let _serial = SERIAL.lock().await;
-        let mut h = Harness::start("fake_jellyfin.py", |c, port| {
-            c.jellyfin.server_url = format!("http://127.0.0.1:{port}");
-            c.jellyfin.device_id = "dev-e2e".into();
-            c.plex.enabled = false;
-        })
-        .await;
-
-        // Not signed in yet (and no keyring in CI) → sign-in prompt.
-        h.wait_for(|e| matches!(e, AppEvent::Account(SourceKind::Jellyfin, AccountStatus::NotSetUp)).then_some(()))
-            .await;
-
-        // Quick Connect: code shown, approved on second poll, token exchanged.
-        h.send(Command::SignIn(SourceKind::Jellyfin));
-        let code = h
-            .wait_for(|e| match e {
-                AppEvent::SignIn(_, SignInState::Code(c)) => Some(c.clone()),
-                _ => None,
-            })
-            .await;
-        assert_eq!(code, "424242");
-        h.wait_for(|e| matches!(e, AppEvent::SignIn(_, SignInState::Done)).then_some(())).await;
-        let saved = Config::load_or_create_at(&h.config_path).unwrap().config;
-        assert_eq!(saved.jellyfin.user_id, "u1", "user id persisted to config");
-
-        // Continue Watching (via the pre-10.9 fallback route) and posters.
-        let items = h
-            .wait_for(|e| match e {
-                AppEvent::ContinueWatching(SourceKind::Jellyfin, items) => Some(items.clone()),
-                _ => None,
-            })
-            .await;
-        assert_eq!(items.len(), 2);
-        assert_eq!(items[0].resume_ms, Some(600_000));
-        h.wait_posters(2).await;
-
-        h.play_pause_stop(&items[0]).await;
-
-        // What Jellyfin saw.
-        let jf = h.server_log();
-        let paths: Vec<&str> = jf.iter().map(|r| r["path"].as_str().unwrap()).collect();
-        let pos = |p: &str| paths.iter().position(|x| *x == p).unwrap_or_else(|| panic!("{p} not called: {paths:?}"));
-        assert!(pos("/UserItems/Resume") < pos("/Users/u1/Items/Resume"), "10.9 route tried first");
-        assert!(pos("/Sessions/Playing") < pos("/Sessions/Playing/Progress"));
-        assert!(pos("/Sessions/Playing/Progress") < pos("/Sessions/Playing/Stopped"));
-        let paused_report = jf
-            .iter()
-            .find(|r| r["path"] == "/Sessions/Playing/Progress" && r["body"]["IsPaused"] == true)
-            .expect("pause reported to Jellyfin");
-        assert_eq!(paused_report["body"]["ItemId"], "ep1");
-        let stopped = jf.iter().find(|r| r["path"] == "/Sessions/Playing/Stopped").unwrap();
-        assert!(stopped["body"]["PositionTicks"].as_u64().unwrap() > 6_000_000_000, "stop position past resume point");
-        assert!(jf.iter().all(|r| r["auth"].as_str().unwrap().contains(r#"DeviceId="dev-e2e""#)));
-
-        // What mpv was told.
-        let (argv, cmds) = h.mpv_log();
-        assert!(argv.contains(&"--start=600.000".into()));
-        assert!(argv.contains(&"--fs-screen-name=HDMI-A-1".into()));
-        assert!(argv.last().unwrap().contains("/Videos/ep1/stream?static=true&api_key=tok"));
-        assert_mpv_transport(&cmds);
-        let overlay = cmds.iter().find(|c| c[0] == "show-text" && c[1].as_str().unwrap().contains("Paused")).unwrap();
-        assert!(overlay[1].as_str().unwrap().starts_with("Some Show · S1 · E1 · The Pilot\nPaused · "));
-
-        // One thing on the TV at a time: opening a site stops mpv first.
-        h.send(Command::Play(items[1].clone()));
-        h.wait_for(|e| matches!(e, AppEvent::Player(Some(s)) if s.item.id == "mov1").then_some(())).await;
-        h.send(Command::OpenSite(0));
-        h.wait_for(|e| matches!(e, AppEvent::Player(None)).then_some(())).await;
-        h.wait_for(|e| matches!(e, AppEvent::Browser(Some(_))).then_some(())).await;
-        sleep(Duration::from_millis(300)).await; // progress reports are async
-        let (_, cmds) = h.mpv_log();
-        assert_eq!(cmds.iter().filter(|c| **c == json!(["quit"])).count(), 2, "second mpv was quit");
-        let stops = h.server_log().iter().filter(|r| r["path"] == "/Sessions/Playing/Stopped").count();
-        assert_eq!(stops, 2, "second playback reported stopped");
-        // ...and playing something closes the browser.
-        h.send(Command::Play(items[0].clone()));
-        h.wait_for(|e| matches!(e, AppEvent::Browser(None)).then_some(())).await;
-        h.wait_for(|e| matches!(e, AppEvent::Player(Some(_))).then_some(())).await;
-        h.send(Command::Stop);
-        h.wait_for(|e| matches!(e, AppEvent::Player(None)).then_some(())).await;
-
-        // Library: Recently Added (10.9 route) and search.
-        let recent = h
-            .find_or_wait(|e| match e {
-                AppEvent::RecentlyAdded(SourceKind::Jellyfin, items) if !items.is_empty() => Some(items.clone()),
-                _ => None,
-            })
-            .await;
-        assert_eq!(recent[0].title, "New Film");
-        h.send(Command::Search("film".into()));
-        let (query, found) = h
-            .wait_for(|e| match e {
-                AppEvent::SearchResults { query, items } => Some((query.clone(), items.clone())),
-                _ => None,
-            })
-            .await;
-        assert_eq!((query.as_str(), found.len(), found[0].title.as_str()), ("film", 1, "A Film"));
-        let search = h.server_log().into_iter().rfind(|r| r["path"] == "/Items").unwrap();
-        assert_eq!(search["query"]["includeItemTypes"][0], "Movie,Series,Episode");
-
-        // Sign out: rows cleared, account back to "not connected", config forgets the user.
-        h.send(Command::SignOut(SourceKind::Jellyfin));
-        h.wait_for(|e| matches!(e, AppEvent::Server(SourceKind::Jellyfin, None)).then_some(())).await;
-        h.wait_for(|e| matches!(e, AppEvent::ContinueWatching(SourceKind::Jellyfin, v) if v.is_empty()).then_some(()))
-            .await;
-        h.wait_for(|e| matches!(e, AppEvent::Account(SourceKind::Jellyfin, AccountStatus::NotSetUp)).then_some(()))
-            .await;
-        assert_eq!(Config::load_or_create_at(&h.config_path).unwrap().config.jellyfin.user_id, "");
-
-        // Password fallback: wrong, then right.
-        h.send(Command::JellyfinPassword { username: "me".into(), password: "nope".into() });
-        let failed = h
-            .wait_for(|e| match e {
-                AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Failed(m)) => Some(m.clone()),
-                _ => None,
-            })
-            .await;
-        assert_eq!(failed, "wrong username or password");
-        h.send(Command::JellyfinPassword { username: "me".into(), password: "pw".into() });
-        h.wait_for(|e| matches!(e, AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Done)).then_some(())).await;
-        h.wait_for(|e| matches!(e, AppEvent::ContinueWatching(SourceKind::Jellyfin, v) if !v.is_empty()).then_some(()))
-            .await;
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
     #[ignore = "needs python3 and libmpv; run with --ignored"]
     async fn tv_layout_plays_in_the_window_and_falls_back() {
         let _serial = SERIAL.lock().await;
@@ -1654,11 +1407,10 @@ mod e2e {
         let slot = VideoSlot::new();
         let for_controller = slot.clone();
         let mut h = Harness::start_with(
-            "fake_jellyfin.py",
+            "fake_plex.py",
             |c, port| {
-                c.jellyfin.server_url = format!("http://127.0.0.1:{port}");
-                c.jellyfin.device_id = "dev-e2e".into();
-                c.plex.enabled = false;
+                c.plex.account_url = format!("http://127.0.0.1:{port}");
+                c.plex.client_id = "plex-client-e2e".into();
             },
             move |c, _| {
                 c.set_video(for_controller);
@@ -1666,11 +1418,11 @@ mod e2e {
             },
         )
         .await;
-        h.send(Command::SignIn(SourceKind::Jellyfin));
+        h.send(Command::SignIn(SourceKind::Plex));
         h.wait_for(|e| matches!(e, AppEvent::SignIn(_, SignInState::Done)).then_some(())).await;
         let items = h
             .wait_for(|e| match e {
-                AppEvent::ContinueWatching(SourceKind::Jellyfin, items) => Some(items.clone()),
+                AppEvent::ContinueWatching(SourceKind::Plex, items) => Some(items.clone()),
                 _ => None,
             })
             .await;
@@ -1693,7 +1445,7 @@ mod e2e {
         h.wait_for(playing(items[0].id.clone())).await;
         assert!(slot.current().is_none(), "the window let go");
         let (argv, _) = h.mpv_log();
-        assert!(argv.contains(&"--start=600.000".to_string()), "resumed where it was: {argv:?}");
+        assert!(argv.contains(&"--start=1200.000".to_string()), "resumed where it was: {argv:?}");
         h.send(Command::Stop);
         h.wait_for(|e| matches!(e, AppEvent::Player(None)).then_some(())).await;
 
@@ -1710,7 +1462,6 @@ mod e2e {
     async fn plex_pin_discovery_sessions_play_pause_stop() {
         let _serial = SERIAL.lock().await;
         let mut h = Harness::start("fake_plex.py", |c, port| {
-            c.jellyfin.enabled = false;
             c.plex.account_url = format!("http://127.0.0.1:{port}");
             c.plex.client_id = "plex-client-e2e".into();
         })
@@ -1798,15 +1549,22 @@ mod e2e {
         assert!(argv.contains(&"--start=1200.000".into()));
         assert_eq!(argv.last().unwrap(), &format!("{server_url}/library/parts/9101/file.mkv?X-Plex-Token=ptok"));
         assert_mpv_transport(&cmds);
+
+        // Sign out: rows cleared, address forgotten.
+        h.send(Command::SignOut(SourceKind::Plex));
+        h.wait_for(|e| matches!(e, AppEvent::Server(SourceKind::Plex, None)).then_some(())).await;
+        h.wait_for(|e| matches!(e, AppEvent::ContinueWatching(SourceKind::Plex, v) if v.is_empty()).then_some(()))
+            .await;
+        h.wait_for(|e| matches!(e, AppEvent::Account(SourceKind::Plex, AccountStatus::NotSetUp)).then_some(())).await;
+        assert_eq!(Config::load_or_create_at(&h.config_path).unwrap().config.plex.server_url, "");
     }
 
     #[tokio::test(flavor = "multi_thread")]
     #[ignore = "needs python3; run with --ignored"]
     async fn streaming_sites_open_switch_stop_and_handoff() {
         let _serial = SERIAL.lock().await;
-        // Any fake works as the "server"; this test only uses the browser.
-        let mut h = Harness::start("fake_jellyfin.py", |c, _| {
-            c.jellyfin.enabled = false;
+        // The fake server is unused; this test only uses the browser.
+        let mut h = Harness::start("fake_plex.py", |c, _| {
             c.plex.enabled = false;
         })
         .await;
@@ -1913,8 +1671,7 @@ mod e2e {
     #[ignore = "needs python3; run with --ignored"]
     async fn streaming_site_management() {
         let _serial = SERIAL.lock().await;
-        let mut h = Harness::start("fake_jellyfin.py", |c, _| {
-            c.jellyfin.enabled = false;
+        let mut h = Harness::start("fake_plex.py", |c, _| {
             c.plex.enabled = false;
         })
         .await;
@@ -2036,11 +1793,10 @@ mod e2e {
         };
         let endpoints = tvdash_discover::Endpoints { api: tmdb_url.clone(), images: format!("{tmdb_url}/t/p") };
         let mut h = Harness::start_with(
-            "fake_jellyfin.py",
+            "fake_plex.py",
             |c, port| {
-                c.jellyfin.server_url = format!("http://127.0.0.1:{port}");
-                c.jellyfin.device_id = "dev-e2e".into();
-                c.plex.enabled = false;
+                c.plex.account_url = format!("http://127.0.0.1:{port}");
+                c.plex.client_id = "plex-client-e2e".into();
                 c.streaming = vec![
                     site("Netflix", "https://www.netflix.com", &[8, 1796], false),
                     site("Hulu", "https://www.hulu.com", &[15], true),
@@ -2089,13 +1845,13 @@ mod e2e {
         assert_eq!(all[2], ("Max".to_string(), (3, 3)), "the config's file, not TMDB's");
         assert_eq!(tmdb_calls("/t/p/w92"), downloads, "saved logos aren't downloaded again");
 
-        // Sign in to Jellyfin so its library's TMDB IDs are known.
-        h.send(Command::SignIn(SourceKind::Jellyfin));
+        // Sign in to Plex so its library's TMDB IDs are known.
+        h.send(Command::SignIn(SourceKind::Plex));
         h.wait_for(|e| matches!(e, AppEvent::SignIn(_, SignInState::Done)).then_some(())).await;
         sleep(Duration::from_millis(500)).await;
         assert!(
-            h.server_log().iter().any(|r| r["path"] == "/Items" && r["query"]["fields"][0] == "ProviderIds"),
-            "library listed with provider IDs"
+            h.server_log().iter().any(|r| r["path"] == "/library/sections/1/all" && r["query"]["includeGuids"][0] == "1"),
+            "library listed with TMDB IDs"
         );
 
         // Search: everything starts as "checking", then lands in its group.
@@ -2185,8 +1941,7 @@ mod e2e {
     #[ignore = "needs python3; run with --ignored"]
     async fn setting_the_location_saves_it() {
         let _serial = SERIAL.lock().await;
-        let mut h = Harness::start("fake_jellyfin.py", |c, _| {
-            c.jellyfin.enabled = false;
+        let mut h = Harness::start("fake_plex.py", |c, _| {
             c.plex.enabled = false;
         })
         .await;

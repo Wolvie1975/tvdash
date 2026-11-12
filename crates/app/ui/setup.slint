@@ -28,7 +28,7 @@ component StepDot inherits HorizontalLayout {
     }
 }
 
-// Code / progress / done block shared by the Plex and Jellyfin steps.
+// Code / progress / done block for the Plex step.
 component SignInBlock inherits VerticalLayout {
     in property <string> state;
     in property <string> code;
@@ -66,8 +66,6 @@ export component SetupPage inherits VerticalLayout {
     padding: 48px;
     spacing: 32px;
 
-    private property <bool> show-password: false;
-
     Text { text: "Welcome to tvdash"; font-size: 44px; font-weight: 600; color: Theme.text-primary; }
     Text {
         text: "Connect your accounts. Every step can be skipped and changed later in Settings.";
@@ -79,8 +77,7 @@ export component SetupPage inherits VerticalLayout {
         spacing: 36px;
         alignment: start;
         StepDot { index: 0; label: "Plex"; done: Setup.plex-state == "done"; }
-        StepDot { index: 1; label: "Jellyfin"; done: Setup.jellyfin-state == "done"; }
-        StepDot { index: 2; label: "Streaming"; }
+        StepDot { index: 1; label: "Streaming"; }
     }
 
     Card {
@@ -107,68 +104,10 @@ export component SetupPage inherits VerticalLayout {
                 }
             }
 
-            // ── 2 · Jellyfin ─────────────────────────────────────
+            // ── 2 · Streaming ────────────────────────────────────
             if Setup.step == 1: VerticalLayout {
-                spacing: 20px;
-                SectionLabel { text: "STEP 2 · JELLYFIN"; }
-                Text { text: "Sign in to your Jellyfin server."; font-size: 28px; color: Theme.text-primary; }
-                HorizontalLayout {
-                    spacing: 12px;
-                    Text { text: "Server"; font-size: Theme.body-size; color: Theme.text-secondary; vertical-alignment: center; width: 110px; }
-                    TextField { placeholder: "http://jellyfin.local:8096"; text <=> Setup.jellyfin-url; }
-                }
-                if !root.show-password: SignInBlock {
-                    state: Setup.jellyfin-state;
-                    code: Setup.jellyfin-code;
-                    message: Setup.jellyfin-message;
-                    instructions: "On a signed-in Jellyfin app, open Settings › Quick Connect and enter this code.";
-                    start-label: "Sign in with Quick Connect";
-                    begin => { Setup.sign-in("jellyfin"); }
-                    cancel => { Setup.cancel("jellyfin"); }
-                }
-                if root.show-password && Setup.jellyfin-state != "done": VerticalLayout {
-                    spacing: 12px;
-                    HorizontalLayout {
-                        spacing: 12px;
-                        Text { text: "Username"; font-size: Theme.body-size; color: Theme.text-secondary; vertical-alignment: center; width: 110px; }
-                        user := TextField { placeholder: "Username"; }
-                    }
-                    HorizontalLayout {
-                        spacing: 12px;
-                        Text { text: "Password"; font-size: Theme.body-size; color: Theme.text-secondary; vertical-alignment: center; width: 110px; }
-                        pw := TextField {
-                            placeholder: "Password";
-                            password: true;
-                            accepted => { Setup.jellyfin-password(user.text, pw.text); }
-                        }
-                    }
-                    if Setup.jellyfin-state == "error": Text { text: Setup.jellyfin-message; font-size: Theme.body-size; color: Theme.warn; }
-                    if Setup.jellyfin-state == "busy": Text { text: "Signing in…"; font-size: Theme.body-size; color: Theme.text-muted; }
-                    HorizontalLayout {
-                        alignment: start;
-                        ActionButton { text: "Sign in"; primary: true; clicked => { Setup.jellyfin-password(user.text, pw.text); } }
-                    }
-                }
-                if root.show-password && Setup.jellyfin-state == "done": Text {
-                    text: "✓  " + Setup.jellyfin-message;
-                    font-size: Theme.body-size;
-                    color: Theme.ok;
-                }
-                if Setup.jellyfin-state != "done": Text {
-                    text: root.show-password ? "Use Quick Connect instead" : "No Quick Connect? Use a username and password";
-                    font-size: 18px;
-                    color: toggle.has-hover ? Theme.text-primary : Theme.accent;
-                    toggle := TouchArea {
-                        mouse-cursor: pointer;
-                        clicked => { root.show-password = !root.show-password; }
-                    }
-                }
-            }
-
-            // ── 3 · Streaming ────────────────────────────────────
-            if Setup.step == 2: VerticalLayout {
                 spacing: 16px;
-                SectionLabel { text: "STEP 3 · STREAMING"; }
+                SectionLabel { text: "STEP 2 · STREAMING"; }
                 Text { text: "Sign in to each streaming site once, on the TV."; font-size: 28px; color: Theme.text-primary; }
                 Text {
                     text: "Each opens full screen on the TV. Sign in there with this laptop's mouse and keyboard, then press Close browser here.";
@@ -195,15 +134,15 @@ export component SetupPage inherits VerticalLayout {
         spacing: 12px;
         if Setup.step > 0: ActionButton { text: "Back"; icon: "back-arrow"; clicked => { Setup.step -= 1; } }
         Rectangle { horizontal-stretch: 1; }
-        if Setup.step < 2: ActionButton {
+        if Setup.step < 1: ActionButton {
             text: "Skip";
             clicked => { Setup.step += 1; }
         }
-        if Setup.step < 2: ActionButton {
+        if Setup.step < 1: ActionButton {
             text: "Next";
             primary: true;
             clicked => { Setup.step += 1; }
         }
-        if Setup.step == 2: ActionButton { text: "Finish"; primary: true; clicked => { Setup.finish(); } }
+        if Setup.step == 1: ActionButton { text: "Finish"; primary: true; clicked => { Setup.finish(); } }
     }
 }

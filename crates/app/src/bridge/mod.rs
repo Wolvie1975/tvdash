@@ -35,7 +35,7 @@ use tvdash_core::{
 
 pub use accounts::sync_setup;
 pub use home::row;
-pub use library::{clear_search, close_detail, select, selected, set_filter, start_search};
+pub use library::{clear_search, close_detail, select, selected, start_search};
 
 use crate::{
     AccountPrompt, AccountRow, Accounts, Dash, Diagnostics, Display, LaptopWindow, Library, Nav, PosterCardData,
@@ -43,7 +43,7 @@ use crate::{
 };
 
 /// Display order for sources everywhere (rows, prompts, sessions).
-const SOURCES: [SourceKind; 2] = [SourceKind::Jellyfin, SourceKind::Plex];
+const SOURCES: [SourceKind; 1] = [SourceKind::Plex];
 
 const TOAST_FOR: Duration = Duration::from_secs(5);
 const LONG_TOAST_FOR: Duration = Duration::from_secs(30);
@@ -117,7 +117,6 @@ pub struct UiConfig {
     pub units: Units,
     pub theme: ThemeMode,
     pub sites: Vec<StreamingSite>,
-    pub jellyfin_url: String,
 }
 
 /// Call once on the UI thread before the event loop starts.
@@ -139,7 +138,6 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         let acc = laptop.global::<Accounts>();
         acc.set_accounts(ModelRc::from(s.account_rows.clone()));
         acc.set_sites(ModelRc::from(s.site_rows.clone()));
-        laptop.global::<Setup>().set_jellyfin_url(c.jellyfin_url.as_str().into());
         let d = laptop.global::<Display>();
         d.set_celsius(c.units == Units::Celsius);
         d.set_h12(c.clock == ClockFormat::H12);

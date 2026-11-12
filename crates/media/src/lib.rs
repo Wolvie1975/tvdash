@@ -1,9 +1,8 @@
-//! Plex and Jellyfin clients behind one [`MediaSource`] trait.
+//! The Plex client behind the [`MediaSource`] trait.
 //!
 //! The UI only ever sees [`MediaItem`] / [`Session`]; `source` drives the badge.
 
-pub mod jellyfin; // M2
-pub mod plex; // M3
+pub mod plex;
 
 use thiserror::Error;
 pub use tvdash_core::models::{MediaItem, PlayState, Session, SourceKind};
@@ -64,15 +63,6 @@ pub trait MediaSource: Send + Sync {
     async fn tmdb_library(&self) -> Result<Vec<(u32, MediaItem)>>;
 }
 
-/// Jellyfin positions are in ticks (1 tick = 100 ns).
-pub const fn ms_to_ticks(ms: u64) -> u64 {
-    ms * 10_000
-}
-
-pub const fn ticks_to_ms(ticks: u64) -> u64 {
-    ticks / 10_000
-}
-
 /// Shared HTTP client settings for media servers.
 pub(crate) fn http_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
@@ -83,11 +73,3 @@ pub(crate) fn http_client() -> Result<reqwest::Client> {
         .map_err(|e| MediaError::Protocol(format!("building HTTP client: {e}")))
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn tick_conversion() {
-        assert_eq!(super::ms_to_ticks(1_500), 15_000_000);
-        assert_eq!(super::ticks_to_ms(15_000_000), 1_500);
-    }
-}

@@ -157,7 +157,7 @@ export component WatchPage inherits VerticalLayout {
                     color: Theme.text-secondary;
                     wrap: word-wrap;
                 }
-                Group { title: "IN YOUR LIBRARY"; hint: "Plex and Jellyfin"; cards: Watch.library; }
+                Group { title: "IN YOUR LIBRARY"; hint: "Plex"; cards: Watch.library; }
                 Group { title: "ON YOUR SERVICES"; hint: "Included with a site you have"; cards: Watch.included; }
                 if !Watch.only-now: Group { title: "COSTS EXTRA"; hint: "Rent, buy, or a service you don't have"; cards: Watch.extra; }
                 if !Watch.only-now: Group { title: "NOT STREAMING"; hint: "No US offers"; cards: Watch.none; }

@@ -1,6 +1,6 @@
 //! `~/.config/tvdash/config.toml`: loading, first-run creation and saving.
 //!
-//! Secrets (Plex and Jellyfin tokens) never live here; see
+//! Secrets (the Plex and TMDB tokens) never live here; see
 //! [`crate::secrets`].
 
 use std::{
@@ -33,7 +33,6 @@ pub struct Config {
     pub display: DisplayConfig,
     pub general: GeneralConfig,
     pub plex: PlexConfig,
-    pub jellyfin: JellyfinConfig,
     pub browser: BrowserConfig,
     pub player: PlayerConfig,
     /// Kept last: TOML arrays of tables must follow plain tables.
@@ -159,17 +158,6 @@ fn is_default_plex_account_url(url: &String) -> bool {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-pub struct JellyfinConfig {
-    pub enabled: bool,
-    pub server_url: String,
-    /// Filled after sign-in.
-    pub user_id: String,
-    /// Generated UUID, sent as `DeviceId` in the Authorization header.
-    pub device_id: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
 pub struct BrowserConfig {
     pub binary: String,
     /// Dedicated profile directory; `~` is expanded with [`expand_home`].
@@ -276,7 +264,6 @@ impl Default for Config {
             display: DisplayConfig::default(),
             general: GeneralConfig::default(),
             plex: PlexConfig::default(),
-            jellyfin: JellyfinConfig::default(),
             browser: BrowserConfig::default(),
             player: PlayerConfig::default(),
             streaming: default_streaming_sites(),
@@ -316,17 +303,6 @@ impl Default for PlexConfig {
     }
 }
 
-impl Default for JellyfinConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            server_url: "http://republic-city:8096".into(),
-            user_id: String::new(),
-            device_id: String::new(),
-        }
-    }
-}
-
 impl Default for BrowserConfig {
     fn default() -> Self {
         Self {
@@ -361,7 +337,7 @@ fn default_streaming_sites() -> Vec<StreamingSite> {
 
 const HEADER: &str = "\
 # tvdash configuration.
-# Plex and Jellyfin tokens are kept in GNOME Keyring, not here.
+# The Plex and TMDB tokens are kept in GNOME Keyring, not here.
 # Output names: run tvdash once and check the log for \"available monitor\" lines.
 
 ";
@@ -410,17 +386,13 @@ impl Config {
         Ok(LoadedConfig { config, path: path.to_owned(), created })
     }
 
-    /// Generate the Plex client ID and Jellyfin device ID if missing.
-    /// Returns true if anything changed.
+    /// Generate the Plex client ID if missing. Returns true if anything changed.
     pub fn ensure_ids(&mut self) -> bool {
-        let mut changed = false;
-        for id in [&mut self.plex.client_id, &mut self.jellyfin.device_id] {
-            if id.trim().is_empty() {
-                *id = uuid::Uuid::new_v4().to_string();
-                changed = true;
-            }
+        if !self.plex.client_id.trim().is_empty() {
+            return false;
         }
-        changed
+        self.plex.client_id = uuid::Uuid::new_v4().to_string();
+        true
     }
 
     /// Re-read the config at `path`, apply `change`, and save it. Re-reading
@@ -470,7 +442,6 @@ mod tests {
         assert!(loaded.created);
         assert!(path.exists());
         assert!(!loaded.config.plex.client_id.is_empty());
-        assert!(!loaded.config.jellyfin.device_id.is_empty());
         assert_eq!(loaded.config.streaming.len(), 6);
 
         // Second load reads the same file and keeps the same IDs.
@@ -497,7 +468,8 @@ mod tests {
     fn old_sections_are_ignored() {
         let path = temp_path("old");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, "[calendar]\nenabled = true\n\n[homelab]\nportainer_url = \"x\"\n").unwrap();
+        fs::write(&path, "[calendar]\nenabled = true\n\n[homelab]\nportainer_url = \"x\"\n\n[jellyfin]\nenabled = true\n")
+            .unwrap();
         assert!(Config::load_or_create_at(&path).is_ok());
         fs::remove_dir_all(path.parent().unwrap()).ok();
     }

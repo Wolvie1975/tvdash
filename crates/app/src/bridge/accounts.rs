@@ -1,4 +1,4 @@
-//! Settings › Accounts (Plex, Jellyfin, TMDB) and Streaming rows, the site
+//! Settings › Accounts (Plex, TMDB) and Streaming rows, the site
 //! editor's TMDB lookups, and first-run setup.
 
 use chrono::{DateTime, Utc};
@@ -10,14 +10,12 @@ use crate::{AccountRow, Accounts, LaptopWindow, Setup, SiteEditor, SiteRow};
 
 pub(super) fn source_id(kind: SourceKind) -> &'static str {
     match kind {
-        SourceKind::Jellyfin => "jellyfin",
         SourceKind::Plex => "plex",
     }
 }
 
 pub(super) fn code_instructions(kind: SourceKind) -> &'static str {
     match kind {
-        SourceKind::Jellyfin => "On a signed-in Jellyfin app, open Settings › Quick Connect and enter this code.",
         SourceKind::Plex => "On any device, go to plex.tv/link and enter this code.",
     }
 }
@@ -38,8 +36,7 @@ pub(super) fn on_sign_in(s: &mut UiState, laptop: &LaptopWindow, kind: SourceKin
         // Setup moves on by itself once a step's sign-in succeeds.
         let setup = laptop.global::<Setup>();
         let step = setup.get_step();
-        if on_setup(laptop) && ((kind == SourceKind::Plex && step == 0) || (kind == SourceKind::Jellyfin && step == 1))
-        {
+        if on_setup(laptop) && kind == SourceKind::Plex && step == 0 {
             setup.set_step(step + 1);
         }
     }
@@ -192,7 +189,6 @@ fn site_status(opened: Option<&DateTime<Utc>>) -> String {
 pub(super) fn refresh(s: &UiState, laptop: &LaptopWindow) {
     s.account_rows.set_vec(vec![
         media_account_row(s, SourceKind::Plex),
-        media_account_row(s, SourceKind::Jellyfin),
         tmdb_row(s),
     ]);
     let sites: Vec<SiteRow> = s
@@ -243,10 +239,6 @@ pub(super) fn refresh_setup(s: &UiState, laptop: &LaptopWindow) {
     setup.set_plex_state(st.into());
     setup.set_plex_code(code.into());
     setup.set_plex_message(msg.into());
-    let (st, code, msg) = setup_sign_in(s, SourceKind::Jellyfin);
-    setup.set_jellyfin_state(st.into());
-    setup.set_jellyfin_code(code.into());
-    setup.set_jellyfin_message(msg.into());
 }
 
 /// Run the setup page's derived state now (e.g. right after navigating to it).

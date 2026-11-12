@@ -5,14 +5,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SourceKind {
     Plex,
-    Jellyfin,
 }
 
 impl SourceKind {
     pub fn label(self) -> &'static str {
         match self {
             Self::Plex => "Plex",
-            Self::Jellyfin => "Jellyfin",
         }
     }
 }
@@ -36,7 +34,7 @@ pub enum PlayState {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MediaItem {
     pub source: SourceKind,
-    /// Server-side ID (Plex `ratingKey`, Jellyfin `Id`).
+    /// Server-side ID (Plex `ratingKey`).
     pub id: String,
     pub kind: MediaKind,
     pub title: String,
@@ -95,7 +93,7 @@ impl std::fmt::Debug for RgbaImage {
     }
 }
 
-/// Progress of an interactive sign-in (Jellyfin Quick Connect, Plex PIN).
+/// Progress of an interactive sign-in (Plex PIN).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SignInState {
     /// Contacting the server for a code.
@@ -141,7 +139,7 @@ pub struct Place {
 /// Where to watch groups, best first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum WatchTier {
-    /// In Plex or Jellyfin.
+    /// In Plex.
     Library,
     /// A flat-rate, free or ad-supported offer on one of your streaming sites.
     Included,
@@ -167,7 +165,7 @@ pub struct WatchHit {
     pub services: Vec<(usize, String)>,
     /// Other offers, e.g. "Rent · Apple TV", "Max (not one of yours)".
     pub elsewhere: Vec<String>,
-    /// The matching Plex/Jellyfin item.
+    /// The matching Plex item.
     pub library: Option<MediaItem>,
     /// TMDB's watch page for the title.
     pub link: Option<String>,

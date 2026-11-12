@@ -14,5 +14,5 @@ pub use secrets::SecretKey;
 
 /// Application name, used for the config dir, keyring service and HTTP headers.
 pub const APP_NAME: &str = "tvdash";
-/// Application version, sent to Plex/Jellyfin as the client version.
+/// Application version, sent to Plex as the client version.
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");

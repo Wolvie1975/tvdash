@@ -31,7 +31,7 @@ export struct TvCard {
     // "playing" (mpv) | "streaming" (browser) | "next" (idle, top Continue Watching item) | "idle"
     mode: string,
     label: string,      // "ON THE TV" | "UP NEXT"
-    source: string,     // pill: "Jellyfin" | "Plex" | "Browser" | ""
+    source: string,     // pill: "Plex" | "Browser" | ""
     title: string,
     subtitle: string,
     note: string,       // line above the title ("Nothing on the TV. Pick up where you left off:")
@@ -123,8 +123,6 @@ export struct DetailData {
 }
 
 export global Library {
-    // "all" | "plex" | "jellyfin"
-    in-out property <string> filter: "all";
     in-out property <string> query;
     in property <bool> searching;
     // Non-empty while showing search results ("Results for “x”").
@@ -138,7 +136,6 @@ export global Library {
     in-out property <string> selected-section;
     in-out property <int> selected-index: -1;
 
-    callback set-filter(string);
     callback search(string);
     callback clear-search();
     // section: "continue" | "recent" | "results"
@@ -148,7 +145,7 @@ export global Library {
 }
 
 export struct AccountRow {
-    id: string,         // "plex" | "jellyfin"
+    id: string,         // "plex" | "tmdb"
     name: string,
     status: string,
     detail: string,
@@ -189,20 +186,15 @@ export global Accounts {
 }
 
 export global Setup {
-    // 0 Plex · 1 Jellyfin · 2 Streaming
+    // 0 Plex · 1 Streaming
     in-out property <int> step: 0;
     // Per sign-in: "idle" | "busy" | "code" | "done" | "error"
     in property <string> plex-state: "idle";
     in property <string> plex-code;
     in property <string> plex-message;
-    in property <string> jellyfin-state: "idle";
-    in property <string> jellyfin-code;
-    in property <string> jellyfin-message;
-    in-out property <string> jellyfin-url;
 
-    callback sign-in(string);       // "plex" | "jellyfin" (uses jellyfin-url)
+    callback sign-in(string);       // "plex"
     callback cancel(string);
-    callback jellyfin-password(string, string);
     callback finish();
 }
 
