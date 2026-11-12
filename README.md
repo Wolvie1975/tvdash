@@ -110,7 +110,11 @@ Settings › Accounts › TMDB (or `tvdash --set-secret tmdb_api_key`). With it:
   same by hand; add ad tiers and channel variants as extra IDs);
 - searches show what's in Plex/Jellyfin (matched by TMDB ID), what's included with your sites
   (hidden ones count), and what costs extra. Availability is cached for a day in
-  `~/.local/share/tvdash/cache.db`; the provider list for a week.
+  `~/.local/share/tvdash/cache.db`; the provider list for a week. Logos are downloaded once
+  and kept in `~/.local/share/tvdash/logos/`.
+
+To use your own tile logo for a site (with or without TMDB), point `logo` at a PNG, JPEG or
+WebP file in its `[[streaming]]` entry: `logo = "~/Pictures/netflix.png"`.
 
 Availability data is JustWatch's, via TMDB; the page credits both as TMDB requires.
 

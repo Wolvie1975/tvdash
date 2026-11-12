@@ -3,7 +3,7 @@
 
 use std::{
     collections::HashMap,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -15,9 +15,9 @@ use tokio::{
 use tracing::{debug, info, warn};
 use tvdash_core::{
     AppEvent, SecretKey,
-    config::StreamingSite,
+    config::{StreamingSite, expand_home},
     events::Service,
-    models::{AccountStatus, MediaItem, MediaKind, SourceKind},
+    models::{AccountStatus, MediaItem, MediaKind, RgbaImage, SourceKind},
     secrets,
 };
 use tvdash_discover::{Cache, Endpoints, LibraryKey, Offers, Tmdb, TmdbError};
@@ -41,6 +41,8 @@ pub struct Watch {
     pub(crate) token_override: Option<String>,
     tmdb: Option<Arc<Tmdb>>,
     cache: Option<Arc<Cache>>,
+    /// TMDB logo files, next to the cache (`~/.local/share/tvdash/logos`).
+    logo_dir: Option<PathBuf>,
     library: Library,
     library_built: Option<Instant>,
     search: Option<JoinHandle<()>>,
@@ -48,6 +50,7 @@ pub struct Watch {
 
 impl Watch {
     pub fn new(events: UnboundedSender<AppEvent>, cache_path: Option<PathBuf>) -> Self {
+        let logo_dir = cache_path.as_deref().and_then(Path::parent).map(|d| d.join("logos"));
         let cache = cache_path.and_then(|p| match Cache::open(&p) {
             Ok(c) => Some(Arc::new(c)),
             Err(e) => {
@@ -62,6 +65,7 @@ impl Watch {
             token_override: None,
             tmdb: None,
             cache,
+            logo_dir,
             library: Library::default(),
             library_built: None,
             search: None,
@@ -90,7 +94,10 @@ impl Watch {
                 self.emit(AppEvent::Tmdb(AccountStatus::Connected));
                 self.logos(sites);
             }
-            None => self.emit(AppEvent::Tmdb(AccountStatus::NotSetUp)),
+            None => {
+                self.emit(AppEvent::Tmdb(AccountStatus::NotSetUp));
+                self.logos(sites); // logo overrides only
+            }
         }
     }
 
@@ -101,7 +108,7 @@ impl Watch {
             let _ = tokio::task::spawn_blocking(|| secrets::delete(SecretKey::TmdbToken)).await;
             self.tmdb = None;
             self.emit(AppEvent::Tmdb(AccountStatus::NotSetUp));
-            self.emit(AppEvent::SiteLogos(Vec::new()));
+            self.logos(sites); // only the overrides are left
             return;
         }
         let tmdb = Tmdb::new(&token, self.endpoints.clone());
@@ -256,20 +263,23 @@ impl Watch {
         }));
     }
 
-    /// Fetch each site's logo (its first TMDB provider that has one). Sites
-    /// without provider IDs get them matched by name first.
+    /// Load each site's tile logo: its `logo` file if set, else the logo of its
+    /// first TMDB provider that has one (kept on disk after the first download).
+    /// Sites without provider IDs get them matched by name first.
     pub fn logos(&self, sites: &[StreamingSite]) {
-        let Some(tmdb) = self.tmdb.clone() else { return };
         let (events, cache, sites) = (self.events.clone(), self.cache.clone(), sites.to_vec());
-        let internal = self.internal.clone();
+        let (tmdb, internal, logo_dir) = (self.tmdb.clone(), self.internal.clone(), self.logo_dir.clone());
         tokio::spawn(async move {
-            let providers = match tmdb.providers(cache.as_deref()).await {
-                Ok(p) => p,
-                Err(e) => {
-                    warn!(error = %e, "couldn't load the TMDB provider list");
-                    let _ = events.send(AppEvent::Health { service: Service::Tmdb, result: Err(e.to_string()) });
-                    return;
-                }
+            let providers = match &tmdb {
+                None => Vec::new(),
+                Some(tmdb) => match tmdb.providers(cache.as_deref()).await {
+                    Ok(p) => p,
+                    Err(e) => {
+                        warn!(error = %e, "couldn't load the TMDB provider list");
+                        let _ = events.send(AppEvent::Health { service: Service::Tmdb, result: Err(e.to_string()) });
+                        Vec::new()
+                    }
+                },
             };
             let fills: Vec<(String, Vec<u32>)> = sites
                 .iter()
@@ -289,13 +299,20 @@ impl Watch {
             }
             let mut logos = Vec::new();
             for site in sites {
-                let path = site
-                    .tmdb_providers
-                    .iter()
-                    .find_map(|id| providers.iter().find(|p| p.provider_id == *id).and_then(|p| p.logo_path.clone()));
-                if let Some(path) = path
-                    && let Some(img) = tmdb.image(LOGO_SIZE, &path).await.ok().and_then(|b| decode(&b))
-                {
+                let img = match (&site.logo, &tmdb) {
+                    (Some(file), _) => logo_file(&expand_home(file)).await,
+                    (None, Some(tmdb)) => {
+                        let path = site.tmdb_providers.iter().find_map(|id| {
+                            providers.iter().find(|p| p.provider_id == *id).and_then(|p| p.logo_path.clone())
+                        });
+                        match path {
+                            Some(path) => tmdb_logo(tmdb, logo_dir.as_deref(), &path).await,
+                            None => None,
+                        }
+                    }
+                    (None, None) => None,
+                };
+                if let Some(img) = img {
                     logos.push((site.name, img));
                 }
             }
@@ -323,5 +340,70 @@ impl Watch {
                 }
             }
         });
+    }
+}
+
+/// A site's own logo file (`logo = "…"` in the config).
+async fn logo_file(path: &Path) -> Option<RgbaImage> {
+    match tokio::fs::read(path).await {
+        Ok(bytes) => decode(&bytes),
+        Err(e) => {
+            warn!(path = %path.display(), error = %e, "couldn't read the logo file");
+            None
+        }
+    }
+}
+
+/// A TMDB logo from `dir` if it was downloaded before, else from TMDB (then saved to `dir`).
+async fn tmdb_logo(tmdb: &Tmdb, dir: Option<&Path>, logo_path: &str) -> Option<RgbaImage> {
+    let file = dir.map(|d| d.join(logo_file_name(logo_path)));
+    if let Some(f) = &file
+        && let Ok(bytes) = tokio::fs::read(f).await
+    {
+        match decode(&bytes) {
+            Some(img) => return Some(img),
+            None => {
+                let _ = tokio::fs::remove_file(f).await; // damaged; download it again
+            }
+        }
+    }
+    let bytes = match tmdb.image(LOGO_SIZE, logo_path).await {
+        Ok(b) => b,
+        Err(e) => {
+            debug!(path = logo_path, error = %e, "logo download failed");
+            return None;
+        }
+    };
+    let img = decode(&bytes)?;
+    if let Some(f) = &file {
+        let saved = match f.parent() {
+            Some(d) => tokio::fs::create_dir_all(d).await,
+            None => Ok(()),
+        };
+        if let Err(e) = saved.and(tokio::fs::write(f, &bytes).await) {
+            warn!(file = %f.display(), error = %e, "couldn't save the logo");
+        }
+    }
+    Some(img)
+}
+
+/// File name for a TMDB `logo_path` ("/abc.jpg" → "w92-abc.jpg"). TMDB paths
+/// change when the image does, so a saved file never goes stale.
+fn logo_file_name(logo_path: &str) -> String {
+    let name: String = logo_path
+        .trim_start_matches('/')
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    format!("{LOGO_SIZE}-{name}")
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn logo_file_names_stay_in_the_folder() {
+        assert_eq!(super::logo_file_name("/pbpMk2Jmc.jpg"), "w92-pbpMk2Jmc.jpg");
+        assert_eq!(super::logo_file_name("/../../etc/passwd"), "w92-.._.._etc_passwd");
+        assert!(!super::logo_file_name("/a/b c?.png").contains(['/', ' ', '?']));
     }
 }

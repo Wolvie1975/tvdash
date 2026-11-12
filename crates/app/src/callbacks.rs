@@ -379,12 +379,15 @@ fn wire_site_editor(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'sta
         let index = (ed.get_index() >= 0).then_some(ed.get_index() as usize);
         let all = bridge::sites();
         let result = parse_providers(&ed.get_providers()).and_then(|tmdb_providers| {
+            // Fields the editor doesn't show are kept from the existing site.
+            let existing = index.and_then(|i| all.get(i));
             let site = StreamingSite {
                 name: ed.get_name().trim().to_owned(),
                 url: ed.get_url().trim().to_owned(),
                 search_url: Some(ed.get_search().trim().to_owned()).filter(|u| !u.is_empty()),
                 tmdb_providers,
-                hidden: index.and_then(|i| all.get(i)).is_some_and(|x| x.hidden),
+                hidden: existing.is_some_and(|x| x.hidden),
+                logo: existing.and_then(|x| x.logo.clone()),
             };
             let others: Vec<&StreamingSite> =
                 all.iter().enumerate().filter(|(i, _)| Some(*i) != index).map(|(_, x)| x).collect();

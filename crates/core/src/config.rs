@@ -212,6 +212,9 @@ pub struct StreamingSite {
     /// Hidden from the dashboard; still counts as one of your services.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hidden: bool,
+    /// Tile logo to use instead of TMDB's: a PNG, JPEG or WebP file (`~/` allowed).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub logo: Option<String>,
 }
 
 impl StreamingSite {

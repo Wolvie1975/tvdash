@@ -1743,6 +1743,7 @@ mod e2e {
             search_url: Some("https://www.peacocktv.com/search?q={title}".into()),
             tmdb_providers: vec![386, 387],
             hidden: false,
+            logo: None,
         };
         h.send(Command::SaveSite { index: None, site: peacock.clone() });
         let v = h
@@ -1838,6 +1839,7 @@ mod e2e {
             search_url: (name == "Netflix").then(|| "https://www.netflix.com/search?q={title}".into()),
             tmdb_providers: ids.to_vec(),
             hidden,
+            logo: None,
         };
         let endpoints = tvdash_discover::Endpoints { api: tmdb_url.clone(), images: format!("{tmdb_url}/t/p") };
         let mut h = Harness::start_with(
@@ -1873,6 +1875,26 @@ mod e2e {
         assert_eq!(logos, ["Netflix", "Hulu", "Max"]);
         let saved = Config::load_or_create_at(&h.config_path).unwrap().config.streaming;
         assert_eq!(saved[2].tmdb_providers, [1899], "Max matched by name and saved");
+
+        // Logos are kept on disk, and a logo file in the config wins over TMDB's.
+        let downloads = tmdb_calls("/t/p/w92");
+        assert!(downloads >= 1);
+        assert!(h.dir.join("logos").read_dir().unwrap().count() >= 1, "logos saved");
+        let own = h.dir.join("max.png");
+        image::RgbaImage::from_pixel(3, 3, image::Rgba([1, 2, 3, 255])).save(&own).unwrap();
+        let max = StreamingSite { logo: Some(own.display().to_string()), ..saved[2].clone() };
+        h.send(Command::SaveSite { index: Some(2), site: max });
+        let all = h
+            .wait_for(|e| match e {
+                AppEvent::SiteLogos(l) => {
+                    Some(l.iter().map(|(n, i)| (n.clone(), (i.width, i.height))).collect::<Vec<_>>())
+                }
+                _ => None,
+            })
+            .await;
+        assert_eq!(all.len(), 3, "{all:?}");
+        assert_eq!(all[2], ("Max".to_string(), (3, 3)), "the config's file, not TMDB's");
+        assert_eq!(tmdb_calls("/t/p/w92"), downloads, "saved logos aren't downloaded again");
 
         // Sign in to Jellyfin so its library's TMDB IDs are known.
         h.send(Command::SignIn(SourceKind::Jellyfin));
