@@ -164,6 +164,9 @@ pub enum Command {
     Posters(Vec<MediaItem>),
     /// Where the TV output is, once the windows know (used to place the browser).
     TvGeometry(Geometry),
+    /// The TV output's real name, as picked by the window placement (mpv goes full
+    /// screen there, even when `[display] tv_output` doesn't match any output).
+    TvOutput(String),
     /// Forget a media server's sign-in (keyring token + config).
     SignOut(SourceKind),
     /// Close the browser, delete its profile (all streaming sign-ins) and history.

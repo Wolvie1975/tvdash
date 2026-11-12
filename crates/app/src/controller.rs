@@ -129,6 +129,8 @@ pub struct Controller {
     playback: Option<Playback>,
     browser: Option<Browser>,
     tv_geometry: Option<Geometry>,
+    /// The TV output tvdash's window actually went to (may differ from the config).
+    tv_output: Option<String>,
     state: AppState,
     state_path: Option<PathBuf>,
     posters_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
@@ -181,6 +183,7 @@ impl Controller {
             playback: None,
             browser: None,
             tv_geometry: None,
+            tv_output: None,
             state: AppState::default(),
             state_path: tvdash_core::state::default_path(),
             posters_requested: Arc::default(),
@@ -408,6 +411,12 @@ impl Controller {
                 self.watch.set_token(token).await;
             }
             Command::CloseBrowser => self.close_browser().await,
+            Command::TvOutput(name) => {
+                if name != self.config.display.tv_output {
+                    info!(configured = %self.config.display.tv_output, using = %name, "mpv will use the TV output the window found");
+                }
+                self.tv_output = Some(name);
+            }
             Command::TvGeometry(g) => {
                 debug!(?g, "TV geometry");
                 self.tv_geometry = Some(g);
@@ -718,7 +727,11 @@ impl Controller {
         };
         let opts = MpvOptions {
             binary: self.config.player.mpv.clone(),
-            screen_name: Some(self.config.display.tv_output.clone()).filter(|s| !s.is_empty()),
+            screen_name: self
+                .tv_output
+                .clone()
+                .or_else(|| Some(self.config.display.tv_output.clone()))
+                .filter(|s| !s.is_empty()),
             title: format::item_line(&item),
             start_ms: item.resume_ms,
             fullscreen: !self.windowed,
