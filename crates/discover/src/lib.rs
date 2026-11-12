@@ -387,6 +387,7 @@ mod tests {
             duration_ms: None,
             resume_ms: None,
             poster: None,
+            ..Default::default()
         };
         let library = HashMap::from([((false, 2), item)]);
         let mut all = vec![
@@ -405,5 +406,4 @@ mod tests {
         let tv = Hit { is_tv: true, ..hit(2, 0) };
         assert!(watch_hit(&tv, None, &sites, &library).library.is_none());
     }
-
 }

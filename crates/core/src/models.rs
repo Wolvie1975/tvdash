@@ -2,8 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SourceKind {
+    #[default]
     Plex,
 }
 
@@ -15,11 +16,12 @@ impl SourceKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MediaKind {
     Movie,
     Series,
     Episode,
+    #[default]
     Other,
 }
 
@@ -31,7 +33,7 @@ pub enum PlayState {
 }
 
 /// One playable (or browsable) item from a media server.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct MediaItem {
     pub source: SourceKind,
     /// Server-side ID (Plex `ratingKey`).
@@ -46,6 +48,35 @@ pub struct MediaItem {
     pub resume_ms: Option<u64>,
     /// Server-relative poster path / tag; resolved by the source.
     pub poster: Option<String>,
+    /// Season and episode numbers (episodes).
+    #[serde(default)]
+    pub season: Option<u32>,
+    #[serde(default)]
+    pub episode: Option<u32>,
+    /// The show an episode belongs to (Plex `grandparentRatingKey`).
+    #[serde(default)]
+    pub show_id: Option<String>,
+    #[serde(default)]
+    pub year: Option<u32>,
+    /// "TV-14", "PG-13".
+    #[serde(default)]
+    pub content_rating: Option<String>,
+    #[serde(default)]
+    pub genres: Vec<String>,
+    /// Description from the server.
+    #[serde(default)]
+    pub summary: Option<String>,
+    /// Times played all the way through (Plex `viewCount`).
+    #[serde(default)]
+    pub view_count: u32,
+    /// Shows and seasons: episodes in total and watched.
+    #[serde(default)]
+    pub leaf_count: Option<u32>,
+    #[serde(default)]
+    pub viewed_leaf_count: Option<u32>,
+    /// When it was added to the library (Unix seconds).
+    #[serde(default)]
+    pub added_at: Option<i64>,
 }
 
 impl MediaItem {

@@ -1,7 +1,11 @@
 //! Text shared by the laptop "On the TV" card and the TV overlay.
 
 use chrono::{Local, NaiveDateTime, TimeDelta, Utc};
-use tvdash_core::{config::ClockFormat, events::PlayerStatus, models::MediaItem, models::PlayState};
+use tvdash_core::{
+    config::ClockFormat,
+    events::PlayerStatus,
+    models::{MediaItem, MediaKind, PlayState},
+};
 
 /// Current wall-clock time in the configured zone (system local if `None`).
 pub fn now_local(tz: Option<chrono_tz::Tz>) -> NaiveDateTime {
@@ -51,7 +55,6 @@ pub fn length(ms: u64) -> String {
 
 /// Detail-panel line: "Episode · 45 min · 30 min left", "Movie · 2 h 5 min".
 pub fn item_meta(item: &MediaItem) -> String {
-    use tvdash_core::models::MediaKind;
     let mut parts: Vec<String> = Vec::new();
     match item.kind {
         MediaKind::Movie => parts.push("Movie".into()),
@@ -107,6 +110,45 @@ pub fn time_left(item: &MediaItem) -> Option<String> {
     Some(format!("{} left", length(dur.saturating_sub(pos))))
 }
 
+/// "Season 2 · Episode 7 — Crossroads" for an episode; "" for anything else.
+pub fn episode_line(item: &MediaItem) -> String {
+    let title = item.subtitle.as_deref().filter(|t| !t.is_empty());
+    let numbers = match (item.season, item.episode) {
+        (Some(s), Some(e)) => Some(format!("Season {s} · Episode {e}")),
+        (None, Some(e)) => Some(format!("Episode {e}")),
+        _ => None,
+    };
+    match (item.kind, numbers, title) {
+        (MediaKind::Episode, Some(n), Some(t)) => format!("{n} — {t}"),
+        (MediaKind::Episode, Some(n), None) => n,
+        (MediaKind::Episode, None, Some(t)) => t.to_owned(),
+        _ => String::new(),
+    }
+}
+
+/// "2024 · TV-14 · 52 min · Drama": year, rating, runtime, first genre (whichever are known).
+pub fn facts(item: &MediaItem) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    parts.extend(item.year.map(|y| y.to_string()));
+    parts.extend(item.content_rating.clone());
+    parts.extend(item.duration_ms.filter(|&d| d > 0).map(length));
+    parts.extend(item.genres.first().cloned());
+    parts.join(" · ")
+}
+
+/// "Drama · Road trip" (up to three genres).
+pub fn genres(item: &MediaItem) -> String {
+    item.genres.iter().take(3).cloned().collect::<Vec<_>>().join(" · ")
+}
+
+/// Poster badge on Continue Watching: "S1 · E3" for an episode, "22 min left" for a movie.
+pub fn badge(item: &MediaItem) -> String {
+    match item.kind {
+        MediaKind::Episode => item.episode_label.clone().unwrap_or_else(|| "Episode".into()),
+        _ => time_left(item).unwrap_or_else(|| "Movie".into()),
+    }
+}
+
 pub fn fraction(status: &PlayerStatus) -> f32 {
     match status.duration_ms {
         Some(d) if d > 0 => (status.position_ms as f32 / d as f32).clamp(0.0, 1.0),
@@ -118,7 +160,7 @@ pub fn fraction(status: &PlayerStatus) -> f32 {
 mod tests {
     use super::*;
     use chrono::NaiveDate;
-    use tvdash_core::models::{MediaKind, SourceKind};
+    use tvdash_core::models::SourceKind;
 
     fn status(state: PlayState) -> PlayerStatus {
         PlayerStatus {
@@ -132,6 +174,7 @@ mod tests {
                 duration_ms: Some(2_700_000),
                 resume_ms: None,
                 poster: None,
+                ..Default::default()
             },
             state,
             position_ms: 754_000,
@@ -230,5 +273,41 @@ mod widget_tests {
         assert_eq!(weather_chip(&w, Units::Fahrenheit), chip("48°F", "Partly cloudy · H 55 L 39"));
         assert_eq!(weather_chip(&Weather { high: None, ..w }, Units::Celsius), chip("48°C", "Partly cloudy"));
         assert_eq!((weather_icon(0), weather_icon(61), weather_icon(95)), ("clear", "rain", "storm"));
+    }
+}
+
+#[cfg(test)]
+mod box_tests {
+    use super::*;
+
+    #[test]
+    fn box_lines() {
+        let mut ep = MediaItem {
+            kind: MediaKind::Episode,
+            title: "Some Show".into(),
+            subtitle: Some("The Pilot".into()),
+            episode_label: Some("S2 · E5".into()),
+            duration_ms: Some(2_700_000),
+            ..Default::default()
+        };
+        ep.season = Some(2);
+        ep.episode = Some(5);
+        ep.year = Some(2024);
+        ep.content_rating = Some("TV-14".into());
+        ep.genres = vec!["Drama".into(), "Road trip".into()];
+        assert_eq!(episode_line(&ep), "Season 2 · Episode 5 — The Pilot");
+        assert_eq!(facts(&ep), "2024 · TV-14 · 45 min · Drama");
+        assert_eq!(genres(&ep), "Drama · Road trip");
+        assert_eq!(badge(&ep), "S2 · E5");
+        let movie = MediaItem {
+            kind: MediaKind::Movie,
+            title: "A Film".into(),
+            duration_ms: Some(7_200_000),
+            resume_ms: Some(5_880_000),
+            ..Default::default()
+        };
+        assert_eq!(episode_line(&movie), "");
+        assert_eq!(facts(&movie), "2 h");
+        assert_eq!(badge(&movie), "22 min left");
     }
 }

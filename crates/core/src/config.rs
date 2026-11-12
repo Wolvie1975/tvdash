@@ -387,7 +387,7 @@ impl Default for GeneralConfig {
     fn default() -> Self {
         Self {
             units: Units::Fahrenheit,
-            clock: ClockFormat::H24,
+            clock: ClockFormat::H12,
             seconds: false,
             theme: ThemeMode::Dark,
             location: String::new(),
@@ -554,7 +554,7 @@ mod tests {
         let loaded = Config::load_or_create_at(&path).unwrap();
         assert_eq!(loaded.config.display.tv_output, "HDMI-A-2");
         assert_eq!(loaded.config.display.laptop_output, "eDP-1");
-        assert_eq!(loaded.config.general.clock, ClockFormat::H24);
+        assert_eq!(loaded.config.general.clock, ClockFormat::H12);
         assert!(!loaded.config.plex.client_id.is_empty());
         fs::remove_dir_all(path.parent().unwrap()).ok();
     }
@@ -563,8 +563,11 @@ mod tests {
     fn old_sections_are_ignored() {
         let path = temp_path("old");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, "[calendar]\nenabled = true\n\n[homelab]\nportainer_url = \"x\"\n\n[jellyfin]\nenabled = true\n")
-            .unwrap();
+        fs::write(
+            &path,
+            "[calendar]\nenabled = true\n\n[homelab]\nportainer_url = \"x\"\n\n[jellyfin]\nenabled = true\n",
+        )
+        .unwrap();
         assert!(Config::load_or_create_at(&path).is_ok());
         fs::remove_dir_all(path.parent().unwrap()).ok();
     }

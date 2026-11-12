@@ -5,18 +5,24 @@ use slint::{ComponentHandle, Image, Model, ModelRc, VecModel};
 use tvdash_core::{
     config::{APPS, ClockFormat, ThemeMode},
     events::PlayerStatus,
-    models::{AccountStatus, MediaItem, PlayState, RgbaImage, Session, SignInState, SourceKind},
+    models::{AccountStatus, MediaItem, MediaKind, PlayState, RgbaImage, Session, SignInState, SourceKind},
 };
 
 use super::{SOURCES, UiState, accounts, in_order, to_image};
 use crate::{
-    AccountPrompt, Dash, LaptopWindow, Library, PosterCardData, SessionRow, SiteTileData, TvCard, TvWindow, format, logos,
+    AccountPrompt, Dash, LaptopWindow, Library, PosterCardData, SessionRow, SiteTileData, TvCard, TvWindow, format,
+    logos,
     tint::{self, Hue},
 };
 
-/// The item behind dashboard Continue Watching card `index`.
+/// The item behind Continue Watching card `index` (all of it, newest first).
 pub fn row(index: usize) -> Option<MediaItem> {
     super::STATE.with_borrow(|s| s.rows.get(index).cloned())
+}
+
+/// The item behind poster `index` on the dashboard's "tv" or "movies" tab.
+pub fn tab_row(tab: &str, index: usize) -> Option<MediaItem> {
+    super::STATE.with_borrow(|s| if tab == "movies" { &s.rows_movies } else { &s.rows_tv }.get(index).cloned())
 }
 
 // ── Cards ───────────────────────────────────────────────────────────
@@ -28,7 +34,7 @@ fn card(item: &MediaItem, poster: Option<&Image>, hue: Option<Hue>, theme: Theme
         placeholder: tint::card_tint(Hue { saturation: hue.saturation.max(0.3), ..hue }, theme).poster,
         title: item.title.as_str().into(),
         subtitle: format::item_detail(item).into(),
-        badge: item.source.label().into(),
+        badge: format::badge(item).into(),
         progress: item.progress().unwrap_or(0.0),
         has_poster: poster.is_some(),
         poster: poster.cloned().unwrap_or_default(),
@@ -48,7 +54,11 @@ pub(super) fn cards_for(s: &UiState, items: &[MediaItem]) -> Vec<PosterCardData>
 
 pub(super) fn rebuild_rows(s: &mut UiState) {
     s.rows = in_order(&s.continue_watching);
+    (s.rows_movies, s.rows_tv) = s.rows.iter().cloned().partition(|i| i.kind == MediaKind::Movie);
     s.cards.set_vec(cards_for(s, &s.rows));
+    s.cards_tv.set_vec(cards_for(s, &s.rows_tv));
+    s.cards_movies.set_vec(cards_for(s, &s.rows_movies));
+    crate::watch_ui::set_in_progress(&s.rows);
 }
 
 /// A poster arrived: fill it into every card (Home and Library) and the detail panel showing it.
@@ -65,6 +75,8 @@ pub(super) fn on_poster(
     let img = to_image(image);
     let models = [
         (&s.rows, &s.cards),
+        (&s.rows_tv, &s.cards_tv),
+        (&s.rows_movies, &s.cards_movies),
         (&s.lib_continue, &s.lib_continue_cards),
         (&s.lib_recent, &s.lib_recent_cards),
         (&s.lib_results, &s.lib_result_cards),
@@ -144,6 +156,30 @@ pub(super) fn refresh_tv_card(s: &UiState, laptop: &LaptopWindow) {
     dash.set_tv(card);
 }
 
+/// `item` with whatever details arrived for it (progress stays the row's own).
+fn with_details(s: &UiState, item: &MediaItem) -> MediaItem {
+    match s.details.get(&(item.source, item.id.clone())) {
+        Some(d) => {
+            MediaItem { resume_ms: item.resume_ms, duration_ms: item.duration_ms.or(d.duration_ms), ..d.clone() }
+        }
+        None => item.clone(),
+    }
+}
+
+/// The description block of the On the TV box for `item`.
+fn describe(s: &UiState, item: &MediaItem, card: TvCard) -> TvCard {
+    let full = with_details(s, item);
+    TvCard {
+        title: full.title.as_str().into(),
+        subtitle: format::item_detail(&full).into(),
+        episode_line: format::episode_line(&full).into(),
+        facts: format::facts(&full).into(),
+        overview: full.summary.clone().unwrap_or_default().into(),
+        genres: format::genres(&full).into(),
+        ..card
+    }
+}
+
 fn tv_card(s: &UiState) -> (TvCard, Hue) {
     let poster_of = |item: &MediaItem| {
         let key = (item.source, item.id.clone());
@@ -157,8 +193,6 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
         let card = TvCard {
             mode: "playing".into(),
             source: st.item.source.label().into(),
-            title: st.item.title.as_str().into(),
-            subtitle: format::item_detail(&st.item).into(),
             at_text: at.into(),
             left_text: left.into(),
             progress: format::fraction(st),
@@ -167,7 +201,7 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
             poster: poster.unwrap_or_default(),
             ..base
         };
-        return (card, hue);
+        return (describe(s, &st.item, card), hue);
     }
     if let Some(site) = &s.browser {
         let index = s.sites.iter().position(|x| x.name == *site).unwrap_or(0);
@@ -191,8 +225,6 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
             label: "UP NEXT".into(),
             source: item.source.label().into(),
             note: "Nothing on the TV. Pick up where you left off:".into(),
-            title: item.title.as_str().into(),
-            subtitle: format::item_detail(item).into(),
             at_text: item.resume_ms.map(|p| format!("Stopped at {}", format::duration(p))).unwrap_or_default().into(),
             left_text: format::time_left(item).unwrap_or_default().into(),
             progress: item.progress().unwrap_or(0.0),
@@ -200,7 +232,7 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
             poster: poster.unwrap_or_default(),
             ..base
         };
-        return (card, hue);
+        return (describe(s, item, card), hue);
     }
     let card = TvCard {
         mode: "idle".into(),

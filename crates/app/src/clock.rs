@@ -13,6 +13,8 @@ pub struct ClockText {
     pub hh: String,
     pub mm: String,
     pub ss: String,
+    /// "AM" / "PM" in 12-hour mode, else "".
+    pub suffix: String,
     /// "Wednesday, November 11" (TV).
     pub date: String,
     /// "Wednesday" and "November 11" (laptop header, two lines).
@@ -29,6 +31,10 @@ pub fn clock_text(now: NaiveDateTime, format: ClockFormat) -> ClockText {
         hh: hh.to_string(),
         mm: now.format("%M").to_string(),
         ss: now.format("%S").to_string(),
+        suffix: match format {
+            ClockFormat::H24 => String::new(),
+            ClockFormat::H12 => now.format("%p").to_string(),
+        },
         date: now.format("%A, %B %-d").to_string(),
         weekday: now.format("%A").to_string(),
         month_day: now.format("%B %-d").to_string(),
@@ -37,7 +43,7 @@ pub fn clock_text(now: NaiveDateTime, format: ClockFormat) -> ClockText {
 
 thread_local! {
     /// (12/24 h, seconds), changeable from Settings › Display.
-    static FORMAT: Cell<(ClockFormat, bool)> = const { Cell::new((ClockFormat::H24, false)) };
+    static FORMAT: Cell<(ClockFormat, bool)> = const { Cell::new((ClockFormat::H12, false)) };
     /// Time zone (None = system local), changes with the weather location.
     static TZ: Cell<Option<chrono_tz::Tz>> = const { Cell::new(None) };
 }
@@ -80,6 +86,7 @@ pub fn start(laptop: &LaptopWindow, tv: &TvWindow, general: &GeneralConfig) -> T
             dash.set_show_seconds(seconds);
             dash.set_clock_hh(text.hh.as_str().into());
             dash.set_clock_mm(text.mm.as_str().into());
+            dash.set_clock_suffix(text.suffix.as_str().into());
             dash.set_weekday(text.weekday.as_str().into());
             dash.set_date_text(text.month_day.as_str().into());
         }
@@ -123,6 +130,8 @@ mod tests {
     #[test]
     fn formats_12h() {
         let t = clock_text(at(19, 30), ClockFormat::H12);
-        assert_eq!((t.hh.as_str(), t.mm.as_str()), ("7", "30"));
+        assert_eq!((t.hh.as_str(), t.mm.as_str(), t.suffix.as_str()), ("7", "30", "PM"));
+        assert_eq!(clock_text(at(0, 5), ClockFormat::H12).hh, "12");
+        assert_eq!(clock_text(at(7, 4), ClockFormat::H24).suffix, "");
     }
 }

@@ -4,7 +4,6 @@ import { LibraryPage } from "library.slint";
 import { SettingsPage } from "settings.slint";
 import { SetupPage } from "setup.slint";
 import { Dash, Nav } from "state.slint";
-import { WatchPage } from "watch.slint";
 import { TvShell } from "tv/shell.slint";
 
 // The main window. Two screens: the laptop dashboard pages. TV only
@@ -32,7 +31,6 @@ export component LaptopWindow inherits Window {
             height: scroller.content-height;
             if Nav.page == "home": HomePage { }
             if Nav.page == "library": LibraryPage { }
-            if Nav.page == "watch": WatchPage { }
             if Nav.page == "settings": SettingsPage { }
             if Nav.page == "setup": SetupPage { }
         }

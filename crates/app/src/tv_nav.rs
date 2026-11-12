@@ -410,6 +410,7 @@ mod tests {
             duration_ms: Some(1000),
             resume_ms: Some(500),
             poster: None,
+            ..Default::default()
         }
     }
 

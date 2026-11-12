@@ -6,7 +6,7 @@ import { UiTheme } from "theme.slint";
 
 // Which laptop page is showing.
 export global Nav {
-    // "home" | "library" | "watch" | "settings" | "setup"
+    // "home" | "library" | "settings" | "setup"
     in-out property <string> page: "home";
     // "dual" (laptop dashboard) | "tv" (everything on the TV, 10-foot)
     in property <string> layout: "dual";
@@ -33,7 +33,11 @@ export struct TvCard {
     label: string,      // "ON THE TV" | "UP NEXT"
     source: string,     // pill: "Plex" | "Browser" | ""
     title: string,
-    subtitle: string,
+    subtitle: string,   // "S2 · E7 · Crossroads" (TV layout)
+    episode-line: string, // "Season 2 · Episode 7 — Crossroads"; "" for movies
+    facts: string,      // "2024 · TV-14 · 52 min · Drama"
+    overview: string,   // description from Plex ("" = none)
+    genres: string,     // shown with "No description on the server" when there's no overview
     note: string,       // line above the title ("Nothing on the TV. Pick up where you left off:")
     at-text: string,    // "24:10 / 52:00" | "Stopped at 31:40"
     left-text: string,  // "28 min left · ends 21:40"
@@ -60,6 +64,7 @@ export global Dash {
     in property <string> clock-mm: "--";
     in property <string> clock-ss: "--";
     in property <bool> show-seconds: false;
+    in property <string> clock-suffix;  // "AM" / "PM" in 12-hour mode
     in property <string> weekday;
     in property <string> date-text;
     in property <bool> weather-on: false;
@@ -89,9 +94,18 @@ export global Dash {
     in property <string> signin-code;
     in property <string> signin-source;
     in property <[AccountPrompt]> prompts;
+    // Everything in progress (TV layout, and the Up next item), and the dashboard's
+    // two tabs of it.
     in property <[PosterCardData]> continue-watching;
+    in property <[PosterCardData]> cw-tv;
+    in property <[PosterCardData]> cw-movies;
+    // "tv" | "movies"
+    in-out property <string> cw-tab: "tv";
 
     in property <[SiteTileData]> streaming-sites;
+
+    // The search panel over the right two boxes.
+    in-out property <bool> search-open;
 
     // Shown in Settings
     in property <string> keyring-status: "Checking keyring…";
@@ -103,6 +117,7 @@ export global Dash {
     callback open-site(int);
     callback transport(string); // "back" | "play-pause" | "forward" | "stop"
     callback play-item(int);
+    callback play-card(string, int); // (tab, index): a Continue Watching poster
     callback prompt-action(string, string); // (source, "sign-in" | "retry")
     callback cancel-sign-in(string);
     callback set-theme(UiTheme);
@@ -193,48 +208,31 @@ export global Setup {
     callback finish();
 }
 
-// A Where to watch result.
+// A search result in the panel.
 export struct WatchCard {
     key: string,        // "movie:603" | "tv:1399"
     title: string,
-    meta: string,       // "1999 · Movie"
-    line: string,       // "On Netflix" | "In Plex" | "Rent · Apple TV" | "Not streaming in the US" | "Checking…"
-    tier: string,       // "library" | "included" | "extra" | "none" | "checking"
+    meta: string,       // "Movie · 1999 · included with Netflix"
+    action: string,     // button label: "Resume on TV" | "Play on TV" | "Open on TV" | "" (none)
+    primary: bool,      // filled button (library) vs outlined (apps)
     poster: image,
     has-poster: bool,
 }
 
-export struct WatchAction {
-    label: string,
-    kind: string,       // "play" | "library" | "open" | "tmdb"
-    site: int,          // app index for "open"
-    primary: bool,
-}
-
+// Search (the panel): your library, then your apps, then the rest.
 export global Watch {
     in-out property <string> query;
-    // Hide "Costs extra" and "Not streaming".
-    in-out property <bool> only-now: false;
     in property <bool> searching;
-    in property <string> message;   // prompt, error or "no results"
+    in property <string> message;   // error, "no results", or the TMDB token hint
     in property <[WatchCard]> library;
     in property <[WatchCard]> included;
     in property <[WatchCard]> extra;
     in property <[WatchCard]> none;
     in property <[WatchCard]> checking;
-    in property <bool> detail-open;
-    in-out property <string> selected;
-    in property <WatchCard> detail;
-    in property <string> detail-overview;
-    in property <[string]> detail-yours;
-    in property <[string]> detail-elsewhere;
-    in property <[WatchAction]> detail-actions;
 
     callback edited(string);        // debounced search while typing
-    callback search(string);
-    callback select(string);
-    callback action(WatchAction);
-    callback close-detail();
+    callback action(string);        // the result's button (by key)
+    callback close();
 }
 
 // Settings › Display.

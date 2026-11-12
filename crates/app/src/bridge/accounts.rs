@@ -172,10 +172,7 @@ fn site_status(opened: Option<&DateTime<Utc>>) -> String {
 
 /// Rebuild Settings › Accounts and Settings › Streaming (and setup, if it's showing).
 pub(super) fn refresh(s: &UiState, laptop: &LaptopWindow) {
-    s.account_rows.set_vec(vec![
-        media_account_row(s, SourceKind::Plex),
-        tmdb_row(s),
-    ]);
+    s.account_rows.set_vec(vec![media_account_row(s, SourceKind::Plex), tmdb_row(s)]);
     let sites: Vec<SiteRow> = s
         .sites
         .iter()

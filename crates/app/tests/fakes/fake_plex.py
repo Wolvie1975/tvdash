@@ -24,7 +24,8 @@ def png(w=4, h=6, rgb=(229, 168, 75)):
 
 ON_DECK = [
     {"ratingKey": "101", "key": "/library/metadata/101", "type": "episode", "title": "Chapter One",
-     "grandparentTitle": "Plex Show", "parentIndex": 3, "index": 2, "duration": 3_000_000, "viewOffset": 1_200_000,
+     "grandparentTitle": "Plex Show", "grandparentRatingKey": "100", "parentIndex": 3, "index": 2,
+     "duration": 3_000_000, "viewOffset": 1_200_000,
      "thumb": "/library/metadata/101/thumb/1", "grandparentThumb": "/library/metadata/100/thumb/1"},
     {"ratingKey": "200", "key": "/library/metadata/200", "type": "movie", "title": "Plex Film", "year": 2001,
      "duration": 6_000_000, "thumb": "/library/metadata/200/thumb/1"},
@@ -120,6 +121,15 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"MediaContainer": {"size": len(items), "Metadata": items}})
         if p == "/library/onDeck":
             return self._send(200, {"MediaContainer": {"size": len(ON_DECK), "Metadata": ON_DECK}})
+        if p == "/library/metadata/100":
+            # The show behind episode 101: its genres and rating fill the episode's.
+            return self._send(200, {"MediaContainer": {"Metadata": [{"ratingKey": "100", "type": "show",
+                "title": "Plex Show", "contentRating": "TV-14", "Genre": [{"tag": "Drama"}]}]}})
+        if p == "/library/metadata/101":
+            return self._send(200, {"MediaContainer": {"Metadata": [{"ratingKey": "101", "type": "episode",
+                "title": "Chapter One", "grandparentTitle": "Plex Show", "grandparentRatingKey": "100",
+                "parentIndex": 3, "index": 2, "year": 2024, "summary": "Things happen.",
+                "Media": [{"Part": [{"key": "/library/parts/9101/file.mkv"}]}]}]}})
         if p.startswith("/library/metadata/"):
             rk = p.rsplit("/", 1)[1]
             return self._send(200, {"MediaContainer": {"Metadata": [{"ratingKey": rk, "type": "episode", "title": "x",

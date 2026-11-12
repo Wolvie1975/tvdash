@@ -59,6 +59,12 @@ pub trait MediaSource: Send + Sync {
     async fn poster(&self, item: &MediaItem, max_h: u32) -> Result<Vec<u8>>;
     async fn stream_url(&self, item: &MediaItem) -> Result<String>;
     async fn report_progress(&self, item: &MediaItem, pos_ms: u64, state: PlayState) -> Result<()>;
+    /// The item with everything the server knows about it (summary, rating,
+    /// genres; an episode's genres come from its show).
+    async fn details(&self, item: &MediaItem) -> Result<MediaItem>;
+    /// The episode to play for a show: the one in progress, else the first
+    /// unwatched, else the first.
+    async fn next_episode(&self, show_id: &str) -> Result<MediaItem>;
     /// Every movie and show with its TMDB ID (for Where to watch's library matches).
     async fn tmdb_library(&self) -> Result<Vec<(u32, MediaItem)>>;
 }
@@ -72,4 +78,3 @@ pub(crate) fn http_client() -> Result<reqwest::Client> {
         .build()
         .map_err(|e| MediaError::Protocol(format!("building HTTP client: {e}")))
 }
-

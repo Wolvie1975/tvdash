@@ -287,6 +287,40 @@ impl MediaSource for PlexClient {
         Ok(r.media_container.hub.into_iter().flat_map(|h| h.metadata).filter_map(Metadata::into_media_item).collect())
     }
 
+    async fn details(&self, item: &MediaItem) -> Result<MediaItem> {
+        let path = format!("/library/metadata/{}", item.id);
+        let found = self.metadata(&path, &[], "details").await?.into_iter().find_map(Metadata::into_media_item);
+        let Some(full) = found else { return Ok(item.clone()) };
+        let mut out = MediaItem {
+            // Keep what the row knew about progress; the rest comes from the server.
+            resume_ms: item.resume_ms,
+            summary: full.summary.or_else(|| item.summary.clone()),
+            content_rating: full.content_rating.or_else(|| item.content_rating.clone()),
+            year: full.year.or(item.year),
+            genres: if full.genres.is_empty() { item.genres.clone() } else { full.genres },
+            ..item.clone()
+        };
+        // Episodes rarely carry genres (or a rating) themselves; their show does.
+        if let Some(show) = out.show_id.clone().filter(|_| out.genres.is_empty() || out.content_rating.is_none()) {
+            let path = format!("/library/metadata/{show}");
+            if let Some(s) = self.metadata(&path, &[], "show").await?.into_iter().find_map(Metadata::into_media_item) {
+                if out.genres.is_empty() {
+                    out.genres = s.genres;
+                }
+                out.content_rating = out.content_rating.or(s.content_rating);
+            }
+        }
+        Ok(out)
+    }
+
+    async fn next_episode(&self, show_id: &str) -> Result<MediaItem> {
+        let mut eps =
+            Self::items(self.metadata(&format!("/library/metadata/{show_id}/allLeaves"), &[], "episodes").await?);
+        eps.retain(|e| e.kind == MediaKind::Episode);
+        eps.sort_by_key(|e| (e.season.unwrap_or(0), e.episode.unwrap_or(0)));
+        pick_next(eps).ok_or(MediaError::NotFound)
+    }
+
     async fn tmdb_library(&self) -> Result<Vec<(u32, MediaItem)>> {
         let r: Container = send_json(self.request(Method::GET, "/library/sections"), "library sections").await?;
         let mut out = Vec::new();
@@ -348,6 +382,16 @@ impl MediaSource for PlexClient {
     }
 }
 
+/// In progress, else the first unwatched, else the first (episodes in order).
+fn pick_next(eps: Vec<MediaItem>) -> Option<MediaItem> {
+    let i = eps
+        .iter()
+        .position(|e| e.resume_ms.is_some())
+        .or_else(|| eps.iter().position(|e| e.view_count == 0))
+        .unwrap_or(0);
+    eps.into_iter().nth(i)
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "PascalCase", default)]
 struct Container {
@@ -377,6 +421,13 @@ struct Guid {
     id: String,
 }
 
+/// `Genre` entries: `{ "tag": "Drama" }`.
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct Tag {
+    tag: String,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "PascalCase", default)]
 struct Hub {
@@ -398,6 +449,15 @@ struct Metadata {
     view_offset: Option<u64>,
     thumb: Option<String>,
     grandparent_thumb: Option<String>,
+    grandparent_rating_key: Option<String>,
+    content_rating: Option<String>,
+    summary: Option<String>,
+    #[serde(rename = "Genre")]
+    genre: Vec<Tag>,
+    view_count: Option<u32>,
+    leaf_count: Option<u32>,
+    viewed_leaf_count: Option<u32>,
+    added_at: Option<i64>,
     #[serde(rename = "Media")]
     media: Vec<Media>,
     #[serde(rename = "Player")]
@@ -456,6 +516,7 @@ impl Metadata {
             }
             _ => (self.title, self.year.map(|y| y.to_string()), None, self.thumb),
         };
+        let episode = kind == MediaKind::Episode;
         Some(MediaItem {
             source: SourceKind::Plex,
             id: self.rating_key,
@@ -466,6 +527,17 @@ impl Metadata {
             duration_ms: self.duration,
             resume_ms: self.view_offset.filter(|&v| v > 0),
             poster,
+            season: self.parent_index.filter(|_| episode),
+            episode: self.index.filter(|_| episode),
+            show_id: self.grandparent_rating_key.filter(|_| episode),
+            year: self.year,
+            content_rating: self.content_rating.filter(|r| !r.is_empty()),
+            genres: self.genre.into_iter().map(|g| g.tag).filter(|g| !g.is_empty()).collect(),
+            summary: self.summary.map(|s| s.trim().to_owned()).filter(|s| !s.is_empty()),
+            view_count: self.view_count.unwrap_or(0),
+            leaf_count: self.leaf_count,
+            viewed_leaf_count: self.viewed_leaf_count,
+            added_at: self.added_at,
         })
     }
 
@@ -492,9 +564,10 @@ mod tests {
     fn maps_episode_and_movie() {
         let c: Container = serde_json::from_value(json!({ "MediaContainer": { "size": 3, "Metadata": [
             { "ratingKey": "101", "type": "episode", "title": "The Pilot", "grandparentTitle": "Some Show",
-              "parentIndex": 2, "index": 5, "duration": 2_700_000, "viewOffset": 900_000,
+              "parentIndex": 2, "index": 5, "duration": 2_700_000, "viewOffset": 900_000, "grandparentRatingKey": "100",
               "thumb": "/library/metadata/101/thumb/1", "grandparentThumb": "/library/metadata/100/thumb/1" },
-            { "ratingKey": "200", "type": "movie", "title": "A Film", "year": 1999, "thumb": "/t/200" },
+            { "ratingKey": "200", "type": "movie", "title": "A Film", "year": 1999, "thumb": "/t/200",
+              "contentRating": "PG-13", "summary": " A story. ", "Genre": [{ "tag": "Drama" }, { "tag": "Mystery" }] },
             { "ratingKey": "300", "type": "track", "title": "Song" }
         ]}}))
         .unwrap();
@@ -504,9 +577,32 @@ mod tests {
         assert_eq!(items[0].episode_label.as_deref(), Some("S2 · E5"));
         assert_eq!(items[0].poster.as_deref(), Some("/library/metadata/100/thumb/1"), "series poster");
         assert_eq!(items[0].resume_ms, Some(900_000));
+        assert_eq!((items[0].season, items[0].episode, items[0].show_id.as_deref()), (Some(2), Some(5), Some("100")));
+        assert_eq!(items[1].genres, ["Drama", "Mystery"]);
+        assert_eq!(
+            (items[1].content_rating.as_deref(), items[1].summary.as_deref()),
+            (Some("PG-13"), Some("A story."))
+        );
+        assert_eq!((items[1].season, items[1].show_id.as_deref()), (None, None));
         assert_eq!(items[1].subtitle.as_deref(), Some("1999"));
         assert_eq!(items[1].resume_ms, None);
         assert!(items.iter().all(|i| i.source == SourceKind::Plex));
+    }
+
+    #[test]
+    fn next_episode_choice() {
+        let ep = |id: &str, views, resume| MediaItem {
+            id: id.into(),
+            kind: MediaKind::Episode,
+            view_count: views,
+            resume_ms: resume,
+            ..Default::default()
+        };
+        let next = |v: Vec<MediaItem>| pick_next(v).map(|e| e.id);
+        assert_eq!(next(vec![ep("1", 1, None), ep("2", 0, None), ep("3", 0, Some(5))]).as_deref(), Some("3"));
+        assert_eq!(next(vec![ep("1", 1, None), ep("2", 0, None)]).as_deref(), Some("2"));
+        assert_eq!(next(vec![ep("1", 1, None), ep("2", 2, None)]).as_deref(), Some("1"), "all watched: start over");
+        assert_eq!(next(vec![]), None);
     }
 
     #[test]

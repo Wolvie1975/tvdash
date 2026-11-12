@@ -40,6 +40,12 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     });
 
     let s = send.clone();
+    dash.on_play_card(move |tab, i| match bridge::tab_row(&tab, i as usize) {
+        Some(item) => s(Command::Play(item)),
+        None => warn!(%tab, index = i, "play: no such poster"),
+    });
+
+    let s = send.clone();
     dash.on_prompt_action(move |source, action| match (parse_source(&source), action.as_str()) {
         (Some(kind), "sign-in") => s(Command::SignIn(kind)),
         (Some(_), "retry") => s(Command::Refresh),
@@ -253,57 +259,20 @@ fn wire_watch(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         }
     });
 
-    let (weak, s) = (laptop.as_weak(), send.clone());
-    w.on_search(move |q| {
-        if let Some(l) = weak.upgrade()
-            && watch_ui::start(&l, &q)
-        {
-            s(Command::WhereToWatch(q.trim().to_owned()));
-        }
-    });
-
     let weak = laptop.as_weak();
-    w.on_select(move |key| {
+    w.on_close(move || {
         if let Some(l) = weak.upgrade() {
-            watch_ui::select(&l, &key);
+            watch_ui::close(&l);
         }
     });
 
-    let weak = laptop.as_weak();
-    w.on_close_detail(move || {
-        if let Some(l) = weak.upgrade() {
-            l.global::<Watch>().set_detail_open(false);
-        }
-    });
-
-    let weak = laptop.as_weak();
-    w.on_action(move |a| {
-        let Some(l) = weak.upgrade() else { return };
-        let Some(hit) = watch_ui::hit(&l.global::<Watch>().get_selected()) else { return };
-        match a.kind.as_str() {
-            "play" => {
-                if let Some(item) = hit.library {
-                    send(Command::Play(item));
-                    l.global::<Nav>().set_page("home".into());
-                }
-            }
-            "library" => {
-                let lib = l.global::<Library>();
-                lib.set_query(hit.title.as_str().into());
-                if bridge::start_search(&l, &hit.title) {
-                    send(Command::Search(hit.title.clone()));
-                }
-                l.global::<Nav>().set_page("library".into());
-            }
-            "open" if a.site >= 0 => {
-                send(Command::OpenOnService { site: a.site as usize, title: hit.title });
-            }
-            "tmdb" => {
-                if let Some(url) = hit.link {
-                    send(Command::OpenUrl { label: "TMDB".into(), url });
-                }
-            }
-            other => warn!(kind = other, "unknown Where to watch action"),
-        }
+    w.on_action(move |key| {
+        let Some(hit) = watch_ui::hit(&key) else { return };
+        let Some((_, _, action)) = watch_ui::action(&hit, watch_ui::resume_for_show) else { return };
+        send(match action {
+            watch_ui::Action::Play(item) => Command::Play(item),
+            watch_ui::Action::PlayShow(show) => Command::PlayShow(show),
+            watch_ui::Action::Open { site, title } => Command::OpenOnService { site, title },
+        });
     });
 }

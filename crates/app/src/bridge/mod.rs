@@ -34,7 +34,7 @@ use tvdash_core::{
 };
 
 pub use accounts::sync_setup;
-pub use home::row;
+pub use home::{row, tab_row};
 pub use library::{clear_search, close_detail, select, selected, start_search};
 
 use crate::{
@@ -62,8 +62,13 @@ pub struct UiState {
     browser: Option<String>,
     continue_watching: HashMap<SourceKind, Vec<MediaItem>>,
     recently_added: HashMap<SourceKind, Vec<MediaItem>>,
-    /// Dashboard Continue Watching rows; index = card index.
+    /// Everything in progress, newest first (Up next, the TV layout); index = card index.
     rows: Vec<MediaItem>,
+    /// The dashboard's two tabs of it.
+    rows_tv: Vec<MediaItem>,
+    rows_movies: Vec<MediaItem>,
+    /// Full details (summary, genres, rating) of what the On the TV box shows.
+    details: HashMap<(SourceKind, String), MediaItem>,
     posters: HashMap<(SourceKind, String), Image>,
     /// TMDB token state.
     tmdb: Option<AccountStatus>,
@@ -88,6 +93,8 @@ pub struct UiState {
     selected: Option<MediaItem>,
     // Models
     cards: Rc<VecModel<PosterCardData>>,
+    cards_tv: Rc<VecModel<PosterCardData>>,
+    cards_movies: Rc<VecModel<PosterCardData>>,
     prompts: Rc<VecModel<AccountPrompt>>,
     tv_prompts: Rc<VecModel<AccountPrompt>>,
     sessions: Rc<VecModel<SessionRow>>,
@@ -126,6 +133,8 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         s.sites = c.sites;
         let dash = laptop.global::<Dash>();
         dash.set_continue_watching(ModelRc::from(s.cards.clone()));
+        dash.set_cw_tv(ModelRc::from(s.cards_tv.clone()));
+        dash.set_cw_movies(ModelRc::from(s.cards_movies.clone()));
         dash.set_prompts(ModelRc::from(s.prompts.clone()));
         dash.set_tv_prompts(ModelRc::from(s.tv_prompts.clone()));
         dash.set_sessions(ModelRc::from(s.sessions.clone()));
@@ -259,6 +268,10 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         }
         AppEvent::SearchResults { query, items } => library::on_results(s, laptop, query, items),
         AppEvent::Poster { source, item_id, image } => home::on_poster(s, laptop, source, item_id, &image),
+        AppEvent::Details(item) => {
+            s.details.insert((item.source, item.id.clone()), item);
+            home::refresh_tv_card(s, laptop);
+        }
         AppEvent::Player(status) => home::on_player(s, laptop, tv, status),
         AppEvent::Browser(site) => home::on_browser(s, laptop, tv, site),
         AppEvent::NowPlaying(sessions) => home::on_sessions(s, sessions),

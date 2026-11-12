@@ -66,6 +66,9 @@ pub enum AppEvent {
     NowPlaying(Vec<Session>),
     ContinueWatching(SourceKind, Vec<MediaItem>),
     RecentlyAdded(SourceKind, Vec<MediaItem>),
+    /// Everything the server knows about an item (summary, genres, rating) for
+    /// the On the TV box: what's playing, or the top Continue Watching item.
+    Details(MediaItem),
     /// Poster for the item with this source + id.
     Poster {
         source: SourceKind,
@@ -128,6 +131,8 @@ pub enum AppEvent {
 #[derive(Debug, Clone)]
 pub enum Command {
     Play(MediaItem),
+    /// Play a show's next episode (in progress, else the first unwatched).
+    PlayShow(MediaItem),
     Pause,
     Resume,
     /// Relative seek in seconds (negative = back).

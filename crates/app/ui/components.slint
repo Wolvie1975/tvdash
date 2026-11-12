@@ -16,6 +16,8 @@ export component Clock {
     in property <string> mm: "--";
     in property <string> ss: "--";
     in property <bool> show-seconds: false;
+    // "AM" / "PM" in 12-hour mode.
+    in property <string> suffix;
     in property <length> font-px: Theme.laptop-clock-size;
     in property <color> tint: Theme.text-primary;
     in property <int> weight: 300;
@@ -53,6 +55,18 @@ export component Clock {
             font-size: root.font-px * 0.45;
             font-weight: root.weight;
             color: root.tint.transparentize(0.35);
+        }
+        // On the digits' baseline (Inter's descender is 0.24 em).
+        if root.suffix != "": VerticalLayout {
+            alignment: end;
+            padding-left: root.font-px * 0.06;
+            padding-bottom: root.font-px * 0.24 - root.font-px * 0.26 * 0.24;
+            Text {
+                text: root.suffix;
+                font-size: root.font-px * 0.26;
+                font-weight: 400;
+                color: root.tint.transparentize(0.35);
+            }
         }
     }
 }
@@ -343,26 +357,36 @@ export component TextField inherits Rectangle {
     in property <string> placeholder;
     in-out property <string> text <=> input.text;
     in property <bool> password: false;
+    in property <length> font-px: Theme.body-size;
+    // No box of its own (it sits inside one, like the search field).
+    in property <bool> bare: false;
     callback accepted(string);
     callback edited(string);
+
+    public function focus-input() {
+        input.focus();
+    }
 
     min-height: Theme.hit-target;
     min-width: 200px;
     horizontal-stretch: 1;
     border-radius: 14px;
-    background: Theme.surface-raised;
-    border-width: input.has-focus ? 2px : 1px;
+    background: root.bare ? transparent : Theme.surface-raised;
+    border-width: root.bare ? 0 : input.has-focus ? 2px : 1px;
     border-color: input.has-focus ? Theme.accent : Theme.border;
+    accessible-role: text-input;
+    accessible-value: input.text;
+    accessible-placeholder-text: root.placeholder;
 
     HorizontalLayout {
-        padding-left: 14px;
-        padding-right: 14px;
+        padding-left: root.bare ? 0 : 14px;
+        padding-right: root.bare ? 0 : 14px;
         Rectangle {
             if input.text == "": Text {
                 width: parent.width;
                 height: parent.height;
                 text: root.placeholder;
-                font-size: Theme.body-size;
+                font-size: root.font-px;
                 color: Theme.text-muted;
                 vertical-alignment: center;
                 overflow: elide;
@@ -370,7 +394,7 @@ export component TextField inherits Rectangle {
             input := TextInput {
                 width: parent.width;
                 height: parent.height;
-                font-size: Theme.body-size;
+                font-size: root.font-px;
                 color: Theme.text-primary;
                 vertical-alignment: center;
                 single-line: true;

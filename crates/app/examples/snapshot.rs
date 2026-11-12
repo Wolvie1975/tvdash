@@ -1,7 +1,7 @@
 // Dev tool: render windows offscreen to PNG (no display needed).
 // Usage: cargo run --example snapshot -- out.png <mode> [height] [width]
 // THEME=stone|mist picks a light theme (default dark).
-// Modes: watch, settings-streaming, home, home-playing, home-next, home-code, home-streaming, library, library-search,
+// Modes: home-search, settings-streaming, home, home-playing, home-next, home-code, home-streaming, library, library-search,
 //        settings, setup-0, setup-1, tv
 use std::rc::Rc;
 
@@ -100,8 +100,9 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
         ThemeMode::Stone => UiTheme::Stone,
         ThemeMode::Mist => UiTheme::Mist,
     });
-    dash.set_clock_hh("21".into());
+    dash.set_clock_hh("9".into());
     dash.set_clock_mm("04".into());
+    dash.set_clock_suffix("PM".into());
     dash.set_weekday("Wednesday".into());
     dash.set_date_text("November 11".into());
     let dark = theme_mode == ThemeMode::Dark;
@@ -124,11 +125,24 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
     let teal = tint::Hue { degrees: 182.0, saturation: 0.8 };
 
     let row = cards(&[
-        ("Some Show", "S2 · E5 · The Pilot", 0.33, true, "Plex"),
-        ("Plex Show", "S3 · E2 · Chapter One", 0.4, true, "Plex"),
-        ("A Film", "1999", 0.8, true, "Plex"),
-        ("No Poster Show", "S1 · E2", 0.1, false, "Plex"),
+        ("Harbor Lights", "S1 · E3 · The Breakwater", 0.7, true, "S1 · E3"),
+        ("Night Shift", "S4 · E1", 0.12, true, "S4 · E1"),
+        ("Field Notes", "S1 · E9", 0.88, true, "S1 · E9"),
+        ("Northbound", "S2 · E2", 0.2, true, "S2 · E2"),
+        ("The Long Drive Home", "S2 · E7 · Crossroads", 0.46, true, "S2 · E7"),
+        ("No Poster Show", "S3 · E5", 0.6, false, "S3 · E5"),
+        ("Saltwater", "S1 · E1", 0.1, true, "S1 · E1"),
     ]);
+    let movies = cards(&[
+        ("The Quiet Year", "2019", 0.35, true, "1 h 5 min left"),
+        ("Iron Valley", "2021", 0.8, true, "22 min left"),
+        ("Low Tide", "2016", 0.08, true, "1 h 20 min left"),
+    ]);
+    dash.set_cw_tv(row.clone());
+    dash.set_cw_movies(movies);
+    if std::env::var("CW_TAB").as_deref() == Ok("movies") {
+        dash.set_cw_tab("movies".into());
+    }
 
     let opened = ["Set up · opened today", "Not signed in yet", "Set up · opened 3 days ago"];
     let sites_rows = model(
@@ -177,6 +191,12 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                 note: "Nothing on the TV. Pick up where you left off:".into(),
                 title: "Harbor Lights".into(),
                 subtitle: "S1 · E3 · The Breakwater".into(),
+                episode_line: "Season 1 · Episode 3 — The Breakwater".into(),
+                facts: "2024 · TV-PG · 45 min · Mystery".into(),
+                genres: "Mystery · Coastal".into(),
+                overview: if std::env::var("NO_OVERVIEW").is_ok() { "".into() } else {
+                    "A storm cuts the harbour off from the mainland, and the lighthouse keeper finds a logbook that should not exist.".into()
+                },
                 at_text: "Stopped at 31:40".into(),
                 left_text: "14 min left".into(),
                 progress: 0.7,
@@ -186,7 +206,7 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
             });
             dash.set_tint(tint::card_tint(tint::DEFAULT, theme_mode));
         }
-        "home-playing" => {
+        "home-playing" | "home-search" => {
             dash.set_continue_watching(row);
             dash.set_cw_state("items".into());
             dash.set_tv(TvCard {
@@ -195,20 +215,46 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                 source: "Plex".into(),
                 title: "The Long Drive Home".into(),
                 subtitle: "S2 · E7 · Crossroads".into(),
+                episode_line: "Season 2 · Episode 7 — Crossroads".into(),
+                facts: "2024 · TV-14 · 52 min · Drama".into(),
+                genres: "Drama · Road trip".into(),
+                overview: "Three siblings take a wrong exit outside Amarillo and spend the night deciding whether to keep driving or turn back. Their mother's old map turns up in the glovebox, with a route nobody remembers drawing.".into(),
                 at_text: "24:10 / 52:00".into(),
-                left_text: "28 min left · ends 21:32".into(),
+                left_text: "28 min left · ends 9:32 PM".into(),
                 progress: 0.46,
-                paused: true,
+                paused: false,
                 poster: fake_poster(140),
                 has_poster: true,
                 ..Default::default()
             });
             dash.set_tint(tint::card_tint(teal, theme_mode));
-            dash.set_sessions(model(vec![SessionRow {
-                badge: "Plex".into(),
-                title: "Plex Film · 2001".into(),
-                detail: "Bedroom TV · Paused · 1:02:10 / 2:00:00".into(),
-            }]));
+            if mode == "home-search" {
+                dash.set_search_open(true);
+                let w = l.global::<Watch>();
+                w.set_query("harbor".into());
+                let wc = |title: &str, meta: &str, action: &str, primary: bool, hue: u8| WatchCard {
+                    key: title.into(),
+                    title: title.into(),
+                    meta: meta.into(),
+                    action: action.into(),
+                    primary,
+                    poster: fake_poster(hue),
+                    has_poster: hue > 0,
+                };
+                w.set_library(model(vec![wc("Harbor Lights", "TV series · 2024 · in Plex", "Resume on TV", true, 60)]));
+                w.set_included(model(vec![
+                    wc("The Harbor", "Movie · 2019 · included with Prime Video", "Open on TV", false, 120),
+                    wc("Northern Lights", "TV series · 2021 · included with Netflix", "Open on TV", false, 200),
+                ]));
+                w.set_extra(model(vec![wc("Harbor Lights", "Movie · 1998 · Rent · Apple TV", "", false, 30)]));
+                w.set_none(model(vec![wc(
+                    "Lights Out at the Harbor",
+                    "Movie · 2012 · not available in the US",
+                    "",
+                    false,
+                    0,
+                )]));
+            }
         }
         "library" | "library-search" => {
             l.global::<Nav>().set_page("library".into());
@@ -288,56 +334,6 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                 }
             }
         }
-        "watch" => {
-            l.global::<Nav>().set_page("watch".into());
-            let w = l.global::<Watch>();
-            w.set_query("matrix".into());
-            let wc = |key: &str, title: &str, meta: &str, line: &str, tier: &str, hue: u8| WatchCard {
-                key: key.into(),
-                title: title.into(),
-                meta: meta.into(),
-                line: line.into(),
-                tier: tier.into(),
-                poster: fake_poster(hue),
-                has_poster: hue > 0,
-            };
-            w.set_library(model(vec![wc(
-                "movie:604",
-                "The Matrix Reloaded",
-                "2003 · Movie",
-                "In Plex",
-                "library",
-                30,
-            )]));
-            w.set_included(model(vec![
-                wc("movie:603", "The Matrix", "1999 · Movie", "On Netflix", "included", 90),
-                wc("movie:624860", "The Matrix Resurrections", "2021 · Movie", "On Max, Netflix", "included", 150),
-            ]));
-            w.set_extra(model(vec![
-                wc("tv:1399", "Matrix Tales", "2011 · Show", "Peacock (not one of yours)", "extra", 200),
-                wc("movie:606", "The Animatrix", "2003 · Movie", "Rent · Apple TV", "extra", 0),
-            ]));
-            w.set_none(model(vec![wc(
-                "movie:605",
-                "The Matrix Rare Cut",
-                "Movie",
-                "Not streaming in the US",
-                "none",
-                0,
-            )]));
-            w.set_selected("movie:603".into());
-            w.set_detail_open(true);
-            w.set_detail(wc("movie:603", "The Matrix", "1999 · Movie", "On Netflix", "included", 90));
-            w.set_detail_overview(
-                "A hacker learns the truth about his reality and his role in the war against its controllers.".into(),
-            );
-            w.set_detail_yours(model(vec!["Netflix".into()]));
-            w.set_detail_elsewhere(model(vec!["Rent · Apple TV".into(), "Buy · Amazon Video".into()]));
-            w.set_detail_actions(model(vec![
-                WatchAction { label: "Open on Netflix".into(), kind: "open".into(), site: 0, primary: true },
-                WatchAction { label: "All options on TMDB".into(), kind: "tmdb".into(), site: -1, primary: false },
-            ]));
-        }
         "settings-display" => {
             l.global::<Nav>().set_page("settings".into());
             l.global::<Nav>().set_settings_tab("display".into());
@@ -416,9 +412,7 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
         }
         _ => {
             dash.set_cw_state("prompts".into());
-            dash.set_prompts(model(vec![
-                prompt("plex", "Plex isn't connected.", "Sign in to Plex", false),
-            ]));
+            dash.set_prompts(model(vec![prompt("plex", "Plex isn't connected.", "Sign in to Plex", false)]));
             dash.set_tv_prompts(model(vec![prompt("plex", "Plex sign-in expired.", "Reconnect", true)]));
         }
     }

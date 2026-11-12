@@ -45,10 +45,7 @@ const RECENTLY_ADDED: u32 = 20;
 
 /// Messages from tasks the controller spawned.
 pub enum Internal {
-    PlexSignedIn {
-        account_token: String,
-        server: DiscoveredServer,
-    },
+    PlexSignedIn { account_token: String, server: DiscoveredServer },
     Refresh,
 }
 
@@ -137,7 +134,7 @@ pub struct Controller {
 }
 
 enum Step {
-    Command(Command),
+    Command(Box<Command>),
     Mpv(Option<MpvEvent>),
     BrowserExited,
     Internal(Internal),
@@ -232,7 +229,7 @@ impl Controller {
                     }
                 };
                 tokio::select! {
-                    c = commands.recv() => c.map_or(Step::Shutdown, Step::Command),
+                    c = commands.recv() => c.map_or(Step::Shutdown, |c| Step::Command(Box::new(c))),
                     e = mpv_next => Step::Mpv(e),
                     _ = browser_exit => Step::BrowserExited,
                     Some(m) = internal.recv() => Step::Internal(m),
@@ -242,7 +239,7 @@ impl Controller {
                 }
             };
             match step {
-                Step::Command(c) => self.on_command(c).await,
+                Step::Command(c) => self.on_command(*c).await,
                 Step::Mpv(e) => self.on_mpv(e).await,
                 Step::BrowserExited => self.on_browser_exited(),
                 Step::Internal(Internal::PlexSignedIn { account_token, server }) => {
@@ -313,6 +310,7 @@ impl Controller {
     async fn on_command(&mut self, cmd: Command) {
         match cmd {
             Command::Play(item) => self.play(item).await,
+            Command::PlayShow(show) => self.play_show(show).await,
             Command::Pause | Command::Resume => {
                 let pause = matches!(cmd, Command::Pause);
                 if let Some(p) = self.playback.as_mut()
@@ -603,6 +601,9 @@ impl Controller {
                         let _ = events.send(AppEvent::Health { service: kind.into(), result: Ok(note) });
                         let _ = events.send(AppEvent::Account(kind, AccountStatus::Connected));
                         let _ = events.send(AppEvent::ContinueWatching(kind, items.clone()));
+                        if let Some(top) = items.first() {
+                            fetch_details(source.clone(), top.clone(), events.clone());
+                        }
                         fetch_posters(source.clone(), items, requested.clone(), events.clone());
                     }
                     Err(e) => {
@@ -709,12 +710,24 @@ impl Controller {
         self.health(Service::Player, Ok(format!("playing {} ({where_})", item.title)));
 
         let start = item.resume_ms.unwrap_or(0);
+        fetch_details(source.clone(), item.clone(), self.events.clone());
         let reporter = spawn_reporter(source, item.clone());
         let _ = reporter.send((start, PlayState::Playing));
         let status =
             PlayerStatus { duration_ms: item.duration_ms, item, state: PlayState::Playing, position_ms: start };
         self.emit(AppEvent::Player(Some(status.clone())));
         self.playback = Some(Playback { status, player, reporter, last_emitted_sec: None, decode_hint_shown: false });
+    }
+
+    async fn play_show(&mut self, show: MediaItem) {
+        let Some(source) = self.source_for(show.source) else {
+            self.toast(format!("{} isn't connected", show.source.label()));
+            return;
+        };
+        match source.next_episode(&show.id).await {
+            Ok(ep) => self.play(ep).await,
+            Err(e) => self.toast(format!("Couldn't find an episode of {}: {e}", show.title)),
+        }
     }
 
     // ── Streaming browser ───────────────────────────────────────────
@@ -1054,6 +1067,18 @@ fn spawn_reporter(source: Arc<dyn MediaSource>, item: MediaItem) -> UnboundedSen
         }
     });
     tx
+}
+
+/// Look an item up in full for the On the TV box (summary, genres, rating).
+fn fetch_details(source: Arc<dyn MediaSource>, item: MediaItem, events: UnboundedSender<AppEvent>) {
+    tokio::spawn(async move {
+        match source.details(&item).await {
+            Ok(full) => {
+                let _ = events.send(AppEvent::Details(full));
+            }
+            Err(e) => debug!(title = %item.title, error = %e, "no details"),
+        }
+    });
 }
 
 fn fetch_posters(
@@ -1397,6 +1422,20 @@ mod e2e {
         assert_eq!(sessions.len(), 1);
         assert_eq!((sessions[0].device.as_str(), sessions[0].state), ("Bedroom TV", PlayState::Paused));
 
+        // The top item's details for the Up next box: its own summary, its show's genres.
+        let details = h
+            .find_or_wait(|e| match e {
+                AppEvent::Details(d) if d.id == "101" => Some(d.clone()),
+                _ => None,
+            })
+            .await;
+        assert_eq!(details.summary.as_deref(), Some("Things happen."));
+        assert_eq!(
+            (details.genres.clone(), details.content_rating.as_deref()),
+            (vec!["Drama".to_string()], Some("TV-14"))
+        );
+        assert_eq!((details.season, details.episode, details.year), (Some(3), Some(2), Some(2024)));
+
         h.play_pause_stop(&items[0]).await;
 
         // What Plex saw.
@@ -1614,7 +1653,9 @@ mod e2e {
         h.wait_for(|e| matches!(e, AppEvent::SignIn(_, SignInState::Done)).then_some(())).await;
         sleep(Duration::from_millis(500)).await;
         assert!(
-            h.server_log().iter().any(|r| r["path"] == "/library/sections/1/all" && r["query"]["includeGuids"][0] == "1"),
+            h.server_log()
+                .iter()
+                .any(|r| r["path"] == "/library/sections/1/all" && r["query"]["includeGuids"][0] == "1"),
             "library listed with TMDB IDs"
         );
 

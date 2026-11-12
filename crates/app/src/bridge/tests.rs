@@ -40,6 +40,7 @@ fn item(source: SourceKind, id: &str, title: &str) -> MediaItem {
         duration_ms: Some(7_200_000),
         resume_ms: Some(3_600_000),
         poster: Some("p".into()),
+        ..Default::default()
     }
 }
 
@@ -264,4 +265,53 @@ fn expired_states_and_streaming_sites() {
     let sites = l.global::<Accounts>().get_sites();
     assert_eq!(sites.row_data(5).unwrap().status, "Set up · opened today");
     assert_eq!(sites.row_data(3).unwrap().status, "Not signed in yet");
+}
+
+#[test]
+fn continue_watching_tabs_and_box_details() {
+    let (l, t) = windows();
+    let dash = l.global::<Dash>();
+    let ep = MediaItem {
+        kind: MediaKind::Episode,
+        title: "Harbor Lights".into(),
+        subtitle: Some("The Breakwater".into()),
+        episode_label: Some("S1 · E3".into()),
+        season: Some(1),
+        episode: Some(3),
+        show_id: Some("50".into()),
+        duration_ms: Some(2_700_000),
+        resume_ms: Some(1_900_000),
+        ..item(SourceKind::Plex, "e1", "Harbor Lights")
+    };
+    let film = item(SourceKind::Plex, "m1", "A Film");
+    send(&l, &t, AppEvent::ContinueWatching(SourceKind::Plex, vec![ep.clone(), film]));
+    // Two tabs; badges are the episode and the time left.
+    let (tv, movies) = (dash.get_cw_tv(), dash.get_cw_movies());
+    assert_eq!((tv.row_count(), movies.row_count()), (1, 1));
+    assert_eq!(
+        (tv.row_data(0).unwrap().badge.as_str(), movies.row_data(0).unwrap().badge.as_str()),
+        ("S1 · E3", "1 h left")
+    );
+    assert_eq!(tab_row("movies", 0).unwrap().id, "m1");
+    assert_eq!(tab_row("tv", 0).unwrap().id, "e1");
+    assert_eq!(crate::watch_ui::resume_for_show("50").unwrap().id, "e1", "search can resume the show");
+
+    // Up next: the newest item, described once its details arrive.
+    let card = dash.get_tv();
+    assert_eq!((card.mode.as_str(), card.episode_line.as_str()), ("next", "Season 1 · Episode 3 — The Breakwater"));
+    assert_eq!((card.overview.as_str(), card.facts.as_str()), ("", "45 min"));
+    let full = MediaItem {
+        summary: Some("A storm cuts the harbour off.".into()),
+        year: Some(2024),
+        content_rating: Some("TV-PG".into()),
+        genres: vec!["Mystery".into(), "Coastal".into()],
+        resume_ms: None,
+        ..ep
+    };
+    send(&l, &t, AppEvent::Details(full));
+    let card = dash.get_tv();
+    assert_eq!(card.overview, "A storm cuts the harbour off.");
+    assert_eq!(card.facts, "2024 · TV-PG · 45 min · Mystery");
+    assert_eq!(card.genres, "Mystery · Coastal");
+    assert_eq!(card.left_text, "13 min left", "progress stays the row's own");
 }

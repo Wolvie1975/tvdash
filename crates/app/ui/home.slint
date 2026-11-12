@@ -1,11 +1,14 @@
 import { Theme, UiTheme } from "theme.slint";
 import { Icon } from "icons.slint";
-import { ActionButton, Clock, PosterRow, ProgressBar, PromptBanner, SectionLabel, SessionLine } from "components.slint";
-import { Dash, Nav, SiteTileData } from "state.slint";
+import { ActionButton, Clock, PosterCard, PosterCardData, ProgressBar, PromptBanner, SectionLabel, TextField } from "components.slint";
+import { Dash, Nav, SiteTileData, Watch, WatchCard } from "state.slint";
 
-// Laptop dashboard, redesign "Option B": a tall On the TV card tinted from the
-// poster on the left; streaming tiles and Continue Watching on the right.
+// Laptop dashboard: a header (search · time, date and weather · theme and
+// Settings) over three equal, full-height boxes: On the TV, Watch on TV and
+// Continue Watching. The search panel slides in over the right two boxes.
 // Touch-first: every control is at least 56 px tall and nothing needs hover.
+
+// ── Header ───────────────────────────────────────────────────────────
 
 component ThemeChoice inherits Rectangle {
     in property <UiTheme> mode;
@@ -14,10 +17,14 @@ component ThemeChoice inherits Rectangle {
     min-height: Theme.hit-target;
     border-radius: 14px;
     background: root.on ? Theme.text-primary : touch.pressed ? Theme.surface-raised : transparent;
+    accessible-role: button;
+    accessible-label: root.label + " theme";
+    accessible-checked: root.on;
+    accessible-action-default => { Dash.set-theme(root.mode); }
     HorizontalLayout {
-        padding-left: 20px;
-        padding-right: 20px;
-        spacing: 10px;
+        padding-left: 14px;
+        padding-right: 14px;
+        spacing: 8px;
         VerticalLayout {
             alignment: center;
             Icon {
@@ -28,7 +35,7 @@ component ThemeChoice inherits Rectangle {
         }
         Text {
             text: root.label;
-            font-size: 20px;
+            font-size: 19px;
             font-weight: 500;
             color: root.on ? Theme.bg : Theme.text-secondary;
             vertical-alignment: center;
@@ -45,8 +52,10 @@ component ThemeSwitch inherits Rectangle {
     border-width: 1px;
     border-color: Theme.border;
     border-radius: Theme.radius;
+    width: row.preferred-width;
+    height: row.preferred-height;
 
-    HorizontalLayout {
+    row := HorizontalLayout {
         padding: 4px;
         ThemeChoice { mode: UiTheme.dark; label: "Dark"; }
         ThemeChoice { mode: UiTheme.stone; label: "Stone"; }
@@ -54,90 +63,124 @@ component ThemeSwitch inherits Rectangle {
     }
 }
 
-component WeatherCard inherits Rectangle {
-    background: Theme.surface;
-    border-radius: Theme.radius;
-    min-width: 380px;
-    min-height: 104px;
-    // No location yet: tapping goes to Settings › Display › Location.
-    TouchArea {
-        enabled: !Dash.weather-on;
-        mouse-cursor: Dash.weather-on ? default : pointer;
-        clicked => {
-            Nav.settings-tab = "display";
-            Nav.page = "settings";
-        }
-    }
-    // Amber dot when the last fetch failed.
-    if Dash.weather-warn: Rectangle {
-        x: parent.width - 26px;
-        y: 14px;
-        width: 12px;
-        height: 12px;
-        border-radius: 6px;
-        background: Theme.warn;
-    }
-    HorizontalLayout {
-        opacity: Dash.weather-stale ? 0.55 : 1;
-        animate opacity { duration: 400ms; }
-        padding-left: 28px;
-        padding-right: 28px;
-        spacing: 16px;
-        VerticalLayout {
-            alignment: center;
-            Icon { name: Dash.weather-on ? Dash.weather-icon : "partly"; tint: Theme.text-secondary; size: 36px; line: 1.6px; }
-        }
-        VerticalLayout {
-            alignment: center;
-            spacing: 2px;
-            Text {
-                text: Dash.weather-on ? Dash.weather-temp : "Weather";
-                font-size: Dash.weather-on ? 34px : 24px;
-                color: Theme.text-primary;
-            }
-            Text {
-                text: !Dash.weather-on ? "Tap to set your location"
-                    : Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail;
-                font-size: 18px;
-                color: Dash.weather-warn && Dash.weather-note != "" ? Theme.warn : Theme.text-secondary;
-                overflow: elide;
-                max-width: 300px;
-            }
-        }
-    }
-}
-
-component SquareButton inherits Rectangle {
+export component SquareButton inherits Rectangle {
     in property <string> icon;
     in property <string> label; // accessible name
+    // Filled while what it opens is open (the search panel).
+    in property <bool> on: false;
     callback clicked();
     width: 64px;
     height: 64px;
     border-radius: Theme.radius;
     border-width: 1px;
-    border-color: Theme.border;
-    background: touch.pressed ? Theme.surface-raised : Theme.surface;
+    border-color: root.on ? Theme.text-primary : Theme.border;
+    background: root.on ? Theme.text-primary : touch.pressed ? Theme.surface-raised : Theme.surface;
     accessible-role: button;
     accessible-label: root.label;
-    Icon { name: root.icon; tint: Theme.text-secondary; size: 28px; line: 1.7px; }
+    accessible-action-default => { root.clicked(); }
+    Icon { name: root.icon; tint: root.on ? Theme.bg : Theme.text-secondary; size: 28px; line: 1.7px; }
     touch := TouchArea {
         mouse-cursor: pointer;
         clicked => { root.clicked(); }
     }
 }
 
+// Time and date, a thin divider, then the weather; spread evenly.
+component HeaderCentre inherits HorizontalLayout {
+    alignment: space-around;
+
+    VerticalLayout {
+        alignment: center;
+        spacing: 6px;
+        // The digits fill about 0.75 em; the row is sized to them, not the line.
+        Rectangle {
+            height: 96px;
+            clock := Clock {
+                x: (parent.width - self.preferred-width) / 2;
+                y: (parent.height - self.preferred-height) / 2;
+                hh: Dash.clock-hh;
+                mm: Dash.clock-mm;
+                ss: Dash.clock-ss;
+                suffix: Dash.clock-suffix;
+                show-seconds: Dash.show-seconds;
+                font-px: 112px;
+            }
+        }
+        Text {
+            text: Dash.weekday + ", " + Dash.date-text;
+            font-size: 24px;
+            color: Theme.text-secondary;
+            horizontal-alignment: center;
+        }
+    }
+
+    VerticalLayout {
+        alignment: center;
+        Rectangle { width: 1px; height: 96px; background: Theme.border; }
+    }
+
+    weather := Rectangle {
+        // No location yet: tapping goes to Settings › Display › Location.
+        TouchArea {
+            enabled: !Dash.weather-on;
+            mouse-cursor: Dash.weather-on ? default : pointer;
+            clicked => {
+                Nav.settings-tab = "display";
+                Nav.page = "settings";
+            }
+        }
+        HorizontalLayout {
+            spacing: 18px;
+            opacity: Dash.weather-stale ? 0.55 : 1;
+            animate opacity { duration: 400ms; }
+            VerticalLayout {
+                alignment: center;
+                Icon { name: Dash.weather-on ? Dash.weather-icon : "partly"; tint: Theme.text-secondary; size: 52px; line: 1.4px; }
+            }
+            VerticalLayout {
+                alignment: center;
+                spacing: 4px;
+                HorizontalLayout {
+                    spacing: 12px;
+                    Text {
+                        text: Dash.weather-on ? Dash.weather-temp : "Weather";
+                        font-size: Dash.weather-on ? 48px : 28px;
+                        font-weight: 300;
+                        color: Theme.text-primary;
+                    }
+                    // Amber dot when the last fetch failed.
+                    if Dash.weather-warn: VerticalLayout {
+                        alignment: center;
+                        Rectangle { width: 12px; height: 12px; border-radius: 6px; background: Theme.warn; }
+                    }
+                }
+                Text {
+                    text: !Dash.weather-on ? "Tap to set your location"
+                        : Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail;
+                    font-size: 22px;
+                    color: Dash.weather-warn && Dash.weather-note != "" ? Theme.warn : Theme.text-secondary;
+                    overflow: elide;
+                    max-width: 380px;
+                }
+            }
+        }
+    }
+}
+
 // ── On the TV ────────────────────────────────────────────────────────
 
-component TvCardView inherits Rectangle {
+component TvBox inherits Rectangle {
     property <bool> playing: Dash.tv.mode == "playing";
     property <bool> streaming: Dash.tv.mode == "streaming";
     property <bool> next: Dash.tv.mode == "next";
+    property <bool> idle: Dash.tv.mode == "idle";
 
     background: Dash.tint.card;
     border-radius: Theme.card-radius;
+    clip: true;
     animate background { duration: 400ms; }
 
-    // Crossfade (~400 ms) when the card switches to something else.
+    // Crossfade (~400 ms) when the box switches to something else.
     property <string> showing: Dash.tv.mode + "|" + Dash.tv.title + "|" + Dash.tv.subtitle;
     property <bool> shown: true;
     changed showing => {
@@ -156,9 +199,10 @@ component TvCardView inherits Rectangle {
     VerticalLayout {
         opacity: root.shown ? 1 : 0;
         animate opacity { duration: root.shown ? 400ms : 100ms; }
-        padding: 36px;
-        spacing: 24px;
+        padding: 30px;
+        spacing: 22px;
 
+        // Label row: ON THE TV / UP NEXT, source badge.
         HorizontalLayout {
             spacing: 10px;
             VerticalLayout {
@@ -184,16 +228,53 @@ component TvCardView inherits Rectangle {
             }
         }
 
-        HorizontalLayout {
-            spacing: 28px;
-            vertical-stretch: 1;
+        // Title, episode, facts.
+        VerticalLayout {
+            spacing: 8px;
+            if Dash.tv.note != "": Text {
+                text: Dash.tv.note;
+                font-size: 20px;
+                color: Dash.tint.sec;
+                wrap: word-wrap;
+            }
+            Text {
+                text: Dash.tv.title;
+                font-size: 44px;
+                font-weight: 500;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+            }
+            if Dash.tv.episode-line != "": Text {
+                text: Dash.tv.episode-line;
+                font-size: 22px;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+            }
+            if Dash.tv.facts != "": Text {
+                text: Dash.tv.facts;
+                font-size: 18px;
+                color: Dash.tint.sec;
+                overflow: elide;
+            }
+            if root.streaming || root.idle: Text {
+                text: Dash.tv.subtitle;
+                font-size: 20px;
+                color: Dash.tint.sec;
+                wrap: word-wrap;
+            }
+        }
 
-            if Dash.tv.mode != "idle": VerticalLayout {
+        // Poster with the description beside it (clipped at the bottom of the box).
+        if root.playing || root.next: HorizontalLayout {
+            spacing: 20px;
+            vertical-stretch: 1;
+            min-height: 0;
+            VerticalLayout {
                 alignment: start;
                 Rectangle {
-                    width: 230px;
-                    height: 345px;
-                    border-radius: 16px;
+                    width: 160px;
+                    height: 240px;
+                    border-radius: 14px;
                     clip: true;
                     background: Dash.tint.poster;
                     if Dash.tv.has-poster: Image {
@@ -203,52 +284,54 @@ component TvCardView inherits Rectangle {
                         image-fit: cover;
                     }
                     if !Dash.tv.has-poster: Text {
-                        text: Dash.tv.monogram != "" ? Dash.tv.monogram : Dash.tv.title;
-                        width: parent.width - 28px;
-                        font-size: Dash.tv.monogram != "" ? 96px : 24px;
-                        font-weight: Dash.tv.monogram != "" ? 600 : 400;
+                        text: Dash.tv.title;
+                        width: parent.width - 24px;
+                        font-size: 18px;
                         color: Dash.tint.accent;
                         horizontal-alignment: center;
-                        vertical-alignment: center;
                         wrap: word-wrap;
                     }
                 }
             }
-            VerticalLayout {
-                spacing: 10px;
-                alignment: start;
+            Rectangle {
                 horizontal-stretch: 1;
-                if Dash.tv.note != "": Text {
-                    text: Dash.tv.note;
-                    font-size: Theme.body-size;
+                clip: true;
+                if Dash.tv.overview != "": Text {
+                    y: 0;
+                    width: parent.width;
+                    text: Dash.tv.overview;
+                    font-size: 18px;
                     color: Dash.tint.sec;
                     wrap: word-wrap;
+                    vertical-alignment: top;
                 }
-                Text {
-                    text: Dash.tv.title;
-                    font-size: 46px;
-                    color: Theme.text-primary;
-                    wrap: word-wrap;
-                }
-                if Dash.tv.subtitle != "": Text {
-                    text: Dash.tv.subtitle;
-                    font-size: 24px;
-                    color: Dash.tint.sec;
-                    wrap: word-wrap;
-                }
-                if root.playing && Dash.tv.paused: HorizontalLayout {
-                    alignment: start;
-                    padding-top: 8px;
-                    Rectangle {
-                        width: paused.preferred-width + 28px;
-                        height: 34px;
-                        border-radius: 17px;
-                        background: Dash.tint.btn;
-                        paused := Text { text: "Paused"; font-size: 18px; font-weight: 600; color: Dash.tint.accent; }
-                    }
+                if Dash.tv.overview == "": VerticalLayout {
+                    y: 0;
+                    width: parent.width;
+                    height: self.preferred-height;
+                    spacing: 10px;
+                    if Dash.tv.genres != "": Text { text: Dash.tv.genres; font-size: 18px; color: Dash.tint.sec; wrap: word-wrap; }
+                    Text { text: "No description on the server"; font-size: 18px; color: Dash.tint.sec; wrap: word-wrap; }
                 }
             }
         }
+
+        // Streaming: the app's logo.
+        if root.streaming: Rectangle {
+            vertical-stretch: 1;
+            min-height: 160px;
+            border-radius: 20px;
+            background: Dash.tint.btn;
+            if Dash.tv.has-logo: Image {
+                width: parent.width * 0.6;
+                height: min(parent.height * 0.5, 120px);
+                source: Dash.tv.logo;
+                image-fit: contain;
+            }
+            if !Dash.tv.has-logo: Text { text: Dash.tv.monogram; font-size: 96px; font-weight: 600; color: Dash.tint.accent; }
+        }
+
+        if root.idle: Rectangle { vertical-stretch: 1; }
 
         if (root.playing || root.next) && Dash.tv.at-text != "": VerticalLayout {
             spacing: 10px;
@@ -259,12 +342,19 @@ component TvCardView inherits Rectangle {
             }
         }
 
+        // Servers whose sign-in expired.
+        for p in Dash.tv-prompts: PromptBanner {
+            data: p;
+            fill: Dash.tint.btn;
+            action => { Dash.prompt-action(p.source, p.action-id); }
+        }
+
         if root.playing: HorizontalLayout {
             spacing: 14px;
             height: 76px;
             ActionButton {
                 icon: "back";
-                width: 84px;
+                width: 76px;
                 font-px: 26px;
                 fill: Dash.tint.btn;
                 edge: Dash.tint.edge;
@@ -283,7 +373,7 @@ component TvCardView inherits Rectangle {
             }
             ActionButton {
                 icon: "forward";
-                width: 84px;
+                width: 76px;
                 font-px: 26px;
                 fill: Dash.tint.btn;
                 edge: Dash.tint.edge;
@@ -292,7 +382,7 @@ component TvCardView inherits Rectangle {
             }
             ActionButton {
                 text: "Stop";
-                font-px: 24px;
+                font-px: 22px;
                 fill: Dash.tint.btn;
                 edge: Dash.tint.edge;
                 clicked => { Dash.transport("stop"); }
@@ -317,22 +407,6 @@ component TvCardView inherits Rectangle {
             fill: Dash.tint.accent;
             ink: Dash.tint.on-accent;
             clicked => { Dash.play-item(0); }
-        }
-
-        // Other devices, and servers whose sign-in expired.
-        if Dash.sessions.length > 0 || Dash.tv-prompts.length > 0: Rectangle { height: 1px; background: Dash.tint.edge; }
-        if Dash.sessions.length > 0: Text {
-            text: "ALSO PLAYING";
-            font-size: 16px;
-            font-weight: 600;
-            letter-spacing: 1.5px;
-            color: Dash.tint.sec;
-        }
-        for session in Dash.sessions: SessionLine { data: session; }
-        for p in Dash.tv-prompts: PromptBanner {
-            data: p;
-            fill: Dash.tint.btn;
-            action => { Dash.prompt-action(p.source, p.action-id); }
         }
     }
 }
@@ -363,50 +437,104 @@ component SiteTile inherits Rectangle {
     }
 }
 
-// Two columns × five rows; tiles stretch to fill the box.
-component SiteGrid inherits Rectangle {
-    property <int> columns: 2;
-    property <int> rows: 5;
-    property <length> gap: 14px;
-    property <length> tile-w: (self.width - (root.columns - 1) * root.gap) / root.columns;
-    property <length> tile-h: (self.height - (root.rows - 1) * root.gap) / root.rows;
+component AppsBox inherits Rectangle {
+    background: Theme.surface;
+    border-radius: Theme.card-radius;
 
-    for site[i] in Dash.streaming-sites: SiteTile {
-        x: Math.mod(i, root.columns) * (root.tile-w + root.gap);
-        y: Math.floor(i / root.columns) * (root.tile-h + root.gap);
-        width: root.tile-w;
-        height: root.tile-h;
-        site: site;
-        clicked => { Dash.open-site(site.index); }
+    VerticalLayout {
+        padding: 30px;
+        spacing: 18px;
+        HorizontalLayout {
+            SectionLabel { text: "WATCH ON TV · " + Dash.streaming-sites.length + " APPS"; horizontal-stretch: 1; }
+            Text { text: "Full screen on TV"; font-size: Theme.label-size; color: Theme.text-muted; }
+        }
+        // Two columns × five rows; tiles stretch to fill the box.
+        grid := Rectangle {
+            vertical-stretch: 1;
+            property <int> columns: 2;
+            property <int> rows: 5;
+            property <length> gap: 14px;
+            property <length> tile-w: (self.width - (self.columns - 1) * self.gap) / self.columns;
+            property <length> tile-h: (self.height - (self.rows - 1) * self.gap) / self.rows;
+            for site[i] in Dash.streaming-sites: SiteTile {
+                x: Math.mod(i, grid.columns) * (grid.tile-w + grid.gap);
+                y: Math.floor(i / grid.columns) * (grid.tile-h + grid.gap);
+                width: grid.tile-w;
+                height: grid.tile-h;
+                site: site;
+                clicked => { Dash.open-site(site.index); }
+            }
+        }
     }
 }
 
 // ── Continue Watching ────────────────────────────────────────────────
 
-component ContinueWatching inherits Rectangle {
+component TabButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> on;
+    callback clicked();
+    min-height: Theme.hit-target;
+    border-radius: 12px;
+    background: root.on ? Theme.text-primary : touch.pressed ? Theme.surface-raised : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-checked: root.on;
+    accessible-action-default => { root.clicked(); }
+    Text {
+        text: root.label;
+        font-size: 20px;
+        font-weight: 500;
+        color: root.on ? Theme.bg : Theme.text-secondary;
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Three posters a row; scroll down for more.
+component PosterGrid inherits Flickable {
+    in property <[PosterCardData]> cards;
+    callback clicked(int);
+    property <int> columns: 3;
+    property <length> gap-x: 16px;
+    property <length> gap-y: 22px;
+    property <length> art-w: (self.width - (self.columns - 1) * self.gap-x) / self.columns;
+    // 2:3 art, 8 px gap, one line of title.
+    property <length> card-h: self.art-w * 1.5 + 8px + 22px;
+    property <int> rows: Math.ceil(self.cards.length / self.columns);
+    content-height: max(self.height, self.rows * (self.card-h + self.gap-y) - self.gap-y);
+    for c[i] in root.cards: PosterCard {
+        x: Math.mod(i, root.columns) * (root.art-w + root.gap-x);
+        y: Math.floor(i / root.columns) * (root.card-h + root.gap-y);
+        art-width: root.art-w;
+        data: c;
+        clicked => { root.clicked(i); }
+    }
+}
+
+component CwBox inherits Rectangle {
     background: Theme.surface;
     border-radius: Theme.card-radius;
     clip: true;
+    property <[PosterCardData]> cards: Dash.cw-tab == "movies" ? Dash.cw-movies : Dash.cw-tv;
 
     VerticalLayout {
-        padding-top: 24px;
-        padding-bottom: 24px;
-        padding-left: 28px;
-        padding-right: 28px;
-        spacing: 16px;
+        padding: 30px;
+        spacing: 18px;
 
         HorizontalLayout {
-            SectionLabel {
-                text: Dash.cw-state == "items" ? "CONTINUE WATCHING · SWIPE FOR MORE" : "CONTINUE WATCHING";
-                horizontal-stretch: 1;
-                vertical-alignment: center;
-            }
+            SectionLabel { text: "CONTINUE WATCHING"; horizontal-stretch: 1; vertical-alignment: center; }
             Rectangle {
                 min-height: 48px;
                 width: see-all.preferred-width + 8px;
+                accessible-role: button;
+                accessible-label: "See all in Library";
+                accessible-action-default => { Nav.page = "library"; }
                 see-all := HorizontalLayout {
                     spacing: 6px;
-                    Text { text: "See all in Library"; font-size: 20px; color: link.pressed ? Theme.text-primary : Theme.text-secondary; vertical-alignment: center; }
+                    Text { text: "See all"; font-size: 20px; color: link.pressed ? Theme.text-primary : Theme.text-secondary; vertical-alignment: center; }
                     VerticalLayout { alignment: center; Icon { name: "chevron"; tint: Theme.text-secondary; size: 18px; } }
                 }
                 link := TouchArea {
@@ -416,19 +544,40 @@ component ContinueWatching inherits Rectangle {
             }
         }
 
+        if Dash.cw-state == "items": Rectangle {
+            background: Theme.bg;
+            border-radius: 16px;
+            height: 64px;
+            HorizontalLayout {
+                padding: 4px;
+                spacing: 4px;
+                TabButton { label: "TV / Series"; on: Dash.cw-tab != "movies"; horizontal-stretch: 1; clicked => { Dash.cw-tab = "tv"; } }
+                TabButton { label: "Movies"; on: Dash.cw-tab == "movies"; horizontal-stretch: 1; clicked => { Dash.cw-tab = "movies"; } }
+            }
+        }
+
         if Dash.cw-state == "items": VerticalLayout {
             spacing: 14px;
             vertical-stretch: 1;
-            // One source missing: slim banner above the row.
+            // One source missing: slim banner above the posters.
             for p in Dash.prompts: PromptBanner {
                 data: p;
                 action => { Dash.prompt-action(p.source, p.action-id); }
             }
-            PosterRow {
-                cards: Dash.continue-watching;
-                clicked(i) => { Dash.play-item(i); }
+            if root.cards.length > 0: PosterGrid {
+                vertical-stretch: 1;
+                cards: root.cards;
+                clicked(i) => { Dash.play-card(Dash.cw-tab, i); }
             }
-            Rectangle { vertical-stretch: 1; }
+            if root.cards.length == 0: Text {
+                vertical-stretch: 1;
+                text: Dash.cw-tab == "movies" ? "No movies in progress." : "No shows in progress.";
+                font-size: Theme.body-size;
+                color: Theme.text-secondary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                wrap: word-wrap;
+            }
         }
 
         if Dash.cw-state != "items": VerticalLayout {
@@ -460,25 +609,165 @@ component ContinueWatching inherits Rectangle {
             if Dash.cw-state == "prompts": VerticalLayout {
                 spacing: 18px;
                 alignment: center;
-                for p in Dash.prompts: HorizontalLayout {
-                    alignment: center;
-                    spacing: 20px;
+                for p in Dash.prompts: VerticalLayout {
+                    spacing: 14px;
                     Text {
                         text: p.message;
                         font-size: Theme.body-size;
                         color: p.warn ? Theme.warn : Theme.text-secondary;
-                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                        wrap: word-wrap;
                     }
-                    ActionButton {
-                        text: p.action;
-                        primary: !p.warn;
-                        clicked => { Dash.prompt-action(p.source, p.action-id); }
+                    HorizontalLayout {
+                        alignment: center;
+                        ActionButton {
+                            text: p.action;
+                            primary: !p.warn;
+                            clicked => { Dash.prompt-action(p.source, p.action-id); }
+                        }
                     }
                 }
             }
         }
     }
 }
+
+// ── Search ───────────────────────────────────────────────────────────
+
+component ResultRow inherits Rectangle {
+    in property <WatchCard> card;
+    border-radius: 16px;
+    background: Theme.surface-raised;
+    height: 82px;
+    HorizontalLayout {
+        padding: 8px;
+        padding-right: 10px;
+        spacing: 16px;
+        Rectangle {
+            width: 44px;
+            height: 66px;
+            border-radius: 8px;
+            clip: true;
+            background: Theme.border;
+            if root.card.has-poster: Image { width: parent.width; height: parent.height; source: root.card.poster; image-fit: cover; }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            horizontal-stretch: 1;
+            Text { text: root.card.title; font-size: 21px; font-weight: 500; color: Theme.text-primary; overflow: elide; }
+            Text { text: root.card.meta; font-size: 17px; color: Theme.text-secondary; overflow: elide; }
+        }
+        if root.card.action != "": VerticalLayout {
+            alignment: center;
+            ActionButton {
+                text: root.card.action;
+                primary: root.card.primary;
+                font-px: 19px;
+                fill: root.card.primary ? Dash.tint.accent : transparent;
+                ink: root.card.primary ? Dash.tint.on-accent : Theme.text-primary;
+                clicked => { Watch.action(root.card.key); }
+            }
+        }
+    }
+}
+
+component ResultGroup inherits VerticalLayout {
+    in property <string> title;
+    in property <[WatchCard]> cards;
+    spacing: 8px;
+    if root.cards.length > 0: Text {
+        text: root.title;
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: 1.3px;
+        color: Theme.text-muted;
+    }
+    for c in root.cards: ResultRow { card: c; }
+}
+
+component SearchPanel inherits Rectangle {
+    background: Theme.surface;
+    border-width: 1px;
+    border-color: Theme.border;
+    border-radius: Theme.card-radius;
+    drop-shadow-blur: 64px;
+    drop-shadow-offset-y: 24px;
+    drop-shadow-color: #00000059;
+    clip: true;
+
+    property <bool> open: Dash.search-open;
+    changed open => {
+        if self.open {
+            field.focus-input();
+        }
+    }
+
+    // Swallow taps so nothing under the panel reacts.
+    TouchArea { }
+
+    VerticalLayout {
+        padding: 28px;
+        spacing: 20px;
+
+        HorizontalLayout {
+            spacing: 14px;
+            Rectangle {
+                height: 72px;
+                horizontal-stretch: 1;
+                border-radius: 20px;
+                border-width: 2px;
+                border-color: Theme.text-secondary;
+                background: Theme.bg;
+                HorizontalLayout {
+                    padding-left: 22px;
+                    padding-right: 22px;
+                    spacing: 14px;
+                    VerticalLayout { alignment: center; Icon { name: "search"; tint: Theme.text-secondary; size: 28px; } }
+                    field := TextField {
+                        placeholder: "Search movies and shows";
+                        text <=> Watch.query;
+                        font-px: 26px;
+                        bare: true;
+                        edited(q) => { Watch.edited(q); }
+                        accessible-label: "Search your library and streaming apps";
+                    }
+                }
+            }
+            SquareButton {
+                width: 72px;
+                height: 72px;
+                icon: "close";
+                label: "Close search";
+                clicked => { Watch.close(); }
+            }
+        }
+
+        if Watch.query != "": VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 14px;
+            if Watch.message != "": Text { text: Watch.message; font-size: Theme.body-size; color: Theme.text-secondary; wrap: word-wrap; }
+            if Watch.searching && Watch.message == "": Text { text: "Searching…"; font-size: Theme.body-size; color: Theme.text-muted; }
+            Flickable {
+                vertical-stretch: 1;
+                content-height: results.preferred-height;
+                results := VerticalLayout {
+                    width: parent.width;
+                    alignment: start;
+                    spacing: 14px;
+                    ResultGroup { title: "IN YOUR LIBRARY"; cards: Watch.library; }
+                    ResultGroup { title: "ON YOUR APPS"; cards: Watch.included; }
+                    ResultGroup { title: "COSTS EXTRA"; cards: Watch.extra; }
+                    ResultGroup { title: "NOT STREAMING"; cards: Watch.none; }
+                    ResultGroup { title: "CHECKING…"; cards: Watch.checking; }
+                }
+            }
+            Text { text: "Streaming availability in the US from JustWatch, via TMDB"; font-size: 16px; color: Theme.text-muted; }
+        }
+    }
+}
+
+// ── Page ─────────────────────────────────────────────────────────────
 
 export component HomePage inherits VerticalLayout {
     padding-top: 40px;
@@ -487,85 +776,70 @@ export component HomePage inherits VerticalLayout {
     padding-right: 64px;
     spacing: Theme.gap;
 
-    // ── Header: clock, theme, weather, Settings ──────────────────
-    HorizontalLayout {
-        spacing: Theme.gap;
-        min-height: 140px;
+    // Header: three columns, 1fr 2fr 1fr.
+    header := Rectangle {
+        height: 140px;
+        property <length> gap: 32px;
+        property <length> unit: (self.width - 2 * self.gap) / 4;
 
         HorizontalLayout {
-            spacing: 28px;
+            x: 0;
+            width: header.unit;
+            alignment: start;
+            spacing: 16px;
             VerticalLayout {
                 alignment: center;
-                Clock {
-                    hh: Dash.clock-hh;
-                    mm: Dash.clock-mm;
-                    ss: Dash.clock-ss;
-                    show-seconds: Dash.show-seconds;
-                    font-px: Theme.laptop-clock-size;
+                SquareButton {
+                    icon: "search";
+                    label: "Search";
+                    on: Dash.search-open;
+                    clicked => {
+                        if Dash.search-open {
+                            Watch.close();
+                        } else {
+                            Dash.search-open = true;
+                        }
+                    }
                 }
             }
+        }
+        HeaderCentre {
+            x: header.unit + header.gap;
+            width: header.unit * 2;
+        }
+        HorizontalLayout {
+            x: header.unit * 3 + header.gap * 2;
+            width: header.unit;
+            alignment: end;
+            spacing: 16px;
+            VerticalLayout { alignment: center; ThemeSwitch { } }
             VerticalLayout {
                 alignment: center;
-                spacing: 4px;
-                Text { text: Dash.weekday; font-size: 30px; color: Theme.text-primary; }
-                Text { text: Dash.date-text; font-size: Theme.body-size; color: Theme.text-secondary; }
+                SquareButton { icon: "gear"; label: "Settings"; clicked => { Nav.page = "settings"; } }
             }
-        }
-        Rectangle { horizontal-stretch: 1; }
-        VerticalLayout { alignment: center; horizontal-stretch: 0; ThemeSwitch { } }
-        VerticalLayout { alignment: center; horizontal-stretch: 0; WeatherCard { } }
-        VerticalLayout {
-            alignment: center;
-            horizontal-stretch: 0;
-            SquareButton { icon: "search"; label: "Where to watch"; clicked => { Nav.page = "watch"; } }
-        }
-        VerticalLayout {
-            alignment: center;
-            horizontal-stretch: 0;
-            SquareButton { icon: "gear"; label: "Settings"; clicked => { Nav.page = "settings"; } }
         }
     }
 
-    // ── Main: On the TV (5/12) · tiles + Continue Watching (7/12) ─
-    // Placed by hand: a layout can't size one column from its own width.
+    // Main: three equal, full-height boxes (4 of 12 columns each). Placed by
+    // hand so the thirds stay exact whatever the content.
     main := Rectangle {
         vertical-stretch: 1;
         min-height: 640px;
+        property <length> box-w: (self.width - 2 * Theme.gap) / 3;
 
-        tv-card := TvCardView {
-            x: 0;
-            y: 0;
-            width: (main.width - Theme.gap) * 5 / 12;
+        TvBox { x: 0; width: main.box-w; height: main.height; }
+        AppsBox { x: main.box-w + Theme.gap; width: main.box-w; height: main.height; }
+        CwBox { x: (main.box-w + Theme.gap) * 2; width: main.box-w; height: main.height; }
+
+        // Slides in over the right two boxes (opacity + 48 px, ~250 ms).
+        SearchPanel {
+            x: main.box-w + Theme.gap + (Dash.search-open ? 0 : 48px);
+            width: main.width - self.x + (Dash.search-open ? 0 : 48px);
             height: main.height;
-        }
-
-        VerticalLayout {
-            x: tv-card.width + Theme.gap;
-            y: 0;
-            width: main.width - self.x;
-            height: main.height;
-            spacing: Theme.gap;
-
-            Rectangle {
-                background: Theme.surface;
-                border-radius: Theme.card-radius;
-                vertical-stretch: 0;
-                VerticalLayout {
-                    alignment: start;
-                    padding-top: 24px;
-                    padding-bottom: 24px;
-                    padding-left: 28px;
-                    padding-right: 28px;
-                    spacing: 16px;
-                    HorizontalLayout {
-                        SectionLabel { text: "WATCH ON TV · " + Dash.streaming-sites.length + " APPS"; horizontal-stretch: 1; }
-                        Text { text: "Full screen on TV"; font-size: Theme.label-size; color: Theme.text-muted; }
-                    }
-                    SiteGrid { height: 5 * 90px + 4 * 14px; }
-                }
-            }
-
-            ContinueWatching { vertical-stretch: 1; }
+            opacity: Dash.search-open ? 1 : 0;
+            visible: self.opacity > 0.01;
+            animate x { duration: 260ms; easing: ease-out; }
+            animate opacity { duration: 220ms; easing: ease-out; }
         }
     }
 }
