@@ -68,7 +68,8 @@ fn rows(laptop: &LaptopWindow) -> Vec<(&'static str, usize)> {
     let rows: Vec<(&'static str, usize)> = match ui.get_screen().as_str() {
         "home" => {
             let hero = match dash.get_tv().mode.as_str() {
-                "playing" => 2,
+                // Play/Pause, (Full screen,) Stop
+                "playing" => 2 + ui.get_video_on() as usize,
                 "streaming" | "next" => 1,
                 _ => 0,
             };
@@ -177,6 +178,7 @@ pub fn go_home(laptop: &LaptopWindow) {
     S.with_borrow_mut(|s| s.last_key = Instant::now());
     let ui = laptop.global::<TvUi>();
     ui.set_ambient(false);
+    ui.set_video_full(false); // a video in the window keeps playing behind Home
     show(laptop, "home");
     ui.set_focus_ticket(ui.get_focus_ticket() + 1);
 }
@@ -205,6 +207,9 @@ pub fn key(laptop: &LaptopWindow, text: &SharedString) -> bool {
     if ui.get_ambient() {
         ui.set_ambient(false);
         return true;
+    }
+    if ui.get_video_full() {
+        return video_key(laptop, text);
     }
     let (left, right, up, down) =
         (is(text, Key::LeftArrow), is(text, Key::RightArrow), is(text, Key::UpArrow), is(text, Key::DownArrow));
@@ -288,6 +293,28 @@ pub fn key(laptop: &LaptopWindow, text: &SharedString) -> bool {
     left || right || up || down || ok || back
 }
 
+/// Keys while a video fills the screen: OK (or ↑/↓) shows the overlay, Space
+/// pauses, ←/→ seek, Back shows Home over the still-playing video.
+fn video_key(laptop: &LaptopWindow, text: &SharedString) -> bool {
+    let (ui, dash) = (laptop.global::<TvUi>(), laptop.global::<Dash>());
+    if is(text, Key::Return) || text.as_str() == "\n" || is(text, Key::UpArrow) || is(text, Key::DownArrow) {
+        ui.invoke_overlay();
+    } else if text.as_str() == " " {
+        dash.invoke_transport("play-pause".into());
+    } else if is(text, Key::LeftArrow) {
+        dash.invoke_transport("back".into());
+    } else if is(text, Key::RightArrow) {
+        dash.invoke_transport("forward".into());
+    } else if is(text, Key::Escape) || is(text, Key::Backspace) {
+        ui.set_video_full(false);
+        show(laptop, "home");
+        focus_row(laptop, "hero", rows(laptop).iter().find(|(id, _)| *id == "hero").map_or(1, |(_, n)| *n));
+    } else {
+        return false;
+    }
+    true
+}
+
 fn cycle_theme(laptop: &LaptopWindow) {
     let next = match laptop.global::<crate::Theme>().get_mode() {
         UiTheme::Dark => UiTheme::Stone,
@@ -302,6 +329,7 @@ fn activate(laptop: &LaptopWindow, row: &str, col: usize) {
     match row {
         "hero" => match (dash.get_tv().mode.as_str(), col) {
             ("playing", 0) => dash.invoke_transport("play-pause".into()),
+            ("playing", 1) if laptop.global::<TvUi>().get_video_on() => laptop.global::<TvUi>().set_video_full(true),
             ("playing", _) | ("streaming", _) => dash.invoke_transport("stop".into()),
             ("next", _) => dash.invoke_play_item(0),
             _ => {}
@@ -479,6 +507,49 @@ mod tests {
         press(&l, Key::Return);
         assert_eq!(l.global::<crate::Theme>().get_mode(), UiTheme::Stone);
         assert!(matches!(next_cmd(&rx), Command::SetTheme(ThemeMode::Stone)));
+    }
+
+    #[test]
+    fn video_in_the_window_full_screen_and_home() {
+        use tvdash_core::{events::PlayerStatus, models::PlayState};
+        let (l, rx) = setup();
+        let ui = l.global::<TvUi>();
+        let t = crate::TvWindow::new().unwrap();
+        let status =
+            PlayerStatus { item: item("a"), state: PlayState::Playing, position_ms: 0, duration_ms: Some(1000) };
+        bridge::apply_for_test(&l, &t, AppEvent::Player(Some(status)));
+        // The window draws the video: Home's card gets Full screen between Pause and Stop.
+        ui.set_video_on(true);
+        sync(&l);
+        assert_eq!(rows(&l)[0], ("hero", 3));
+        while ui.get_focus() != "hero" {
+            assert!(press(&l, Key::UpArrow));
+        }
+        press(&l, Key::RightArrow);
+        press(&l, Key::Return);
+        assert!(ui.get_video_full());
+
+        // Full screen: Space pauses, OK shows the overlay, arrows seek.
+        assert!(key(&l, &SharedString::from(" ")));
+        assert!(matches!(next_cmd(&rx), Command::Pause));
+        press(&l, Key::Return);
+        assert!(matches!(next_cmd(&rx), Command::Overlay));
+        press(&l, Key::LeftArrow);
+        assert!(matches!(next_cmd(&rx), Command::Seek(-10)));
+        press(&l, Key::RightArrow);
+        assert!(matches!(next_cmd(&rx), Command::Seek(30)));
+        // Back: Home over the still-playing video, focus on the card.
+        press(&l, Key::Escape);
+        assert!(!ui.get_video_full() && ui.get_video_on());
+        assert_eq!((ui.get_screen().as_str(), ui.get_focus().as_str()), ("home", "hero"));
+        // Stop is the card's last button.
+        ui.set_col(2);
+        press(&l, Key::Return);
+        assert!(matches!(next_cmd(&rx), Command::Stop));
+        // `tvdash --home` while full screen also shows Home (the video keeps playing).
+        ui.set_video_full(true);
+        go_home(&l);
+        assert!(!ui.get_video_full());
     }
 
     #[test]

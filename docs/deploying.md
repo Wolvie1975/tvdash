@@ -70,7 +70,7 @@ packaging/install.sh                          # or --autostart
 ### mpv, with full codecs
 
 ```bash
-sudo dnf install mpv
+sudo dnf install mpv          # also brings mpv-libs (libmpv), for video inside the TV-only window
 ```
 
 Fedora's own FFmpeg (`ffmpeg-free`) can't decode most H.264 films or any HEVC, which gives

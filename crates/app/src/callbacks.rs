@@ -56,6 +56,9 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         }
     });
 
+    let s = send.clone();
+    laptop.global::<crate::TvUi>().on_overlay(move || s(Command::Overlay));
+
     let (weak, s) = (laptop.as_weak(), send.clone());
     dash.on_transport(move |action| {
         let paused = weak.upgrade().is_some_and(|l| l.global::<Dash>().get_tv().paused);

@@ -5643,6 +5643,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "directories",
+ "glow",
  "i-slint-backend-testing",
  "image",
  "reqwest",
@@ -5707,6 +5708,7 @@ name = "tvdash-player"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "libloading",
  "serde",
  "serde_json",
  "thiserror 2.0.21",

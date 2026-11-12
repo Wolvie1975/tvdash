@@ -323,6 +323,13 @@ export global TvUi {
     // Settings › Layout shows the saved choice.
     in property <bool> layout-tv: true;
     in property <int> focus-ticket;
+    // In-window video: the current frame, whether a video plays in the window,
+    // and whether it fills the screen (Back shows Home over it, still playing).
+    in property <image> video;
+    in property <bool> video-on;
+    in property <bool> video-full;
     // A key press (Slint key text); returns true when handled.
     callback key(string) -> bool;
+    // Show the playback overlay (title, progress, end time) on the video.
+    callback overlay();
 }

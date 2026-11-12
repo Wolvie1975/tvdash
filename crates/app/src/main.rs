@@ -9,6 +9,7 @@ mod format;
 mod instance;
 mod tint;
 mod tv_nav;
+mod video;
 mod watch;
 mod watch_ui;
 
@@ -151,7 +152,13 @@ fn main() -> anyhow::Result<()> {
         .build()
         .context("starting tokio runtime")?;
 
-    slint::BackendSelector::new().backend_name("winit".into()).select().context("selecting the Slint winit backend")?;
+    // Desktop OpenGL rather than GLES (Slint's default): mpv's hardware decoding (VAAPI)
+    // needs it for video inside the window. Slint falls back if the driver says no.
+    slint::BackendSelector::new()
+        .backend_name("winit".into())
+        .require_opengl()
+        .select()
+        .context("selecting the Slint winit backend")?;
 
     let tv = TvWindow::new()?;
     let laptop = LaptopWindow::new()?;
@@ -195,11 +202,22 @@ fn main() -> anyhow::Result<()> {
     let (mut controller, internal_rx) =
         controller::Controller::new((*config).clone(), loaded.path.clone(), args.windowed, event_tx.clone());
     controller.set_general_tx(general_tx);
+    let layout = args.layout.unwrap_or(config.display.layout);
+    info!(?layout, "screen layout");
+    controller.set_layout(layout);
+    // Video inside the window (TV-only layout) needs libmpv; without it mpv opens its own window.
+    match tvdash_player::libmpv::load() {
+        Ok(version) => {
+            info!(version, "libmpv loaded: videos play inside the window in the TV-only layout");
+            let slot = tvdash_player::libmpv::VideoSlot::new();
+            video::install(&laptop, slot.clone(), cmd_tx.clone());
+            controller.set_video(slot);
+        }
+        Err(e) => warn!(error = %e, "videos play in mpv's own window (install mpv-libs for in-window video)"),
+    }
     runtime.spawn(controller.run(cmd_rx, internal_rx));
     callbacks::wire(&laptop, cmd_tx.clone());
 
-    let layout = args.layout.unwrap_or(config.display.layout);
-    info!(?layout, "screen layout");
     tv_nav::init(&laptop, layout);
 
     // `tvdash --home` (and refusing a second copy).

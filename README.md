@@ -94,11 +94,30 @@ Two screens; it switches right away and is remembered), or try it once with `tvd
 next, Continue Watching, your services), Library, Services and Settings, driven by arrows,
 Enter (OK) and Esc/Backspace (Back). After 5 quiet minutes on Home it shows an ambient clock.
 
-To get Home back while mpv or a streaming site has the screen, bind a GNOME keyboard
-shortcut (Settings › Keyboard › Custom Shortcuts) to `tvdash --home`. It stops playback
-(progress is saved) or closes the browser and returns to Home. Still to come (see
-[docs/tv-only-plan.md](docs/tv-only-plan.md)): Search on the TV, video inside the tvdash
-window (Play/Pause from Home, Full screen, OK overlay), the phone remote and HDMI-CEC.
+Plex and Jellyfin videos play **inside the tvdash window** (through libmpv, from Fedora's
+`mpv-libs`, which comes with `mpv`). They start full screen:
+
+| Key | Full-screen video |
+|---|---|
+| Enter (OK), ↑, ↓ | Title, progress and end time for 5 seconds |
+| Space | Pause / play |
+| ← / → | Back 10 s / forward 30 s |
+| Esc / Backspace | Home, with the video still playing behind it |
+
+On Home the card has **Pause**, **Full screen** (back to the video) and **Stop**. Without
+libmpv, or if the window can't draw video (the log says why), videos open in mpv's own
+window as in the two-screen layout. Set `MPV_LOG=v` to see mpv's own log in tvdash's.
+
+To get Home back while a streaming site has the screen, bind a GNOME keyboard shortcut
+(Settings › Keyboard › Custom Shortcuts) to `tvdash --home`. It closes the browser (or
+stops mpv's own window; progress is saved) and returns to Home. Still to come (see
+[docs/tv-only-plan.md](docs/tv-only-plan.md)): Search on the TV, the phone remote and HDMI-CEC.
+
+To check in-window video on a machine without signing in to anything:
+
+```bash
+cargo run --release --example video -- ~/Videos/some-film.mkv     # or any URL mpv plays
+```
 
 ## Where to watch (TMDB)
 
@@ -168,7 +187,7 @@ cargo run --example snapshot -- out.png home-playing   # also: home, home-code, 
 
 ```bash
 cargo test                       # unit tests, including headless UI tests of the bridge
-cargo test -- --include-ignored  # also the end-to-end tests (need python3)
+cargo test -- --include-ignored  # also the end-to-end tests (need python3 and libmpv)
 ```
 
 The end-to-end tests run the real controller against `crates/app/tests/fakes/`: a fake

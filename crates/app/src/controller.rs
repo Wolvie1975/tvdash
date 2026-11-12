@@ -18,7 +18,7 @@ use tokio::{
 use tracing::{debug, error, info, warn};
 use tvdash_core::{
     AppEvent, Command, Config, SecretKey,
-    config::{StreamingSite, encode_component, expand_home},
+    config::{Layout, StreamingSite, encode_component, expand_home},
     events::{PlayerStatus, Service},
     models::{AccountStatus, Geometry, MediaItem, PlayState, RgbaImage, SignInState, SourceKind},
     secrets,
@@ -31,6 +31,7 @@ use tvdash_media::{
 };
 use tvdash_player::{
     browser::{Browser, BrowserOptions, is_brave},
+    libmpv::{Embedded, VideoSlot},
     mpv::{Mpv, MpvEvent, MpvOptions},
 };
 
@@ -57,9 +58,57 @@ pub enum Internal {
     FillProviders(Vec<(String, Vec<u32>)>),
 }
 
+/// What plays a Plex/Jellyfin item: mpv in its own window, or libmpv drawing
+/// inside the tvdash window (TV-only layout).
+enum Player {
+    Window(Mpv),
+    InWindow(Embedded),
+}
+
+impl Player {
+    async fn next_event(&mut self) -> Option<MpvEvent> {
+        match self {
+            Self::Window(m) => m.next_event().await,
+            Self::InWindow(e) => e.next_event().await,
+        }
+    }
+
+    async fn set_pause(&mut self, paused: bool) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.set_pause(paused).await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.set_pause(paused).map_err(|e| e.to_string()),
+        }
+    }
+
+    async fn seek(&mut self, secs: i64) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.seek(secs).await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.seek(secs).map_err(|e| e.to_string()),
+        }
+    }
+
+    async fn show_text(&mut self, text: &str, duration_ms: Option<u32>) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.show_text(text, duration_ms).await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.show_text(text, duration_ms).map_err(|e| e.to_string()),
+        }
+    }
+
+    async fn quit(self) {
+        match self {
+            Self::Window(m) => m.quit().await,
+            Self::InWindow(e) => e.quit().await,
+        }
+    }
+
+    fn in_window(&self) -> bool {
+        matches!(self, Self::InWindow(_))
+    }
+}
+
 struct Playback {
     status: PlayerStatus,
-    mpv: Mpv,
+    player: Player,
     /// Sequential progress reports for this item (keeps start → progress → stop ordered).
     reporter: UnboundedSender<(u64, PlayState)>,
     last_emitted_sec: Option<u64>,
@@ -86,6 +135,12 @@ pub struct Controller {
     pub(crate) watch: Watch,
     /// Tells the widget pollers about display setting changes (units).
     general_tx: Option<tokio::sync::watch::Sender<tvdash_core::config::GeneralConfig>>,
+    /// Where in-window video goes (None: libmpv isn't available).
+    video: Option<Arc<VideoSlot>>,
+    /// The layout on screen now (in-window video is for TV only).
+    layout: Layout,
+    /// In-window drawing failed this run: use mpv's window from now on.
+    video_failed: bool,
 }
 
 enum Step {
@@ -123,10 +178,23 @@ impl Controller {
             state_path: tvdash_core::state::default_path(),
             posters_requested: Arc::default(),
             general_tx: None,
+            video: None,
+            layout: Layout::Dual,
+            video_failed: false,
             watch: Watch::new(events.clone(), tvdash_core::state::default_path().map(|p| p.with_file_name("cache.db"))),
         };
         c.watch.set_internal(c.internal.clone());
         (c, internal_rx)
+    }
+
+    /// Play inside the tvdash window (through `slot`) whenever the layout is TV only.
+    pub fn set_video(&mut self, slot: Arc<VideoSlot>) {
+        self.video = Some(slot);
+    }
+
+    /// The layout the window starts in (`--layout` can differ from the config).
+    pub fn set_layout(&mut self, layout: Layout) {
+        self.layout = layout;
     }
 
     pub fn set_general_tx(&mut self, tx: tokio::sync::watch::Sender<tvdash_core::config::GeneralConfig>) {
@@ -162,7 +230,7 @@ impl Controller {
                 let (playback, browser) = (self.playback.as_mut(), self.browser.as_mut());
                 let mpv_next = async move {
                     match playback {
-                        Some(p) => p.mpv.next_event().await,
+                        Some(p) => p.player.next_event().await,
                         None => std::future::pending().await,
                     }
                 };
@@ -285,19 +353,28 @@ impl Controller {
             Command::Pause | Command::Resume => {
                 let pause = matches!(cmd, Command::Pause);
                 if let Some(p) = self.playback.as_mut()
-                    && let Err(e) = p.mpv.set_pause(pause).await
+                    && let Err(e) = p.player.set_pause(pause).await
                 {
                     warn!(error = %e, "mpv pause failed");
                 }
             }
             Command::Seek(secs) => {
                 if let Some(p) = self.playback.as_mut()
-                    && let Err(e) = p.mpv.seek(secs).await
+                    && let Err(e) = p.player.seek(secs).await
                 {
                     warn!(error = %e, "mpv seek failed");
                 }
             }
-            Command::Stop | Command::Home => self.clear_tv().await,
+            Command::Stop => self.clear_tv().await,
+            Command::Home => {
+                // Video inside the window keeps playing behind Home; mpv's own window would cover it.
+                if !self.playback.as_ref().is_some_and(|p| p.player.in_window()) {
+                    self.stop_playback().await;
+                }
+                self.close_browser().await;
+            }
+            Command::Overlay => self.show_overlay(Some(5000)).await,
+            Command::VideoFailed(reason) => self.video_failed(reason).await,
             Command::SignIn(SourceKind::Jellyfin) => {
                 let cfg = self.config.jellyfin.clone();
                 self.spawn_sign_in(
@@ -419,6 +496,11 @@ impl Controller {
                 self.toast(format!("Weather location: {}", place.label));
             }
             Command::SetLayout(layout) => {
+                self.layout = layout;
+                // The window in-window video was drawing into is changing over.
+                if self.playback.as_ref().is_some_and(|p| p.player.in_window()) {
+                    self.stop_playback().await;
+                }
                 self.update_config(|c| c.display.layout = layout);
                 let name = match layout {
                     tvdash_core::config::Layout::Tv => "TV only",
@@ -720,17 +802,34 @@ impl Controller {
             start_ms: item.resume_ms,
             fullscreen: !self.windowed,
         };
-        let mpv = match Mpv::spawn(&opts, &url).await {
-            Ok(m) => m,
-            Err(e) => {
-                error!(error = %e, "couldn't start mpv");
-                self.health(Service::Player, Err(e.to_string()));
-                self.toast(format!("Couldn't start mpv: {e}"));
-                return;
-            }
+        let in_window = match &self.video {
+            Some(slot) if self.layout == Layout::Tv && !self.video_failed => match Embedded::spawn(&opts, &url) {
+                Ok(e) => {
+                    slot.attach(e.handle());
+                    Some(Player::InWindow(e))
+                }
+                Err(e) => {
+                    warn!(error = %e, "libmpv couldn't start; using mpv's own window");
+                    None
+                }
+            },
+            _ => None,
         };
-        info!(title = %item.title, resume_ms = ?item.resume_ms, "playing on the TV");
-        self.health(Service::Player, Ok(format!("playing {}", item.title)));
+        let player = match in_window {
+            Some(p) => p,
+            None => match Mpv::spawn(&opts, &url).await {
+                Ok(m) => Player::Window(m),
+                Err(e) => {
+                    error!(error = %e, "couldn't start mpv");
+                    self.health(Service::Player, Err(e.to_string()));
+                    self.toast(format!("Couldn't start mpv: {e}"));
+                    return;
+                }
+            },
+        };
+        let where_ = if player.in_window() { "in the window" } else { "in mpv's window" };
+        info!(title = %item.title, resume_ms = ?item.resume_ms, where_, "playing on the TV");
+        self.health(Service::Player, Ok(format!("playing {} ({where_})", item.title)));
 
         let start = item.resume_ms.unwrap_or(0);
         let reporter = spawn_reporter(source, item.clone());
@@ -738,7 +837,7 @@ impl Controller {
         let status =
             PlayerStatus { duration_ms: item.duration_ms, item, state: PlayState::Playing, position_ms: start };
         self.emit(AppEvent::Player(Some(status.clone())));
-        self.playback = Some(Playback { status, mpv, reporter, last_emitted_sec: None, decode_hint_shown: false });
+        self.playback = Some(Playback { status, player, reporter, last_emitted_sec: None, decode_hint_shown: false });
     }
 
     // ── Streaming browser ───────────────────────────────────────────
@@ -922,9 +1021,40 @@ impl Controller {
     async fn stop_playback(&mut self) {
         if let Some(p) = self.playback.take() {
             let _ = p.reporter.send((p.status.position_ms, PlayState::Stopped));
-            p.mpv.quit().await;
+            self.detach_video(&p.player);
+            p.player.quit().await;
             self.after_playback();
         }
+    }
+
+    /// The window stops drawing `player`'s video (it frees its side first).
+    fn detach_video(&self, player: &Player) {
+        if player.in_window()
+            && let Some(slot) = &self.video
+        {
+            slot.detach();
+        }
+    }
+
+    /// Title, progress and end time over the video (`None` = until replaced).
+    async fn show_overlay(&mut self, duration_ms: Option<u32>) {
+        let general = &self.config.general;
+        let Some(p) = self.playback.as_mut() else { return };
+        let text = format::overlay(&p.status, format::now_local(general.tz()), general.clock);
+        if let Err(e) = p.player.show_text(&text, duration_ms).await {
+            warn!(error = %e, "mpv overlay failed");
+        }
+    }
+
+    /// The window can't draw video: carry on in mpv's own window from where it was.
+    async fn video_failed(&mut self, reason: String) {
+        self.video_failed = true;
+        let Some(p) = self.playback.as_ref().filter(|p| p.player.in_window()) else { return };
+        let item = MediaItem { resume_ms: Some(p.status.position_ms), ..p.status.item.clone() };
+        warn!(%reason, "in-window video failed; switching to mpv's own window");
+        self.health(Service::Player, Err(format!("in-window video: {reason}")));
+        self.stop_playback().await;
+        self.play(item).await;
     }
 
     fn after_playback(&self) {
@@ -985,6 +1115,7 @@ impl Controller {
             }
             Some(MpvEvent::Exited) | None => {
                 let p = self.playback.take().expect("checked above");
+                self.detach_video(&p.player);
                 let _ = p.reporter.send((p.status.position_ms, PlayState::Stopped));
                 info!("mpv exited; TV back to idle");
                 self.after_playback();
@@ -994,7 +1125,7 @@ impl Controller {
         let status = p.status.clone();
         if let Some(duration) = overlay {
             let text = format::overlay(&status, format::now_local(self.config.general.tz()), self.config.general.clock);
-            if let Err(e) = p.mpv.show_text(&text, duration).await {
+            if let Err(e) = p.player.show_text(&text, duration).await {
                 warn!(error = %e, "mpv overlay failed");
             }
         }
@@ -1510,6 +1641,68 @@ mod e2e {
         h.wait_for(|e| matches!(e, AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Done)).then_some(())).await;
         h.wait_for(|e| matches!(e, AppEvent::ContinueWatching(SourceKind::Jellyfin, v) if !v.is_empty()).then_some(()))
             .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "needs python3 and libmpv; run with --ignored"]
+    async fn tv_layout_plays_in_the_window_and_falls_back() {
+        let _serial = SERIAL.lock().await;
+        if let Err(e) = tvdash_player::libmpv::load() {
+            eprintln!("skipped: {e}");
+            return;
+        }
+        let slot = VideoSlot::new();
+        let for_controller = slot.clone();
+        let mut h = Harness::start_with(
+            "fake_jellyfin.py",
+            |c, port| {
+                c.jellyfin.server_url = format!("http://127.0.0.1:{port}");
+                c.jellyfin.device_id = "dev-e2e".into();
+                c.plex.enabled = false;
+            },
+            move |c, _| {
+                c.set_video(for_controller);
+                c.set_layout(Layout::Tv);
+            },
+        )
+        .await;
+        h.send(Command::SignIn(SourceKind::Jellyfin));
+        h.wait_for(|e| matches!(e, AppEvent::SignIn(_, SignInState::Done)).then_some(())).await;
+        let items = h
+            .wait_for(|e| match e {
+                AppEvent::ContinueWatching(SourceKind::Jellyfin, items) => Some(items.clone()),
+                _ => None,
+            })
+            .await;
+        let playing =
+            |id: String| move |e: &AppEvent| matches!(e, AppEvent::Player(Some(s)) if s.item.id == id).then_some(());
+
+        // TV only: the item plays in the window (the slot holds the core), no mpv window.
+        h.send(Command::Play(items[0].clone()));
+        h.wait_for(playing(items[0].id.clone())).await;
+        assert!(slot.current().is_some(), "handed to the window");
+        assert!(!h.mpv_log.exists(), "mpv's own window wasn't started");
+        // Home leaves it playing behind the Home screen.
+        h.send(Command::Home);
+        sleep(Duration::from_millis(300)).await;
+        assert!(slot.current().is_some(), "still playing after Home");
+
+        // The window can't draw: carry on in mpv's own window from the same place.
+        h.send(Command::VideoFailed("no OpenGL".into()));
+        h.wait_for(|e| matches!(e, AppEvent::Player(None)).then_some(())).await;
+        h.wait_for(playing(items[0].id.clone())).await;
+        assert!(slot.current().is_none(), "the window let go");
+        let (argv, _) = h.mpv_log();
+        assert!(argv.contains(&"--start=600.000".to_string()), "resumed where it was: {argv:?}");
+        h.send(Command::Stop);
+        h.wait_for(|e| matches!(e, AppEvent::Player(None)).then_some(())).await;
+
+        // For the rest of the run, mpv's window straight away.
+        h.send(Command::Play(items[1].clone()));
+        h.wait_for(playing(items[1].id.clone())).await;
+        assert!(slot.current().is_none());
+        h.send(Command::Stop);
+        h.wait_for(|e| matches!(e, AppEvent::Player(None)).then_some(())).await;
     }
 
     #[tokio::test(flavor = "multi_thread")]

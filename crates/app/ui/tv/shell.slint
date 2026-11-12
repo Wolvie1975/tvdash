@@ -312,7 +312,8 @@ component Hero inherits Rectangle {
                     primary: true;
                     focused: root.focused && TvUi.col == 0;
                 }
-                if root.mode == "playing": TenButton { text: "Stop"; icon: "stop"; focused: root.focused && TvUi.col == 1; }
+                if root.mode == "playing" && TvUi.video-on: TenButton { text: "Full screen"; icon: "expand"; focused: root.focused && TvUi.col == 1; }
+                if root.mode == "playing": TenButton { text: "Stop"; icon: "stop"; focused: root.focused && TvUi.col == (TvUi.video-on ? 2 : 1); }
                 if root.mode == "streaming": TenButton { text: "Close"; icon: "stop"; primary: true; focused: root.focused && TvUi.col == 0; }
                 if root.mode == "next": TenButton { text: "Resume"; icon: "play"; primary: true; focused: root.focused && TvUi.col == 0; }
                 if root.mode == "idle": Text { text: "Pick something below, or open Search from the rail."; font-size: Ten.body; color: Dash.tint.sec; }
@@ -515,7 +516,12 @@ component Ambient inherits Rectangle {
 }
 
 export component TvShell inherits Rectangle {
-    background: Theme.bg;
+    background: TvUi.video-on ? #000000 : Theme.bg;
+
+    // The video (mpv letterboxes it to the window), under everything else.
+    if TvUi.video-on: Image { width: parent.width; height: parent.height; source: TvUi.video; image-fit: fill; }
+    // Home over a playing video: dimmed so the screens stay readable.
+    if TvUi.video-on && !TvUi.video-full: Rectangle { background: #000000c0; }
 
     fs := FocusScope {
         key-pressed(e) => {
@@ -524,6 +530,7 @@ export component TvShell inherits Rectangle {
         }
 
         main := Rectangle {
+            visible: !TvUi.video-full;
             x: Ten.rail-closed;
             width: parent.width - Ten.rail-closed;
             opacity: TvUi.focus == "rail" ? 0.45 : 1;
@@ -551,7 +558,7 @@ export component TvShell inherits Rectangle {
             }
         }
 
-        Rail { x: 0; height: parent.height; }
+        Rail { x: 0; height: parent.height; visible: !TvUi.video-full; }
 
         if TvUi.ambient: Ambient { width: parent.width; height: parent.height; }
     }

@@ -41,8 +41,15 @@ navigation with arrows/OK/Back (rows remember their place); ambient idle after 5
 The TV layout is a view inside the existing main window rather than a separate shell module,
 so it reuses all the existing event handling.
 
-**Next:** video inside the tvdash window (libmpv) for Play/Pause from Home, Full screen and the OK
-overlay; Search on the TV; the phone remote (v3) and HDMI-CEC; night-mode Dark (needs v2).
+**Step 2 (built):** video inside the tvdash window. libmpv is loaded at runtime
+(`tvdash-player/libmpv.rs`); its render API draws each frame into an OpenGL texture inside
+Slint's own context (`app/src/video.rs`, a rendering notifier), shown as an image under the
+shell. Videos start full screen (OK overlay, Space, ←/→, Back = Home with the video still
+playing behind it); Home's card has Pause, Full screen and Stop. Slint is asked for desktop
+OpenGL, since GLES rules out mpv's VAAPI hardware decoding. No libmpv, or a render context that
+fails, means mpv's own window (as in two screens), resuming where it was.
+
+**Next:** Search on the TV; the phone remote (v3) and HDMI-CEC; night-mode Dark (needs v2).
 
 ## 1. What it is
 

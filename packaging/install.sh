@@ -59,6 +59,10 @@ check() {
 }
 echo "Checking runtime dependencies:"
 check mpv "Plex/Jellyfin playback won't work. Install: sudo dnf install mpv"
+if ! ldconfig -p 2>/dev/null | grep -q 'libmpv\.so\.2'; then
+    echo "  ! libmpv not found: in the TV-only layout videos open in mpv's own window instead of inside tvdash. Install: sudo dnf install mpv-libs"
+    missing=1
+fi
 check brave-browser "streaming tiles won't open. Install Brave from its RPM repo (https://brave.com/linux/), or set [browser] binary in ~/.config/tvdash/config.toml"
 if ! busctl --user status org.freedesktop.secrets >/dev/null 2>&1; then
     echo "  ! no Secret Service on the session bus: sign-ins can't be saved. GNOME Keyring normally provides it."

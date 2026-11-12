@@ -206,8 +206,13 @@ pub enum Command {
     FindPlace(String),
     /// Use this place for the weather (and its time zone for the clocks).
     SetLocation(crate::models::Place),
-    /// Back to Home: stop mpv (progress is saved) or close the browser.
+    /// Back to Home: close the browser, and stop mpv when it has its own window
+    /// (progress is saved). Video playing inside the tvdash window keeps playing.
     Home,
+    /// Show the playback overlay (title, progress, end time) for a few seconds.
+    Overlay,
+    /// The window couldn't draw the video (in-window playback); play it in mpv's own window.
+    VideoFailed(String),
     /// Two screens or TV only (saved; used on the next start).
     SetLayout(crate::config::Layout),
     /// Remember the laptop theme picked in the header.

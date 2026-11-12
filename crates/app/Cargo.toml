@@ -26,6 +26,7 @@ tvdash-player.workspace = true
 tvdash-widgets.workspace = true
 tvdash-discover.workspace = true
 reqwest.workspace = true
+glow = "0.18"
 
 [build-dependencies]
 slint-build.workspace = true

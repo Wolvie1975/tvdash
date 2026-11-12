@@ -11,7 +11,7 @@ drives the TV.
 | Try it without full screen | `tvdash --windowed` (two normal windows you can move around) |
 | See what it's doing | **Settings › Diagnostics** shows each service's last success and error. Full log: `~/.local/state/tvdash/tvdash.log` (or start it from a terminal). More detail: `RUST_LOG=tvdash=debug tvdash` |
 | Switch to TV only and back | Settings › Display › **Layout** on the laptop, or Settings › Layout on the TV. Switches right away and is remembered. (`tvdash --layout tv` tries it for one run.) |
-| Get back Home from a video or site | Run `tvdash --home`. Bind it to a key in GNOME Settings › Keyboard › Custom Shortcuts |
+| Get back Home from a video or site | TV only: press Esc on a video (it keeps playing behind Home). From a streaming site, or mpv's own window: run `tvdash --home`; bind it to a key in GNOME Settings › Keyboard › Custom Shortcuts |
 | Stop it | **Settings** (gear, top right) › **Quit tvdash**, or press Alt+F4 on either window |
 
 It also starts by itself when you log in. To change that:
