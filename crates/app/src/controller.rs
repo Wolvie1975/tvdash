@@ -145,6 +145,10 @@ pub struct Controller {
     layout: Layout,
     /// In-window drawing failed this run: use mpv's window from now on.
     video_failed: bool,
+    /// Keeps the laptop screen on while something plays on the TV.
+    inhibit: Option<crate::inhibit::Inhibitor>,
+    /// The portal refused once; don't keep asking.
+    inhibit_failed: bool,
 }
 
 enum Step {
@@ -186,6 +190,8 @@ impl Controller {
             video: None,
             layout: Layout::Dual,
             video_failed: false,
+            inhibit: None,
+            inhibit_failed: false,
             watch: Watch::new(events.clone(), tvdash_core::state::default_path().map(|p| p.with_file_name("cache.db"))),
         };
         (c, internal_rx)
@@ -274,8 +280,10 @@ impl Controller {
                 Step::Progress => self.report_tick(),
                 Step::Shutdown => break,
             }
+            self.sync_inhibit().await;
         }
         self.clear_tv().await;
+        self.sync_inhibit().await;
     }
 
     async fn init(&mut self) {
@@ -972,6 +980,35 @@ impl Controller {
             }
         }
         self.emit(AppEvent::Player(Some(status)));
+    }
+
+    /// While a video plays (not paused) or a streaming app is open on the TV, ask
+    /// GNOME not to blank the laptop screen; otherwise its normal screen-off applies.
+    async fn sync_inhibit(&mut self) {
+        let playing = self.playback.as_ref().is_some_and(|p| p.status.state == PlayState::Playing);
+        let want = playing || self.browser.is_some();
+        match (want, self.inhibit.take()) {
+            (true, None) if !self.inhibit_failed => {
+                match tokio::task::spawn_blocking(|| crate::inhibit::Inhibitor::start("Playing on the TV")).await {
+                    Ok(Ok(i)) => {
+                        debug!("screen blanking inhibited");
+                        self.inhibit = Some(i);
+                    }
+                    Ok(Err(e)) => {
+                        warn!(error = %e, "couldn't keep the screen on (desktop portal); GNOME may blank it");
+                        self.inhibit_failed = true;
+                    }
+                    Err(e) => warn!(error = %e, "inhibit task failed"),
+                }
+            }
+            (false, Some(i)) => {
+                if let Ok(Err(e)) = tokio::task::spawn_blocking(move || i.release()).await {
+                    debug!(error = %e, "releasing the idle inhibitor");
+                }
+                debug!("screen blanking allowed again");
+            }
+            (_, current) => self.inhibit = current,
+        }
     }
 
     fn report_tick(&self) {

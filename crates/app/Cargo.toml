@@ -27,6 +27,8 @@ tvdash-widgets.workspace = true
 tvdash-discover.workspace = true
 reqwest.workspace = true
 glow = "0.18"
+# Idle inhibit through the desktop portal (already in the tree via Slint; same features).
+zbus = "5.19"
 
 [build-dependencies]
 slint-build.workspace = true

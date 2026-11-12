@@ -146,10 +146,12 @@ pub(super) fn refresh_tv_card(s: &UiState, laptop: &LaptopWindow) {
     let (card, hue) = tv_card(s);
     dash.set_tint(tint::card_tint(hue, s.theme));
     dash.set_tv(card);
+    super::saver::status(s, laptop, hue);
+    super::saver::sentences(s, laptop);
 }
 
 /// `item` with whatever details arrived for it (progress stays the row's own).
-fn with_details(s: &UiState, item: &MediaItem) -> MediaItem {
+pub(super) fn with_details(s: &UiState, item: &MediaItem) -> MediaItem {
     match s.details.get(&(item.source, item.id.clone())) {
         Some(d) => {
             MediaItem { resume_ms: item.resume_ms, duration_ms: item.duration_ms.or(d.duration_ms), ..d.clone() }

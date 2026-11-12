@@ -1,0 +1,102 @@
+import { Saver } from "state.slint";
+
+// Screensaver: a sentence clock and what's on the TV. Always dark, whatever
+// the theme. Started from the header; any tap or key wakes the dashboard, and
+// that tap does nothing else. The text drifts a few pixels each minute.
+
+component Words inherits HorizontalLayout {
+    in property <string> before;
+    in property <string> key;
+    in property <string> after;
+    alignment: start;
+    Text { text: root.before; font-size: 92px; font-weight: 300; color: #8A9099; }
+    Text { text: root.key; font-size: 92px; font-weight: 400; color: #E8EAED; }
+    Text { text: root.after; font-size: 92px; font-weight: 300; color: #8A9099; }
+}
+
+export component SaverView inherits Rectangle {
+    background: #07090B;
+    accessible-role: button;
+    accessible-label: "Wake the dashboard";
+    accessible-action-default => { Saver.on = false; }
+
+    // The waking tap stops here.
+    TouchArea {
+        clicked => { Saver.on = false; }
+    }
+    keys := FocusScope {
+        key-pressed(event) => {
+            Saver.on = false;
+            accept
+        }
+    }
+    init => { keys.focus(); }
+
+    // The time sentence fades over when it changes (once a minute).
+    property <string> time: Saver.time;
+    property <bool> shown: true;
+    changed time => {
+        root.shown = false;
+        fade-in.running = true;
+    }
+    fade-in := Timer {
+        interval: 600ms;
+        running: false;
+        triggered => {
+            root.shown = true;
+            self.running = false;
+        }
+    }
+
+    block := VerticalLayout {
+        x: 180px + Saver.drift-x;
+        y: (root.height - self.preferred-height) / 2 + Saver.drift-y;
+        width: root.width - 360px;
+        spacing: 64px;
+        animate x, y { duration: 2s; easing: ease-in-out; }
+
+        VerticalLayout {
+            spacing: 8px;
+            Words {
+                opacity: root.shown ? 1 : 0;
+                animate opacity { duration: 600ms; easing: ease-in-out; }
+                before: "It’s ";
+                key: Saver.time;
+                after: " on " + Saver.day + ".";
+            }
+            if Saver.has-weather: Words { before: "Outside, "; key: Saver.temp; after: " and " + Saver.condition + "."; }
+        }
+
+        VerticalLayout {
+            width: 1100px;
+            spacing: 12px;
+            HorizontalLayout {
+                spacing: 14px;
+                alignment: start;
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle { width: 14px; height: 14px; border-radius: 7px; background: Saver.accent; }
+                }
+                Text { text: Saver.label; font-size: 22px; font-weight: 600; letter-spacing: 2.6px; color: Saver.accent; }
+            }
+            Text { text: Saver.title; font-size: 52px; font-weight: 400; color: #E8EAED; overflow: elide; }
+            if Saver.line != "": Text { text: Saver.line; font-size: 26px; color: #A0A6AF; overflow: elide; }
+            if Saver.show-progress: VerticalLayout {
+                width: 760px;
+                padding-top: 10px;
+                spacing: 10px;
+                Rectangle {
+                    height: 6px;
+                    border-radius: 3px;
+                    background: #1B2A2B;
+                    clip: true;
+                    Rectangle { x: 0; width: parent.width * clamp(Saver.progress, 0, 1); background: Saver.accent; }
+                }
+                HorizontalLayout {
+                    Text { text: Saver.at; font-size: 22px; color: #A0A6AF; horizontal-stretch: 1; }
+                    Text { text: Saver.ends; font-size: 22px; color: #A0A6AF; }
+                }
+            }
+        }
+    }
+}

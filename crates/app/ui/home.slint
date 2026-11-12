@@ -1,7 +1,7 @@
 import { Theme, UiTheme } from "theme.slint";
 import { Icon } from "icons.slint";
 import { ActionButton, Clock, PosterCardData, PosterGrid, ProgressBar, PromptBanner, SectionLabel, TextField } from "components.slint";
-import { Dash, Nav, SiteTileData, Watch, WatchCard } from "state.slint";
+import { Dash, Nav, Saver, SiteTileData, Watch, WatchCard } from "state.slint";
 
 // Laptop dashboard: a header (search · time, date and weather · theme and
 // Settings) over three equal, full-height boxes: On the TV, Watch on TV and
@@ -778,6 +778,19 @@ export component HomePage inherits VerticalLayout {
                         } else {
                             Dash.search-open = true;
                         }
+                    }
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                SquareButton {
+                    icon: "saver";
+                    label: "Start screensaver";
+                    clicked => {
+                        if Dash.search-open {
+                            Watch.close();
+                        }
+                        Saver.on = true;
                     }
                 }
             }

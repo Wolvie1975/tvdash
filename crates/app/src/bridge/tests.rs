@@ -373,3 +373,90 @@ fn continue_watching_tabs_and_box_details() {
     assert_eq!(card.genres, "Mystery · Coastal");
     assert_eq!(card.left_text, "13 min left", "progress stays the row's own");
 }
+
+#[test]
+fn screensaver_shows_whats_on_the_tv() {
+    let (l, t) = windows();
+    let sv = l.global::<crate::Saver>();
+    assert_eq!((sv.get_label().as_str(), sv.get_title().as_str()), ("ON THE TV · NOTHING PLAYING", "Nothing playing"));
+
+    let ep = MediaItem {
+        kind: MediaKind::Episode,
+        season: Some(1),
+        episode: Some(3),
+        subtitle: Some("The Breakwater".into()),
+        duration_ms: Some(2_700_000),
+        resume_ms: Some(1_860_000),
+        ..item(SourceKind::Plex, "e1", "Harbor Lights")
+    };
+    send(&l, &t, AppEvent::ContinueWatching(SourceKind::Plex, vec![ep.clone()]));
+    assert_eq!(sv.get_title(), "Up next: Harbor Lights");
+    assert_eq!(sv.get_line(), "Season 1 · Episode 3 · 14 min left");
+    assert!(!sv.get_show_progress());
+
+    let playing =
+        |state| PlayerStatus { item: ep.clone(), state, position_ms: 1_450_000, duration_ms: Some(3_120_000) };
+    send(&l, &t, AppEvent::Player(Some(playing(PlayState::Playing))));
+    assert_eq!(sv.get_label(), "ON THE TV · PLAYING · PLEX");
+    assert_eq!(
+        (sv.get_title().as_str(), sv.get_line().as_str()),
+        ("Harbor Lights", "Season 1 · Episode 3 — The Breakwater")
+    );
+    assert!(sv.get_show_progress());
+    assert_eq!(sv.get_at(), "24:10 / 52:00");
+    assert!(sv.get_ends().starts_with("Ends at "));
+    send(&l, &t, AppEvent::Player(Some(playing(PlayState::Paused))));
+    assert_eq!(sv.get_label(), "ON THE TV · PAUSED · PLEX");
+
+    // The sentences: time (24 h here) and weather in words.
+    assert!(sv.get_time().contains(':'));
+    send(
+        &l,
+        &t,
+        AppEvent::Weather(Some(Weather {
+            temperature: 50.6,
+            code: 2,
+            condition: "Partly sunny".into(),
+            high: None,
+            low: None,
+        })),
+    );
+    assert_eq!(
+        (sv.get_has_weather(), sv.get_temp().as_str(), sv.get_condition().as_str()),
+        (true, "51°", "partly sunny")
+    );
+
+    // Drift: a new spot each minute.
+    let before = (sv.get_drift_x(), sv.get_drift_y());
+    on_minute(&l, &t);
+    assert_ne!((sv.get_drift_x(), sv.get_drift_y()), before);
+}
+
+#[test]
+fn waking_tap_does_nothing_else() {
+    use slint::{
+        LogicalPosition,
+        platform::{PointerEventButton, WindowEvent},
+    };
+    let (l, _t) = windows();
+    l.window().set_size(slint::LogicalSize::new(1920.0, 1080.0));
+    l.show().unwrap();
+    let tap = |x: f32, y: f32| {
+        let position = LogicalPosition::new(x, y);
+        let w = l.window();
+        w.dispatch_event(WindowEvent::PointerMoved { position });
+        w.dispatch_event(WindowEvent::PointerPressed { position, button: PointerEventButton::Left });
+        w.dispatch_event(WindowEvent::PointerReleased { position, button: PointerEventButton::Left });
+        slint::platform::update_timers_and_animations();
+    };
+    // The Settings button sits at the header's right edge.
+    let settings = (1920.0 - 64.0 - 32.0, 40.0 + 70.0);
+    l.global::<crate::Saver>().set_on(true);
+    tap(settings.0, settings.1);
+    assert!(!l.global::<crate::Saver>().get_on(), "woke up");
+    assert_eq!(l.global::<Nav>().get_page(), "home", "the tap didn't press Settings");
+    // Awake, the same tap does press it.
+    tap(settings.0, settings.1);
+    assert_eq!(l.global::<Nav>().get_page(), "settings");
+    l.hide().unwrap();
+}

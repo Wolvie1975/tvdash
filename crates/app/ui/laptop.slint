@@ -4,7 +4,8 @@ import { LibraryPage } from "library.slint";
 import { BrowsePage } from "browse.slint";
 import { SettingsPage } from "settings.slint";
 import { SetupPage } from "setup.slint";
-import { Dash, Nav } from "state.slint";
+import { Dash, Nav, Saver } from "state.slint";
+import { SaverView } from "saver.slint";
 import { TvShell } from "tv/shell.slint";
 
 // The main window. Two screens: the laptop dashboard pages. TV only
@@ -59,4 +60,7 @@ export component LaptopWindow inherits Window {
             overflow: elide;
         }
     }
+
+    // Over everything, including the toast.
+    if Saver.on && Nav.layout == "dual": SaverView { width: root.width; height: root.height; }
 }

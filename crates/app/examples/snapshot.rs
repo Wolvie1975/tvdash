@@ -1,7 +1,7 @@
 // Dev tool: render windows offscreen to PNG (no display needed).
 // Usage: cargo run --example snapshot -- out.png <mode> [height] [width]
 // THEME=stone|mist picks a light theme (default dark).
-// Modes: home-search, settings-streaming, home, home-playing, home-next, home-code, home-streaming, library (LIB_TAB=movies), browse,
+// Modes: home-search, settings-streaming, home, home-playing, home-next, home-code, home-streaming, library (LIB_TAB=movies), browse, saver, saver-idle,
 //        settings, setup-0, setup-1, tv
 use std::rc::Rc;
 
@@ -350,6 +350,29 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                     })
                     .collect();
             lib.set_genres(model(genres));
+        }
+        "saver" | "saver-idle" => {
+            let sv = l.global::<Saver>();
+            sv.set_on(true);
+            sv.set_time("12:32 PM".into());
+            sv.set_day("Thursday".into());
+            sv.set_has_weather(true);
+            sv.set_temp("51°".into());
+            sv.set_condition("partly sunny".into());
+            sv.set_label("ON THE TV · NOTHING PLAYING".into());
+            sv.set_title("Up next: Harbor Lights".into());
+            sv.set_line("Season 1 · Episode 3 · 14 min left".into());
+            sv.set_accent(tint::card_tint(tint::DEFAULT, ThemeMode::Dark).accent);
+            if mode == "saver" {
+                sv.set_label("ON THE TV · PLAYING · PLEX".into());
+                sv.set_title("The Long Drive Home".into());
+                sv.set_line("Season 2 · Episode 7 — Crossroads".into());
+                sv.set_show_progress(true);
+                sv.set_progress(0.46);
+                sv.set_at("24:10 / 52:00".into());
+                sv.set_ends("Ends at 1:00 PM".into());
+                sv.set_accent(tint::card_tint(tint::Hue { degrees: 172.0, saturation: 0.8 }, ThemeMode::Dark).accent);
+            }
         }
         "browse" => {
             l.global::<Nav>().set_page("browse".into());

@@ -17,6 +17,27 @@ export global Nav {
     callback opened(string);
 }
 
+// The screensaver (laptop, two-screen layout).
+export global Saver {
+    in-out property <bool> on;
+    in property <string> time;          // "9:04 PM" | "21:04"
+    in property <string> day;           // "Thursday"
+    in property <bool> has-weather;
+    in property <string> temp;          // "51°"
+    in property <string> condition;     // "partly sunny"
+    in property <string> label;         // "ON THE TV · PLAYING · PLEX"
+    in property <string> title;
+    in property <string> line;
+    in property <bool> show-progress;
+    in property <float> progress;
+    in property <string> at;            // "24:10 / 52:00"
+    in property <string> ends;          // "Ends at 1:00 PM"
+    in property <color> accent: #8FC1FF;
+    // Burn-in: the text block moves a few pixels each minute.
+    in property <length> drift-x;
+    in property <length> drift-y;
+}
+
 // Colours for the On the TV card, taken from the poster's hue (set by Rust per theme).
 export struct Tint {
     card: color,

@@ -111,6 +111,7 @@ pub(super) fn on_weather(s: &mut UiState, laptop: &LaptopWindow, weather: Option
 }
 
 pub(super) fn refresh_weather(s: &UiState, laptop: &LaptopWindow) {
+    super::saver::sentences(s, laptop);
     let dash = laptop.global::<Dash>();
     dash.set_weather_warn(s.weather_err.is_some());
     match &s.weather {

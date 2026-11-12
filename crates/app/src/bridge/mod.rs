@@ -12,6 +12,7 @@
 mod accounts;
 mod home;
 mod library;
+mod saver;
 mod status;
 #[cfg(test)]
 mod tests;
@@ -105,6 +106,8 @@ pub struct UiState {
     account_rows: Rc<VecModel<AccountRow>>,
     site_rows: Rc<VecModel<SiteRow>>,
     toast_timer: Option<Timer>,
+    /// The screensaver's drift step.
+    saver_step: usize,
 }
 
 thread_local! {
@@ -175,10 +178,11 @@ pub fn set_display(laptop: &LaptopWindow, units: Units, clock: ClockFormat, seco
 
 /// Once a minute: ages ("updated 25 min ago"), end times.
 pub fn on_minute(laptop: &LaptopWindow, _tv: &TvWindow) {
-    STATE.with_borrow(|s| {
+    STATE.with_borrow_mut(|s| {
         status::refresh_weather(s, laptop);
         status::refresh_diagnostics(s, laptop);
         home::refresh_tv_card(s, laptop);
+        saver::drift(s, laptop);
     });
     crate::tv_nav::tick(laptop);
 }

@@ -6,6 +6,7 @@ mod clock;
 mod controller;
 mod displays;
 mod format;
+mod inhibit;
 mod instance;
 mod logos;
 mod shelves;
