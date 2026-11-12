@@ -9,9 +9,9 @@ use std::time::Duration;
 use reqwest::{Method, RequestBuilder};
 use serde::{Deserialize, de::DeserializeOwned};
 use tracing::{debug, info, warn};
-use tvdash_core::models::{MediaKind, Season};
+use tvdash_core::models::{Collection, MediaKind, Season, ShowSeason};
 
-use crate::{LibraryData, MediaError, MediaItem, MediaSource, PlayState, Result, Session, SourceKind};
+use crate::{LibraryData, MediaError, MediaItem, MediaSource, PlayState, Result, Session, ShowData, SourceKind};
 
 /// Product name sent as `X-Plex-Product`.
 pub const PRODUCT: &str = tvdash_core::APP_NAME;
@@ -257,6 +257,29 @@ impl PlexClient {
     }
 }
 
+impl PlexClient {
+    /// A movie section's collections, each with its movies in collection order.
+    async fn collections(&self, section: &str) -> Result<Vec<Collection>> {
+        let path = format!("/library/sections/{section}/collections");
+        let mut out = Vec::new();
+        for c in self.metadata(&path, &[], "collections").await? {
+            let movies = Self::items(
+                self.metadata(&format!("/library/collections/{}/children", c.rating_key), &[], "collection").await?,
+            );
+            out.push(Collection {
+                id: c.rating_key,
+                title: c.title,
+                summary: c.summary.map(|s| s.trim().to_owned()).filter(|s| !s.is_empty()),
+                poster: c.thumb,
+                art: c.art,
+                smart: c.smart,
+                movies: movies.into_iter().filter(|m| m.kind == MediaKind::Movie).collect(),
+            });
+        }
+        Ok(out)
+    }
+}
+
 #[async_trait::async_trait]
 impl MediaSource for PlexClient {
     fn kind(&self) -> SourceKind {
@@ -323,6 +346,32 @@ impl MediaSource for PlexClient {
         pick_next(eps).ok_or(MediaError::NotFound)
     }
 
+    async fn show(&self, show_id: &str) -> Result<ShowData> {
+        let base = format!("/library/metadata/{show_id}");
+        let show = self
+            .metadata(&base, &[], "show")
+            .await?
+            .into_iter()
+            .find_map(Metadata::into_media_item)
+            .ok_or(MediaError::NotFound)?;
+        let seasons = self
+            .metadata(&format!("{base}/children"), &[], "seasons")
+            .await?
+            .into_iter()
+            .filter(|m| m.kind == "season")
+            .map(|m| ShowSeason {
+                index: m.index.unwrap_or(0),
+                title: m.title.clone(),
+                leaf_count: m.leaf_count.unwrap_or(0),
+                viewed_leaf_count: m.viewed_leaf_count.unwrap_or(0),
+                id: m.rating_key,
+            })
+            .collect();
+        let mut episodes = Self::items(self.metadata(&format!("{base}/allLeaves"), &[], "episodes").await?);
+        episodes.retain(|e| e.kind == MediaKind::Episode);
+        Ok(ShowData { show, seasons, episodes })
+    }
+
     async fn library(&self) -> Result<LibraryData> {
         let r: Container = send_json(self.request(Method::GET, "/library/sections"), "library sections").await?;
         let mut out = LibraryData::default();
@@ -332,6 +381,11 @@ impl MediaSource for PlexClient {
                 "movie" => {
                     let q = [("includeGuids", "1".to_owned())];
                     out.movies.extend(Self::items(self.metadata(&all, &q, "movies").await?));
+                    // A library without collections (or an old server) just has none.
+                    match self.collections(&dir.key).await {
+                        Ok(c) => out.collections.extend(c),
+                        Err(e) => warn!(section = %dir.key, error = %e, "couldn't read collections"),
+                    }
                 }
                 "show" => {
                     let q = [("includeGuids", "1".to_owned())];
@@ -365,6 +419,17 @@ impl MediaSource for PlexClient {
             ("upscale", "1".into()),
         ]);
         Ok(send(rb, "poster").await?.bytes().await?.to_vec())
+    }
+
+    async fn art(&self, path: &str, width: u32, height: u32) -> Result<Vec<u8>> {
+        let rb = self.request(Method::GET, "/photo/:/transcode").query(&[
+            ("url", path.to_owned()),
+            ("width", width.to_string()),
+            ("height", height.to_string()),
+            ("minSize", "1".into()),
+            ("upscale", "1".into()),
+        ]);
+        Ok(send(rb, "art").await?.bytes().await?.to_vec())
     }
 
     async fn stream_url(&self, item: &MediaItem) -> Result<String> {
@@ -439,6 +504,16 @@ struct Guid {
     id: String,
 }
 
+/// Plex sends flags as `true`, `1` or `"1"`.
+fn flag<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<bool, D::Error> {
+    Ok(match serde_json::Value::deserialize(d)? {
+        serde_json::Value::Bool(b) => b,
+        serde_json::Value::Number(n) => n.as_u64().is_some_and(|n| n != 0),
+        serde_json::Value::String(s) => s == "1" || s.eq_ignore_ascii_case("true"),
+        _ => false,
+    })
+}
+
 /// `Genre` entries: `{ "tag": "Drama" }`.
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
@@ -478,6 +553,11 @@ struct Metadata {
     leaf_count: Option<u32>,
     viewed_leaf_count: Option<u32>,
     added_at: Option<i64>,
+    title_sort: Option<String>,
+    originally_available_at: Option<String>,
+    art: Option<String>,
+    #[serde(deserialize_with = "flag")]
+    smart: bool,
     #[serde(rename = "Media")]
     media: Vec<Media>,
     #[serde(rename = "Player")]
@@ -520,6 +600,7 @@ impl Metadata {
             "season" | "artist" | "album" | "track" | "photo" => return None,
             _ => MediaKind::Other,
         };
+        let still = if kind == MediaKind::Episode { self.thumb.clone() } else { None };
         let (title, subtitle, episode_label, poster) = match kind {
             MediaKind::Episode => {
                 let label = match (self.parent_index, self.index) {
@@ -559,6 +640,10 @@ impl Metadata {
             viewed_leaf_count: self.viewed_leaf_count,
             added_at: self.added_at,
             tmdb_id: self.guid.iter().find_map(|g| g.id.strip_prefix("tmdb://")?.parse().ok()),
+            sort_title: self.title_sort.filter(|t| !t.is_empty()),
+            released: self.originally_available_at.filter(|d| !d.is_empty()),
+            art: self.art,
+            still,
         })
     }
 
@@ -640,6 +725,23 @@ mod tests {
             (season.show_id.as_str(), season.index, season.leaf_count, season.viewed_leaf_count),
             ("5", Some(2), 8, 6)
         );
+    }
+
+    #[test]
+    fn sort_fields_and_smart_flag() {
+        let m: Metadata = serde_json::from_value(json!({
+            "ratingKey": "7", "type": "movie", "title": "The Long Drive Home", "titleSort": "Long Drive Home",
+            "originallyAvailableAt": "2024-03-01", "art": "/a/7", "smart": "1"
+        }))
+        .unwrap();
+        assert!(m.smart);
+        let item = m.into_media_item().unwrap();
+        assert_eq!(item.sort_title.as_deref(), Some("Long Drive Home"));
+        assert_eq!((item.released.as_deref(), item.art.as_deref()), (Some("2024-03-01"), Some("/a/7")));
+        for (v, want) in [(json!(true), true), (json!(1), true), (json!("0"), false), (json!(null), false)] {
+            let m: Metadata = serde_json::from_value(json!({ "ratingKey": "1", "smart": v })).unwrap();
+            assert_eq!(m.smart, want);
+        }
     }
 
     #[test]

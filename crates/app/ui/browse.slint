@@ -1,12 +1,15 @@
 import { Theme } from "theme.slint";
-import { ActionButton, CheckBox, PosterGrid, ProgressBar } from "components.slint";
+import { ActionButton, CheckBox, Chip, PosterGrid, ProgressBar } from "components.slint";
 import { BackButton } from "library.slint";
 import { Browse, Nav } from "state.slint";
 
 // Browse all: every movie or show (or one shelf or genre) in a grid, with a
 // detail panel for the one you pick.
 
-component DetailPanel inherits Rectangle {
+export component DetailPanel inherits Rectangle {
+    // Shown over another page (a collection): a Close button.
+    in property <bool> closable;
+    callback closed();
     width: 520px;
     border-radius: Theme.card-radius;
     background: Theme.surface;
@@ -66,6 +69,7 @@ component DetailPanel inherits Rectangle {
             clicked => { Browse.play(false); }
         }
         if Browse.detail.can-resume: ActionButton { height: 56px; text: "Play from the start"; clicked => { Browse.play(true); } }
+        if root.closable: ActionButton { height: 56px; text: "Close"; clicked => { root.closed(); } }
     }
 }
 
@@ -90,6 +94,18 @@ export component BrowsePage inherits VerticalLayout {
                 checked: Browse.unwatched-only;
                 toggled(on) => { Browse.set-unwatched(on); }
             }
+        }
+    }
+
+    // Genre filter (movie genres live here rather than on the shelves).
+    if Browse.genres.length > 0: Flickable {
+        height: 56px;
+        content-width: chips.preferred-width;
+        chips := HorizontalLayout {
+            spacing: 10px;
+            alignment: start;
+            Chip { label: "All genres"; on: Browse.genre == ""; clicked => { Browse.set-genre(""); } }
+            for g in Browse.genres: Chip { label: g; on: Browse.genre == g; clicked => { Browse.set-genre(g); } }
         }
     }
 

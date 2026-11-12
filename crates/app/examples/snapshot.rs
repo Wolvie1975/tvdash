@@ -1,7 +1,7 @@
 // Dev tool: render windows offscreen to PNG (no display needed).
 // Usage: cargo run --example snapshot -- out.png <mode> [height] [width]
 // THEME=stone|mist picks a light theme (default dark).
-// Modes: home-search, settings-streaming, home, home-playing, home-next, home-code, home-streaming, library (LIB_TAB=movies), browse, saver, saver-idle,
+// Modes: home-search, settings-streaming, home, home-playing, home-next, home-code, home-streaming, library (LIB_TAB=movies), browse, saver, saver-idle, collection, show (show-9, show-20 PICKER=1),
 //        settings, setup-0, setup-1, tv
 use std::rc::Rc;
 
@@ -238,6 +238,7 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                     meta: meta.into(),
                     action: action.into(),
                     primary,
+                    show: false,
                     poster: fake_poster(hue),
                     has_poster: hue > 0,
                 };
@@ -350,6 +351,37 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                     })
                     .collect();
             lib.set_genres(model(genres));
+            let colls: Vec<CollectionCard> = [
+                ("Studio Ember", "8 movies · 3 watched", 30.0, 0.37),
+                ("The Harbor Trilogy", "3 movies · all watched", 200.0, 1.0),
+                ("Night Shift Films", "5 movies · 1 watched · smart", 280.0, 0.2),
+                ("Summer Classics", "12 movies · 0 watched · smart", 60.0, 0.0),
+                ("Paper Moon", "4 movies · 2 watched", 340.0, 0.5),
+                ("Extra", "2 movies · 0 watched", 120.0, 0.0),
+            ]
+            .iter()
+            .map(|(n, line, d, p)| {
+                let t = tint::card_tint(tint::Hue { degrees: *d, saturation: 0.7 }, theme_mode);
+                CollectionCard {
+                    title: (*n).into(),
+                    line: (*line).into(),
+                    poster: fake_poster(*d as u8),
+                    has_poster: true,
+                    card: t.card,
+                    art: t.poster,
+                    accent: t.accent,
+                    sec: t.sec,
+                    track: t.track,
+                    progress: *p,
+                }
+            })
+            .collect();
+            lib.set_collection_count(23);
+            lib.set_collections(model(colls));
+            if let Ok(sort) = std::env::var("SORT") {
+                lib.set_sort(sort.as_str().into());
+            }
+            lib.set_sort_open(std::env::var("SORT_OPEN").is_ok());
         }
         "saver" | "saver-idle" => {
             let sv = l.global::<Saver>();
@@ -373,6 +405,134 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                 sv.set_ends("Ends at 1:00 PM".into());
                 sv.set_accent(tint::card_tint(tint::Hue { degrees: 172.0, saturation: 0.8 }, ThemeMode::Dark).accent);
             }
+        }
+        "collection" => {
+            l.global::<Nav>().set_page("collection".into());
+            let c = l.global::<Collection>();
+            let t = tint::card_tint(tint::Hue { degrees: 30.0, saturation: 0.7 }, theme_mode);
+            c.set_tint(t.clone());
+            c.set_crumb("Movies › Collections › Studio Ember".into());
+            c.set_title("Studio Ember".into());
+            c.set_meta("8 movies · 1998–2024 · 15 h 40 min in total".into());
+            c.set_progress(3.0 / 8.0);
+            c.set_watched_text("3 of 8 watched".into());
+            c.set_summary("Hand-drawn films from the Ember studio, from its first feature to the newest.".into());
+            c.set_up_next("Up next: The Lantern Keeper · 1 h 5 min left".into());
+            c.set_action("Resume The Lantern Keeper on TV".into());
+            c.set_can_shuffle(true);
+            c.set_backdrop(fake_poster(30));
+            c.set_has_backdrop(true);
+            let names = [
+                "Paper Kites",
+                "The Lantern Keeper",
+                "Moss Garden",
+                "Night Ferry",
+                "The Ember Fox",
+                "Lighthouse Row",
+                "Small Lights",
+                "Saltwater Road",
+            ];
+            let movies: Vec<CollectionMovie> = names
+                .iter()
+                .enumerate()
+                .map(|(i, n)| CollectionMovie {
+                    position: format!("#{}", i + 1).into(),
+                    title: (*n).into(),
+                    line: format!(
+                        "{} · {}",
+                        1998 + i * 3,
+                        if i < 3 {
+                            "watched"
+                        } else if i == 3 {
+                            "1 h 5 min left"
+                        } else {
+                            "unwatched"
+                        }
+                    )
+                    .into(),
+                    poster: fake_poster((i * 30) as u8),
+                    has_poster: true,
+                    placeholder: t.poster,
+                    accent: t.accent,
+                    progress: if i == 3 { 0.4 } else { 0.0 },
+                    watched: i < 3,
+                })
+                .collect();
+            c.set_movies(model(movies));
+        }
+        m if m.starts_with("show") => {
+            l.global::<Nav>().set_page("show".into());
+            let sh = l.global::<Show>();
+            sh.set_state("ready".into());
+            sh.set_tint(tint::card_tint(tint::Hue { degrees: 215.0, saturation: 0.7 }, theme_mode));
+            sh.set_crumb("TV / Series › Harbor Lights".into());
+            sh.set_title("Harbor Lights".into());
+            sh.set_meta("2024 · TV-PG · 3 seasons · Mystery".into());
+            sh.set_summary("A coastal town, a lighthouse keeper and a logbook that keeps writing itself.".into());
+            sh.set_up_next("Up next: S1 · E3 — The Breakwater · 14 min left".into());
+            sh.set_action("Resume S1 · E3 on TV".into());
+            sh.set_first("Play from S1 · E1".into());
+            sh.set_backdrop(fake_poster(200));
+            sh.set_has_backdrop(true);
+            let n: usize = m.strip_prefix("show-").and_then(|x| x.parse().ok()).unwrap_or(3);
+            let tabs: Vec<SeasonTab> = (0..n)
+                .map(|i| {
+                    let last = i + 1 == n && n > 2;
+                    SeasonTab {
+                        title: if last { "Specials".into() } else { format!("Season {}", i + 1).into() },
+                        short: if last { "Sp".into() } else { format!("S{}", i + 1).into() },
+                        progress_text: if i == 0 { "2 of 10 watched".into() } else { "10 episodes".into() },
+                        progress: if i == 0 { 0.2 } else { 0.0 },
+                    }
+                })
+                .collect();
+            sh.set_selector(
+                if n <= 6 {
+                    "tabs"
+                } else if n <= 14 {
+                    "pills"
+                } else {
+                    "picker"
+                }
+                .into(),
+            );
+            sh.set_seasons_text(format!("{n} seasons · 0 watched").into());
+            sh.set_seasons(model(tabs));
+            sh.set_season(0);
+            sh.set_picker_open(std::env::var("PICKER").is_ok());
+            let titles = [
+                "Low Water",
+                "The Keeper",
+                "The Breakwater",
+                "Fog Signal",
+                "Night Ferry",
+                "Saltwater",
+                "Harbor Lights",
+            ];
+            let rows: Vec<EpisodeRow> = titles
+                .iter()
+                .enumerate()
+                .map(|(i, t)| EpisodeRow {
+                    number: format!("{:02}", i + 1).into(),
+                    title: (*t).into(),
+                    line: if i < 2 {
+                        "45 min · watched".into()
+                    } else if i == 2 {
+                        "45 min · 14 min left".into()
+                    } else {
+                        "45 min".into()
+                    },
+                    summary: "A storm cuts the harbour off from the mainland, and the keeper finds the logbook.".into(),
+                    still: fake_poster((i * 40) as u8),
+                    has_still: true,
+                    placeholder: tint::card_tint(tint::DEFAULT, theme_mode).poster,
+                    accent: tint::progress_color(tint::DEFAULT),
+                    watched: i < 2,
+                    progress: if i == 2 { 0.7 } else { 0.0 },
+                    current: i == 2,
+                })
+                .collect();
+            sh.set_episodes(model(rows));
         }
         "browse" => {
             l.global::<Nav>().set_page("browse".into());

@@ -23,6 +23,7 @@ fn windows() -> (LaptopWindow, TvWindow) {
             units: Units::Fahrenheit,
             theme: ThemeMode::Dark,
             sites: tvdash_core::config::resolve_apps(&[]),
+            library: Default::default(),
         },
     );
     (l, t)
@@ -253,6 +254,7 @@ fn library_shelves_browse_and_detail() {
             viewed_leaf_count: 8,
         }],
         new_episodes: vec![],
+        collections: vec![],
     };
     send(&l, &t, AppEvent::Library(SourceKind::Plex, data));
     assert_eq!(lib.get_state(), "ready");
@@ -459,4 +461,118 @@ fn waking_tap_does_nothing_else() {
     tap(settings.0, settings.1);
     assert_eq!(l.global::<Nav>().get_page(), "settings");
     l.hide().unwrap();
+}
+
+#[test]
+fn sort_collections_and_show_page() {
+    use tvdash_core::models::{Collection, ShowData, ShowSeason};
+    let (l, t) = windows();
+    let lib = l.global::<Library>();
+    send(&l, &t, AppEvent::Account(SourceKind::Plex, AccountStatus::Connected));
+    let movie = |id: &str, title: &str, year, views, added| MediaItem {
+        kind: MediaKind::Movie,
+        year: Some(year),
+        view_count: views,
+        added_at: Some(added),
+        genres: vec!["Drama".into()],
+        resume_ms: None,
+        ..item(SourceKind::Plex, id, title)
+    };
+    let (a, b, c) =
+        (movie("a", "The Zebra", 2001, 2, 1), movie("b", "Apple", 1999, 2, 3), movie("c", "Mango", 2010, 0, 2));
+    let data = LibraryData {
+        movies: vec![a.clone(), b.clone(), c.clone()],
+        collections: vec![Collection {
+            id: "k".into(),
+            title: "Fruit".into(),
+            smart: true,
+            movies: vec![a.clone(), c.clone(), b.clone()],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    send(&l, &t, AppEvent::Library(SourceKind::Plex, data));
+
+    // Sort: Watch again follows it ("The Zebra" sorts under Z).
+    set_tab(&l, "movies");
+    set_sort(&l, "az");
+    assert_eq!(lib.get_sort(), "az");
+    let again: Vec<String> = lib.get_again().iter().map(|c| c.title.to_string()).collect();
+    assert_eq!(again, ["Apple", "The Zebra"]);
+    set_sort(&l, "za");
+    assert_eq!(lib.get_again().row_data(0).unwrap().title, "The Zebra");
+
+    // The Collections row and a collection's page.
+    let row = lib.get_collections().row_data(0).unwrap();
+    assert_eq!((row.title.as_str(), row.line.as_str()), ("Fruit", "3 movies · 2 watched · smart"));
+    open_collection(&l, 0);
+    assert_eq!(l.global::<Nav>().get_page(), "collection");
+    let page = l.global::<crate::Collection>();
+    assert_eq!(page.get_meta(), "3 movies · 1999–2010 · 6 h in total");
+    assert_eq!((page.get_watched_text().as_str(), page.get_action().as_str()), ("2 of 3 watched", "Play Mango on TV"));
+    assert_eq!(collection_up_next().unwrap().id, "c");
+    let first = |p: &crate::Collection| p.get_movies().row_data(0).unwrap();
+    assert_eq!((first(&page).position.as_str(), first(&page).title.as_str()), ("#1", "The Zebra"));
+    set_collection_order(&l, "release");
+    assert_eq!((first(&page).position.as_str(), first(&page).title.as_str()), ("1999", "Apple"));
+    set_collection_hide(&l, true);
+    assert_eq!(page.get_movies().row_count(), 1, "only Mango is unwatched");
+    collection_details(&l, 0);
+    assert!(page.get_detail_open());
+    assert_eq!(selected().unwrap().id, "c");
+
+    // A show page: opens on the season of the up-next episode, Specials last.
+    let show = MediaItem { kind: MediaKind::Series, ..item(SourceKind::Plex, "s", "Harbor Lights") };
+    open_show(&l, show.clone());
+    assert_eq!(l.global::<Nav>().get_page(), "show");
+    let sp = l.global::<crate::Show>();
+    assert_eq!(sp.get_state(), "loading");
+    let ep = |season, n, views, resume: Option<u64>| MediaItem {
+        id: format!("{season}x{n}"),
+        kind: MediaKind::Episode,
+        season: Some(season),
+        episode: Some(n),
+        subtitle: Some(format!("Ep {n}")),
+        view_count: views,
+        resume_ms: resume,
+        duration_ms: Some(2_700_000),
+        ..Default::default()
+    };
+    let season = |index, leaves, viewed| ShowSeason {
+        id: format!("{index}"),
+        index,
+        title: String::new(),
+        leaf_count: leaves,
+        viewed_leaf_count: viewed,
+    };
+    send(
+        &l,
+        &t,
+        AppEvent::Show(ShowData {
+            show: MediaItem { year: Some(2024), genres: vec!["Mystery".into()], ..show },
+            seasons: vec![season(0, 1, 0), season(1, 2, 2), season(2, 2, 0)],
+            episodes: vec![
+                ep(0, 1, 0, None),
+                ep(1, 1, 1, None),
+                ep(1, 2, 1, None),
+                ep(2, 1, 0, Some(1_000_000)),
+                ep(2, 2, 0, None),
+            ],
+        }),
+    );
+    assert_eq!(sp.get_state(), "ready");
+    assert_eq!(sp.get_selector(), "tabs");
+    let tabs: Vec<String> = sp.get_seasons().iter().map(|t| t.title.to_string()).collect();
+    assert_eq!(tabs, ["Season 1", "Season 2", "Specials"]);
+    assert_eq!(sp.get_season(), 1, "opens on the up-next season");
+    assert_eq!(sp.get_action(), "Resume S2 · E1 on TV");
+    assert_eq!(sp.get_up_next(), "Up next: S2 · E1 — Ep 1 · 28 min left");
+    assert_eq!(sp.get_first(), "Play from S1 · E1");
+    assert_eq!(sp.get_meta(), "2024 · 2 seasons · Mystery");
+    let row = sp.get_episodes().row_data(0).unwrap();
+    assert_eq!((row.number.as_str(), row.current, row.line.as_str()), ("01", true, "45 min · 28 min left"));
+    select_season(&l, 2);
+    let row = sp.get_episodes().row_data(0).unwrap();
+    assert_eq!((row.number.as_str(), sp.get_seasons().row_data(0).unwrap().progress_text.as_str()), ("S1", "Watched"));
+    assert_eq!(crate::bridge::show_actions::first().unwrap().id, "1x1");
 }

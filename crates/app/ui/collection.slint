@@ -1,0 +1,243 @@
+import { Theme } from "theme.slint";
+import { Icon } from "icons.slint";
+import { ActionButton, CheckBox, Chip, ProgressBar } from "components.slint";
+import { BackButton } from "library.slint";
+import { Collection, CollectionMovie, Nav } from "state.slint";
+import { DetailPanel } from "browse.slint";
+
+// A Plex collection: backdrop, totals and the up-next button on the left;
+// the movies, in the order you pick, on the right.
+
+// Tap plays it; hold (or right-click) shows its details.
+component MovieTile inherits Rectangle {
+    in property <CollectionMovie> data;
+    callback clicked();
+    callback held();
+    property <bool> held-fired;
+    border-radius: Theme.radius;
+    background: touch.pressed ? Theme.surface-raised : Theme.surface;
+    accessible-role: button;
+    accessible-label: "Play " + root.data.title + ", " + root.data.line;
+    accessible-action-default => { root.clicked(); }
+    HorizontalLayout {
+        padding: 12px;
+        spacing: 16px;
+        Rectangle {
+            width: 120px;
+            height: 180px;
+            border-radius: 10px;
+            clip: true;
+            background: root.data.placeholder;
+            if root.data.has-poster: Image { width: parent.width; height: parent.height; source: root.data.poster; image-fit: cover; }
+            if root.data.watched: Rectangle {
+                x: parent.width - 36px;
+                y: 8px;
+                width: 28px;
+                height: 28px;
+                border-radius: 14px;
+                background: Theme.scrim;
+                Icon { name: "check"; tint: Theme.on-scrim; size: 16px; line: 2.4px; }
+            }
+            if root.data.progress > 0: Rectangle {
+                y: parent.height - 6px;
+                height: 6px;
+                background: #0B0D1099;
+                Rectangle { x: 0; width: parent.width * root.data.progress; background: root.data.accent; }
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 6px;
+            Text { text: root.data.position; font-size: 17px; font-weight: 600; color: Theme.text-muted; }
+            Text { text: root.data.title; font-size: 21px; font-weight: 500; color: Theme.text-primary; wrap: word-wrap; overflow: elide; max-height: 80px; }
+            Text { text: root.data.line; font-size: 16px; color: Theme.text-secondary; wrap: word-wrap; }
+        }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        pointer-event(e) => {
+            if e.kind == PointerEventKind.down {
+                root.held-fired = e.button == PointerEventButton.right;
+                if root.held-fired { root.held(); }
+            }
+        }
+        clicked => {
+            if !root.held-fired { root.clicked(); }
+        }
+    }
+    Timer {
+        interval: 600ms;
+        running: touch.pressed && !root.held-fired;
+        triggered => {
+            root.held-fired = true;
+            root.held();
+        }
+    }
+}
+
+// The left card: backdrop, name, totals, progress, summary, up next.
+export component InfoCard inherits Rectangle {
+    in property <image> backdrop;
+    in property <bool> has-backdrop;
+    in property <color> card;
+    in property <color> art;
+    in property <color> accent;
+    in property <color> sec;
+    in property <string> kicker;
+    in property <string> title;
+    in property <string> meta;
+    in property <string> summary;
+    in property <string> up-next;
+    border-radius: Theme.card-radius;
+    background: root.card;
+    clip: true;
+    animate background { duration: 400ms; }
+    VerticalLayout {
+        Rectangle {
+            height: root.width * 9 / 16;
+            background: root.art;
+            clip: true;
+            if root.has-backdrop: Image { width: parent.width; height: parent.height; source: root.backdrop; image-fit: cover; }
+        }
+        VerticalLayout {
+            padding: 28px;
+            spacing: 12px;
+            vertical-stretch: 1;
+            Text { text: root.kicker; font-size: 18px; font-weight: 600; letter-spacing: 1.8px; color: root.accent; }
+            Text { text: root.title; font-size: 48px; font-weight: 600; color: Theme.text-primary; wrap: word-wrap; }
+            Text { text: root.meta; font-size: 19px; color: root.sec; wrap: word-wrap; }
+            @children
+            Rectangle {
+                vertical-stretch: 1;
+                min-height: 0;
+                clip: true;
+                if root.summary != "": Text {
+                    y: 0;
+                    width: parent.width;
+                    text: root.summary;
+                    font-size: 18px;
+                    color: root.sec;
+                    wrap: word-wrap;
+                    vertical-alignment: top;
+                }
+            }
+            if root.up-next != "": Text { text: root.up-next; font-size: 19px; color: Theme.text-primary; overflow: elide; }
+        }
+    }
+}
+
+export component CollectionPage inherits VerticalLayout {
+    padding-top: 40px;
+    padding-bottom: 40px;
+    padding-left: 64px;
+    padding-right: 64px;
+    spacing: Theme.gap;
+
+    HorizontalLayout {
+        height: 64px;
+        spacing: 24px;
+        BackButton { text: "Library"; clicked => { Nav.page = "library"; } }
+        Text { text: Collection.crumb; font-size: 22px; color: Theme.text-muted; vertical-alignment: center; overflow: elide; }
+    }
+
+    body := Rectangle {
+        vertical-stretch: 1;
+        min-height: 820px;
+        property <length> unit: (self.width - 11 * Theme.gap) / 12;
+        property <length> left-w: self.unit * 4 + Theme.gap * 3;
+
+        VerticalLayout {
+            x: 0;
+            width: body.left-w;
+            height: body.height;
+            spacing: 12px;
+            InfoCard {
+                vertical-stretch: 1;
+                backdrop: Collection.backdrop;
+                has-backdrop: Collection.has-backdrop;
+                card: Collection.tint.card;
+                art: Collection.tint.poster;
+                accent: Collection.tint.accent;
+                sec: Collection.tint.sec;
+                kicker: "COLLECTION · PLEX";
+                title: Collection.title;
+                meta: Collection.meta;
+                summary: Collection.summary;
+                up-next: Collection.up-next;
+                VerticalLayout {
+                    spacing: 8px;
+                    ProgressBar { height: 8px; value: Collection.progress; fill: Collection.tint.accent; track: Collection.tint.track; }
+                    Text { text: Collection.watched-text; font-size: 17px; color: Collection.tint.sec; }
+                }
+            }
+            if Collection.action != "": ActionButton {
+                height: 72px;
+                text: Collection.action;
+                icon: "play";
+                primary: true;
+                font-px: 22px;
+                fill: Collection.tint.accent;
+                ink: Collection.tint.on-accent;
+                clicked => { Collection.play-up-next(); }
+            }
+            if Collection.can-shuffle: ActionButton {
+                height: 56px;
+                text: "Shuffle an unwatched one";
+                icon: "shuffle";
+                clicked => { Collection.shuffle(); }
+            }
+        }
+
+        VerticalLayout {
+            x: body.left-w + Theme.gap;
+            width: body.width - self.x;
+            height: body.height;
+            spacing: 18px;
+            HorizontalLayout {
+                spacing: 10px;
+                Chip { label: "Collection order"; on: Collection.order == "collection"; clicked => { Collection.set-order("collection"); } }
+                Chip { label: "Release date"; on: Collection.order == "release"; clicked => { Collection.set-order("release"); } }
+                Chip { label: "A–Z"; on: Collection.order == "az"; clicked => { Collection.set-order("az"); } }
+                Rectangle { horizontal-stretch: 1; }
+                VerticalLayout {
+                    alignment: center;
+                    CheckBox {
+                        text: "Hide watched";
+                        checked: Collection.hide-watched;
+                        toggled(on) => { Collection.set-hide-watched(on); }
+                    }
+                }
+            }
+            grid := Flickable {
+                vertical-stretch: 1;
+                property <length> gap: 16px;
+                property <length> w: (self.width - 3 * self.gap) / 4;
+                property <length> h: 204px;
+                content-height: Math.ceil(Collection.movies.length / 4) * (self.h + self.gap);
+                for m[i] in Collection.movies: MovieTile {
+                    x: Math.mod(i, 4) * (grid.w + grid.gap);
+                    y: Math.floor(i / 4) * (grid.h + grid.gap);
+                    width: grid.w;
+                    height: grid.h;
+                    data: m;
+                    clicked => { Collection.play(i); }
+                    held => { Collection.details(i); }
+                }
+            }
+            if Collection.movies.length == 0: Text {
+                text: "Every movie here is watched.";
+                font-size: Theme.body-size;
+                color: Theme.text-secondary;
+            }
+        }
+
+        if Collection.detail-open: DetailPanel {
+            x: body.width - self.width;
+            height: body.height;
+            closable: true;
+            drop-shadow-blur: 48px;
+            drop-shadow-color: #00000066;
+            closed => { Collection.detail-open = false; }
+        }
+    }
+}

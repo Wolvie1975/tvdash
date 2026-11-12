@@ -429,6 +429,7 @@ mod tests {
                 units: Units::Fahrenheit,
                 theme: ThemeMode::Dark,
                 sites: (0..7).map(|i| site(&format!("S{i}"))).collect(),
+                library: Default::default(),
             },
         );
         let (tx, rx) = mpsc::channel();

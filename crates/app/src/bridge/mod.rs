@@ -13,6 +13,7 @@ mod accounts;
 mod home;
 mod library;
 mod saver;
+mod show;
 mod status;
 #[cfg(test)]
 mod tests;
@@ -36,9 +37,14 @@ use tvdash_core::{
 
 pub use accounts::sync_setup;
 pub use home::{row, tab_row};
+pub use show::{open_show, select_season};
+pub mod show_actions {
+    pub use super::show::{episode, first, shuffle, up_next};
+}
 pub use library::{
-    box_item, browse, open_item, pick, play_command, select, select_row, selected, set_commands, set_tab,
-    set_unwatched, shuffle,
+    box_item, browse, browse_item, collection_details, collection_movie, collection_shuffle, collection_up_next,
+    open_collection, open_item, pick, play_command, select, select_row, selected, set_collection_hide,
+    set_collection_order, set_commands, set_genre, set_sort, set_tab, set_unwatched, shelf_item, shuffle,
 };
 
 use crate::{
@@ -91,6 +97,7 @@ pub struct UiState {
     streaming: BTreeMap<String, DateTime<Utc>>,
     // Library
     lib: library::LibraryUi,
+    show: show::ShowUi,
     lib_continue: Vec<MediaItem>,
     lib_recent: Vec<MediaItem>,
     selected: Option<MediaItem>,
@@ -126,6 +133,7 @@ pub struct UiConfig {
     pub units: Units,
     pub theme: ThemeMode,
     pub sites: Vec<StreamingSite>,
+    pub library: tvdash_core::config::LibraryConfig,
 }
 
 /// Call once on the UI thread before the event loop starts.
@@ -143,6 +151,7 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         dash.set_tv_prompts(ModelRc::from(s.tv_prompts.clone()));
         dash.set_sessions(ModelRc::from(s.sessions.clone()));
         library::init(s, laptop);
+        library::set_sorts(s, laptop, c.library.sort_movies, c.library.sort_tv);
         let acc = laptop.global::<Accounts>();
         acc.set_accounts(ModelRc::from(s.account_rows.clone()));
         acc.set_sites(ModelRc::from(s.site_rows.clone()));
@@ -251,6 +260,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             laptop.global::<Library>().set_state(library::state(s).into());
         }
         AppEvent::Library(_, data) => library::on_library(s, laptop, data),
+        AppEvent::Show(data) => show::on_show(s, laptop, data),
         AppEvent::Server(kind, url) => {
             match url {
                 Some(u) => s.servers.insert(kind, u),

@@ -35,6 +35,7 @@ pub struct Config {
     pub plex: PlexConfig,
     pub browser: BrowserConfig,
     pub player: PlayerConfig,
+    pub library: LibraryConfig,
     /// Kept last: TOML arrays of tables must follow plain tables.
     pub streaming: Vec<StreamingSite>,
 }
@@ -176,6 +177,46 @@ impl BrowserConfig {
         let (x, y) = self.window_position.split_once(',')?;
         Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
     }
+}
+
+/// How the Library's shelves and Browse all are ordered.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SortOrder {
+    /// Date added, newest first.
+    #[default]
+    Added,
+    /// Title A–Z (Plex's sort title: "The Long Drive Home" under L).
+    Az,
+    /// Title Z–A.
+    Za,
+}
+
+impl SortOrder {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "added" => Some(Self::Added),
+            "az" => Some(Self::Az),
+            "za" => Some(Self::Za),
+            _ => None,
+        }
+    }
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Added => "added",
+            Self::Az => "az",
+            Self::Za => "za",
+        }
+    }
+}
+
+/// Library settings, chosen in the Library and remembered here.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LibraryConfig {
+    pub sort_movies: SortOrder,
+    pub sort_tv: SortOrder,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -372,6 +413,7 @@ impl Default for Config {
             plex: PlexConfig::default(),
             browser: BrowserConfig::default(),
             player: PlayerConfig::default(),
+            library: LibraryConfig::default(),
             streaming: resolve_apps(&[]),
         }
     }
@@ -609,6 +651,15 @@ mod tests {
         assert!(APPS[2].has_tmdb_name("Disney Plus"));
         assert!(APPS[0].has_tmdb_name("YouTube TV") && !APPS[0].has_tmdb_name("YouTube"));
         assert!(!APPS[4].has_tmdb_name("Apple TV"), "the store isn't the subscription");
+    }
+
+    #[test]
+    fn library_sort_is_saved_per_tab() {
+        let c: Config = toml::from_str("[library]\nsort_tv = \"za\"\n").unwrap();
+        assert_eq!((c.library.sort_movies, c.library.sort_tv), (SortOrder::Added, SortOrder::Za));
+        assert!(toml::to_string(&c).unwrap().contains("sort_tv = \"za\""));
+        assert_eq!(SortOrder::parse("az"), Some(SortOrder::Az));
+        assert_eq!(SortOrder::Za.id(), "za");
     }
 
     #[test]

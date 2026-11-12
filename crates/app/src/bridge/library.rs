@@ -8,13 +8,14 @@ use slint::{ComponentHandle, ModelRc, VecModel};
 use tokio::sync::mpsc::UnboundedSender;
 use tvdash_core::{
     Command,
-    models::{AccountStatus, LibraryData, MediaItem, MediaKind, SourceKind},
+    config::SortOrder,
+    models::{AccountStatus, Collection, LibraryData, MediaItem, MediaKind, SourceKind},
 };
 
 use super::{STATE, UiState, home::cards_for, in_order};
 use crate::{
-    Browse, DetailData, GenreTile, LaptopWindow, Library, PickData, ShelfItem, format,
-    shelves::{self, BoxItem, Tab},
+    Browse, CollectionCard, CollectionMovie, DetailData, GenreTile, LaptopWindow, Library, PickData, ShelfItem, format,
+    shelves::{self, BoxItem, CollectionOrder, Tab, UpNext},
     tint::{self, Hue},
 };
 
@@ -32,6 +33,19 @@ thread_local! {
 
 pub fn set_commands(tx: UnboundedSender<Command>) {
     COMMANDS.set(Some(tx));
+}
+
+/// Send a command from the UI side (show pages ask for their seasons).
+pub(super) fn send(cmd: Command) {
+    COMMANDS.with_borrow(|tx| {
+        if let Some(tx) = tx {
+            let _ = tx.send(cmd);
+        }
+    });
+}
+
+pub(super) fn want(items: Vec<MediaItem>) {
+    want_posters(items);
 }
 
 fn want_posters(items: Vec<MediaItem>) {
@@ -64,6 +78,26 @@ pub struct LibraryUi {
     filter: String,
     pub browse: Vec<MediaItem>,
     browse_cards: std::rc::Rc<VecModel<crate::PosterCardData>>,
+    /// Order per tab (saved in the config).
+    pub sort_movies: SortOrder,
+    pub sort_tv: SortOrder,
+    /// The Collections row, in its order.
+    pub collections: Vec<Collection>,
+    /// The open collection page: the collection, its order, Hide watched, what's shown.
+    coll: Option<Collection>,
+    coll_order: Option<CollectionOrder>,
+    coll_hide: bool,
+    coll_list: Vec<(usize, MediaItem)>,
+}
+
+/// Poster and backdrop keys for a collection (they travel as pseudo items).
+fn coll_poster(c: &Collection) -> MediaItem {
+    MediaItem { id: format!("coll:{}", c.id), poster: c.poster.clone(), ..Default::default() }
+}
+
+fn coll_art(c: &Collection) -> MediaItem {
+    let art = c.art.clone().or_else(|| c.movies.first().and_then(|m| m.art.clone()));
+    MediaItem { id: format!("art:coll:{}", c.id), poster: art, ..Default::default() }
 }
 
 pub(super) fn init(s: &UiState, laptop: &LaptopWindow) {
@@ -77,6 +111,20 @@ pub(super) fn init(s: &UiState, laptop: &LaptopWindow) {
 
 fn tab(s: &UiState) -> Tab {
     s.lib.tab.unwrap_or(Tab::Tv)
+}
+
+fn sort_of(s: &UiState) -> SortOrder {
+    match tab(s) {
+        Tab::Movies => s.lib.sort_movies,
+        Tab::Tv => s.lib.sort_tv,
+    }
+}
+
+/// The saved orders (from the config), before the first library read.
+pub(super) fn set_sorts(s: &mut UiState, laptop: &LaptopWindow, movies: SortOrder, tv: SortOrder) {
+    s.lib.sort_movies = movies;
+    s.lib.sort_tv = tv;
+    laptop.global::<Library>().set_sort(sort_of(s).id().into());
 }
 
 /// Everything that depends on Continue Watching, Recently Added or the theme.
@@ -134,9 +182,13 @@ fn work_out_shelves(s: &mut UiState, laptop: &LaptopWindow) {
         Tab::Tv => shelves::finish_a_season(data),
         Tab::Movies => shelves::movies_in_progress(data),
     };
+    let order = sort_of(s);
     s.lib.added = shelves::added_since(data, tab, since);
     s.lib.again = shelves::watch_again(data, tab);
+    shelves::sort(&mut s.lib.added, order);
+    shelves::sort(&mut s.lib.again, order);
     let genres = shelves::genres(data, tab);
+    s.lib.collections = shelves::collection_row(data).into_iter().cloned().collect();
 
     let lib = laptop.global::<Library>();
     let (title, rule, empty) = match tab {
@@ -171,11 +223,16 @@ fn work_out_shelves(s: &mut UiState, laptop: &LaptopWindow) {
         })
         .collect();
     lib.set_genres(ModelRc::new(VecModel::from(tiles)));
+    lib.set_collection_count(s.lib.collections.len() as i32);
+    lib.set_sort(order.id().into());
 
     let mut wanted: Vec<MediaItem> = s.lib.pick.iter().cloned().collect();
     wanted.extend(s.lib.boxed.iter().map(|b| b.item.clone()));
     wanted.extend(s.lib.added.iter().take(SHELF_POSTERS).cloned());
     wanted.extend(s.lib.again.iter().take(SHELF_POSTERS).cloned());
+    if tab == Tab::Movies {
+        wanted.extend(s.lib.collections.iter().map(coll_poster));
+    }
     want_posters(wanted);
     show_shelves(s, laptop);
 }
@@ -242,17 +299,56 @@ fn show_shelves(s: &UiState, laptop: &LaptopWindow) {
     lib.set_box_items(ModelRc::new(VecModel::from(boxed)));
     s.lib.added_cards.set_vec(cards_for(s, &s.lib.added[..s.lib.added.len().min(SHELF_POSTERS)]));
     s.lib.again_cards.set_vec(cards_for(s, &s.lib.again[..s.lib.again.len().min(SHELF_POSTERS)]));
+
+    let cards: Vec<CollectionCard> = s
+        .lib
+        .collections
+        .iter()
+        .map(|c| {
+            let key = coll_poster(c);
+            let t = tint::card_tint(hue_of(&key), s.theme);
+            let poster = poster_of(&key);
+            let st = shelves::stats(c);
+            let mut line = format!("{} movie{}", st.total, if st.total == 1 { "" } else { "s" });
+            line += &if st.total > 0 && st.watched == st.total {
+                " · all watched".to_owned()
+            } else {
+                format!(" · {} watched", st.watched)
+            };
+            if c.smart {
+                line += " · smart";
+            }
+            CollectionCard {
+                title: c.title.as_str().into(),
+                line: line.into(),
+                has_poster: poster.is_some(),
+                poster: poster.unwrap_or_default(),
+                card: t.card,
+                art: t.poster,
+                accent: t.accent,
+                sec: t.sec,
+                track: t.track,
+                progress: if st.total == 0 { 0.0 } else { st.watched as f32 / st.total as f32 },
+            }
+        })
+        .collect();
+    lib.set_collections(ModelRc::new(VecModel::from(cards)));
 }
 
 /// A poster arrived: show it wherever the Library uses that item.
-pub(super) fn on_poster(s: &UiState, laptop: &LaptopWindow, key: &(SourceKind, String)) {
+pub(super) fn on_poster(s: &mut UiState, laptop: &LaptopWindow, key: &(SourceKind, String)) {
     let is = |i: &MediaItem| i.source == key.0 && i.id == key.1;
     let on_shelves = s.lib.pick.as_ref().is_some_and(is)
         || s.lib.boxed.iter().any(|b| is(&b.item))
         || s.lib.added.iter().take(SHELF_POSTERS).any(is)
         || s.lib.again.iter().take(SHELF_POSTERS).any(is);
-    if on_shelves {
+    let collection = key.1.strip_prefix("coll:").or_else(|| key.1.strip_prefix("art:coll:"));
+    if on_shelves || collection.is_some() {
         show_shelves(s, laptop);
+    }
+    let open = s.lib.coll.as_ref().map(|c| c.id.as_str());
+    if collection.is_some_and(|id| Some(id) == open) || s.lib.coll_list.iter().any(|(_, m)| is(m)) {
+        fill_collection(s, laptop);
     }
     if let Some(i) = s.lib.browse.iter().position(is) {
         if let Some(card) = cards_for(s, &s.lib.browse[i..=i]).pop() {
@@ -310,6 +406,16 @@ pub fn play_command(item: &MediaItem) -> Command {
     }
 }
 
+/// A poster on the "added" or "again" shelf.
+pub fn shelf_item(shelf: &str, index: usize) -> Option<MediaItem> {
+    STATE.with_borrow(|s| if shelf == "added" { &s.lib.added } else { &s.lib.again }.get(index).cloned())
+}
+
+/// An item in the Browse all grid.
+pub fn browse_item(index: usize) -> Option<MediaItem> {
+    STATE.with_borrow(|s| s.lib.browse.get(index).cloned())
+}
+
 pub fn pick() -> Option<MediaItem> {
     STATE.with_borrow(|s| s.lib.pick.clone())
 }
@@ -358,8 +464,17 @@ fn refilter(s: &mut UiState, laptop: &LaptopWindow) {
         .lib
         .data
         .as_ref()
-        .map(|d| shelves::browse(d, tab, &s.lib.filter, since, b.get_unwatched_only()))
+        .map(|d| shelves::browse(d, tab, &s.lib.filter, since, b.get_unwatched_only(), sort_of(s)))
         .unwrap_or_default();
+    // Genre chips: on the full list and genre views.
+    let genres: Vec<slint::SharedString> = match (&s.lib.data, s.lib.filter.as_str()) {
+        (Some(d), f) if f == "all" || f.starts_with("genre:") => {
+            shelves::all_genres(d, tab).into_iter().map(Into::into).collect()
+        }
+        _ => Vec::new(),
+    };
+    b.set_genres(ModelRc::new(VecModel::from(genres)));
+    b.set_genre(s.lib.filter.strip_prefix("genre:").unwrap_or_default().into());
     let what = if tab == Tab::Movies { "movies" } else { "shows" };
     let title = match s.lib.filter.as_str() {
         "added" => "Added this week".to_owned(),
@@ -376,6 +491,177 @@ fn refilter(s: &mut UiState, laptop: &LaptopWindow) {
     b.set_detail_open(false);
     b.set_selected(-1);
     want_posters(s.lib.browse.iter().take(BROWSE_POSTERS).cloned().collect());
+}
+
+/// Browse all's genre chips ("" = every genre).
+pub fn set_genre(laptop: &LaptopWindow, genre: &str) {
+    STATE.with_borrow_mut(|s| {
+        s.lib.filter = if genre.is_empty() { "all".into() } else { format!("genre:{genre}") };
+        refilter(s, laptop);
+    });
+}
+
+/// The Sort menu: order the shelves and Browse all, and remember it for this tab.
+pub fn set_sort(laptop: &LaptopWindow, id: &str) {
+    let Some(order) = SortOrder::parse(id) else { return };
+    let lib = laptop.global::<Library>();
+    lib.set_sort_open(false);
+    let movies = STATE.with_borrow_mut(|s| {
+        match tab(s) {
+            Tab::Movies => s.lib.sort_movies = order,
+            Tab::Tv => s.lib.sort_tv = order,
+        }
+        work_out_shelves(s, laptop);
+        if !s.lib.filter.is_empty() {
+            refilter(s, laptop);
+        }
+        tab(s) == Tab::Movies
+    });
+    lib.set_sort(order.id().into());
+    COMMANDS.with_borrow(|tx| {
+        if let Some(tx) = tx {
+            let _ = tx.send(Command::SetLibrarySort { movies, order });
+        }
+    });
+}
+
+// ── Collection page ────────────────────────────────────────────────
+
+pub fn open_collection(laptop: &LaptopWindow, index: usize) {
+    let opened = STATE.with_borrow_mut(|s| {
+        let Some(c) = s.lib.collections.get(index).cloned() else { return false };
+        let mut wanted: Vec<MediaItem> = vec![coll_poster(&c), coll_art(&c)];
+        wanted.extend(c.movies.iter().cloned());
+        want_posters(wanted);
+        s.lib.coll = Some(c);
+        s.lib.coll_order = Some(CollectionOrder::Collection);
+        s.lib.coll_hide = false;
+        let page = laptop.global::<crate::Collection>();
+        page.set_detail_open(false);
+        fill_collection(s, laptop);
+        true
+    });
+    if opened {
+        laptop.global::<crate::Nav>().set_page("collection".into());
+    }
+}
+
+pub fn set_collection_order(laptop: &LaptopWindow, order: &str) {
+    STATE.with_borrow_mut(|s| {
+        s.lib.coll_order = Some(CollectionOrder::parse(order));
+        fill_collection(s, laptop);
+    });
+}
+
+pub fn set_collection_hide(laptop: &LaptopWindow, hide: bool) {
+    STATE.with_borrow_mut(|s| {
+        s.lib.coll_hide = hide;
+        fill_collection(s, laptop);
+    });
+}
+
+/// The collection's big button: resume, else the first unwatched, else from the start.
+pub fn collection_up_next() -> Option<MediaItem> {
+    STATE.with_borrow(|s| s.lib.coll.as_ref().and_then(shelves::up_next).map(|u| u.item().clone()))
+}
+
+pub fn collection_shuffle() -> Option<MediaItem> {
+    STATE.with_borrow(|s| s.lib.coll.as_ref().and_then(|c| shelves::shuffle_unwatched(c, None)))
+}
+
+pub fn collection_movie(index: usize) -> Option<MediaItem> {
+    STATE.with_borrow(|s| s.lib.coll_list.get(index).map(|(_, m)| m.clone()))
+}
+
+/// Hold a movie: the Browse detail panel over the page.
+pub fn collection_details(laptop: &LaptopWindow, index: usize) {
+    STATE.with_borrow_mut(|s| {
+        let Some((_, item)) = s.lib.coll_list.get(index).cloned() else { return };
+        laptop.global::<Browse>().set_detail(detail(s, &item));
+        laptop.global::<crate::Collection>().set_detail_open(true);
+        s.selected = Some(item);
+    });
+}
+
+fn fill_collection(s: &mut UiState, laptop: &LaptopWindow) {
+    let Some(c) = s.lib.coll.clone() else { return };
+    let page = laptop.global::<crate::Collection>();
+    let order = s.lib.coll_order.unwrap_or(CollectionOrder::Collection);
+    let st = shelves::stats(&c);
+    let hue = s.hues.get(&(SourceKind::Plex, format!("coll:{}", c.id))).copied().unwrap_or(tint::DEFAULT);
+    let t = tint::card_tint(hue, s.theme);
+    page.set_tint(t.clone());
+    page.set_crumb(format!("Movies › Collections › {}", c.title).into());
+    page.set_title(c.title.as_str().into());
+    let mut meta = vec![format!("{} movie{}", st.total, if st.total == 1 { "" } else { "s" })];
+    match st.years {
+        Some((a, b)) if a != b => meta.push(format!("{a}–{b}")),
+        Some((a, _)) => meta.push(a.to_string()),
+        None => {}
+    }
+    if st.runtime_ms > 0 {
+        meta.push(format!("{} in total", format::length(st.runtime_ms)));
+    }
+    page.set_meta(meta.join(" · ").into());
+    page.set_progress(if st.total == 0 { 0.0 } else { st.watched as f32 / st.total as f32 });
+    page.set_watched_text(format!("{} of {} watched", st.watched, st.total).into());
+    page.set_summary(c.summary.clone().unwrap_or_default().into());
+    let (up, action) = match shelves::up_next(&c) {
+        Some(UpNext::Resume(m)) => {
+            let left = format::time_left(&m).map(|l| format!(" · {l}")).unwrap_or_default();
+            (format!("Up next: {}{left}", m.title), format!("Resume {} on TV", m.title))
+        }
+        Some(UpNext::Play(m)) => (format!("Up next: {}", m.title), format!("Play {} on TV", m.title)),
+        Some(UpNext::FromStart(m)) => {
+            (format!("All watched. Start again with {}", m.title), "Play from the start".into())
+        }
+        None => (String::new(), String::new()),
+    };
+    page.set_up_next(up.into());
+    page.set_action(action.into());
+    page.set_can_shuffle(c.movies.iter().any(|m| m.view_count == 0));
+    let art = s.posters.get(&(SourceKind::Plex, format!("art:coll:{}", c.id))).cloned();
+    page.set_has_backdrop(art.is_some());
+    page.set_backdrop(art.unwrap_or_default());
+    page.set_order(
+        match order {
+            CollectionOrder::Collection => "collection",
+            CollectionOrder::Release => "release",
+            CollectionOrder::Az => "az",
+        }
+        .into(),
+    );
+    page.set_hide_watched(s.lib.coll_hide);
+
+    s.lib.coll_list = shelves::collection_movies(&c, order, s.lib.coll_hide);
+    let movies: Vec<CollectionMovie> = s
+        .lib
+        .coll_list
+        .iter()
+        .map(|(n, m)| {
+            let key = (m.source, m.id.clone());
+            let hue = s.hues.get(&key).copied().unwrap_or(tint::DEFAULT);
+            let poster = s.posters.get(&key).cloned();
+            let year = m.year.map(|y| y.to_string()).unwrap_or_default();
+            let state = match format::time_left(m) {
+                Some(left) if m.resume_ms.is_some() => left,
+                _ if m.view_count > 0 => "watched".into(),
+                _ => "unwatched".into(),
+            };
+            CollectionMovie {
+                position: if order == CollectionOrder::Collection { format!("#{n}") } else { year.clone() }.into(),
+                title: m.title.as_str().into(),
+                line: [year, state].into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(" · ").into(),
+                has_poster: poster.is_some(),
+                poster: poster.unwrap_or_default(),
+                placeholder: tint::card_tint(Hue { saturation: hue.saturation.max(0.3), ..hue }, s.theme).poster,
+                accent: tint::progress_color(hue),
+                progress: m.progress().unwrap_or(0.0),
+                watched: m.view_count > 0 && m.resume_ms.is_none(),
+            }
+        })
+        .collect();
+    page.set_movies(ModelRc::new(VecModel::from(movies)));
 }
 
 pub fn select(laptop: &LaptopWindow, index: usize) {

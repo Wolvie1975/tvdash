@@ -119,6 +119,20 @@ class H(BaseHTTPRequestHandler):
                 {"key": "1", "type": "movie", "title": "Movies"},
                 {"key": "2", "type": "show", "title": "TV Shows"},
                 {"key": "3", "type": "artist", "title": "Music"}]}})
+        if p == "/library/sections/1/collections":
+            return self._send(200, {"MediaContainer": {"Metadata": [
+                {"ratingKey": "c1", "type": "collection", "title": "Plex Pair", "smart": "1", "thumb": "/t/c1",
+                 "childCount": 2}]}})
+        if p == "/library/collections/c1/children":
+            return self._send(200, {"MediaContainer": {"Metadata": LIBRARY["1"][::-1]}})
+        if p == "/library/metadata/100/children":
+            return self._send(200, {"MediaContainer": {"Metadata": [
+                {"ratingKey": "103", "type": "season", "title": "Season 3", "index": 3, "leafCount": 10, "viewedLeafCount": 8},
+                {"ratingKey": "199", "type": "season", "title": "Specials", "index": 0, "leafCount": 1, "viewedLeafCount": 0}]}})
+        if p == "/library/metadata/100/allLeaves":
+            return self._send(200, {"MediaContainer": {"Metadata": EPISODES + [
+                {"ratingKey": "190", "type": "episode", "title": "Behind the Scenes", "parentIndex": 0, "index": 1,
+                 "grandparentRatingKey": "100", "thumb": "/t/190"}]}})
         if p.startswith("/library/sections/") and p.endswith("/all"):
             section = p.split("/")[3]
             kind = q.get("type", [""])[0]

@@ -80,6 +80,51 @@ pub struct MediaItem {
     /// TMDB ID (movies and shows, from the library listing).
     #[serde(default)]
     pub tmdb_id: Option<u32>,
+    /// Plex `titleSort` ("Long Drive Home, The"), when the server has one.
+    #[serde(default)]
+    pub sort_title: Option<String>,
+    /// Release date, "1998-03-01" (Plex `originallyAvailableAt`).
+    #[serde(default)]
+    pub released: Option<String>,
+    /// Backdrop art path.
+    #[serde(default)]
+    pub art: Option<String>,
+    /// An episode's own 16:9 still (its `thumb`; `poster` is the show's).
+    #[serde(default)]
+    pub still: Option<String>,
+}
+
+/// One season on a show page.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct ShowSeason {
+    pub id: String,
+    /// 0 = Specials.
+    pub index: u32,
+    pub title: String,
+    pub leaf_count: u32,
+    pub viewed_leaf_count: u32,
+}
+
+/// Everything a show page needs: the show, its seasons and all its episodes.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct ShowData {
+    pub show: MediaItem,
+    pub seasons: Vec<ShowSeason>,
+    pub episodes: Vec<MediaItem>,
+}
+
+/// A Plex collection of movies (hand-made or smart; smart ones arrive filled in).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Collection {
+    pub id: String,
+    pub title: String,
+    pub summary: Option<String>,
+    /// Poster and backdrop art paths.
+    pub poster: Option<String>,
+    pub art: Option<String>,
+    pub smart: bool,
+    /// The movies, in the collection's own order (`collectionSort`).
+    pub movies: Vec<MediaItem>,
 }
 
 /// One season of a show, for "Finish a season".
@@ -100,6 +145,9 @@ pub struct LibraryData {
     pub seasons: Vec<Season>,
     /// The most recently added episodes (newest first).
     pub new_episodes: Vec<MediaItem>,
+    /// Movie collections.
+    #[serde(default)]
+    pub collections: Vec<Collection>,
 }
 
 impl MediaItem {

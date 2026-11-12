@@ -185,6 +185,7 @@ fn main() -> anyhow::Result<()> {
             units: config.general.units,
             theme: config.general.theme,
             sites: config.streaming.clone(),
+            library: config.library.clone(),
         },
     );
 

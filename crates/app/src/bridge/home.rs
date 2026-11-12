@@ -88,6 +88,7 @@ pub(super) fn on_poster(
     }
     s.posters.insert(key.clone(), img);
     super::library::on_poster(s, laptop, &key);
+    super::show::on_poster(s, laptop, &key);
     refresh_tv_card(s, laptop);
 }
 

@@ -616,8 +616,14 @@ component CwBox inherits Rectangle {
 component ResultRow inherits Rectangle {
     in property <WatchCard> card;
     border-radius: 16px;
-    background: Theme.surface-raised;
+    background: open.pressed ? Theme.border : Theme.surface-raised;
     height: 82px;
+    // A show in your library: the row opens its page (the button still plays).
+    open := TouchArea {
+        enabled: root.card.show;
+        mouse-cursor: root.card.show ? pointer : default;
+        clicked => { Watch.open(root.card.key); }
+    }
     HorizontalLayout {
         padding: 8px;
         padding-right: 10px;

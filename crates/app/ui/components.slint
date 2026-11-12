@@ -491,3 +491,26 @@ export component Field inherits VerticalLayout {
     TextField { placeholder: root.placeholder; text <=> root.text; }
     if root.hint != "": Text { text: root.hint; font-size: 16px; color: Theme.text-muted; wrap: word-wrap; }
 }
+
+// A toggle chip (order buttons, genre filters).
+export component Chip inherits Rectangle {
+    in property <string> label;
+    in property <bool> on;
+    callback clicked();
+    height: 56px;
+    width: text.preferred-width + 44px;
+    border-radius: 28px;
+    background: root.on ? Theme.text-primary : touch.pressed ? Theme.surface-raised : Theme.surface;
+    border-width: root.on ? 0 : 1px;
+    border-color: Theme.border;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-checked: root.on;
+    accessible-action-default => { root.clicked(); }
+    text := Text { text: root.label; font-size: 19px; font-weight: 500; color: root.on ? Theme.bg : Theme.text-secondary; }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+

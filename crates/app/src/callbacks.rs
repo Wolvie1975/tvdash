@@ -3,7 +3,10 @@
 use slint::ComponentHandle;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{error, warn};
-use tvdash_core::{Command, models::SourceKind};
+use tvdash_core::{
+    Command,
+    models::{MediaKind, SourceKind},
+};
 
 use crate::{Accounts, Dash, LaptopWindow, Library, Nav, Setup, Watch, bridge, watch_ui};
 
@@ -166,17 +169,24 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
         }
     });
 
-    let s = send.clone();
+    // A show (Finish a season, a shelf poster, Browse all, search) opens its page;
+    // a movie in the big box plays.
+    let (weak, s) = (laptop.as_weak(), send.clone());
     lib.on_play_box(move |i| {
-        if let Some(item) = bridge::box_item(i as usize) {
+        let (Some(item), Some(l)) = (bridge::box_item(i as usize), weak.upgrade()) else { return };
+        if item.kind == MediaKind::Series {
+            bridge::open_show(&l, item);
+        } else {
             s(bridge::play_command(&item));
         }
     });
 
     let weak = laptop.as_weak();
     lib.on_open_item(move |shelf, i| {
-        if let Some(l) = weak.upgrade() {
-            bridge::open_item(&l, &shelf, i as usize);
+        let Some(l) = weak.upgrade() else { return };
+        match bridge::shelf_item(&shelf, i as usize) {
+            Some(item) if item.kind == MediaKind::Series => bridge::open_show(&l, item),
+            _ => bridge::open_item(&l, &shelf, i as usize),
         }
     });
 
@@ -189,8 +199,42 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
 
     let weak = laptop.as_weak();
     browse.on_select(move |i| {
+        let Some(l) = weak.upgrade() else { return };
+        match bridge::browse_item(i as usize) {
+            Some(item) if item.kind == MediaKind::Series => bridge::open_show(&l, item),
+            _ => bridge::select(&l, i as usize),
+        }
+    });
+
+    let show = laptop.global::<crate::Show>();
+    let s = send.clone();
+    show.on_play_up_next(move || {
+        if let Some(e) = bridge::show_actions::up_next() {
+            s(Command::Play(e));
+        }
+    });
+    let s = send.clone();
+    show.on_play_first(move || {
+        if let Some(e) = bridge::show_actions::first() {
+            s(Command::Play(e));
+        }
+    });
+    let s = send.clone();
+    show.on_shuffle(move || {
+        if let Some(e) = bridge::show_actions::shuffle() {
+            s(Command::Play(e));
+        }
+    });
+    let s = send.clone();
+    show.on_play_episode(move |i| {
+        if let Some(e) = bridge::show_actions::episode(i as usize) {
+            s(Command::Play(e));
+        }
+    });
+    let weak = laptop.as_weak();
+    show.on_select_season(move |i| {
         if let Some(l) = weak.upgrade() {
-            bridge::select(&l, i as usize);
+            bridge::select_season(&l, i as usize);
         }
     });
 
@@ -222,6 +266,65 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     browse.on_play(play.clone());
     lib.on_play_detail(play);
     lib.on_select(|section, i| bridge::select_row(&section, i as usize));
+
+    let weak = laptop.as_weak();
+    lib.on_set_sort(move |id| {
+        if let Some(l) = weak.upgrade() {
+            bridge::set_sort(&l, &id);
+        }
+    });
+
+    let weak = laptop.as_weak();
+    lib.on_open_collection(move |i| {
+        if let Some(l) = weak.upgrade() {
+            bridge::open_collection(&l, i as usize);
+        }
+    });
+
+    let weak = laptop.as_weak();
+    browse.on_set_genre(move |g| {
+        if let Some(l) = weak.upgrade() {
+            bridge::set_genre(&l, &g);
+        }
+    });
+
+    let coll = laptop.global::<crate::Collection>();
+    let s = send.clone();
+    coll.on_play_up_next(move || {
+        if let Some(m) = bridge::collection_up_next() {
+            s(Command::Play(m));
+        }
+    });
+    let s = send.clone();
+    coll.on_shuffle(move || {
+        if let Some(m) = bridge::collection_shuffle() {
+            s(Command::Play(m));
+        }
+    });
+    let s = send.clone();
+    coll.on_play(move |i| {
+        if let Some(m) = bridge::collection_movie(i as usize) {
+            s(Command::Play(m));
+        }
+    });
+    let weak = laptop.as_weak();
+    coll.on_details(move |i| {
+        if let Some(l) = weak.upgrade() {
+            bridge::collection_details(&l, i as usize);
+        }
+    });
+    let weak = laptop.as_weak();
+    coll.on_set_order(move |o| {
+        if let Some(l) = weak.upgrade() {
+            bridge::set_collection_order(&l, &o);
+        }
+    });
+    let weak = laptop.as_weak();
+    coll.on_set_hide_watched(move |on| {
+        if let Some(l) = weak.upgrade() {
+            bridge::set_collection_hide(&l, on);
+        }
+    });
 }
 
 fn wire_accounts(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
@@ -307,6 +410,15 @@ fn wire_watch(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     w.on_close(move || {
         if let Some(l) = weak.upgrade() {
             watch_ui::close(&l);
+        }
+    });
+
+    let weak = laptop.as_weak();
+    w.on_open(move |key| {
+        let (Some(l), Some(hit)) = (weak.upgrade(), watch_ui::hit(&key)) else { return };
+        if let Some(show) = hit.library {
+            watch_ui::close(&l);
+            bridge::open_show(&l, show);
         }
     });
 

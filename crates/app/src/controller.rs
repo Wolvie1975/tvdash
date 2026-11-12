@@ -39,6 +39,10 @@ use crate::{format, watch::Watch};
 const REFRESH_EVERY: Duration = Duration::from_secs(120);
 const PROGRESS_EVERY: Duration = Duration::from_secs(10);
 const POSTER_HEIGHT: u32 = 480;
+/// Backdrops (collection pages) are fetched at least this big.
+const ART_SIZE: (u32, u32) = (960, 540);
+/// Episode stills on a show page (2× their 176 × 99 box).
+const STILL_SIZE: (u32, u32) = (352, 198);
 const SESSIONS_EVERY: Duration = Duration::from_secs(15);
 const PLEX_PIN_POLL: Duration = Duration::from_secs(2);
 const RECENTLY_ADDED: u32 = 20;
@@ -342,6 +346,21 @@ impl Controller {
         match cmd {
             Command::Play(item) => self.play(item).await,
             Command::PlayShow(show) => self.play_show(show).await,
+            Command::OpenShow(show) => {
+                let Some(source) = self.source_for(show.source) else { return };
+                let events = self.events.clone();
+                tokio::spawn(async move {
+                    match source.show(&show.id).await {
+                        Ok(data) => {
+                            let _ = events.send(AppEvent::Show(data));
+                        }
+                        Err(e) => {
+                            warn!(show = %show.title, error = %e, "couldn't read the show");
+                            let _ = events.send(AppEvent::Toast(format!("Couldn't open {}: {e}", show.title)));
+                        }
+                    }
+                });
+            }
             Command::Pause | Command::Resume => {
                 let pause = matches!(cmd, Command::Pause);
                 if let Some(p) = self.playback.as_mut()
@@ -424,6 +443,13 @@ impl Controller {
             Command::SignOut(kind) => self.sign_out(kind).await,
             Command::ClearBrowserProfile => self.clear_browser_profile().await,
             Command::SetTheme(mode) => self.update_config(|c| c.general.theme = mode),
+            Command::SetLibrarySort { movies, order } => self.update_config(|c| {
+                if movies {
+                    c.library.sort_movies = order;
+                } else {
+                    c.library.sort_tv = order;
+                }
+            }),
             Command::FindPlace(query) => {
                 let events = self.events.clone();
                 tokio::spawn(async move {
@@ -1181,7 +1207,13 @@ fn fetch_posters(
         let (source, requested, limit, events) = (source.clone(), requested.clone(), limit.clone(), events.clone());
         tokio::spawn(async move {
             let _permit = limit.acquire_owned().await;
-            let decoded = match source.poster(&item, POSTER_HEIGHT).await {
+            // "art:…" items are backdrops and "still:…" episode stills, not posters.
+            let fetched = match (item.id.split(':').next(), item.poster.as_deref()) {
+                (Some("art"), Some(path)) => source.art(path, ART_SIZE.0, ART_SIZE.1).await,
+                (Some("still"), Some(path)) => source.art(path, STILL_SIZE.0, STILL_SIZE.1).await,
+                _ => source.poster(&item, POSTER_HEIGHT).await,
+            };
+            let decoded = match fetched {
                 Ok(bytes) => tokio::task::spawn_blocking(move || decode(&bytes)).await.ok().flatten(),
                 Err(e) => {
                     warn!(title = %item.title, error = %e, "poster fetch failed");
@@ -1565,6 +1597,24 @@ mod e2e {
         assert_eq!(lib.movies[0].tmdb_id, Some(604));
         assert_eq!((lib.shows[1].title.as_str(), lib.shows[1].viewed_leaf_count), ("Unstarted Show", Some(0)));
         assert_eq!(lib.new_episodes.first().map(|e| e.id.as_str()), Some("102"), "newest episode first");
+        // Collections, smart ones included, with their movies in collection order.
+        assert_eq!(lib.collections.len(), 1);
+        let c = &lib.collections[0];
+        assert!(c.smart);
+        assert_eq!(c.movies.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(), ["200", "m604"]);
+
+        // A show page: the show, its seasons (Specials too) and every episode with its still.
+        h.send(Command::OpenShow(lib.shows[0].clone()));
+        let show = h
+            .wait_for(|e| match e {
+                AppEvent::Show(d) => Some(d.clone()),
+                _ => None,
+            })
+            .await;
+        assert_eq!(show.show.genres, ["Drama"]);
+        assert_eq!(show.seasons.iter().map(|s| s.index).collect::<Vec<_>>(), [3, 0]);
+        assert_eq!(show.episodes.len(), 3);
+        assert_eq!(show.episodes[2].still.as_deref(), Some("/t/190"));
 
         let (argv, cmds) = h.mpv_log();
         assert!(argv.contains(&"--start=1200.000".into()));

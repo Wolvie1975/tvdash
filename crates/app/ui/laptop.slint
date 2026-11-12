@@ -1,10 +1,12 @@
 import { Theme } from "theme.slint";
 import { HomePage } from "home.slint";
-import { LibraryPage } from "library.slint";
+import { LibraryPage, SortMenu } from "library.slint";
+import { CollectionPage } from "collection.slint";
+import { ShowPage } from "show.slint";
 import { BrowsePage } from "browse.slint";
 import { SettingsPage } from "settings.slint";
 import { SetupPage } from "setup.slint";
-import { Dash, Nav, Saver } from "state.slint";
+import { Dash, Library, Nav, Saver } from "state.slint";
 import { SaverView } from "saver.slint";
 import { TvShell } from "tv/shell.slint";
 
@@ -37,6 +39,8 @@ export component LaptopWindow inherits Window {
             if Nav.page == "home": HomePage { }
             if Nav.page == "library": LibraryPage { }
             if Nav.page == "browse": BrowsePage { }
+            if Nav.page == "collection": CollectionPage { }
+            if Nav.page == "show": ShowPage { }
             if Nav.page == "settings": SettingsPage { }
             if Nav.page == "setup": SetupPage { }
         }
@@ -60,6 +64,8 @@ export component LaptopWindow inherits Window {
             overflow: elide;
         }
     }
+
+    if Library.sort-open && Nav.page == "library": SortMenu { width: root.width; height: root.height; }
 
     // Over everything, including the toast.
     if Saver.on && Nav.layout == "dual": SaverView { width: root.width; height: root.height; }

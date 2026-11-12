@@ -1,0 +1,307 @@
+import { Theme } from "theme.slint";
+import { Icon } from "icons.slint";
+import { ActionButton } from "components.slint";
+import { BackButton } from "library.slint";
+import { InfoCard } from "collection.slint";
+import { EpisodeRow, Nav, SeasonTab, Show } from "state.slint";
+
+// A show: backdrop, details and up next on the left; its seasons and the
+// chosen season's episodes on the right.
+
+component Bar inherits Rectangle {
+    in property <float> value;
+    in property <color> fill;
+    height: 4px;
+    border-radius: 2px;
+    background: Theme.border;
+    clip: true;
+    Rectangle { x: 0; width: parent.width * clamp(root.value, 0, 1); background: root.fill; }
+}
+
+// 1–6 seasons: name and progress.
+component SeasonTabs inherits HorizontalLayout {
+    spacing: 10px;
+    for t[i] in Show.seasons: Rectangle {
+        property <bool> on: i == Show.season;
+        horizontal-stretch: 1;
+        // Equal widths whatever the text.
+        min-width: 0;
+        preferred-width: 100px;
+        height: 76px;
+        border-radius: Theme.radius;
+        background: on ? Theme.text-primary : touch.pressed ? Theme.surface-raised : Theme.surface;
+        accessible-role: tab;
+        accessible-label: t.title + ", " + t.progress-text;
+        accessible-checked: on;
+        accessible-action-default => { Show.select-season(i); }
+        VerticalLayout {
+            alignment: center;
+            padding-left: 16px;
+            padding-right: 16px;
+            spacing: 2px;
+            Text { text: t.title; font-size: 20px; font-weight: 500; color: on ? Theme.bg : Theme.text-primary; overflow: elide; }
+            Text { text: t.progress-text; font-size: 16px; color: on ? Theme.bg.transparentize(0.25) : Theme.text-secondary; overflow: elide; }
+        }
+        touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { Show.select-season(i); }
+        }
+    }
+}
+
+// 7–14 seasons: compact pills with a bar under each; the chosen one written out.
+component SeasonPills inherits HorizontalLayout {
+    spacing: 16px;
+    Flickable {
+        horizontal-stretch: 1;
+        height: 72px;
+        content-width: row.preferred-width;
+        row := HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            for t[i] in Show.seasons: Rectangle {
+                property <bool> on: i == Show.season;
+                width: 72px;
+                height: 72px;
+                border-radius: 14px;
+                background: on ? Theme.text-primary : touch.pressed ? Theme.surface-raised : Theme.surface;
+                accessible-role: tab;
+                accessible-label: t.title + ", " + t.progress-text;
+                accessible-checked: on;
+                accessible-action-default => { Show.select-season(i); }
+                VerticalLayout {
+                    alignment: center;
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    spacing: 8px;
+                    Text { text: t.short; font-size: 20px; font-weight: 600; color: on ? Theme.bg : Theme.text-primary; horizontal-alignment: center; }
+                    Bar { value: t.progress; fill: on ? Theme.bg : Show.tint.accent; }
+                }
+                touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Show.select-season(i); }
+                }
+            }
+        }
+    }
+    if Show.seasons.length > 0: Text {
+        text: Show.seasons[Show.season].title + " · " + Show.seasons[Show.season].progress-text;
+        font-size: 19px;
+        color: Theme.text-secondary;
+        vertical-alignment: center;
+    }
+}
+
+// 15+ seasons: one button that opens a grid of every season.
+component SeasonPickerButton inherits HorizontalLayout {
+    spacing: 18px;
+    alignment: start;
+    ActionButton {
+        height: 64px;
+        text: (Show.seasons.length > 0 ? Show.seasons[Show.season].title : "Season") + "  ▾";
+        accessible-label: "Choose a season, now " + (Show.seasons.length > 0 ? Show.seasons[Show.season].title : "");
+        clicked => { Show.picker-open = !Show.picker-open; }
+    }
+    Text { text: Show.seasons-text; font-size: 19px; color: Theme.text-secondary; vertical-alignment: center; }
+}
+
+component SeasonGrid inherits Rectangle {
+    border-radius: Theme.card-radius;
+    background: Theme.surface-raised;
+    border-width: 1px;
+    border-color: Theme.border;
+    drop-shadow-blur: 40px;
+    drop-shadow-offset-y: 16px;
+    drop-shadow-color: #00000059;
+    TouchArea { }
+    grid := Flickable {
+        x: 20px;
+        y: 20px;
+        width: parent.width - 40px;
+        height: parent.height - 40px;
+        property <length> gap: 12px;
+        property <length> w: (self.width - 5 * self.gap) / 6;
+        property <length> h: 92px;
+        content-height: Math.ceil(Show.seasons.length / 6) * (self.h + self.gap);
+        for t[i] in Show.seasons: Rectangle {
+            property <bool> on: i == Show.season;
+            x: Math.mod(i, 6) * (grid.w + grid.gap);
+            y: Math.floor(i / 6) * (grid.h + grid.gap);
+            width: grid.w;
+            height: grid.h;
+            border-radius: 14px;
+            background: on ? Theme.text-primary : touch.pressed ? Theme.border : Theme.surface;
+            accessible-role: button;
+            accessible-label: t.title + ", " + t.progress-text;
+            accessible-action-default => { Show.select-season(i); }
+            VerticalLayout {
+                alignment: center;
+                padding-left: 14px;
+                padding-right: 14px;
+                spacing: 6px;
+                Text { text: t.title; font-size: 18px; font-weight: 500; color: on ? Theme.bg : Theme.text-primary; overflow: elide; }
+                Bar { value: t.progress; fill: on ? Theme.bg : Show.tint.accent; }
+                Text { text: t.progress-text; font-size: 15px; color: on ? Theme.bg : Theme.text-secondary; overflow: elide; }
+            }
+            touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { Show.select-season(i); }
+            }
+        }
+    }
+}
+
+component Episode inherits Rectangle {
+    in property <EpisodeRow> data;
+    in property <int> index;
+    height: 120px;
+    border-radius: Theme.radius;
+    background: root.data.current ? Show.tint.card : transparent;
+    border-width: root.data.current ? 1px : 0;
+    border-color: Show.tint.edge;
+    HorizontalLayout {
+        padding: 10px;
+        padding-right: 16px;
+        spacing: 18px;
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 176px;
+                height: 99px;
+                border-radius: 10px;
+                clip: true;
+                background: root.data.placeholder;
+                if root.data.has-still: Image { width: parent.width; height: parent.height; source: root.data.still; image-fit: cover; }
+                if root.data.watched: Rectangle {
+                    x: parent.width - 34px;
+                    y: 6px;
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 14px;
+                    background: Theme.scrim;
+                    Icon { name: "check"; tint: Theme.on-scrim; size: 16px; line: 2.4px; }
+                }
+                if root.data.progress > 0: Rectangle {
+                    y: parent.height - 5px;
+                    height: 5px;
+                    background: #0B0D1099;
+                    Rectangle { x: 0; width: parent.width * root.data.progress; background: root.data.accent; }
+                }
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 4px;
+            horizontal-stretch: 1;
+            HorizontalLayout {
+                spacing: 12px;
+                Text { text: root.data.number; font-size: 20px; font-weight: 600; color: Theme.text-muted; }
+                Text { text: root.data.title; font-size: 20px; font-weight: 500; color: Theme.text-primary; overflow: elide; horizontal-stretch: 1; }
+            }
+            Text { text: root.data.line; font-size: 16px; color: Theme.text-secondary; }
+            if root.data.summary != "": Text { text: root.data.summary; font-size: 16px; color: Theme.text-muted; overflow: elide; }
+        }
+        VerticalLayout {
+            alignment: center;
+            ActionButton {
+                text: root.data.current ? "Resume" : "Play";
+                icon: "play";
+                primary: root.data.current;
+                fill: root.data.current ? Show.tint.accent : Theme.surface-raised;
+                ink: root.data.current ? Show.tint.on-accent : Theme.text-primary;
+                accessible-label: (root.data.current ? "Resume " : "Play ") + root.data.title + " on TV";
+                clicked => { Show.play-episode(root.index); }
+            }
+        }
+    }
+}
+
+export component ShowPage inherits VerticalLayout {
+    padding-top: 40px;
+    padding-bottom: 40px;
+    padding-left: 64px;
+    padding-right: 64px;
+    spacing: Theme.gap;
+
+    HorizontalLayout {
+        height: 64px;
+        spacing: 24px;
+        BackButton { text: "Library"; clicked => { Nav.page = "library"; } }
+        Text { text: Show.crumb; font-size: 22px; color: Theme.text-muted; vertical-alignment: center; overflow: elide; }
+    }
+
+    body := Rectangle {
+        vertical-stretch: 1;
+        min-height: 820px;
+        property <length> unit: (self.width - 11 * Theme.gap) / 12;
+        property <length> left-w: self.unit * 4 + Theme.gap * 3;
+
+        VerticalLayout {
+            x: 0;
+            width: body.left-w;
+            height: body.height;
+            spacing: 12px;
+            InfoCard {
+                vertical-stretch: 1;
+                backdrop: Show.backdrop;
+                has-backdrop: Show.has-backdrop;
+                card: Show.tint.card;
+                art: Show.tint.poster;
+                accent: Show.tint.accent;
+                sec: Show.tint.sec;
+                kicker: "TV SERIES · PLEX";
+                title: Show.title;
+                meta: Show.meta;
+                summary: Show.summary;
+                up-next: Show.up-next;
+            }
+            if Show.action != "": ActionButton {
+                height: 72px;
+                text: Show.action;
+                icon: "play";
+                primary: true;
+                font-px: 22px;
+                fill: Show.tint.accent;
+                ink: Show.tint.on-accent;
+                clicked => { Show.play-up-next(); }
+            }
+            if Show.first != "": HorizontalLayout {
+                spacing: 12px;
+                ActionButton { height: 56px; horizontal-stretch: 1; text: Show.first; clicked => { Show.play-first(); } }
+                ActionButton { height: 56px; horizontal-stretch: 1; text: "Shuffle episodes"; icon: "shuffle"; clicked => { Show.shuffle(); } }
+            }
+        }
+
+        right := VerticalLayout {
+            x: body.left-w + Theme.gap;
+            width: body.width - self.x;
+            height: body.height;
+            spacing: 18px;
+            if Show.state != "ready": Text {
+                text: "Reading the seasons…";
+                font-size: Theme.body-size;
+                color: Theme.text-secondary;
+            }
+            if Show.state == "ready" && Show.selector == "tabs": SeasonTabs { }
+            if Show.state == "ready" && Show.selector == "pills": SeasonPills { }
+            if Show.state == "ready" && Show.selector == "picker": SeasonPickerButton { }
+            if Show.state == "ready": list := Flickable {
+                vertical-stretch: 1;
+                content-height: rows.preferred-height;
+                rows := VerticalLayout {
+                    width: list.width;
+                    alignment: start;
+                    spacing: 6px;
+                    for e[i] in Show.episodes: Episode { data: e; index: i; }
+                }
+            }
+        }
+
+        if Show.picker-open && Show.selector == "picker": SeasonGrid {
+            x: right.x;
+            y: 64px + 12px;
+            width: right.width;
+            height: min(body.height - self.y, Math.ceil(Show.seasons.length / 6) * 104px + 40px);
+        }
+    }
+}

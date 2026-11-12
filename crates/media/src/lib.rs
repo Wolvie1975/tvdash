@@ -5,7 +5,7 @@
 pub mod plex;
 
 use thiserror::Error;
-pub use tvdash_core::models::{LibraryData, MediaItem, PlayState, Session, SourceKind};
+pub use tvdash_core::models::{LibraryData, MediaItem, PlayState, Session, ShowData, SourceKind};
 
 #[derive(Debug, Error)]
 pub enum MediaError {
@@ -57,6 +57,8 @@ pub trait MediaSource: Send + Sync {
     async fn recently_added(&self, limit: u32) -> Result<Vec<MediaItem>>;
     async fn search(&self, query: &str) -> Result<Vec<MediaItem>>;
     async fn poster(&self, item: &MediaItem, max_h: u32) -> Result<Vec<u8>>;
+    /// Backdrop art at least `width` × `height` (cropped to fit by the UI).
+    async fn art(&self, path: &str, width: u32, height: u32) -> Result<Vec<u8>>;
     async fn stream_url(&self, item: &MediaItem) -> Result<String>;
     async fn report_progress(&self, item: &MediaItem, pos_ms: u64, state: PlayState) -> Result<()>;
     /// The item with everything the server knows about it (summary, rating,
@@ -65,6 +67,8 @@ pub trait MediaSource: Send + Sync {
     /// The episode to play for a show: the one in progress, else the first
     /// unwatched, else the first.
     async fn next_episode(&self, show_id: &str) -> Result<MediaItem>;
+    /// A show in full with its seasons and every episode (show page).
+    async fn show(&self, show_id: &str) -> Result<ShowData>;
     /// Every movie, show and season, with watch counts and TMDB IDs (Library
     /// shelves; search's library matches).
     async fn library(&self) -> Result<LibraryData>;

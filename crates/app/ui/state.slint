@@ -7,7 +7,7 @@ import { UiTheme } from "theme.slint";
 
 // Which laptop page is showing.
 export global Nav {
-    // "home" | "library" | "browse" | "settings" | "setup"
+    // "home" | "library" | "browse" | "collection" | "show" | "settings" | "setup"
     in-out property <string> page: "home";
     // "dual" (laptop dashboard) | "tv" (everything on the TV, 10-foot)
     in property <string> layout: "dual";
@@ -185,6 +185,33 @@ export struct GenreTile {
     sec: color,
 }
 
+// A card in the Library's Collections row.
+export struct CollectionCard {
+    title: string,
+    line: string,       // "8 movies · 3 watched · smart" | "8 movies · all watched"
+    poster: image,
+    has-poster: bool,
+    card: color,
+    art: color,
+    accent: color,
+    sec: color,
+    track: color,
+    progress: float,    // watched / total
+}
+
+// A movie on a collection page.
+export struct CollectionMovie {
+    position: string,   // "#4" (collection order) or "1998"
+    title: string,
+    line: string,       // "1998 · watched" | "1998 · unwatched" | "1998 · 1 h 5 min left"
+    poster: image,
+    has-poster: bool,
+    placeholder: color,
+    accent: color,
+    progress: float,
+    watched: bool,
+}
+
 // Tonight's pick.
 export struct PickData {
     title: string,
@@ -221,8 +248,16 @@ export global Library {
     in property <int> again-count;
     in property <string> again-rule;
     in property <[GenreTile]> genres;
+    // Movies: the Collections row instead of Genres.
+    in property <[CollectionCard]> collections;
+    in property <int> collection-count;
+    // Order for the two shelves and Browse all: "added" | "az" | "za".
+    in property <string> sort: "added";
+    in-out property <bool> sort-open;
 
     callback set-tab(string);
+    callback set-sort(string);
+    callback open-collection(int);
     callback shuffle();
     callback play-pick();
     callback play-box(int);
@@ -241,10 +276,95 @@ export global Browse {
     in-out property <int> selected: -1;
     in property <bool> detail-open;
     in property <DetailData> detail;
+    // Genre filter chips ("" = all genres).
+    in property <[string]> genres;
+    in property <string> genre;
 
     callback select(int);
     callback play(bool);                // true = from the start
     callback set-unwatched(bool);
+    callback set-genre(string);
+}
+
+// A season on a show page.
+export struct SeasonTab {
+    title: string,      // "Season 2" | "Specials"
+    short: string,      // "S2" | "Sp"
+    progress-text: string, // "Watched" | "2 of 10 watched" | "10 episodes"
+    progress: float,
+}
+
+// An episode row on a show page.
+export struct EpisodeRow {
+    number: string,     // "03" | "S1" (specials)
+    title: string,
+    line: string,       // "45 min · 14 min left" | "45 min · watched"
+    summary: string,
+    still: image,
+    has-still: bool,
+    placeholder: color,
+    accent: color,
+    watched: bool,
+    progress: float,
+    current: bool,      // the up-next episode in progress: highlighted, filled Resume
+}
+
+// A show's page: seasons and episodes.
+export global Show {
+    // "loading" | "ready"
+    in property <string> state: "loading";
+    in property <string> crumb;         // "TV / Series › Harbor Lights"
+    in property <string> title;
+    in property <string> meta;          // "2024 · TV-14 · 3 seasons · Drama"
+    in property <string> summary;
+    in property <string> up-next;       // "Up next: S1 · E3 — The Breakwater · 14 min left"
+    in property <string> action;        // "Resume S1 · E3 on TV" | "Play S1 · E3 on TV"
+    in property <string> first;         // "Play from S1 · E1"
+    in property <image> backdrop;
+    in property <bool> has-backdrop;
+    in property <Tint> tint;
+    in property <[SeasonTab]> seasons;
+    in property <int> season;           // selected, index into seasons
+    // "tabs" (1–6 seasons) | "pills" (7–14) | "picker" (15+)
+    in property <string> selector: "tabs";
+    in-out property <bool> picker-open;
+    in property <string> seasons-text;  // "20 seasons · 11 watched"
+    in property <[EpisodeRow]> episodes;
+
+    callback play-up-next();
+    callback play-first();
+    callback shuffle();
+    callback select-season(int);
+    callback play-episode(int);
+}
+
+// A collection's page.
+export global Collection {
+    in property <string> crumb;         // "Movies › Collections › Studio Ember"
+    in property <string> title;
+    in property <string> meta;          // "8 movies · 1998–2024 · 15 h 40 min in total"
+    in property <float> progress;
+    in property <string> watched-text;  // "3 of 8 watched"
+    in property <string> summary;
+    in property <string> up-next;       // "Up next: Paper Moon City"
+    in property <string> action;        // "Resume Paper Moon City on TV" | "Play … on TV" | "Play from the start"
+    in property <bool> can-shuffle;
+    in property <image> backdrop;
+    in property <bool> has-backdrop;
+    in property <Tint> tint;
+    // "collection" | "release" | "az"
+    in property <string> order: "collection";
+    in property <bool> hide-watched;
+    in property <[CollectionMovie]> movies;
+    // A long-pressed movie's details (the Browse panel's data).
+    in-out property <bool> detail-open;
+
+    callback play-up-next();
+    callback shuffle();
+    callback set-order(string);
+    callback set-hide-watched(bool);
+    callback play(int);
+    callback details(int);
 }
 
 export struct AccountRow {
@@ -304,6 +424,7 @@ export struct WatchCard {
     title: string,
     meta: string,       // "Movie · 1999 · included with Netflix"
     action: string,     // button label: "Resume on TV" | "Play on TV" | "Open on TV" | "" (none)
+    show: bool,         // a show in your library: tapping the row opens its page
     primary: bool,      // filled button (library) vs outlined (apps)
     poster: image,
     has-poster: bool,
@@ -322,6 +443,7 @@ export global Watch {
 
     callback edited(string);        // debounced search while typing
     callback action(string);        // the result's button (by key)
+    callback open(string);          // a library show's row: its page
     callback close();
 }
 

@@ -171,6 +171,7 @@ fn card(h: &WatchHit, posters: &HashMap<(bool, u32), Image>, in_progress: &[Medi
         meta: meta(h).into(),
         action: label.into(),
         primary,
+        show: h.library.as_ref().is_some_and(|i| i.kind == MediaKind::Series),
         has_poster: poster.is_some(),
         poster: poster.cloned().unwrap_or_default(),
     }

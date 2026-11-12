@@ -66,6 +66,8 @@ pub enum AppEvent {
     SignIn(SourceKind, SignInState),
     NowPlaying(Vec<Session>),
     ContinueWatching(SourceKind, Vec<MediaItem>),
+    /// A show page's seasons and episodes, as asked for with `Command::OpenShow`.
+    Show(crate::models::ShowData),
     /// The whole library (Library shelves). Empty after sign-out.
     Library(SourceKind, LibraryData),
     RecentlyAdded(SourceKind, Vec<MediaItem>),
@@ -131,6 +133,8 @@ pub enum Command {
     Play(MediaItem),
     /// Play a show's next episode (in progress, else the first unwatched).
     PlayShow(MediaItem),
+    /// Read a show's seasons and episodes for its page (answered with `AppEvent::Show`).
+    OpenShow(MediaItem),
     Pause,
     Resume,
     /// Relative seek in seconds (negative = back).
@@ -185,6 +189,11 @@ pub enum Command {
     VideoFailed(String),
     /// Two screens or TV only (saved; used on the next start).
     SetLayout(crate::config::Layout),
+    /// Remember the Library's order for Movies (`movies: true`) or TV.
+    SetLibrarySort {
+        movies: bool,
+        order: crate::config::SortOrder,
+    },
     /// Remember the laptop theme picked in the header.
     SetTheme(crate::config::ThemeMode),
     /// Settings › Display: temperature units, clock format, seconds.
