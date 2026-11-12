@@ -115,6 +115,7 @@ tvdash's files on the old machine:
 | Streaming sign-ins | `~/.local/share/tvdash/browser` | **No**: Brave encrypts them with a key in the old machine's keyring, so they won't open on the new one. Sign in again on the TV |
 | "Opened N days ago", setup done | `~/.local/share/tvdash/state.toml` | Optional |
 | Where to watch cache | `~/.local/share/tvdash/cache.db` | No, it refills itself |
+| Tile logos | `~/.local/share/tvdash/logos/` | No, they download again once. Your own `logo = "…"` files (if any) do need copying, to the path the config names |
 | Log | `~/.local/state/tvdash/tvdash.log` | No |
 
 **Copying `config.toml`** keeps your streaming tiles (order, search pages, TMDB provider IDs),
@@ -170,8 +171,11 @@ layout = "tv"
 tv_output = "HDMI-1"
 ```
 
-- Bind a key to get back Home while a video or site has the screen: GNOME Settings › Keyboard ›
-  View and Customize Shortcuts › Custom Shortcuts › **+**, command
+- Plex and Jellyfin videos play **inside the tvdash window**, which needs libmpv
+  (`mpv-libs`, installed with `mpv` in §3; the installer warns if it's missing). Esc goes
+  Home with the video still playing behind it. Without libmpv they open in mpv's own window.
+- Bind a key to get back Home while a streaming site (or mpv's own window) has the screen:
+  GNOME Settings › Keyboard › View and Customize Shortcuts › Custom Shortcuts › **+**, command
   `/home/<you>/.local/bin/tvdash --home` (use the full path).
 - If the computer is a laptop with its lid closed: keep it **plugged in**. GNOME keeps running
   with the lid closed only on mains power with an external display connected.
@@ -187,6 +191,7 @@ tv_output = "HDMI-1"
 | Settings › Diagnostics | Green dots for Plex, Jellyfin, GNOME Keyring; Weather once a location is set; TMDB after a search |
 | Play something from Continue Watching | Picture and sound on the TV (no picture → the codec step in §3) |
 | Tap a streaming tile | The site opens full screen on the TV |
+| TV only: play something | It opens full screen inside tvdash; Enter shows the overlay, Esc shows Home over it. The log says `video drawing in the window` (if it says `in-window video failed`, it fell back to mpv's window; `MPV_LOG=v tvdash` shows why) |
 | Weather | Settings › Display › **Location**: search for your city and pick it (or tap the weather card) |
 
 ---
