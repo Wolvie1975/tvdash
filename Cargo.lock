@@ -5658,6 +5658,7 @@ dependencies = [
  "tvdash-media",
  "tvdash-player",
  "tvdash-widgets",
+ "zbus",
 ]
 
 [[package]]
