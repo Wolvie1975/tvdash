@@ -150,7 +150,7 @@ Widevine (Chrome, Edge, Vivaldi) work too; Fedora's `chromium` doesn't.
 
 The controller (`crates/app/src/controller.rs`) owns everything with side effects: media
 sources, sign-in flows, mpv and the browser. UI callbacks send it `Command`s
-(`callbacks.rs`); it answers with `AppEvent`s, which `bridge.rs` applies on the UI thread.
+(`callbacks.rs`); it answers with `AppEvent`s, which `bridge/` applies on the UI thread.
 
 To render the windows to PNG without a display (useful in the devcontainer):
 

@@ -204,8 +204,7 @@ impl Controller {
                 Step::Shutdown => break,
             }
         }
-        self.stop_playback().await;
-        self.close_browser().await;
+        self.clear_tv().await;
     }
 
     async fn init(&mut self) {
@@ -298,12 +297,29 @@ impl Controller {
                     warn!(error = %e, "mpv seek failed");
                 }
             }
-            Command::Stop => {
-                self.stop_playback().await;
-                self.close_browser().await;
+            Command::Stop | Command::Home => self.clear_tv().await,
+            Command::SignIn(SourceKind::Jellyfin) => {
+                let cfg = self.config.jellyfin.clone();
+                self.spawn_sign_in(
+                    SourceKind::Jellyfin,
+                    |show_code| async move {
+                        jellyfin_quick_connect(&cfg.server_url, &cfg.device_id, show_code)
+                            .await
+                            .map_err(|e| e.to_string())
+                    },
+                    Internal::JellyfinSignedIn,
+                );
             }
-            Command::SignIn(SourceKind::Jellyfin) => self.start_jellyfin_sign_in(),
-            Command::SignIn(SourceKind::Plex) => self.start_plex_sign_in(),
+            Command::SignIn(SourceKind::Plex) => {
+                let cfg = self.config.plex.clone();
+                self.spawn_sign_in(
+                    SourceKind::Plex,
+                    |show_code| async move {
+                        plex_pin_sign_in(&cfg.account_url, &cfg.client_id, show_code).await.map_err(|e| e.to_string())
+                    },
+                    |(account_token, server)| Internal::PlexSignedIn { account_token, server },
+                );
+            }
             Command::CancelSignIn(kind) => {
                 if let Some(task) = self.sign_in.remove(&kind) {
                     task.abort();
@@ -331,20 +347,17 @@ impl Controller {
                 }
             }
             Command::OpenUrl { label, url } => {
-                self.stop_playback().await;
-                self.close_browser().await;
+                self.clear_tv().await;
                 self.launch_browser(&label, &url).await;
             }
             Command::WhereToWatch(query) => self.watch.search(query, self.config.streaming.clone()),
             Command::OpenOnService { site, title } => {
                 if let Some(s) = self.config.streaming.get(site).cloned() {
-                    self.stop_playback().await;
-                    self.close_browser().await;
+                    self.clear_tv().await;
                     if self.launch_browser(&s.name, &s.open_url(&title)).await
                         && self.state.mark_opened(&s.name, chrono::Utc::now())
                     {
-                        self.save_state();
-                        self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
+                        self.streaming_changed();
                     }
                 }
             }
@@ -404,10 +417,6 @@ impl Controller {
                     timezone: self.config.general.timezone.clone(),
                 });
                 self.toast(format!("Weather location: {}", place.label));
-            }
-            Command::Home => {
-                self.stop_playback().await;
-                self.close_browser().await;
             }
             Command::SetLayout(layout) => {
                 self.update_config(|c| c.display.layout = layout);
@@ -471,29 +480,54 @@ impl Controller {
     }
 
     fn jellyfin_password(&mut self, username: String, password: String) {
-        if let Some(old) = self.sign_in.remove(&SourceKind::Jellyfin) {
+        let cfg = self.config.jellyfin.clone();
+        self.spawn_sign_in(
+            SourceKind::Jellyfin,
+            |_| async move {
+                let client = JellyfinClient::new(&cfg.server_url, &cfg.device_id, None).map_err(|e| e.to_string())?;
+                client.authenticate_by_name(&username, &password).await.map_err(|e| match e {
+                    MediaError::Unauthorized => "wrong username or password".into(),
+                    e => e.to_string(),
+                })
+            },
+            Internal::JellyfinSignedIn,
+        );
+    }
+
+    /// Run a sign-in flow for `kind`, replacing one already running. Reports
+    /// Starting, passes `flow` a callback that shows a code, then hands success
+    /// back to the controller as `done(..)` or reports the failure.
+    fn spawn_sign_in<T, Fut>(
+        &mut self,
+        kind: SourceKind,
+        flow: impl FnOnce(Box<dyn Fn(String) + Send + Sync>) -> Fut,
+        done: fn(T) -> Internal,
+    ) where
+        T: Send + 'static,
+        Fut: Future<Output = Result<T, String>> + Send + 'static,
+    {
+        if let Some(old) = self.sign_in.remove(&kind) {
             old.abort();
         }
-        let cfg = self.config.jellyfin.clone();
         let (events, internal) = (self.events.clone(), self.internal.clone());
+        let send = move |s| {
+            let _ = events.send(AppEvent::SignIn(kind, s));
+        };
+        send(SignInState::Starting);
+        let show = send.clone();
+        let flow = flow(Box::new(move |code| show(SignInState::Code(code))));
         let task = tokio::spawn(async move {
-            let send = |s| {
-                let _ = events.send(AppEvent::SignIn(SourceKind::Jellyfin, s));
-            };
-            send(SignInState::Starting);
-            let result = match JellyfinClient::new(&cfg.server_url, &cfg.device_id, None) {
-                Ok(c) => c.authenticate_by_name(&username, &password).await,
-                Err(e) => Err(e),
-            };
-            match result {
-                Ok(auth) => {
-                    let _ = internal.send(Internal::JellyfinSignedIn(auth));
+            match flow.await {
+                Ok(v) => {
+                    let _ = internal.send(done(v));
                 }
-                Err(MediaError::Unauthorized) => send(SignInState::Failed("wrong username or password".into())),
-                Err(e) => send(SignInState::Failed(e.to_string())),
+                Err(e) => {
+                    warn!(source = kind.label(), error = %e, "sign-in failed");
+                    send(SignInState::Failed(e));
+                }
             }
         });
-        self.sign_in.insert(SourceKind::Jellyfin, task);
+        self.sign_in.insert(kind, task);
     }
 
     async fn clear_browser_profile(&mut self) {
@@ -514,8 +548,7 @@ impl Controller {
             }
         }
         self.state.streaming_opened.clear();
-        self.save_state();
-        self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
+        self.streaming_changed();
         self.toast("Browser profile cleared: streaming sites are signed out");
     }
 
@@ -609,56 +642,6 @@ impl Controller {
 
     // ── Sign-in ─────────────────────────────────────────────────────
 
-    fn start_jellyfin_sign_in(&mut self) {
-        if let Some(old) = self.sign_in.remove(&SourceKind::Jellyfin) {
-            old.abort();
-        }
-        let cfg = self.config.jellyfin.clone();
-        let events = self.events.clone();
-        let internal = self.internal.clone();
-        let task = tokio::spawn(async move {
-            let send = |s| {
-                let _ = events.send(AppEvent::SignIn(SourceKind::Jellyfin, s));
-            };
-            send(SignInState::Starting);
-            match jellyfin_quick_connect(&cfg.server_url, &cfg.device_id, |code| send(SignInState::Code(code))).await {
-                Ok(auth) => {
-                    let _ = internal.send(Internal::JellyfinSignedIn(auth));
-                }
-                Err(e) => {
-                    warn!(error = %e, "Jellyfin sign-in failed");
-                    send(SignInState::Failed(e.to_string()));
-                }
-            }
-        });
-        self.sign_in.insert(SourceKind::Jellyfin, task);
-    }
-
-    fn start_plex_sign_in(&mut self) {
-        if let Some(old) = self.sign_in.remove(&SourceKind::Plex) {
-            old.abort();
-        }
-        let cfg = self.config.plex.clone();
-        let events = self.events.clone();
-        let internal = self.internal.clone();
-        let task = tokio::spawn(async move {
-            let send = |s| {
-                let _ = events.send(AppEvent::SignIn(SourceKind::Plex, s));
-            };
-            send(SignInState::Starting);
-            match plex_pin_sign_in(&cfg.account_url, &cfg.client_id, |code| send(SignInState::Code(code))).await {
-                Ok((account_token, server)) => {
-                    let _ = internal.send(Internal::PlexSignedIn { account_token, server });
-                }
-                Err(e) => {
-                    warn!(error = %e, "Plex sign-in failed");
-                    send(SignInState::Failed(e.to_string()));
-                }
-            }
-        });
-        self.sign_in.insert(SourceKind::Plex, task);
-    }
-
     async fn on_plex_signed_in(&mut self, account_token: String, server: DiscoveredServer) {
         self.sign_in.remove(&SourceKind::Plex);
         // Owned servers use the account token; shared ones get their own. Keep the
@@ -673,10 +656,7 @@ impl Controller {
             self.toast("Signed in, but the token couldn't be saved to the keyring");
         }
         let url = server.url.clone();
-        match Config::update_at(&self.config_path, |c| c.plex.server_url = url) {
-            Ok(c) => self.config = c,
-            Err(e) => error!(error = %e, "couldn't save Plex server URL to config"),
-        }
+        self.update_config(|c| c.plex.server_url = url);
         match PlexClient::new(&server.url, &token, &self.config.plex.client_id) {
             Ok(c) => {
                 self.plex = Some(Arc::new(c));
@@ -700,10 +680,7 @@ impl Controller {
             self.toast("Signed in, but the token couldn't be saved to the keyring");
         }
         let user_id = auth.user_id.clone();
-        match Config::update_at(&self.config_path, |c| c.jellyfin.user_id = user_id) {
-            Ok(c) => self.config = c,
-            Err(e) => error!(error = %e, "couldn't save Jellyfin user id to config"),
-        }
+        self.update_config(|c| c.jellyfin.user_id = user_id);
         let cfg = &self.config.jellyfin;
         match JellyfinClient::new(&cfg.server_url, &cfg.device_id, Some(auth)) {
             Ok(c) => {
@@ -721,8 +698,7 @@ impl Controller {
     // ── Playback ────────────────────────────────────────────────────
 
     async fn play(&mut self, item: MediaItem) {
-        self.stop_playback().await;
-        self.close_browser().await;
+        self.clear_tv().await;
         let Some(source) = self.source_for(item.source) else {
             self.toast(format!("{} isn't connected", item.source.label()));
             return;
@@ -813,8 +789,7 @@ impl Controller {
                     && let Some(t) = self.state.streaming_opened.remove(&old)
                 {
                     self.state.streaming_opened.insert(name.clone(), t);
-                    self.save_state();
-                    self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
+                    self.streaming_changed();
                 }
                 self.toast(format!("Saved {name}"));
             }
@@ -839,16 +814,14 @@ impl Controller {
             c.streaming.remove(index);
         });
         if self.state.streaming_opened.remove(&site.name).is_some() {
-            self.save_state();
-            self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
+            self.streaming_changed();
         }
         self.emit_sites();
         match site.domain().filter(|_| clear_cookies) {
             // The cookie store is encrypted and locked while the browser runs, so
             // open the browser's own settings for that site and let you clear it there.
             Some(domain) => {
-                self.stop_playback().await;
-                self.close_browser().await;
+                self.clear_tv().await;
                 let url = format!("chrome://settings/content/all?searchSubpage={}", encode_component(domain));
                 if self.launch_browser(&format!("{} cookies", site.name), &url).await {
                     self.emit(AppEvent::LongToast(format!(
@@ -895,8 +868,7 @@ impl Controller {
             warn!(index, "open site: no such streaming entry");
             return;
         };
-        self.stop_playback().await;
-        self.close_browser().await;
+        self.clear_tv().await;
         if !self.launch_browser(&site.name, &site.url).await {
             return;
         }
@@ -913,6 +885,17 @@ impl Controller {
                 site.name
             )));
         }
+        self.streaming_changed();
+    }
+
+    /// Nothing on the TV: stop mpv and close the browser.
+    async fn clear_tv(&mut self) {
+        self.stop_playback().await;
+        self.close_browser().await;
+    }
+
+    /// Save the "opened" times and show them in Settings › Streaming.
+    fn streaming_changed(&self) {
         self.save_state();
         self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
     }

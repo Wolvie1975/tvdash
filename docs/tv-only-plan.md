@@ -22,8 +22,8 @@ The chosen design is **Concept 4** (side rail that slides in and out, theme swit
 > - **`tvdash --home`** needs a single-instance socket (`$XDG_RUNTIME_DIR/tvdash.sock`); that also
 >   stops a second copy from starting.
 > - **Shared vs. shell code:** `controller.rs` (commands in, `AppEvent`s out) is already UI-agnostic.
->   `bridge.rs` is laptop-specific (it writes the laptop window's globals) and is what splits into a
->   shared state layer plus one adapter per shell.
+>   `bridge/` writes the main window's globals, which both layouts read (the TV shell is a view inside
+>   that window), so no per-shell adapter is needed. It is split by concern: home, library, accounts, status.
 > - **Order:** the "night mode forces Dark" check depends on v2's night mode; the phone remote (v3)
 >   comes first, as below.
 > - **Open questions, suggested answers:** search by typing on the phone, with a basic on-screen
