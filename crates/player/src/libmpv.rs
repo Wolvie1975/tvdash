@@ -95,6 +95,7 @@ const EVENT_SHUTDOWN: c_int = 1;
 const EVENT_LOG_MESSAGE: c_int = 2;
 const EVENT_END_FILE: c_int = 7;
 const EVENT_PROPERTY_CHANGE: c_int = 22;
+const FORMAT_STRING: c_int = 1;
 const FORMAT_FLAG: c_int = 3;
 const FORMAT_DOUBLE: c_int = 5;
 const RENDER_PARAM_INVALID: c_int = 0;
@@ -109,6 +110,7 @@ const RENDER_UPDATE_FRAME: u64 = 1;
 const OBS_TIME_POS: u64 = 1;
 const OBS_PAUSE: u64 = 2;
 const OBS_DURATION: u64 = 3;
+const OBS_SID: u64 = 4;
 
 type UpdateFn = unsafe extern "C" fn(ctx: *mut c_void);
 
@@ -277,6 +279,11 @@ unsafe fn translate(ev: &Event) -> Option<MpvEvent> {
                     (OBS_TIME_POS, FORMAT_DOUBLE) => Some(MpvEvent::Position(*(p.data as *const f64))),
                     (OBS_DURATION, FORMAT_DOUBLE) => Some(MpvEvent::Duration(*(p.data as *const f64))),
                     (OBS_PAUSE, FORMAT_FLAG) => Some(MpvEvent::Paused(*(p.data as *const c_int) != 0)),
+                    (OBS_SID, FORMAT_STRING) => {
+                        let s = *(p.data as *const *const c_char);
+                        let sid = if s.is_null() { "no".into() } else { CStr::from_ptr(s).to_string_lossy() };
+                        Some(MpvEvent::Subtitles(crate::mpv::sid_on(&sid)))
+                    }
                     _ => None,
                 }
             }
@@ -384,6 +391,7 @@ impl Embedded {
         handle.observe(OBS_TIME_POS, "time-pos", FORMAT_DOUBLE)?;
         handle.observe(OBS_PAUSE, "pause", FORMAT_FLAG)?;
         handle.observe(OBS_DURATION, "duration", FORMAT_DOUBLE)?;
+        handle.observe(OBS_SID, "sid", FORMAT_STRING)?;
         // Errors become events (e.g. "Failed to initialize a decoder for codec 'hevc'");
         // MPV_LOG=v (or info, warn, debug…) also passes mpv's own log to ours.
         let level = cstring(&std::env::var("MPV_LOG").unwrap_or_else(|_| "error".into()));
@@ -455,6 +463,11 @@ impl Embedded {
 
     pub fn seek(&self, seconds: i64) -> Result<()> {
         self.handle.command(&["seek", &seconds.to_string(), "relative"])
+    }
+
+    /// Next subtitle track (after the last one: off). mpv says which on the video.
+    pub fn cycle_subtitles(&self) -> Result<()> {
+        self.handle.command(&["osd-msg", "cycle", "sub"])
     }
 
     /// OSD text on the video; `duration_ms: None` keeps it up until replaced.
@@ -663,6 +676,7 @@ mod tests {
         p.set_pause(true).unwrap();
         until(&mut p, |e| *e == MpvEvent::Paused(true)).await;
         p.show_text("overlay", Some(1000)).unwrap();
+        p.cycle_subtitles().unwrap(); // the clip has no subtitles: stays off, no error
         p.seek(1).unwrap();
         p.set_pause(false).unwrap();
         until(&mut p, |e| *e == MpvEvent::Paused(false)).await;

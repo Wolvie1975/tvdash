@@ -74,7 +74,7 @@ Top to bottom: label row ("ON THE TV" / "UP NEXT" in the tint accent, Plex badge
 (44 px); episode line ("Season 2 · Episode 7 — Crossroads"; nothing for movies); facts
 (year · rating · runtime · first genre); poster (160 × 240) with the description beside it,
 clipped at the bottom (no description: the genres and "No description on the server");
-progress bar and times; buttons (−10 s, Pause/Resume, +30 s, Stop, 76 px) only while
+progress bar and times; buttons (−10 s, Pause/Resume, +30 s, Subtitles, Stop, 76 px; Subtitles steps through the file's subtitle tracks, then off, and is lit while one shows) only while
 playing, or **Resume on TV** for Up next. A streaming app shows its logo and **Close browser**.
 
 The summary, rating and genres come from Plex's full item (`/library/metadata/{id}`) for

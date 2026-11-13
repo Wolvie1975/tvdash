@@ -516,8 +516,13 @@ mod tests {
         let (l, rx) = setup();
         let ui = l.global::<TvUi>();
         let t = crate::TvWindow::new().unwrap();
-        let status =
-            PlayerStatus { item: item("a"), state: PlayState::Playing, position_ms: 0, duration_ms: Some(1000) };
+        let status = PlayerStatus {
+            item: item("a"),
+            state: PlayState::Playing,
+            position_ms: 0,
+            duration_ms: Some(1000),
+            subtitles: false,
+        };
         bridge::apply_for_test(&l, &t, AppEvent::Player(Some(status)));
         // The window draws the video: Home's card gets Full screen between Pause and Stop.
         ui.set_video_on(true);

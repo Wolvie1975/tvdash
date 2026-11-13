@@ -72,6 +72,7 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         let cmd = match action.as_str() {
             "back" => Command::Seek(-10),
             "forward" => Command::Seek(30),
+            "subtitles" => Command::CycleSubtitles,
             "play-pause" if paused => Command::Resume,
             "play-pause" => Command::Pause,
             "stop" => Command::Stop,

@@ -223,6 +223,7 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                 left_text: "28 min left · ends 9:32 PM".into(),
                 progress: 0.46,
                 paused: false,
+                subtitles: std::env::var("SUBS").is_ok(),
                 poster: fake_poster(140),
                 has_poster: true,
                 ..Default::default()

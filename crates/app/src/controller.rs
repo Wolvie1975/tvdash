@@ -93,6 +93,13 @@ impl Player {
         }
     }
 
+    async fn cycle_subtitles(&mut self) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.cycle_subtitles().await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.cycle_subtitles().map_err(|e| e.to_string()),
+        }
+    }
+
     async fn show_text(&mut self, text: &str, duration_ms: Option<u32>) -> Result<(), String> {
         match self {
             Self::Window(m) => m.show_text(text, duration_ms).await.map_err(|e| e.to_string()),
@@ -374,6 +381,13 @@ impl Controller {
                     && let Err(e) = p.player.seek(secs).await
                 {
                     warn!(error = %e, "mpv seek failed");
+                }
+            }
+            Command::CycleSubtitles => {
+                if let Some(p) = self.playback.as_mut()
+                    && let Err(e) = p.player.cycle_subtitles().await
+                {
+                    warn!(error = %e, "mpv subtitle switch failed");
                 }
             }
             Command::Stop => self.clear_tv().await,
@@ -795,8 +809,13 @@ impl Controller {
         fetch_details(source.clone(), item.clone(), self.events.clone());
         let reporter = spawn_reporter(source, item.clone());
         let _ = reporter.send((start, PlayState::Playing));
-        let status =
-            PlayerStatus { duration_ms: item.duration_ms, item, state: PlayState::Playing, position_ms: start };
+        let status = PlayerStatus {
+            duration_ms: item.duration_ms,
+            item,
+            state: PlayState::Playing,
+            position_ms: start,
+            subtitles: false,
+        };
         self.emit(AppEvent::Player(Some(status.clone())));
         self.playback = Some(Playback { status, player, reporter, last_emitted_sec: None, decode_hint_shown: false });
     }
@@ -984,6 +1003,12 @@ impl Controller {
                 let _ = p.reporter.send((p.status.position_ms, state));
                 // Paused: keep the overlay up. Resumed: hide it after 5 s.
                 overlay = Some(if paused { None } else { Some(5000) });
+            }
+            Some(MpvEvent::Subtitles(on)) => {
+                if on == p.status.subtitles {
+                    return;
+                }
+                p.status.subtitles = on;
             }
             Some(MpvEvent::Ended { reason }) => {
                 info!(reason, "mpv playback ended");
@@ -1392,6 +1417,8 @@ mod e2e {
                 _ => None,
             })
             .await;
+            self.send(Command::CycleSubtitles);
+            self.wait_for(|e| matches!(e, AppEvent::Player(Some(s)) if s.subtitles).then_some(())).await;
             self.send(Command::Pause);
             self.wait_for(|e| matches!(e, AppEvent::Player(Some(s)) if s.state == PlayState::Paused).then_some(()))
                 .await;
@@ -1427,7 +1454,12 @@ mod e2e {
     }
 
     fn assert_mpv_transport(cmds: &[Value]) {
-        for want in [json!(["set_property", "pause", true]), json!(["seek", 30, "relative"]), json!(["quit"])] {
+        for want in [
+            json!(["set_property", "pause", true]),
+            json!(["seek", 30, "relative"]),
+            json!(["osd-msg", "cycle", "sub"]),
+            json!(["quit"]),
+        ] {
             assert!(cmds.contains(&want), "mpv never got {want}: {cmds:?}");
         }
     }

@@ -380,6 +380,17 @@ component TvBox inherits Rectangle {
                 accessible-label: "Forward 30 seconds";
                 clicked => { Dash.transport("forward"); }
             }
+            // Lit while subtitles show; each tap picks the next track, then off.
+            ActionButton {
+                icon: "cc";
+                width: 76px;
+                font-px: 26px;
+                fill: Dash.tv.subtitles ? Dash.tint.accent : Dash.tint.btn;
+                ink: Dash.tv.subtitles ? Dash.tint.on-accent : Theme.text-primary;
+                edge: Dash.tv.subtitles ? Dash.tint.accent : Dash.tint.edge;
+                accessible-label: Dash.tv.subtitles ? "Subtitles on: next track or off" : "Subtitles off: turn on";
+                clicked => { Dash.transport("subtitles"); }
+            }
             ActionButton {
                 text: "Stop";
                 font-px: 22px;

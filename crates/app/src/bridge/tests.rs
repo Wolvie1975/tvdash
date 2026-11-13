@@ -106,10 +106,12 @@ fn tv_card_follows_playback_browser_and_theme() {
         state: PlayState::Paused,
         position_ms: 754_000,
         duration_ms: Some(2_700_000),
+        subtitles: true,
     };
     send(&l, &t, AppEvent::Player(Some(status)));
     let tv = dash.get_tv();
     assert_eq!((tv.mode.as_str(), tv.title.as_str(), tv.paused), ("playing", "Other Film", true));
+    assert!(tv.subtitles, "the CC button is lit while subtitles show");
     assert_eq!(tv.at_text, "12:34 / 45:00");
     assert!(tv.left_text.starts_with("32 min left · ends "));
     assert_eq!(t.get_message(), "Starting Other Film…");
@@ -396,8 +398,13 @@ fn screensaver_shows_whats_on_the_tv() {
     assert_eq!(sv.get_line(), "Season 1 · Episode 3 · 14 min left");
     assert!(!sv.get_show_progress());
 
-    let playing =
-        |state| PlayerStatus { item: ep.clone(), state, position_ms: 1_450_000, duration_ms: Some(3_120_000) };
+    let playing = |state| PlayerStatus {
+        item: ep.clone(),
+        state,
+        position_ms: 1_450_000,
+        duration_ms: Some(3_120_000),
+        subtitles: false,
+    };
     send(&l, &t, AppEvent::Player(Some(playing(PlayState::Playing))));
     assert_eq!(sv.get_label(), "ON THE TV · PLAYING · PLEX");
     assert_eq!(

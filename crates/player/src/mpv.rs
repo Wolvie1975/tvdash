@@ -65,6 +65,8 @@ pub enum MpvEvent {
     /// Duration in seconds (known once the file is loaded).
     Duration(f64),
     Paused(bool),
+    /// Subtitles are showing (a subtitle track is selected) or not.
+    Subtitles(bool),
     /// The file finished or was stopped; `reason` is mpv's (`eof`, `stop`, `quit`, `error`).
     Ended {
         reason: String,
@@ -82,6 +84,12 @@ pub enum MpvEvent {
 const OBS_TIME_POS: u64 = 1;
 const OBS_PAUSE: u64 = 2;
 const OBS_DURATION: u64 = 3;
+const OBS_SID: u64 = 4;
+
+/// mpv's `sid` as text ("no", "auto", "1"…) → is a subtitle track showing?
+pub fn sid_on(sid: &str) -> bool {
+    !matches!(sid, "" | "no" | "auto" | "false")
+}
 
 pub fn build_args(opts: &MpvOptions, socket: &std::path::Path, url: &str) -> Vec<String> {
     let mut args = vec![
@@ -126,6 +134,13 @@ pub fn parse_line(line: &str) -> Option<MpvEvent> {
                 "time-pos" => data.as_f64().map(MpvEvent::Position),
                 "duration" => data.as_f64().map(MpvEvent::Duration),
                 "pause" => data.as_bool().map(MpvEvent::Paused),
+                // `false` when off, else the track number.
+                "sid" => Some(MpvEvent::Subtitles(match data {
+                    Value::Bool(b) => *b,
+                    Value::Number(_) => true,
+                    Value::String(s) => sid_on(s),
+                    _ => false,
+                })),
                 _ => None,
             }
         }
@@ -199,6 +214,7 @@ impl Mpv {
         mpv.command(json!(["observe_property", OBS_TIME_POS, "time-pos"])).await?;
         mpv.command(json!(["observe_property", OBS_PAUSE, "pause"])).await?;
         mpv.command(json!(["observe_property", OBS_DURATION, "duration"])).await?;
+        mpv.command(json!(["observe_property", OBS_SID, "sid"])).await?;
         // Errors only (e.g. "Failed to initialize a decoder for codec 'hevc'").
         mpv.command(json!(["request_log_messages", "error"])).await?;
         Ok(mpv)
@@ -229,6 +245,11 @@ impl Mpv {
 
     pub async fn seek(&mut self, seconds: i64) -> Result<()> {
         self.command(json!(["seek", seconds, "relative"])).await
+    }
+
+    /// Next subtitle track (after the last one: off). mpv says which on the TV.
+    pub async fn cycle_subtitles(&mut self) -> Result<()> {
+        self.command(json!(["osd-msg", "cycle", "sub"])).await
     }
 
     /// OSD text on the TV; `duration_ms: None` keeps it up until replaced.
@@ -316,6 +337,13 @@ mod tests {
             Some(MpvEvent::Ended { reason: "eof".into() })
         );
         assert_eq!(parse_line(r#"{"event":"shutdown"}"#), Some(MpvEvent::Exited));
+        for (data, on) in [("false", false), ("2", true), ("\"no\"", false), ("\"1\"", true)] {
+            assert_eq!(
+                parse_line(&format!(r#"{{"event":"property-change","id":4,"name":"sid","data":{data}}}"#)),
+                Some(MpvEvent::Subtitles(on)),
+                "sid = {data}"
+            );
+        }
         assert_eq!(
             parse_line(
                 r#"{"event":"log-message","prefix":"vd","level":"error","text":"Failed to initialize a decoder for codec 'h264'.\n"}"#

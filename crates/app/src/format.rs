@@ -169,6 +169,7 @@ mod tests {
             state,
             position_ms: 754_000,
             duration_ms: Some(2_700_000),
+            subtitles: false,
         }
     }
 

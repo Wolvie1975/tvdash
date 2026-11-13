@@ -16,6 +16,7 @@ log({"argv": args})
 sock_path = next(a.split("=", 1)[1] for a in args if a.startswith("--input-ipc-server="))
 pos = float(next((a.split("=", 1)[1] for a in args if a.startswith("--start=")), "0"))
 paused = False
+sid = False
 lock = threading.Lock()
 
 srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -57,6 +58,9 @@ while True:
         if cmd[:2] == ["set_property", "pause"]:
             paused = cmd[2]
             send({"event": "property-change", "id": 2, "name": "pause", "data": paused})
+        elif cmd == ["osd-msg", "cycle", "sub"]:
+            sid = 1 if sid is False else False  # one subtitle track
+            send({"event": "property-change", "id": 4, "name": "sid", "data": sid})
         elif cmd[0] == "seek":
             pos = max(0.0, pos + cmd[1])
         elif cmd[0] == "quit":

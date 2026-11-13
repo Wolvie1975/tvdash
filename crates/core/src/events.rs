@@ -21,6 +21,8 @@ pub struct PlayerStatus {
     pub state: PlayState,
     pub position_ms: u64,
     pub duration_ms: Option<u64>,
+    /// A subtitle track is showing.
+    pub subtitles: bool,
 }
 
 /// Things Settings › Diagnostics reports on.
@@ -139,6 +141,8 @@ pub enum Command {
     Resume,
     /// Relative seek in seconds (negative = back).
     Seek(i64),
+    /// Next subtitle track; after the last one, subtitles off.
+    CycleSubtitles,
     Stop,
     /// Open app `index` (`config.streaming[index]`, same order as `APPS`) on the TV.
     OpenSite(usize),
