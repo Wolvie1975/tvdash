@@ -14,6 +14,10 @@ There are two ways to get the program there:
 
 Either way, the steps after installing (players, codecs, sign-ins, screens) are the same.
 
+The install commands below are for Fedora (`dnf`, RPM Fusion). On Ubuntu or Debian, install
+the same things with `apt`: mpv and libmpv, and Brave from its own repo. Their FFmpeg
+already decodes H.264 and HEVC, so you can skip the RPM Fusion step.
+
 ---
 
 ## 1. Check the new machine
@@ -32,10 +36,9 @@ Either way, the steps after installing (players, codecs, sign-ins, screens) are 
 
 ### A. Copy a bundle
 
-On the machine you build on (here, or in the dev container):
+On the machine you build on (here, or in the dev container), from the project folder:
 
 ```bash
-cd ~/Development/Environment/Rust_Projects/tvdash
 cargo build --release
 packaging/bundle.sh
 ```
@@ -159,7 +162,7 @@ Check the keyring is working: `tvdash --check-keyring` should say `write/read/de
 
    ```toml
    [display]
-   tv_output = "HDMI-1"
+   tv_output = "HDMI-A-1"
    laptop_output = "eDP-1"
    ```
 
@@ -168,7 +171,7 @@ Check the keyring is working: `tvdash --check-keyring` should say `write/read/de
 ```toml
 [display]
 layout = "tv"
-tv_output = "HDMI-1"
+tv_output = "HDMI-A-1"
 ```
 
 - Plex and Jellyfin videos play **inside the tvdash window**, which needs libmpv
@@ -213,6 +216,7 @@ browser profile stay as they are.
 <bundle or project folder>/install.sh --uninstall
 ```
 
-That removes the program, the menu entry and autostart. For a clean slate also delete
+That removes the program, the menu entry and icon, and autostart. Settings, sign-ins and the
+browser profile are kept. For a clean slate also delete
 `~/.config/tvdash`, `~/.local/share/tvdash` and `~/.local/state/tvdash`, and remove the
 `tvdash` entries in **Passwords and Keys** (Seahorse).
