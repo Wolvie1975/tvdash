@@ -67,6 +67,9 @@ pub struct Session {
     pub item: MediaItem,
     /// Device/player name reported by the server.
     pub device: String,
+    /// Server-side session ID for actions like stopping a Plex stream.
+    pub session_id: Option<String>,
+    pub transcoding: bool,
     pub state: PlayState,
     pub position_ms: u64,
 }
@@ -136,6 +139,62 @@ pub struct Place {
     pub longitude: f64,
     /// IANA zone, e.g. "America/Chicago" (may be empty).
     pub timezone: String,
+}
+
+/// Server summary and activity data shown on the Settings › Server page.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ServerSummary {
+    pub name: String,
+    pub streams: u32,
+    pub transcodes: u32,
+    pub bandwidth_mbps: u32,
+    pub cpu_percent: u32,
+    pub ram_percent: u32,
+    pub status: String,
+    pub plex_pass: bool,
+    pub cpu_host_path: String,
+    pub cpu_process_path: String,
+    pub ram_host_path: String,
+    pub ram_process_path: String,
+    pub bandwidth_lan_path: String,
+    pub bandwidth_wan_path: String,
+    pub bandwidth_scale: u32,
+    pub streams_detail: Vec<ServerStream>,
+    pub libraries: Vec<ServerLibrary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ServerStream {
+    pub session_id: Option<String>,
+    pub local: bool,
+    pub title: String,
+    pub device: String,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ServerActivity {
+    pub uuid: String,
+    pub title: String,
+    pub subtitle: String,
+    pub progress: f32,
+    pub cancellable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ServerLibrary {
+    pub title: String,
+    pub item_count: u32,
+    pub scanned_ago: String,
+    pub refreshing: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ArtworkChoice {
+    pub key: String,
+    pub provider: String,
+    pub selected: bool,
+    pub image: Option<RgbaImage>,
 }
 
 /// Where to watch groups, best first.

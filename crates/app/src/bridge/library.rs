@@ -103,5 +103,6 @@ pub fn close_detail(laptop: &LaptopWindow) {
     STATE.with_borrow_mut(|s| s.selected = None);
     let lib = laptop.global::<Library>();
     lib.set_detail_open(false);
+    lib.set_metadata_refreshing(false);
     lib.set_selected_index(-1);
 }

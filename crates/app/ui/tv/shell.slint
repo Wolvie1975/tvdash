@@ -5,7 +5,7 @@
 import { Theme, UiTheme } from "../theme.slint";
 import { Icon } from "../icons.slint";
 import { Clock, PosterCardData, ProgressBar } from "../components.slint";
-import { Accounts, Dash, Display, Library, SiteTileData, TvUi } from "../state.slint";
+import { Accounts, Dash, Display, Library, Server, SiteTileData, TvUi } from "../state.slint";
 
 // 10-foot sizes: body ≥ 32 px, safe area 96 / 54 px.
 global Ten {
@@ -444,8 +444,65 @@ component SettingRow inherits HorizontalLayout {
     @children
 }
 
+component TenGraph inherits Rectangle {
+    in property <string> label;
+    in property <string> line-a;
+    in property <string> line-b;
+    in property <string> scale;
+    height: 128px;
+    background: Theme.surface-raised;
+    border-radius: 14px;
+    Text {
+        x: 14px;
+        y: 8px;
+        text: root.label + (root.scale != "" ? " · " + root.scale : "");
+        font-size: 24px;
+        color: Theme.text-secondary;
+    }
+    Path {
+        x: 10px;
+        y: 34px;
+        width: parent.width - 20px;
+        height: parent.height - 44px;
+        viewbox-width: 300;
+        viewbox-height: 100;
+        commands: root.line-a;
+        stroke: Theme.accent;
+        stroke-width: 4px;
+    }
+    Path {
+        x: 10px;
+        y: 34px;
+        width: parent.width - 20px;
+        height: parent.height - 44px;
+        viewbox-width: 300;
+        viewbox-height: 100;
+        commands: root.line-b;
+        stroke: Theme.text-secondary;
+        stroke-width: 4px;
+    }
+}
+
 component SettingsScreen inherits VerticalLayout {
     spacing: 26px;
+    Timer {
+        interval: 5s;
+        running: true;
+        triggered => { Server.refresh(); }
+    }
+    Timer {
+        interval: 3s;
+        running: true;
+        triggered => { Server.refresh-activities(); }
+    }
+    Timer {
+        interval: 100ms;
+        running: true;
+        triggered => {
+            Server.open();
+            self.running = false;
+        }
+    }
     function f(id: string, i: int) -> bool { return TvUi.focus == id && TvUi.col == i; }
     Text { text: "Settings"; font-size: Ten.title; color: Theme.text-primary; }
     SettingRow {
@@ -476,6 +533,37 @@ component SettingsScreen inherits VerticalLayout {
             text: a.name + " · " + (a.primary != "" ? a.primary : a.secondary != "" ? a.secondary : a.status);
             focused: f("set-accounts", i);
         }
+    }
+    VerticalLayout {
+        spacing: 14px;
+        Text { text: Server.name + " · " + Server.status; font-size: 30px; color: Theme.text-primary; }
+        HorizontalLayout {
+            spacing: 28px;
+            Text { text: "Streams  " + Server.streams; font-size: 28px; color: Theme.text-secondary; }
+            Text { text: "Transcodes  " + Server.transcodes; font-size: 28px; color: Theme.text-secondary; }
+            Text { text: "Bandwidth  " + Server.bandwidth + " Mb/s"; font-size: 28px; color: Theme.text-secondary; }
+            Text { text: "CPU  " + Server.cpu + "%"; font-size: 28px; color: Theme.text-secondary; }
+            Text { text: "RAM  " + Server.ram + "%"; font-size: 28px; color: Theme.text-secondary; }
+        }
+        if Server.plex-pass: HorizontalLayout {
+            spacing: 20px;
+            TenGraph { label: "CPU · Host / Plex"; line-a: Server.cpu-host-path; line-b: Server.cpu-process-path; horizontal-stretch: 1; }
+            TenGraph { label: "RAM · Host / Plex"; line-a: Server.ram-host-path; line-b: Server.ram-process-path; horizontal-stretch: 1; }
+            TenGraph { label: "Bandwidth · LAN / WAN"; line-a: Server.bandwidth-lan-path; line-b: Server.bandwidth-wan-path; scale: Server.bandwidth-scale + " Mb/s"; horizontal-stretch: 1; }
+        }
+        Text { text: "ACTIVITY"; font-size: 24px; font-weight: 600; color: Theme.text-muted; }
+        if Server.activity.length == 0: Text { text: "Nothing running on the server."; font-size: 26px; color: Theme.text-secondary; }
+        for activity in Server.activity: Text {
+            text: activity.title + " · " + activity.subtitle + " · " + activity.progress + "%";
+            font-size: 26px;
+            color: Theme.text-secondary;
+        }
+        Chip { text: "Scan all"; focused: f("server-scan", 0); }
+    }
+    if Server.name == "Plex server": Text {
+        text: "Plex server monitoring is available on the laptop when a Plex server is connected.";
+        font-size: 24px;
+        color: Theme.text-muted;
     }
     SettingRow {
         label: "";

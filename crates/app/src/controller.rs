@@ -4,7 +4,7 @@
 //! the browser and vice versa.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::PathBuf,
     sync::{Arc, Mutex},
     time::Duration,
@@ -20,14 +20,17 @@ use tvdash_core::{
     AppEvent, Command, Config, SecretKey,
     config::{Layout, StreamingSite, encode_component, expand_home},
     events::{PlayerStatus, Service},
-    models::{AccountStatus, Geometry, MediaItem, PlayState, RgbaImage, SignInState, SourceKind},
+    models::{
+        AccountStatus, Geometry, MediaItem, PlayState, RgbaImage, ServerActivity, ServerLibrary, ServerStream,
+        ServerSummary, SignInState, SourceKind,
+    },
     secrets,
     state::AppState,
 };
 use tvdash_media::{
     MediaError, MediaSource,
     jellyfin::{Auth, JellyfinClient},
-    plex::{DiscoveredServer, PlexAccount, PlexClient},
+    plex::{DiscoveredServer, PlexAccount, PlexAdmin, PlexClient},
 };
 use tvdash_player::{
     browser::{Browser, BrowserOptions, is_brave},
@@ -131,6 +134,7 @@ pub struct Controller {
     state: AppState,
     state_path: Option<PathBuf>,
     posters_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
+    server_sections: Arc<Mutex<Vec<ServerLibrary>>>,
     /// Where to watch (TMDB) and service logos.
     pub(crate) watch: Watch,
     /// Tells the widget pollers about display setting changes (units).
@@ -177,6 +181,7 @@ impl Controller {
             state: AppState::default(),
             state_path: tvdash_core::state::default_path(),
             posters_requested: Arc::default(),
+            server_sections: Arc::default(),
             general_tx: None,
             video: None,
             layout: Layout::Dual,
@@ -449,6 +454,14 @@ impl Controller {
                 self.tv_geometry = Some(g);
             }
             Command::Search(query) => self.search(query),
+            Command::ServerScan { index } => self.server_scan(index).await,
+            Command::ServerRefresh { refresh_libraries } => self.poll_server_summary(refresh_libraries),
+            Command::ServerRefreshActivities => self.poll_server_activities(),
+            Command::ServerCancelActivity(uuid) => self.server_cancel_activity(&uuid).await,
+            Command::ServerTerminate { session_id, reason } => self.server_terminate(&session_id, &reason).await,
+            Command::RefreshMetadata(item) => self.refresh_metadata(item).await,
+            Command::FetchArtwork { item, backdrop } => self.fetch_artwork(item, backdrop),
+            Command::SetArtwork { item, key, backdrop } => self.set_artwork(item, &key, backdrop).await,
             Command::SignOut(kind) => self.sign_out(kind).await,
             Command::JellyfinServer(url) => {
                 let url = url.trim().trim_end_matches('/').to_owned();
@@ -689,6 +702,80 @@ impl Controller {
         });
     }
 
+    fn poll_server_summary(&self, refresh_libraries: bool) {
+        let Some(plex) = self.plex.as_ref() else {
+            let _ = self.events.send(AppEvent::ServerError("Plex isn't connected".into()));
+            return;
+        };
+        let admin = match plex.admin() {
+            Ok(admin) => admin,
+            Err(error) => {
+                warn!(error = %error, "couldn't create Plex admin client");
+                let _ = self.events.send(AppEvent::ServerError(error.to_string()));
+                return;
+            }
+        };
+        let events = self.events.clone();
+        let plex = plex.clone();
+        let cached_sections = self.server_sections.clone();
+        let refresh_libraries = match cached_sections.lock() {
+            Ok(sections) => refresh_libraries || sections.iter().any(|section| section.refreshing),
+            Err(error) => {
+                warn!(error = %error, "Plex library section cache was poisoned");
+                true
+            }
+        };
+        let local_playback = self
+            .playback
+            .as_ref()
+            .map(|playback| playback.status.clone())
+            .filter(|status| status.item.source == SourceKind::Plex);
+        tokio::spawn(async move {
+            match fetch_server_summary(&admin, &plex, local_playback, cached_sections, refresh_libraries).await {
+                Ok(summary) => {
+                    let _ = events.send(AppEvent::ServerSummary(summary));
+                }
+                Err(error) => {
+                    warn!(error = %error, "Plex server dashboard refresh failed");
+                    let _ = events.send(AppEvent::ServerError(error.to_string()));
+                }
+            }
+        });
+    }
+
+    fn poll_server_activities(&self) {
+        let Some(plex) = self.plex.as_ref() else {
+            let _ = self.events.send(AppEvent::ServerError("Plex isn't connected".into()));
+            return;
+        };
+        let admin = match plex.admin() {
+            Ok(admin) => admin,
+            Err(error) => {
+                warn!(error = %error, "couldn't create Plex admin client for activities");
+                return;
+            }
+        };
+        let events = self.events.clone();
+        tokio::spawn(async move {
+            match admin.activities().await {
+                Ok(activities) => {
+                    let activities = activities
+                        .into_iter()
+                        .map(|activity| ServerActivity {
+                            uuid: activity.uuid().to_owned(),
+                            title: activity.title().to_owned(),
+                            subtitle: activity.subtitle().to_owned(),
+                            progress: activity.progress().unwrap_or_default().clamp(0.0, 100.0),
+                            cancellable: activity.cancellable(),
+                        })
+                        .collect();
+                    let _ = events.send(AppEvent::ServerActivities(activities));
+                }
+                Err(error) => warn!(error = %error, "Plex activity polling failed"),
+            }
+        });
+    }
+
     fn refresh(&self) {
         self.poll_sessions();
         for source in self.sources() {
@@ -774,6 +861,242 @@ impl Controller {
                 self.refresh();
             }
             Err(e) => self.emit(AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Failed(e.to_string()))),
+        }
+    }
+
+    async fn server_scan(&self, index: Option<usize>) {
+        let Some(plex) = self.plex.as_ref() else {
+            self.toast("Plex isn't connected");
+            return;
+        };
+        let admin = match plex.admin() {
+            Ok(admin) => admin,
+            Err(error) => {
+                self.toast(format!("Plex admin API isn't available: {error}"));
+                return;
+            }
+        };
+        match index {
+            Some(idx) => match admin.sections().await {
+                Ok(sections) => {
+                    let Some(section) = sections.get(idx) else {
+                        self.toast("That library isn't available right now");
+                        return;
+                    };
+                    if let Err(e) = admin.scan(Some(&section.key)).await {
+                        self.toast(format!("Couldn't scan {}: {e}", section.title));
+                    } else {
+                        self.toast(format!("Scanning {}…", section.title));
+                        self.poll_server_summary(true);
+                        self.poll_server_activities();
+                    }
+                }
+
+                Err(e) => self.toast(format!("Couldn't list libraries: {e}")),
+            },
+            None => {
+                if let Err(e) = admin.scan(None).await {
+                    self.toast(format!("Couldn't scan all libraries: {e}"));
+                } else {
+                    self.toast("Scanning libraries…");
+                    self.poll_server_summary(true);
+                    self.poll_server_activities();
+                }
+            }
+        }
+    }
+
+    async fn server_cancel_activity(&self, uuid: &str) {
+        let Some(plex) = self.plex.as_ref() else {
+            self.toast("Plex isn't connected");
+            return;
+        };
+        let admin = match plex.admin() {
+            Ok(admin) => admin,
+            Err(error) => {
+                self.toast(format!("Plex admin API isn't available: {error}"));
+                return;
+            }
+        };
+        match admin.cancel_activity(uuid).await {
+            Ok(()) => {
+                self.toast("Cancelled server activity");
+                self.poll_server_summary(true);
+                self.poll_server_activities();
+            }
+            Err(error) => self.toast(format!("Couldn't cancel activity: {error}")),
+        }
+    }
+
+    async fn server_terminate(&mut self, session_id: &str, reason: &str) {
+        if session_id == "this-tv" {
+            self.clear_tv().await;
+            return;
+        }
+        let Some(plex) = self.plex.as_ref() else {
+            self.toast("Plex isn't connected");
+            return;
+        };
+        let admin = match plex.admin() {
+            Ok(admin) => admin,
+            Err(error) => {
+                self.toast(format!("Plex admin API isn't available: {error}"));
+                return;
+            }
+        };
+        match admin.terminate(session_id, reason).await {
+            Ok(()) => {
+                self.toast("Stopped Plex stream");
+                self.poll_server_summary(false);
+            }
+            Err(error) => self.toast(format!("Plex didn't stop the stream: {error}")),
+        }
+    }
+
+    async fn refresh_metadata(&self, item: MediaItem) {
+        if item.source != SourceKind::Plex {
+            self.toast("Metadata refresh is only available for Plex items");
+            self.metadata_refresh_finished(item.id);
+            return;
+        }
+        let Some(plex) = self.plex.as_ref() else {
+            self.toast("Plex isn't connected");
+            self.metadata_refresh_finished(item.id);
+            return;
+        };
+        let admin = match plex.admin() {
+            Ok(admin) => admin,
+            Err(error) => {
+                self.toast(format!("Plex admin API isn't available: {error}"));
+                self.metadata_refresh_finished(item.id);
+                return;
+            }
+        };
+        match admin.refresh_item(&item.id).await {
+            Ok(()) => {
+                self.toast(format!("Refreshing metadata for {}…", item.title));
+                let internal = self.internal.clone();
+                let events = self.events.clone();
+                let item_id = item.id.clone();
+                tokio::spawn(async move {
+                    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+                    loop {
+                        tokio::time::sleep(Duration::from_secs(3)).await;
+                        match admin.activities().await {
+                            Ok(activities)
+                                if !activities.iter().any(|activity| activity.title().contains(&item.title)) =>
+                            {
+                                break;
+                            }
+                            Ok(_) if tokio::time::Instant::now() < deadline => {}
+                            Ok(_) => break,
+                            Err(error) => {
+                                warn!(error = %error, "couldn't poll Plex metadata refresh");
+                                break;
+                            }
+                        }
+                    }
+                    let _ = events.send(AppEvent::MetadataRefreshFinished(item_id));
+                    let _ = internal.send(Internal::Refresh);
+                });
+            }
+            Err(error) => {
+                self.toast(format!("Couldn't refresh metadata: {error}"));
+                self.metadata_refresh_finished(item.id);
+            }
+        }
+    }
+
+    fn metadata_refresh_finished(&self, item_id: String) {
+        let _ = self.events.send(AppEvent::MetadataRefreshFinished(item_id));
+    }
+
+    fn fetch_artwork(&self, item: MediaItem, backdrop: bool) {
+        if item.source != SourceKind::Plex {
+            self.toast("Artwork editing is only available for Plex items");
+            return;
+        }
+        let Some(plex) = self.plex.as_ref() else {
+            self.toast("Plex isn't connected");
+            return;
+        };
+        let admin = match plex.admin() {
+            Ok(admin) => admin,
+            Err(error) => {
+                self.toast(format!("Plex admin API isn't available: {error}"));
+                return;
+            }
+        };
+        let events = self.events.clone();
+        tokio::spawn(async move {
+            let result = async {
+                let choices = if backdrop { admin.backs(&item.id).await? } else { admin.posters(&item.id).await? };
+                let mut output = Vec::with_capacity(choices.len());
+                for choice in choices {
+                    let image_key = choice.thumb.as_deref().unwrap_or(&choice.key);
+                    let bytes = admin.artwork_thumbnail(image_key, backdrop).await?;
+                    let image = tokio::task::spawn_blocking(move || decode(&bytes))
+                        .await
+                        .map_err(|error| MediaError::Protocol(format!("decoding artwork thumbnail: {error}")))?
+                        .ok_or_else(|| MediaError::Protocol("couldn't decode artwork thumbnail".into()))?;
+                    output.push(tvdash_core::models::ArtworkChoice {
+                        key: choice.key,
+                        provider: choice.provider.unwrap_or_else(|| "Plex".into()),
+                        selected: choice.selected,
+                        image: Some(image),
+                    });
+                }
+                Ok::<_, MediaError>(output)
+            }
+            .await
+            .map_err(|error| error.to_string());
+            let _ = events.send(AppEvent::ArtworkChoices { item_id: item.id, backdrop, result });
+        });
+    }
+
+    async fn set_artwork(&self, item: MediaItem, key: &str, backdrop: bool) {
+        let Some(plex) = self.plex.as_ref() else {
+            self.toast("Plex isn't connected");
+            return;
+        };
+        let admin = match plex.admin() {
+            Ok(admin) => admin,
+            Err(error) => {
+                self.toast(format!("Plex admin API isn't available: {error}"));
+                return;
+            }
+        };
+        let result =
+            if backdrop { admin.set_backdrop(&item.id, key).await } else { admin.set_poster(&item.id, key).await };
+        match result {
+            Ok(()) => {
+                self.toast(if backdrop { "Backdrop updated" } else { "Poster updated" });
+                self.refresh();
+                if !backdrop && let Some(source) = self.source_for(SourceKind::Plex) {
+                    let events = self.events.clone();
+                    let item_id = item.id.clone();
+                    let id = item.id.clone();
+                    let plex = plex.clone();
+                    tokio::spawn(async move {
+                        match plex.item(&id).await {
+                            Ok(Some(updated)) => match source.poster(&updated, POSTER_HEIGHT).await {
+                                Ok(bytes) => match tokio::task::spawn_blocking(move || decode(&bytes)).await {
+                                    Ok(Some(image)) => {
+                                        let _ =
+                                            events.send(AppEvent::Poster { source: SourceKind::Plex, item_id, image });
+                                    }
+                                    Ok(None) => warn!(item = %id, "couldn't decode updated poster"),
+                                    Err(error) => warn!(error = %error, "poster decode task failed"),
+                                },
+                                Err(error) => warn!(error = %error, "couldn't reload updated poster"),
+                            },
+                            Ok(None) => warn!(item = %id, "Plex returned no metadata after changing poster"),
+                            Err(error) => warn!(error = %error, "couldn't reload item after changing poster"),
+                        }
+                    });
+                }
+            }
+            Err(error) => self.toast(format!("Couldn't update artwork: {error}")),
         }
     }
 
@@ -1141,6 +1464,183 @@ impl Controller {
     }
 }
 
+async fn fetch_server_summary(
+    admin: &PlexAdmin,
+    plex: &PlexClient,
+    local_playback: Option<PlayerStatus>,
+    cached_sections: Arc<Mutex<Vec<ServerLibrary>>>,
+    refresh_libraries: bool,
+) -> tvdash_media::Result<ServerSummary> {
+    let info = admin.server_info().await?;
+    let sessions = plex.now_playing().await?;
+    let resources = admin.resources().await?;
+    let bandwidth = admin.bandwidth().await?;
+    let libraries = if refresh_libraries {
+        let sections = admin
+            .sections()
+            .await?
+            .into_iter()
+            .map(|section| ServerLibrary {
+                title: section.title,
+                item_count: section.item_count,
+                scanned_ago: humanized_scan_age(section.scanned_at),
+                refreshing: section.refreshing,
+            })
+            .collect::<Vec<_>>();
+        let mut cached = cached_sections
+            .lock()
+            .map_err(|error| MediaError::Protocol(format!("server section cache poisoned: {error}")))?;
+        *cached = sections.clone();
+        sections
+    } else {
+        cached_sections
+            .lock()
+            .map_err(|error| MediaError::Protocol(format!("server section cache poisoned: {error}")))?
+            .clone()
+    };
+
+    let latest_resource = resources.iter().max_by_key(|sample| sample.at());
+    let cpu_percent = latest_resource
+        .map(|resource| percent(resource.host_cpu_utilization().or_else(|| resource.process_cpu_utilization())))
+        .unwrap_or(0);
+    let ram_percent = latest_resource
+        .map(|resource| percent(resource.host_memory_utilization().or_else(|| resource.process_memory_utilization())))
+        .unwrap_or(0);
+    let latest_bandwidth_at = bandwidth.iter().map(|sample| sample.at()).max();
+    let bandwidth_by_at = bandwidth.iter().fold(BTreeMap::<i64, (u64, u64)>::new(), |mut samples, sample| {
+        let value = samples.entry(sample.at()).or_default();
+        if sample.lan() {
+            value.0 = value.0.saturating_add(sample.bytes());
+        } else {
+            value.1 = value.1.saturating_add(sample.bytes());
+        }
+        samples
+    });
+    let bandwidth_mbps = latest_bandwidth_at
+        .and_then(|at| bandwidth_by_at.get(&at))
+        .map_or(0, |(lan, wan)| (lan.saturating_add(*wan).saturating_mul(8) / 6 / 1_000_000) as u32);
+    let latest_at = resources.iter().map(|sample| sample.at()).max().unwrap_or_default();
+    let mut resource_samples: Vec<_> =
+        resources.iter().filter(|sample| latest_at.saturating_sub(sample.at()) <= 180).collect();
+    resource_samples.sort_by_key(|sample| sample.at());
+    if resource_samples.len() > 30 {
+        resource_samples.drain(..resource_samples.len() - 30);
+    }
+    let cpu_host: Vec<f32> =
+        resource_samples.iter().map(|sample| sample.host_cpu_utilization().unwrap_or_default()).collect();
+    let cpu_process: Vec<f32> =
+        resource_samples.iter().map(|sample| sample.process_cpu_utilization().unwrap_or_default()).collect();
+    let ram_host: Vec<f32> =
+        resource_samples.iter().map(|sample| sample.host_memory_utilization().unwrap_or_default()).collect();
+    let ram_process: Vec<f32> =
+        resource_samples.iter().map(|sample| sample.process_memory_utilization().unwrap_or_default()).collect();
+    let newest_bandwidth_at = bandwidth_by_at.keys().next_back().copied().unwrap_or_default();
+    let mut bandwidth_samples: Vec<_> = bandwidth_by_at
+        .iter()
+        .filter(|(at, _)| newest_bandwidth_at.saturating_sub(**at) <= 180)
+        .map(|(_, values)| *values)
+        .collect();
+    if bandwidth_samples.len() > 30 {
+        bandwidth_samples.drain(..bandwidth_samples.len() - 30);
+    }
+    let bandwidth_lan: Vec<f32> =
+        bandwidth_samples.iter().map(|(bytes, _)| *bytes as f32 * 8.0 / 6.0 / 1_000_000.0).collect();
+    let bandwidth_wan: Vec<f32> =
+        bandwidth_samples.iter().map(|(_, bytes)| *bytes as f32 * 8.0 / 6.0 / 1_000_000.0).collect();
+    let bandwidth_max = bandwidth_lan.iter().chain(&bandwidth_wan).copied().fold(0.0f32, f32::max);
+    let bandwidth_scale = match bandwidth_max {
+        x if x <= 10.0 => 10,
+        x if x <= 25.0 => 25,
+        x if x <= 50.0 => 50,
+        x if x <= 100.0 => 100,
+        x => (x / 100.0).ceil() as u32 * 100,
+    };
+    let mut streams_detail: Vec<ServerStream> = sessions
+        .iter()
+        .map(|session| ServerStream {
+            session_id: session.session_id.clone(),
+            local: false,
+            title: format::item_line(&session.item),
+            device: session.device.clone(),
+            detail: format!(
+                "{} · {} · {} · {}",
+                if session.source == SourceKind::Plex { "Plex" } else { "Jellyfin" },
+                if session.transcoding { "Transcode" } else { "Direct play" },
+                if session.state == PlayState::Paused { "Paused" } else { "Playing" },
+                format::duration(session.position_ms),
+            ),
+        })
+        .collect();
+    if let Some(status) = local_playback {
+        streams_detail.push(ServerStream {
+            session_id: None,
+            local: true,
+            title: format::item_line(&status.item),
+            device: "This TV".into(),
+            detail: if status.state == PlayState::Paused { "Paused".into() } else { "Playing".into() },
+        });
+    }
+    Ok(ServerSummary {
+        name: format!("{} · Plex {}", info.friendly_name, info.version),
+        streams: (sessions.len() + streams_detail.iter().filter(|stream| stream.local).count()) as u32,
+        transcodes: sessions.iter().filter(|session| session.transcoding).count() as u32,
+        bandwidth_mbps,
+        cpu_percent,
+        ram_percent,
+        status: "● online".to_owned(),
+        plex_pass: info.has_plex_pass(),
+        cpu_host_path: graph_path(&cpu_host, 100.0),
+        cpu_process_path: graph_path(&cpu_process, 100.0),
+        ram_host_path: graph_path(&ram_host, 100.0),
+        ram_process_path: graph_path(&ram_process, 100.0),
+        bandwidth_lan_path: graph_path(&bandwidth_lan, bandwidth_scale as f32),
+        bandwidth_wan_path: graph_path(&bandwidth_wan, bandwidth_scale as f32),
+        bandwidth_scale,
+        streams_detail,
+        libraries,
+    })
+}
+
+fn graph_path(samples: &[f32], max: f32) -> String {
+    let count = samples.len();
+    if count == 0 || max <= 0.0 {
+        return String::new();
+    }
+    let denominator = (count - 1).max(1) as f32;
+    samples
+        .iter()
+        .enumerate()
+        .map(|(i, value)| {
+            let x = i as f32 * 300.0 / denominator;
+            let y = 100.0 - (value / max).clamp(0.0, 1.0) * 100.0;
+            format!("{} {x:.1} {y:.1}", if i == 0 { "M" } else { "L" })
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn percent(value: Option<f32>) -> u32 {
+    value.unwrap_or_default().clamp(0.0, 100.0) as u32
+}
+
+fn humanized_scan_age(timestamp: Option<u64>) -> String {
+    let Some(timestamp) = timestamp else {
+        return "recently".to_owned();
+    };
+    let now = std::time::SystemTime::now();
+    let Ok(now) = now.duration_since(std::time::UNIX_EPOCH) else {
+        return "recently".to_owned();
+    };
+    let elapsed = now.as_secs().saturating_sub(timestamp);
+    match elapsed {
+        0..=59 => "just now".to_owned(),
+        60..=119 => "1 min ago".to_owned(),
+        120..=3599 => format!("{} min ago", elapsed / 60),
+        3600..=86399 => format!("{} h ago", elapsed / 3600),
+        _ => format!("{} d ago", elapsed / 86400),
+    }
+}
+
 /// Turn mpv's "can't decode" errors into something actionable. Fedora's own
 /// ffmpeg ("ffmpeg-free") leaves out H.264/HEVC, so audio plays with no picture.
 fn decoder_hint(prefix: &str, text: &str) -> Option<String> {
@@ -1229,7 +1729,14 @@ fn safe_to_delete(dir: &std::path::Path, home: Option<&std::path::Path>) -> bool
 
 #[cfg(test)]
 mod tests {
-    use super::{decoder_hint, safe_to_delete};
+    use super::{decoder_hint, graph_path, safe_to_delete};
+
+    #[test]
+    fn graph_paths_map_samples_to_the_viewbox() {
+        assert_eq!(graph_path(&[], 100.0), "");
+        assert_eq!(graph_path(&[0.0, 100.0], 100.0), "M 0.0 100.0 L 300.0 0.0");
+        assert_eq!(graph_path(&[5.0], 10.0), "M 0.0 50.0");
+    }
 
     #[test]
     fn decoder_failure_hint() {
@@ -1753,6 +2260,63 @@ mod e2e {
             .await;
         assert_eq!(sessions.len(), 1);
         assert_eq!((sessions[0].device.as_str(), sessions[0].state), ("Bedroom TV", PlayState::Paused));
+        assert_eq!(sessions[0].session_id.as_deref(), Some("200"));
+
+        h.send(Command::ServerRefresh { refresh_libraries: true });
+        let summary = h
+            .wait_for(|e| match e {
+                AppEvent::ServerSummary(summary) => Some(summary.clone()),
+                _ => None,
+            })
+            .await;
+        assert_eq!(summary.name, "Republic · Plex 1.40.0");
+        assert_eq!((summary.streams, summary.transcodes, summary.bandwidth_mbps), (1, 0, 12));
+        assert_eq!((summary.cpu_percent, summary.ram_percent), (40, 50));
+        assert!(summary.plex_pass);
+        assert_eq!(summary.libraries[0].item_count, 42);
+        h.send(Command::ServerRefreshActivities);
+        let activities = h
+            .wait_for(|e| match e {
+                AppEvent::ServerActivities(activities) => Some(activities.clone()),
+                _ => None,
+            })
+            .await;
+        assert_eq!(activities[0].uuid, "scan-1");
+
+        h.send(Command::FetchArtwork { item: items[0].clone(), backdrop: false });
+        let posters = h
+            .wait_for(|e| match e {
+                AppEvent::ArtworkChoices { item_id, backdrop: false, result: Ok(choices) } if item_id == "101" => {
+                    Some(choices.clone())
+                }
+                _ => None,
+            })
+            .await;
+        assert_eq!(posters.len(), 2);
+        assert!(posters.iter().all(|choice| choice.image.is_some()));
+        h.send(Command::SetArtwork { item: items[0].clone(), key: "/art/poster/2".into(), backdrop: false });
+        h.wait_for(|e| {
+            matches!(e, AppEvent::Poster { source: SourceKind::Plex, item_id, .. } if item_id == "101").then_some(())
+        })
+        .await;
+        h.send(Command::FetchArtwork { item: items[0].clone(), backdrop: true });
+        let backdrops = h
+            .wait_for(|e| match e {
+                AppEvent::ArtworkChoices { item_id, backdrop: true, result: Ok(choices) } if item_id == "101" => {
+                    Some(choices.clone())
+                }
+                _ => None,
+            })
+            .await;
+        assert_eq!(backdrops.len(), 1);
+        h.send(Command::SetArtwork { item: items[0].clone(), key: "/art/backdrop/1".into(), backdrop: true });
+        h.send(Command::RefreshMetadata(items[0].clone()));
+        h.send(Command::ServerCancelActivity("scan-1".into()));
+        h.wait_for(|e| matches!(e, AppEvent::Toast(text) if text.contains("Refreshing metadata")).then_some(())).await;
+
+        h.send(Command::ServerScan { index: None });
+        h.send(Command::ServerScan { index: Some(0) });
+        h.send(Command::ServerTerminate { session_id: "200".into(), reason: "Stopped from test".into() });
 
         h.play_pause_stop(&items[0]).await;
 
@@ -1763,6 +2327,24 @@ mod e2e {
             server_calls.iter().all(|r| r["client"] == "plex-client-e2e" && r["product"] == "tvdash"),
             "identifying headers on every call"
         );
+        assert!(log.iter().any(|r| r["path"] == "/statistics/resources"));
+        assert!(log.iter().any(|r| r["path"] == "/statistics/bandwidth"));
+        assert!(log.iter().any(|r| r["path"] == "/activities"));
+        assert!(log.iter().any(|r| r["path"] == "/library/sections/1/refresh"));
+        assert!(log.iter().any(|r| r["path"] == "/library/sections/all/refresh"));
+        assert!(log.iter().any(|r| r["path"] == "/library/metadata/101/posters"));
+        assert!(log.iter().any(|r| r["path"] == "/library/metadata/101/arts"));
+        assert!(
+            log.iter().any(|r| r["path"] == "/library/metadata/101/poster" && r["query"]["url"][0] == "/art/poster/2")
+        );
+        assert!(
+            log.iter().any(|r| r["path"] == "/library/metadata/101/art" && r["query"]["url"][0] == "/art/backdrop/1")
+        );
+        assert!(log.iter().any(|r| r["path"] == "/library/metadata/101/refresh"));
+        assert!(log.iter().any(|r| r["method"] == "DELETE" && r["path"] == "/activities/scan-1"));
+        assert!(log.iter().any(|r| r["path"] == "/status/sessions/terminate"
+            && r["query"]["sessionId"][0] == "200"
+            && r["query"]["reason"][0] == "Stopped from test"));
         let timeline: Vec<&str> = log
             .iter()
             .filter(|r| r["path"] == "/:/timeline")

@@ -321,12 +321,29 @@ component TvCardView inherits Rectangle {
 
         // Other devices, and servers whose sign-in expired.
         if Dash.sessions.length > 0 || Dash.tv-prompts.length > 0: Rectangle { height: 1px; background: Dash.tint.edge; }
-        if Dash.sessions.length > 0: Text {
-            text: "ALSO PLAYING";
-            font-size: 16px;
-            font-weight: 600;
-            letter-spacing: 1.5px;
-            color: Dash.tint.sec;
+        if Dash.sessions.length > 0: HorizontalLayout {
+            Text {
+                text: "ALSO PLAYING";
+                font-size: 16px;
+                font-weight: 600;
+                letter-spacing: 1.5px;
+                color: Dash.tint.sec;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Text {
+                text: "Server ›";
+                font-size: 18px;
+                color: Dash.tint.accent;
+                vertical-alignment: center;
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        Nav.settings-tab = "server";
+                        Nav.page = "settings";
+                    }
+                }
+            }
         }
         for session in Dash.sessions: SessionLine { data: session; }
         for p in Dash.tv-prompts: PromptBanner {

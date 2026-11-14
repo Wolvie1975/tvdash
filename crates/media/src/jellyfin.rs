@@ -416,6 +416,8 @@ impl SessionInfo {
             source: SourceKind::Jellyfin,
             item,
             device: self.device_name.or(self.client).unwrap_or_else(|| "Unknown device".into()),
+            session_id: None,
+            transcoding: false,
             state: if ps.is_paused { PlayState::Paused } else { PlayState::Playing },
             position_ms: ps.position_ticks.map(ticks_to_ms).unwrap_or(0),
         })

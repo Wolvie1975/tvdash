@@ -30,7 +30,7 @@ use tvdash_core::{
     AppEvent,
     config::{ClockFormat, StreamingSite, ThemeMode, Units},
     events::{PlayerStatus, Service},
-    models::{AccountStatus, MediaItem, RgbaImage, SignInState, SourceKind, Weather},
+    models::{AccountStatus, ArtworkChoice, MediaItem, RgbaImage, ServerSummary, SignInState, SourceKind, Weather},
 };
 
 pub use accounts::sync_setup;
@@ -38,8 +38,9 @@ pub use home::row;
 pub use library::{clear_search, close_detail, select, selected, set_filter, start_search};
 
 use crate::{
-    AccountPrompt, AccountRow, Accounts, Dash, Diagnostics, Display, LaptopWindow, Library, Nav, PosterCardData,
-    SessionRow, Setup, SiteRow, Theme, TvWindow, UiTheme, tint::Hue,
+    AccountPrompt, AccountRow, Accounts, Artwork, ArtworkRow, Dash, Diagnostics, Display, LaptopWindow, Library, Nav,
+    PosterCardData, Server, ServerActivityRow, ServerLibraryRow, ServerStreamRow, SessionRow, Setup, SiteRow, Theme,
+    TvWindow, UiTheme, tint::Hue,
 };
 
 /// Display order for sources everywhere (rows, prompts, sessions).
@@ -80,6 +81,7 @@ pub struct UiState {
     hues: HashMap<(SourceKind, String), Hue>,
     accounts: HashMap<SourceKind, AccountStatus>,
     servers: HashMap<SourceKind, String>,
+    server_summary: Option<ServerSummary>,
     sign_in: HashMap<SourceKind, SignInState>,
     streaming: BTreeMap<String, DateTime<Utc>>,
     // Library
@@ -281,6 +283,83 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             home::refresh_tiles(s, laptop);
         }
         AppEvent::ProviderMatches { name, ids, names } => accounts::on_provider_matches(laptop, &name, &ids, &names),
+        AppEvent::ServerSummary(summary) => {
+            s.server_summary = Some(summary.clone());
+            let server = laptop.global::<Server>();
+            server.set_name(summary.name.as_str().into());
+            server.set_streams(summary.streams as i32);
+            server.set_transcodes(summary.transcodes as i32);
+            server.set_bandwidth(summary.bandwidth_mbps as i32);
+            server.set_cpu(summary.cpu_percent as i32);
+            server.set_ram(summary.ram_percent as i32);
+            server.set_cpu_host_path(summary.cpu_host_path.as_str().into());
+            server.set_cpu_process_path(summary.cpu_process_path.as_str().into());
+            server.set_ram_host_path(summary.ram_host_path.as_str().into());
+            server.set_ram_process_path(summary.ram_process_path.as_str().into());
+            server.set_bandwidth_lan_path(summary.bandwidth_lan_path.as_str().into());
+            server.set_bandwidth_wan_path(summary.bandwidth_wan_path.as_str().into());
+            server.set_bandwidth_scale(summary.bandwidth_scale as i32);
+            server.set_status(summary.status.as_str().into());
+            server.set_plex_pass(summary.plex_pass);
+            let streams = summary
+                .streams_detail
+                .iter()
+                .map(|row| ServerStreamRow {
+                    session_id: if row.local { "this-tv" } else { row.session_id.as_deref().unwrap_or_default() }
+                        .into(),
+                    local: row.local,
+                    title: row.title.as_str().into(),
+                    device: row.device.as_str().into(),
+                    detail: row.detail.as_str().into(),
+                })
+                .collect::<Vec<_>>();
+            server.set_streams_detail(ModelRc::from(Rc::new(VecModel::from(streams))));
+            let libraries = summary
+                .libraries
+                .iter()
+                .map(|row| ServerLibraryRow {
+                    title: row.title.as_str().into(),
+                    count: row.item_count as i32,
+                    scanned: row.scanned_ago.as_str().into(),
+                    loading: row.refreshing,
+                })
+                .collect::<Vec<_>>();
+            server.set_libraries(ModelRc::from(Rc::new(VecModel::from(libraries))));
+        }
+        AppEvent::ServerActivities(activities) => {
+            let activity = activities
+                .iter()
+                .map(|row| ServerActivityRow {
+                    uuid: row.uuid.as_str().into(),
+                    title: row.title.as_str().into(),
+                    subtitle: row.subtitle.as_str().into(),
+                    progress: row.progress,
+                    cancellable: row.cancellable,
+                })
+                .collect::<Vec<_>>();
+            laptop.global::<Server>().set_activity(ModelRc::from(Rc::new(VecModel::from(activity))));
+        }
+        AppEvent::ServerError(error) => {
+            laptop.global::<Server>().set_status(format!("● unavailable · {error}").into());
+        }
+        AppEvent::ArtworkChoices { item_id, backdrop, result } => {
+            let artwork = laptop.global::<Artwork>();
+            let selected_matches = s.selected.as_ref().is_some_and(|item| item.id == item_id);
+            if selected_matches && artwork.get_open() && artwork.get_backdrop() == backdrop {
+                artwork.set_loading(false);
+                match result {
+                    Ok(choices) => artwork.set_choices(ModelRc::from(Rc::new(VecModel::from(
+                        choices.iter().map(artwork_row).collect::<Vec<_>>(),
+                    )))),
+                    Err(error) => artwork.set_error(error.into()),
+                }
+            }
+        }
+        AppEvent::MetadataRefreshFinished(item_id) => {
+            if s.selected.as_ref().is_some_and(|item| item.id == item_id) {
+                laptop.global::<Library>().set_metadata_refreshing(false);
+            }
+        }
         AppEvent::Sites(sites) => {
             s.sites = sites;
             home::refresh_tiles(s, laptop);
@@ -307,6 +386,17 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
 
 fn on_setup(laptop: &LaptopWindow) -> bool {
     laptop.global::<Nav>().get_page() == "setup"
+}
+
+fn artwork_row(choice: &ArtworkChoice) -> ArtworkRow {
+    let image = choice.image.as_ref().map(to_image);
+    ArtworkRow {
+        key: choice.key.as_str().into(),
+        provider: choice.provider.as_str().into(),
+        selected: choice.selected,
+        has_image: image.is_some(),
+        image: image.unwrap_or_default(),
+    }
 }
 
 /// Decoded pixels → a Slint image.

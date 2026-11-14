@@ -1,7 +1,7 @@
 import { Theme } from "theme.slint";
 import { Icon } from "icons.slint";
 import { ActionButton, Card, CheckBox, PageHeader, SectionLabel, TextField } from "components.slint";
-import { Accounts, AccountRow, Dash, Diagnostics, Display, HealthRow, Nav, SiteEditor, SiteRow, TvUi } from "state.slint";
+import { Accounts, AccountRow, Dash, Diagnostics, Display, HealthRow, Nav, Server, ServerActivityRow, ServerLibraryRow, SiteEditor, SiteRow, TvUi } from "state.slint";
 import { Theme as T, UiTheme } from "theme.slint";
 
 component AccountLine inherits VerticalLayout {
@@ -455,6 +455,236 @@ component DiagnosticsTab inherits VerticalLayout {
     }
 }
 
+component ServerGraph inherits Rectangle {
+    in property <string> line-a;
+    in property <string> line-b;
+    in property <string> label;
+    in property <string> scale;
+    height: 150px;
+    background: Theme.surface;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.border;
+    Text {
+        x: 14px;
+        y: 10px;
+        text: root.label + (root.scale != "" ? " · " + root.scale : "");
+        font-size: 16px;
+        font-weight: 600;
+        color: Theme.text-secondary;
+    }
+    Path {
+        x: 10px;
+        y: 38px;
+        width: parent.width - 20px;
+        height: parent.height - 48px;
+        viewbox-width: 300;
+        viewbox-height: 100;
+        commands: root.line-a;
+        stroke: Theme.accent;
+        stroke-width: 3px;
+    }
+    Path {
+        x: 10px;
+        y: 38px;
+        width: parent.width - 20px;
+        height: parent.height - 48px;
+        viewbox-width: 300;
+        viewbox-height: 100;
+        commands: root.line-b;
+        stroke: Theme.text-secondary;
+        stroke-width: 3px;
+    }
+}
+
+component ServerTab inherits VerticalLayout {
+    spacing: Theme.gap;
+    Timer {
+        interval: 100ms;
+        running: true;
+        triggered => {
+            Server.open();
+            self.running = false;
+        }
+    }
+    Timer {
+        interval: 5s;
+        running: true;
+        triggered => { Server.refresh(); }
+    }
+    Timer {
+        interval: 3s;
+        running: true;
+        triggered => { Server.refresh-activities(); }
+    }
+    Card {
+        VerticalLayout {
+            padding: 28px;
+            spacing: 18px;
+            HorizontalLayout {
+                spacing: 12px;
+                Text { text: Server.name; font-size: 24px; font-weight: 600; color: Theme.text-primary; }
+                Text { text: Server.status; font-size: 18px; color: Theme.text-secondary; }
+                Rectangle { horizontal-stretch: 1; }
+                ActionButton { text: "Refresh"; clicked => { Server.refresh(); } }
+                ActionButton { text: "Scan all"; primary: true; clicked => { Server.scan-all(); } }
+            }
+            if !Server.plex-pass: Text {
+                text: "Plex Pass is required for server graphs and stream controls.";
+                font-size: 18px;
+                color: Theme.text-secondary;
+            }
+            if Server.plex-pass: HorizontalLayout {
+                spacing: 16px;
+                ServerGraph { label: "CPU · Host / Plex"; line-a: Server.cpu-host-path; line-b: Server.cpu-process-path; horizontal-stretch: 1; }
+                ServerGraph { label: "RAM · Host / Plex"; line-a: Server.ram-host-path; line-b: Server.ram-process-path; horizontal-stretch: 1; }
+                ServerGraph { label: "Bandwidth · LAN / WAN"; line-a: Server.bandwidth-lan-path; line-b: Server.bandwidth-wan-path; scale: Server.bandwidth-scale + " Mb/s"; horizontal-stretch: 1; }
+            }
+            if Server.plex-pass: HorizontalLayout {
+                spacing: 16px;
+                Rectangle {
+                    width: 180px; height: 86px; background: Theme.surface; border-radius: Theme.radius; border-width: 1px; border-color: Theme.border;
+                    VerticalLayout { padding: 16px; spacing: 6px; Text { text: "STREAMS"; font-size: 16px; color: Theme.text-secondary; } Text { text: Server.streams; font-size: 32px; font-weight: 600; color: Theme.text-primary; } }
+                }
+                Rectangle {
+                    width: 180px; height: 86px; background: Theme.surface; border-radius: Theme.radius; border-width: 1px; border-color: Theme.border;
+                    VerticalLayout { padding: 16px; spacing: 6px; Text { text: "TRANSCODE"; font-size: 16px; color: Theme.text-secondary; } Text { text: Server.transcodes; font-size: 32px; font-weight: 600; color: Theme.text-primary; } }
+                }
+                Rectangle {
+                    width: 180px; height: 86px; background: Theme.surface; border-radius: Theme.radius; border-width: 1px; border-color: Theme.border;
+                    VerticalLayout { padding: 16px; spacing: 6px; Text { text: "BANDWIDTH"; font-size: 16px; color: Theme.text-secondary; } Text { text: Server.bandwidth + " Mb/s"; font-size: 32px; font-weight: 600; color: Theme.text-primary; } }
+                }
+                Rectangle {
+                    width: 180px; height: 86px; background: Theme.surface; border-radius: Theme.radius; border-width: 1px; border-color: Theme.border;
+                    VerticalLayout { padding: 16px; spacing: 6px; Text { text: "CPU"; font-size: 16px; color: Theme.text-secondary; } Text { text: Server.cpu + "%"; font-size: 32px; font-weight: 600; color: Theme.text-primary; } }
+                }
+                Rectangle {
+                    width: 180px; height: 86px; background: Theme.surface; border-radius: Theme.radius; border-width: 1px; border-color: Theme.border;
+                    VerticalLayout { padding: 16px; spacing: 6px; Text { text: "RAM"; font-size: 16px; color: Theme.text-secondary; } Text { text: Server.ram + "%"; font-size: 32px; font-weight: 600; color: Theme.text-primary; } }
+                }
+            }
+        }
+    }
+    Card {
+        VerticalLayout {
+            padding: 28px;
+            spacing: 18px;
+            SectionLabel { text: "STREAMS"; }
+            if Server.streams-detail.length == 0: Text {
+                text: "Nothing is streaming from Plex right now.";
+                font-size: 18px;
+                color: Theme.text-secondary;
+            }
+            for row in Server.streams-detail: HorizontalLayout {
+                spacing: 14px;
+                VerticalLayout {
+                    spacing: 4px;
+                    horizontal-stretch: 1;
+                    Text { text: row.title; font-size: 20px; color: Theme.text-primary; overflow: elide; }
+                    Text { text: row.device + " · " + row.detail; font-size: 17px; color: Theme.text-secondary; overflow: elide; }
+                }
+                ActionButton {
+                    text: "Stop";
+                    enabled: Server.plex-pass && row.session-id != "";
+                    clicked => {
+                        Server.stop-session-id = row.session-id;
+                        Server.stop-title = row.title;
+                        Server.stop-device = row.device;
+                        Server.confirm-stop = true;
+                    }
+                }
+            }
+        }
+    }
+    Card {
+        VerticalLayout {
+            padding: 28px;
+            spacing: 18px;
+            SectionLabel { text: "ACTIVITY"; }
+            if Server.activity.length == 0: Text {
+                text: "Nothing running on the server.";
+                font-size: 18px;
+                color: Theme.text-secondary;
+            }
+            for row in Server.activity: VerticalLayout {
+                HorizontalLayout {
+                    spacing: 12px;
+                    VerticalLayout {
+                        spacing: 8px;
+                        horizontal-stretch: 1;
+                        Text { text: row.title; font-size: 20px; color: Theme.text-primary; }
+                        Text { text: row.subtitle; font-size: 17px; color: Theme.text-secondary; }
+                        Rectangle {
+                            height: 8px; background: Theme.border; border-radius: 999px;
+                            Rectangle { width: min(row.progress, 100.0) * parent.width / 100; height: 100%; background: Theme.accent; border-radius: 999px; }
+                        }
+                    }
+                    if row.cancellable: ActionButton { text: "Cancel"; clicked => { Server.cancel-activity(row.uuid); } }
+                }
+            }
+        }
+    }
+    Card {
+        VerticalLayout {
+            padding: 28px;
+            spacing: 18px;
+            SectionLabel { text: "LIBRARIES"; }
+            for row[index] in Server.libraries: HorizontalLayout {
+                spacing: 16px;
+                Text { text: row.title; font-size: 20px; color: Theme.text-primary; }
+                Text { text: row.count + " items · scanned " + row.scanned; font-size: 18px; color: Theme.text-secondary; }
+                Rectangle { horizontal-stretch: 1; }
+                ActionButton {
+                    text: row.loading ? "Scanning…" : "Scan";
+                    enabled: !row.loading;
+                    clicked => { Server.scan-section(index); }
+                }
+            }
+        }
+        if Server.confirm-stop: Rectangle {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: parent.height;
+            background: #00000099;
+            VerticalLayout {
+                alignment: center;
+                Card {
+                    width: min(620px, parent.width - 64px);
+                    VerticalLayout {
+                        padding: 28px;
+                        spacing: 18px;
+                        Text {
+                            text: "Stop " + Server.stop-title + " on " + Server.stop-device + "?";
+                            font-size: 24px;
+                            font-weight: 600;
+                            color: Theme.text-primary;
+                            wrap: word-wrap;
+                        }
+                        TextField {
+                            placeholder: "Message shown on that device";
+                            text <=> Server.stop-reason;
+                        }
+                        HorizontalLayout {
+                            spacing: 12px;
+                            Rectangle { horizontal-stretch: 1; }
+                            ActionButton { text: "Cancel"; clicked => { Server.confirm-stop = false; } }
+                            ActionButton {
+                                text: "Stop stream";
+                                primary: true;
+                                clicked => {
+                                    Server.terminate(Server.stop-session-id, Server.stop-reason);
+                                    Server.confirm-stop = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 export component SettingsPage inherits VerticalLayout {
     padding: 40px;
     spacing: Theme.gap;
@@ -476,6 +706,7 @@ export component SettingsPage inherits VerticalLayout {
                 Tab { id: "accounts"; label: "Accounts"; }
                 Tab { id: "streaming"; label: "Streaming"; }
                 Tab { id: "display"; label: "Display"; }
+                Tab { id: "server"; label: "Server"; }
                 Tab { id: "diagnostics"; label: "Diagnostics"; }
             }
         }
@@ -485,5 +716,6 @@ export component SettingsPage inherits VerticalLayout {
     if Nav.settings-tab == "accounts": AccountsTab { }
     if Nav.settings-tab == "streaming": StreamingTab { }
     if Nav.settings-tab == "display": DisplayTab { }
+    if Nav.settings-tab == "server": ServerTab { }
     if Nav.settings-tab == "diagnostics": DiagnosticsTab { }
 }

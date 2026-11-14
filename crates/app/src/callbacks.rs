@@ -5,7 +5,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{error, warn};
 use tvdash_core::{Command, models::SourceKind};
 
-use crate::{Accounts, Dash, LaptopWindow, Library, Nav, Setup, SiteEditor, Watch, bridge, watch_ui};
+use crate::{Accounts, Artwork, Dash, LaptopWindow, Library, Nav, Server, Setup, SiteEditor, Watch, bridge, watch_ui};
 use tvdash_core::config::StreamingSite;
 
 fn parse_source(s: &str) -> Option<SourceKind> {
@@ -27,6 +27,8 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
     wire_watch(laptop, send.clone());
     wire_library(laptop, send.clone());
     wire_accounts(laptop, send.clone());
+    wire_server(laptop, send.clone());
+    wire_artwork(laptop, send.clone());
     wire_setup(laptop, send);
 }
 
@@ -180,6 +182,80 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     lib.on_close_detail(move || {
         if let Some(l) = weak.upgrade() {
             bridge::close_detail(&l);
+        }
+    });
+}
+
+fn wire_server(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
+    let server = laptop.global::<Server>();
+
+    let s = send.clone();
+    server.on_open(move || {
+        s(Command::ServerRefresh { refresh_libraries: true });
+        s(Command::ServerRefreshActivities);
+    });
+
+    let s = send.clone();
+    server.on_refresh(move || s(Command::ServerRefresh { refresh_libraries: false }));
+
+    let s = send.clone();
+    server.on_refresh_activities(move || s(Command::ServerRefreshActivities));
+
+    let s = send.clone();
+    server.on_cancel_activity(move |uuid| s(Command::ServerCancelActivity(uuid.to_string())));
+
+    let s = send.clone();
+    server.on_terminate(move |session_id, reason| {
+        s(Command::ServerTerminate { session_id: session_id.to_string(), reason: reason.to_string() })
+    });
+
+    let s = send.clone();
+    server.on_scan_all(move || s(Command::ServerScan { index: None }));
+
+    let s = send.clone();
+    server.on_scan_section(move |index| s(Command::ServerScan { index: Some(index as usize) }));
+}
+
+fn wire_artwork(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
+    let artwork = laptop.global::<Artwork>();
+    let weak_request = laptop.as_weak();
+    let s = send.clone();
+    artwork.on_request(move |backdrop| {
+        let Some(laptop) = weak_request.upgrade() else { return };
+        let Some(item) = bridge::selected() else { return };
+        let artwork = laptop.global::<Artwork>();
+        artwork.set_open(true);
+        artwork.set_backdrop(backdrop);
+        artwork.set_loading(true);
+        artwork.set_error("".into());
+        s(Command::FetchArtwork { item, backdrop });
+    });
+
+    let weak_set = laptop.as_weak();
+    let s = send.clone();
+    artwork.on_set(move |key| {
+        let Some(laptop) = weak_set.upgrade() else { return };
+        let Some(item) = bridge::selected() else { return };
+        let backdrop = laptop.global::<Artwork>().get_backdrop();
+        laptop.global::<Artwork>().set_open(false);
+        s(Command::SetArtwork { item, key: key.to_string(), backdrop });
+    });
+
+    let weak_refresh = laptop.as_weak();
+    let s = send.clone();
+    artwork.on_refresh(move || {
+        if let Some(item) = bridge::selected() {
+            if let Some(laptop) = weak_refresh.upgrade() {
+                laptop.global::<Library>().set_metadata_refreshing(true);
+            }
+            s(Command::RefreshMetadata(item));
+        }
+    });
+
+    let weak_close = laptop.as_weak();
+    artwork.on_close(move || {
+        if let Some(laptop) = weak_close.upgrade() {
+            laptop.global::<Artwork>().set_open(false);
         }
     });
 }

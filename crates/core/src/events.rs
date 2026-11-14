@@ -136,6 +136,16 @@ pub enum AppEvent {
         ids: Vec<u32>,
         names: Vec<String>,
     },
+    /// Server summary and activity for the Settings › Server page.
+    ServerSummary(crate::models::ServerSummary),
+    ServerActivities(Vec<crate::models::ServerActivity>),
+    ServerError(String),
+    ArtworkChoices {
+        item_id: String,
+        backdrop: bool,
+        result: Result<Vec<crate::models::ArtworkChoice>, String>,
+    },
+    MetadataRefreshFinished(String),
 }
 
 /// Requests from the UI, handled by background tasks.
@@ -172,6 +182,29 @@ pub enum Command {
     },
     /// Search TMDB and rank by availability.
     WhereToWatch(String),
+    /// Scan the whole Plex library or one section from the Server page.
+    ServerScan {
+        index: Option<usize>,
+    },
+    ServerRefresh {
+        refresh_libraries: bool,
+    },
+    ServerRefreshActivities,
+    ServerCancelActivity(String),
+    ServerTerminate {
+        session_id: String,
+        reason: String,
+    },
+    RefreshMetadata(MediaItem),
+    FetchArtwork {
+        item: MediaItem,
+        backdrop: bool,
+    },
+    SetArtwork {
+        item: MediaItem,
+        key: String,
+        backdrop: bool,
+    },
     /// Open a title on one of your sites (its search page, else start page).
     OpenOnService {
         site: usize,

@@ -241,6 +241,15 @@ impl PlexClient {
         Ok(Self { http: crate::http_client()?, base, token: token.to_owned(), client_id: client_id.to_owned() })
     }
 
+    pub fn admin(&self) -> Result<PlexAdmin> {
+        Ok(PlexAdmin {
+            http: self.http.clone(),
+            base: self.base.clone(),
+            token: self.token.clone(),
+            client_id: self.client_id.clone(),
+        })
+    }
+
     fn request(&self, method: Method, path: &str) -> RequestBuilder {
         identify(self.http.request(method, format!("{}{path}", self.base)), &self.client_id, Some(&self.token))
     }
@@ -250,8 +259,167 @@ impl PlexClient {
         Ok(r.media_container.metadata)
     }
 
+    pub async fn item(&self, rating_key: &str) -> Result<Option<MediaItem>> {
+        Ok(self
+            .metadata(&format!("/library/metadata/{rating_key}"), &[], "item")
+            .await?
+            .into_iter()
+            .find_map(Metadata::into_media_item))
+    }
+
     fn items(meta: Vec<Metadata>) -> Vec<MediaItem> {
         meta.into_iter().filter_map(Metadata::into_media_item).collect()
+    }
+}
+
+pub struct PlexAdmin {
+    http: reqwest::Client,
+    base: String,
+    token: String,
+    client_id: String,
+}
+
+impl PlexAdmin {
+    pub fn new(server_url: &str, token: &str, client_id: &str) -> Result<Self> {
+        let base = server_url.trim().trim_end_matches('/').to_owned();
+        if base.is_empty() || token.is_empty() {
+            return Err(MediaError::NotConfigured);
+        }
+        Ok(Self { http: crate::http_client()?, base, token: token.to_owned(), client_id: client_id.to_owned() })
+    }
+
+    fn request(&self, method: Method, path: &str) -> RequestBuilder {
+        identify(self.http.request(method, format!("{}{path}", self.base)), &self.client_id, Some(&self.token))
+    }
+
+    pub async fn server_info(&self) -> Result<ServerInfo> {
+        let response: ServerInfoContainer = send_json(self.request(Method::GET, "/"), "server info").await?;
+        Ok(response.media_container)
+    }
+
+    pub async fn resources(&self) -> Result<Vec<ResourceSample>> {
+        let r: ResourcesContainer = send_json(
+            self.request(Method::GET, "/statistics/resources").query(&[("timespan", "6")]),
+            "statistics/resources",
+        )
+        .await?;
+        Ok(r.media_container.statistics_resources)
+    }
+
+    pub async fn bandwidth(&self) -> Result<Vec<BandwidthSample>> {
+        let r: BandwidthContainer = send_json(
+            self.request(Method::GET, "/statistics/bandwidth").query(&[("timespan", "6")]),
+            "statistics/bandwidth",
+        )
+        .await?;
+        Ok(r.media_container.statistics_bandwidth)
+    }
+
+    pub async fn activities(&self) -> Result<Vec<Activity>> {
+        let r: ActivityContainer = send_json(self.request(Method::GET, "/activities"), "activities").await?;
+        Ok(r.media_container.activities)
+    }
+
+    pub async fn cancel_activity(&self, uuid: &str) -> Result<()> {
+        send(self.request(Method::DELETE, &format!("/activities/{uuid}")), "cancel activity").await?;
+        Ok(())
+    }
+
+    pub async fn sections(&self) -> Result<Vec<Section>> {
+        let r: SectionContainer = send_json(self.request(Method::GET, "/library/sections"), "library sections").await?;
+        let mut out = Vec::with_capacity(r.media_container.directory.len());
+        for dir in r.media_container.directory {
+            let item_count = self.section_count(&dir.key).await?;
+            out.push(Section {
+                key: dir.key,
+                title: dir.title,
+                kind: dir.kind,
+                scanned_at: dir.scanned_at,
+                refreshing: dir.refreshing,
+                item_count,
+            });
+        }
+        Ok(out)
+    }
+
+    async fn section_count(&self, key: &str) -> Result<u32> {
+        let r: CountContainer = send_json(
+            self.request(Method::GET, &format!("/library/sections/{key}/all"))
+                .query(&[("X-Plex-Container-Start", "0"), ("X-Plex-Container-Size", "0")]),
+            "section count",
+        )
+        .await?;
+        Ok(r.media_container.total_size)
+    }
+
+    pub async fn scan(&self, section_key: Option<&str>) -> Result<()> {
+        let path = match section_key {
+            Some(key) => format!("/library/sections/{key}/refresh"),
+            None => "/library/sections/all/refresh".to_owned(),
+        };
+        send(self.request(Method::GET, &path), "scan library").await?;
+        Ok(())
+    }
+
+    pub async fn refresh_item(&self, rating_key: &str) -> Result<()> {
+        send(self.request(Method::PUT, &format!("/library/metadata/{rating_key}/refresh")), "refresh item").await?;
+        Ok(())
+    }
+
+    pub async fn posters(&self, rating_key: &str) -> Result<Vec<ArtChoice>> {
+        let r: PosterContainer =
+            send_json(self.request(Method::GET, &format!("/library/metadata/{rating_key}/posters")), "posters").await?;
+        Ok(r.media_container.metadata)
+    }
+
+    pub async fn backs(&self, rating_key: &str) -> Result<Vec<ArtChoice>> {
+        let r: ArtContainer =
+            send_json(self.request(Method::GET, &format!("/library/metadata/{rating_key}/arts")), "backdrops").await?;
+        Ok(r.media_container.metadata)
+    }
+
+    pub async fn artwork_thumbnail(&self, key: &str, backdrop: bool) -> Result<Vec<u8>> {
+        let (width, height) = if backdrop { ("360", "203") } else { ("160", "240") };
+        let response = send(
+            self.request(Method::GET, "/photo/:/transcode").query(&[
+                ("url", key),
+                ("width", width),
+                ("height", height),
+                ("minSize", "1"),
+                ("upscale", "1"),
+            ]),
+            "artwork thumbnail",
+        )
+        .await?;
+        Ok(response.bytes().await?.to_vec())
+    }
+
+    pub async fn set_poster(&self, rating_key: &str, key: &str) -> Result<()> {
+        send(
+            self.request(Method::PUT, &format!("/library/metadata/{rating_key}/poster")).query(&[("url", key)]),
+            "set poster",
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn set_backdrop(&self, rating_key: &str, key: &str) -> Result<()> {
+        send(
+            self.request(Method::PUT, &format!("/library/metadata/{rating_key}/art")).query(&[("url", key)]),
+            "set backdrop",
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn terminate(&self, session_id: &str, reason: &str) -> Result<()> {
+        send(
+            self.request(Method::GET, "/status/sessions/terminate")
+                .query(&[("sessionId", session_id), ("reason", reason)]),
+            "terminate stream",
+        )
+        .await?;
+        Ok(())
     }
 }
 
@@ -362,13 +530,262 @@ struct MediaContainer {
     directory: Vec<Directory>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct ResourcesContainer {
+    media_container: ResourcesMediaContainer,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct ResourcesMediaContainer {
+    #[serde(default)]
+    statistics_resources: Vec<ResourceSample>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct BandwidthContainer {
+    media_container: BandwidthMediaContainer,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct BandwidthMediaContainer {
+    #[serde(default)]
+    statistics_bandwidth: Vec<BandwidthSample>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct ActivityContainer {
+    media_container: ActivityMediaContainer,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct ActivityMediaContainer {
+    #[serde(rename = "Activity", default)]
+    activities: Vec<Activity>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct SectionContainer {
+    media_container: SectionMediaContainer,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct SectionMediaContainer {
+    #[serde(default)]
+    directory: Vec<Directory>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct CountContainer {
+    media_container: CountMediaContainer,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct CountMediaContainer {
+    #[serde(rename = "totalSize", default)]
+    total_size: u32,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct PosterContainer {
+    media_container: PosterMediaContainer,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct PosterMediaContainer {
+    #[serde(default)]
+    metadata: Vec<ArtChoice>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct ArtContainer {
+    media_container: ArtMediaContainer,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct ArtMediaContainer {
+    #[serde(default)]
+    metadata: Vec<ArtChoice>,
+}
+
 /// A library section (`/library/sections`).
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 struct Directory {
     key: String,
+    title: String,
     #[serde(rename = "type")]
     kind: String,
+    #[serde(default)]
+    scanned_at: Option<u64>,
+    #[serde(default)]
+    refreshing: bool,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ResourceSample {
+    at: i64,
+    host_cpu_utilization: Option<f32>,
+    process_cpu_utilization: Option<f32>,
+    host_memory_utilization: Option<f32>,
+    process_memory_utilization: Option<f32>,
+}
+
+impl ResourceSample {
+    pub fn at(&self) -> i64 {
+        self.at
+    }
+
+    pub fn host_cpu_utilization(&self) -> Option<f32> {
+        self.host_cpu_utilization
+    }
+
+    pub fn process_cpu_utilization(&self) -> Option<f32> {
+        self.process_cpu_utilization
+    }
+
+    pub fn host_memory_utilization(&self) -> Option<f32> {
+        self.host_memory_utilization
+    }
+
+    pub fn process_memory_utilization(&self) -> Option<f32> {
+        self.process_memory_utilization
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct BandwidthSample {
+    at: i64,
+    lan: bool,
+    bytes: u64,
+    #[serde(rename = "deviceID")]
+    device_id: Option<String>,
+}
+
+impl BandwidthSample {
+    pub fn at(&self) -> i64 {
+        self.at
+    }
+
+    pub fn lan(&self) -> bool {
+        self.lan
+    }
+
+    pub fn bits_per_second(&self, window_seconds: u64) -> u64 {
+        if window_seconds == 0 {
+            return 0;
+        }
+        self.bytes.saturating_mul(8) / window_seconds
+    }
+
+    pub fn bytes(&self) -> u64 {
+        self.bytes
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Activity {
+    uuid: String,
+    #[serde(rename = "type")]
+    kind: String,
+    title: String,
+    subtitle: String,
+    progress: Option<f32>,
+    cancellable: bool,
+}
+
+impl Activity {
+    pub fn uuid(&self) -> &str {
+        &self.uuid
+    }
+
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn subtitle(&self) -> &str {
+        &self.subtitle
+    }
+
+    pub fn progress(&self) -> Option<f32> {
+        self.progress
+    }
+
+    pub fn cancellable(&self) -> bool {
+        self.cancellable
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ServerInfo {
+    pub friendly_name: String,
+    pub version: String,
+    #[serde(deserialize_with = "string_from_value")]
+    pub my_plex_subscription: Option<String>,
+}
+
+impl ServerInfo {
+    pub fn has_plex_pass(&self) -> bool {
+        self.my_plex_subscription.as_deref().is_some_and(|subscription| {
+            !matches!(subscription.trim().to_ascii_lowercase().as_str(), "" | "0" | "false" | "none" | "no")
+        })
+    }
+}
+
+fn string_from_value<'de, D>(deserializer: D) -> std::result::Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(value.map(|value| match value {
+        serde_json::Value::String(value) => value,
+        serde_json::Value::Bool(value) => value.to_string(),
+        serde_json::Value::Number(value) => value.to_string(),
+        _ => String::new(),
+    }))
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct ServerInfoContainer {
+    media_container: ServerInfo,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Section {
+    pub key: String,
+    pub title: String,
+    pub kind: String,
+    pub scanned_at: Option<u64>,
+    pub refreshing: bool,
+    pub item_count: u32,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ArtChoice {
+    pub key: String,
+    pub thumb: Option<String>,
+    pub selected: bool,
+    pub provider: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -402,15 +819,37 @@ struct Metadata {
     media: Vec<Media>,
     #[serde(rename = "Player")]
     player: Option<Player>,
+    #[serde(default, rename = "sessionKey", deserialize_with = "string_from_number")]
+    session_key: Option<String>,
     #[serde(rename = "Guid")]
     guid: Vec<Guid>,
 }
 
+fn string_from_number<'de, D>(deserializer: D) -> std::result::Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrNumber {
+        String(String),
+        Number(u64),
+    }
+    Option::<StringOrNumber>::deserialize(deserializer).map(|value| {
+        value.map(|value| match value {
+            StringOrNumber::String(value) => value,
+            StringOrNumber::Number(value) => value.to_string(),
+        })
+    })
+}
+
 #[derive(Debug, Default, Deserialize)]
-#[serde(default)]
+#[serde(rename_all = "camelCase", default)]
 struct Media {
     #[serde(rename = "Part")]
     part: Vec<Part>,
+    video_decision: Option<String>,
+    audio_decision: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -472,11 +911,17 @@ impl Metadata {
     fn into_session(mut self) -> Option<Session> {
         let player = self.player.take().unwrap_or_default();
         let position_ms = self.view_offset.unwrap_or(0);
+        let session_id = self.session_key.clone();
+        let transcoding = self.media.iter().any(|media| {
+            media.video_decision.as_deref() == Some("transcode") || media.audio_decision.as_deref() == Some("transcode")
+        });
         let item = self.into_media_item()?;
         Some(Session {
             source: SourceKind::Plex,
             item,
             device: player.title.or(player.product).unwrap_or_else(|| "Unknown device".into()),
+            session_id,
+            transcoding,
             state: if player.state == "paused" { PlayState::Paused } else { PlayState::Playing },
             position_ms,
         })
@@ -519,13 +964,35 @@ mod tests {
     fn maps_session() {
         let m: Metadata = serde_json::from_value(json!({
             "ratingKey": "200", "type": "movie", "title": "A Film", "viewOffset": 60_000,
+            "sessionKey": 123,
+            "Media": [{ "videoDecision": "transcode" }],
             "Player": { "title": "Bedroom TV", "state": "paused", "machineIdentifier": "abc" }
         }))
         .unwrap();
         let s = m.into_session().unwrap();
         assert_eq!(s.device, "Bedroom TV");
+        assert_eq!(s.session_id.as_deref(), Some("123"));
+        assert!(s.transcoding);
         assert_eq!(s.state, PlayState::Paused);
         assert_eq!(s.position_ms, 60_000);
+    }
+
+    #[test]
+    fn parses_server_subscription_values() {
+        let info: ServerInfoContainer = serde_json::from_value(json!({
+            "MediaContainer": {
+                "friendlyName": "Plex box", "version": "1.2.3", "myPlexSubscription": "0"
+            }
+        }))
+        .unwrap();
+        assert_eq!(info.media_container.friendly_name, "Plex box");
+        assert!(!info.media_container.has_plex_pass());
+
+        let info: ServerInfoContainer = serde_json::from_value(json!({
+            "MediaContainer": { "myPlexSubscription": true }
+        }))
+        .unwrap();
+        assert!(info.media_container.has_plex_pass());
     }
 
     #[test]
@@ -565,6 +1032,56 @@ mod tests {
                 "https://relay.plex.direct:8443",
             ]
         );
+    }
+
+    #[test]
+    fn parses_server_admin_payloads() {
+        let r: ResourcesContainer = serde_json::from_value(json!({
+            "MediaContainer": {
+                "StatisticsResources": [{
+                    "at": 1_700_000_000,
+                    "hostCpuUtilization": 23.4,
+                    "processCpuUtilization": 18.1,
+                    "hostMemoryUtilization": 41.5,
+                    "processMemoryUtilization": 29.2
+                }]
+            }
+        }))
+        .unwrap();
+        let sample = &r.media_container.statistics_resources[0];
+        assert_eq!(sample.host_cpu_utilization, Some(23.4));
+        assert_eq!(sample.process_memory_utilization, Some(29.2));
+
+        let b: BandwidthContainer = serde_json::from_value(json!({
+            "MediaContainer": {
+                "StatisticsBandwidth": [{
+                    "at": 1_700_000_006,
+                    "lan": true,
+                    "bytes": 600,
+                    "deviceID": "eth0"
+                }]
+            }
+        }))
+        .unwrap();
+        let bw = &b.media_container.statistics_bandwidth[0];
+        assert_eq!(bw.device_id.as_deref(), Some("eth0"));
+        assert_eq!(bw.bits_per_second(6), 800);
+
+        let a: ActivityContainer = serde_json::from_value(json!({
+            "MediaContainer": {
+                "Activity": [{
+                    "uuid": "abc",
+                    "type": "scan",
+                    "title": "Scanning Movies",
+                    "subtitle": "Server",
+                    "progress": 72.0,
+                    "cancellable": true
+                }]
+            }
+        }))
+        .unwrap();
+        assert_eq!(a.media_container.activities[0].kind, "scan");
+        assert!(a.media_container.activities[0].cancellable);
     }
 
     #[test]

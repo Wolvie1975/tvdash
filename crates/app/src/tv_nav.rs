@@ -100,6 +100,7 @@ fn rows(laptop: &LaptopWindow) -> Vec<(&'static str, usize)> {
             ("set-units", 2),
             ("set-clock", 2),
             ("set-accounts", laptop.global::<Accounts>().get_accounts().row_count()),
+            ("server-scan", 1),
             ("set-quit", 1),
         ],
         _ => vec![],
@@ -378,6 +379,7 @@ fn activate(laptop: &LaptopWindow, row: &str, col: usize) {
             }
         }
         "set-quit" => dash.invoke_quit(),
+        "server-scan" => laptop.global::<crate::Server>().invoke_scan_all(),
         _ => {}
     }
 }

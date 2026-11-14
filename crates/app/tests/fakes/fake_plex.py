@@ -73,6 +73,43 @@ class H(BaseHTTPRequestHandler):
         # Plex Media Server
         if p == "/identity":
             return self._send(200, {"MediaContainer": {"machineIdentifier": "srv"}})
+        if p == "/":
+            return self._send(200, {"MediaContainer": {
+                "friendlyName": "Republic", "version": "1.40.0", "myPlexSubscription": True}})
+        if p == "/statistics/resources":
+            return self._send(200, {"MediaContainer": {"StatisticsResources": [
+                {"at": 1000, "hostCpuUtilization": 40, "processCpuUtilization": 20,
+                 "hostMemoryUtilization": 50, "processMemoryUtilization": 30}]}})
+        if p == "/statistics/bandwidth":
+            return self._send(200, {"MediaContainer": {"StatisticsBandwidth": [
+                {"at": 1000, "lan": True, "bytes": 6_000_000},
+                {"at": 1000, "lan": False, "bytes": 3_000_000}]}})
+        if p == "/activities":
+            return self._send(200, {"MediaContainer": {"Activity": [
+                {"uuid": "scan-1", "type": "library.refresh", "title": "Scanning Movies",
+                 "subtitle": "Movies", "progress": 72, "cancellable": True}]}})
+        if p == "/library/sections":
+            return self._send(200, {"MediaContainer": {"Directory": [
+                {"key": "1", "title": "Movies", "type": "movie", "scannedAt": 900, "refreshing": False}]}})
+        if p == "/library/sections/1/all":
+            return self._send(200, {"MediaContainer": {"totalSize": 42}})
+        if p in ("/library/sections/1/refresh", "/library/sections/all/refresh"):
+            return self._send(200)
+        if p == "/status/sessions/terminate":
+            return self._send(200)
+        if p.startswith("/library/metadata/") and p.endswith("/posters"):
+            return self._send(200, {"MediaContainer": {"Metadata": [
+                {"key": "/art/poster/1", "thumb": "/art/poster/1", "selected": True, "provider": "tmdb"},
+                {"key": "/art/poster/2", "thumb": "/art/poster/2", "selected": False, "provider": "local"}]}})
+        if p.startswith("/library/metadata/") and p.endswith("/arts"):
+            return self._send(200, {"MediaContainer": {"Metadata": [
+                {"key": "/art/backdrop/1", "thumb": "/art/backdrop/1", "selected": True, "provider": "tmdb"}]}})
+        if p.startswith("/library/metadata/") and p.endswith("/refresh"):
+            return self._send(200)
+        if p.startswith("/library/metadata/") and p.endswith(("/poster", "/art")):
+            return self._send(200)
+        if p.startswith("/art/"):
+            return self._send(200, raw=png(), ctype="image/png")
         if p == "/library/recentlyAdded":
             return self._send(200, {"MediaContainer": {"Metadata": [
                 {"ratingKey": "300", "type": "movie", "title": "Fresh Plex Film", "year": 2026, "thumb": "/t/300"}]}})
@@ -85,12 +122,14 @@ class H(BaseHTTPRequestHandler):
         if p.startswith("/library/metadata/"):
             rk = p.rsplit("/", 1)[1]
             return self._send(200, {"MediaContainer": {"Metadata": [{"ratingKey": rk, "type": "episode", "title": "x",
+                "thumb": f"/library/metadata/{rk}/thumb/1",
                 "Media": [{"Part": [{"key": f"/library/parts/9{rk}/file.mkv"}]}]}]}})
         if p == "/photo/:/transcode":
             return self._send(200, raw=png(), ctype="image/png")
         if p == "/status/sessions":
             return self._send(200, {"MediaContainer": {"size": 2, "Metadata": [
                 {"ratingKey": "200", "type": "movie", "title": "Plex Film", "duration": 6_000_000, "viewOffset": 60_000,
+                 "sessionKey": 200,
                  "Player": {"title": "Bedroom TV", "state": "paused", "machineIdentifier": "bedroom"}},
                 {"ratingKey": "101", "type": "episode", "title": "Chapter One", "grandparentTitle": "Plex Show",
                  "Player": {"title": "tv-laptop", "state": "playing", "machineIdentifier": client}},
@@ -101,6 +140,8 @@ class H(BaseHTTPRequestHandler):
 
     do_GET = _route
     do_POST = _route
+    do_PUT = _route
+    do_DELETE = _route
 
 srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
 state["port"] = srv.server_address[1]

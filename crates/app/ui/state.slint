@@ -10,7 +10,7 @@ export global Nav {
     in-out property <string> page: "home";
     // "dual" (laptop dashboard) | "tv" (everything on the TV, 10-foot)
     in property <string> layout: "dual";
-    // Settings tab: "accounts" | "streaming" | "display" | "diagnostics"
+    // Settings tab: "accounts" | "streaming" | "display" | "server" | "diagnostics"
     in-out property <string> settings-tab: "accounts";
 }
 
@@ -133,6 +133,7 @@ export global Library {
     in property <[PosterCardData]> recently-added;
     in property <[PosterCardData]> results;
     in property <bool> detail-open;
+    in-out property <bool> metadata-refreshing;
     in property <DetailData> detail;
     // Highlighted card (set by the page on click).
     in-out property <string> selected-section;
@@ -145,6 +146,27 @@ export global Library {
     callback select(string, int);
     callback play-detail(bool); // true = from the start
     callback close-detail();
+}
+
+export struct ArtworkRow {
+    key: string,
+    provider: string,
+    selected: bool,
+    image: image,
+    has-image: bool,
+}
+
+export global Artwork {
+    in-out property <bool> open;
+    in property <bool> backdrop;
+    in property <bool> loading;
+    in property <string> error;
+    in property <[ArtworkRow]> choices;
+
+    callback request(bool);
+    callback set(string);
+    callback refresh();
+    callback close();
 }
 
 export struct AccountRow {
@@ -204,6 +226,63 @@ export global Setup {
     callback cancel(string);
     callback jellyfin-password(string, string);
     callback finish();
+}
+
+export struct ServerActivityRow {
+    uuid: string,
+    title: string,
+    subtitle: string,
+    progress: float,
+    cancellable: bool,
+}
+
+export struct ServerStreamRow {
+    session-id: string,
+    local: bool,
+    title: string,
+    device: string,
+    detail: string,
+}
+
+export struct ServerLibraryRow {
+    title: string,
+    count: int,
+    scanned: string,
+    loading: bool,
+}
+
+export global Server {
+    in property <int> streams: 0;
+    in property <int> transcodes: 0;
+    in property <int> bandwidth: 0;
+    in property <int> cpu: 0;
+    in property <int> ram: 0;
+    in property <string> cpu-host-path;
+    in property <string> cpu-process-path;
+    in property <string> ram-host-path;
+    in property <string> ram-process-path;
+    in property <string> bandwidth-lan-path;
+    in property <string> bandwidth-wan-path;
+    in property <int> bandwidth-scale: 10;
+    in property <string> status: "Waiting for Plex…";
+    in property <string> name: "Plex server";
+    in property <bool> plex-pass: false;
+    in property <[ServerStreamRow]> streams-detail;
+    in property <[ServerActivityRow]> activity;
+    in property <[ServerLibraryRow]> libraries;
+    in-out property <bool> confirm-stop: false;
+    in-out property <string> stop-session-id;
+    in-out property <string> stop-title;
+    in-out property <string> stop-device;
+    in-out property <string> stop-reason: "Stopped from tvdash";
+
+    callback refresh();
+    callback refresh-activities();
+    callback open();
+    callback scan-all();
+    callback scan-section(int);
+    callback cancel-activity(string);
+    callback terminate(string, string);
 }
 
 // Add / edit a streaming site (a dialog over any page).
