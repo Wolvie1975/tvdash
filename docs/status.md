@@ -53,8 +53,8 @@ In the order agreed or planned (see [tv-only-plan.md](tv-only-plan.md) and
 [future-plan.md](future-plan.md)):
 
 1. Confirm in-window video on the TV machine (above).
-2. **Search on the TV.** Open question: on-screen keyboard, or typing from the phone remote?
-3. **v3:** phone remote, HDMI-CEC remote, next episode / skip intro, audio, subtitle and volume.
+2. **Search on the TV.** v3 baseline input is the air mouse / wireless mouse plus keyboard/Home shortcut; on-screen keyboard remains an option if needed.
+3. **v3:** air mouse / wireless mouse, keyboard/Home shortcut, optional HDMI-CEC, next episode / skip intro, audio, subtitle and volume.
 4. **v2:** night mode (also forces Dark on the TV), alerts strip, severe-weather takeover,
    headlines, richer "up next".
 5. **v4:** "What should I watch?" (Ollama), watch stats, Home Assistant, cross-service watchlist.

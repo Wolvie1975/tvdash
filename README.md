@@ -112,8 +112,9 @@ window as in the two-screen layout. Set `MPV_LOG=v` to see mpv's own log in tvda
 
 To get Home back while a streaming site has the screen, bind a GNOME keyboard shortcut
 (Settings › Keyboard › Custom Shortcuts) to `tvdash --home`. It closes the browser (or
-stops mpv's own window; progress is saved) and returns to Home. Still to come (see
-[docs/tv-only-plan.md](docs/tv-only-plan.md)): Search on the TV, the phone remote and HDMI-CEC.
+stops mpv's own window; progress is saved) and returns to Home. The current v3 baseline
+for TV-only input is an air mouse or wireless mouse plus the keyboard/Home shortcut; optional
+HDMI-CEC can be added later. Search on the TV is still the next UX focus.
 
 To check in-window video on a machine without signing in to anything:
 

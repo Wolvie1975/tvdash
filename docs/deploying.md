@@ -27,7 +27,7 @@ already decodes H.264 and HEVC, so you can skip the RPM Fusion step.
 | Linux desktop, GNOME on Wayland (Fedora 44+ Workstation is what tvdash is built for) | Windows, keyring, display placement | `echo $XDG_SESSION_TYPE` → `wayland` |
 | x86-64 (for a bundle) | The bundle is built for x86-64 | `uname -m` → `x86_64` |
 | glibc 2.39 or newer (for a bundle) | The bundle is built against it | `ldd --version` → 2.39 or higher (Fedora 40+, Ubuntu 24.04+, Debian 13+) |
-| GNOME Keyring | Keeps the Plex, Jellyfin and TMDB sign-ins | Comes with GNOME |
+| GNOME Keyring | Keeps the Plex and TMDB sign-ins | Comes with GNOME |
 | HDMI to the TV | Playback | — |
 
 ---
@@ -114,7 +114,7 @@ tvdash's files on the old machine:
 | What | Where | Copy it? |
 |---|---|---|
 | Settings | `~/.config/tvdash/config.toml` | **Yes, with one change** (below) |
-| Plex, Jellyfin and TMDB sign-ins | GNOME Keyring (service `tvdash`) | **No**: keyrings don't move. Sign in again (step 5) |
+| Plex and TMDB sign-ins | GNOME Keyring (service `tvdash`) | **No**: keyrings don't move. Sign in again (step 5) |
 | Streaming sign-ins | `~/.local/share/tvdash/browser` | **No**: Brave encrypts them with a key in the old machine's keyring, so they won't open on the new one. Sign in again on the TV |
 | "Opened N days ago", setup done | `~/.local/share/tvdash/state.toml` | Optional |
 | Where to watch cache | `~/.local/share/tvdash/cache.db` | No, it refills itself |
@@ -123,15 +123,14 @@ tvdash's files on the old machine:
 
 **Copying `config.toml`** keeps your streaming tiles (order, search pages, TMDB provider IDs),
 location, theme, display settings and server addresses. Before starting tvdash on the new
-machine, **delete these two lines** from it:
+machine, **delete this line** from it:
 
 ```toml
 client_id = "…"     # under [plex]
-device_id = "…"     # under [jellyfin]
 ```
 
-They identify the device to Plex and Jellyfin. tvdash makes new ones on its next start, so the
-two machines show up as separate devices instead of fighting over one.
+It identifies the device to Plex. tvdash makes a new one on its next start, so the two
+machines show up as separate devices instead of fighting over one.
 
 Not copying anything is fine too: the first start writes a default config and opens setup.
 
@@ -142,8 +141,7 @@ Not copying anything is fine too: the first start writes a default config and op
 Start **tvdash** from the app menu. With nothing signed in, first-time setup opens:
 
 1. **Plex:** enter the code at plex.tv/link.
-2. **Jellyfin:** check the server address, then Quick Connect (or username and password).
-3. **Streaming:** open each site on the TV once and sign in there.
+2. **Streaming:** open each site on the TV once and sign in there.
 
 Then, for Where to watch and the service logos: **Settings › Accounts › TMDB**, paste your
 TMDB API Read Access Token. (Or from a terminal: `tvdash --set-secret tmdb_api_key`.)
@@ -162,11 +160,11 @@ Check the keyring is working: `tvdash --check-keyring` should say `write/read/de
 
    ```toml
    [display]
-   tv_output = "HDMI-A-1"
+   tv_output = "HDMI-1"
    laptop_output = "eDP-1"
    ```
 
-**TV only** (no laptop panel; drive it with a keyboard for now):
+**TV only** (no laptop panel; v3 baseline uses an air mouse or wireless mouse plus a keyboard shortcut):
 
 ```toml
 [display]
@@ -174,7 +172,7 @@ layout = "tv"
 tv_output = "HDMI-A-1"
 ```
 
-- Plex and Jellyfin videos play **inside the tvdash window**, which needs libmpv
+- Plex videos play **inside the tvdash window**, which needs libmpv
   (`mpv-libs`, installed with `mpv` in §3; the installer warns if it's missing). Esc goes
   Home with the video still playing behind it. Without libmpv they open in mpv's own window.
 - Bind a key to get back Home while a streaming site (or mpv's own window) has the screen:
@@ -191,7 +189,7 @@ tv_output = "HDMI-A-1"
 
 | Check | Expect |
 |---|---|
-| Settings › Diagnostics | Green dots for Plex, Jellyfin, GNOME Keyring; Weather once a location is set; TMDB after a search |
+| Settings › Diagnostics | Green dots for Plex, GNOME Keyring; Weather once a location is set; TMDB after a search |
 | Play something from Continue Watching | Picture and sound on the TV (no picture → the codec step in §3) |
 | Tap a streaming tile | The site opens full screen on the TV |
 | TV only: play something | It opens full screen inside tvdash; Enter shows the overlay, Esc shows Home over it. The log says `video drawing in the window` (if it says `in-window video failed`, it fell back to mpv's window; `MPV_LOG=v tvdash` shows why) |

@@ -1,6 +1,7 @@
 //! Drive the real windows headless (Slint's testing backend) through events
 //! and check what the pages would show.
 
+use chrono::TimeZone;
 use slint::Model;
 use tvdash_core::{
     Command,
@@ -129,6 +130,27 @@ fn tv_card_follows_playback_browser_and_theme() {
     assert_eq!(l.global::<Theme>().get_mode(), UiTheme::Stone);
     assert_ne!(dash.get_streaming_sites().row_data(0).unwrap().logo, dark_tile, "light-theme logo");
     assert_eq!(t.global::<Theme>().get_mode(), UiTheme::Dark);
+}
+
+#[test]
+fn night_mode_forces_dark_overnight() {
+    assert!(!forced_dark_for_hour(21));
+    assert!(forced_dark_for_hour(22));
+    assert!(forced_dark_for_hour(23));
+    assert!(forced_dark_for_hour(0));
+    assert!(forced_dark_for_hour(5));
+    assert!(!forced_dark_for_hour(6));
+
+    let at = |h: u32| {
+        chrono::Local
+            .with_ymd_and_hms(2026, 11, 13, h, 0, 0)
+            .single()
+            .expect("valid local time")
+    };
+    assert_eq!(effective_theme_at(ThemeMode::Stone, at(21)), ThemeMode::Stone);
+    assert_eq!(effective_theme_at(ThemeMode::Stone, at(22)), ThemeMode::Dark);
+    assert_eq!(effective_theme_at(ThemeMode::Mist, at(5)), ThemeMode::Dark);
+    assert_eq!(effective_theme_at(ThemeMode::Mist, at(6)), ThemeMode::Mist);
 }
 
 #[test]

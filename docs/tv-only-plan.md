@@ -1,6 +1,6 @@
 # tvdash — TV-only Mode Plan (single screen)
 
-Companion to `v1-plan.md` and `future-plan.md`. Planned for **v3**, after the phone remote.
+Companion to `v1-plan.md` and `future-plan.md`. Planned for **v3** using the air mouse / wireless mouse + keyboard shortcut baseline.
 
 Design canvas: https://claude.ai/artifact/UggZzEChLyVVffZNfdGnTf, page **Single screen** (Concept 4 — Side rail).
 
@@ -24,10 +24,10 @@ The chosen design is **Concept 4** (side rail that slides in and out, theme swit
 > - **Shared vs. shell code:** `controller.rs` (commands in, `AppEvent`s out) is already UI-agnostic.
 >   `bridge/` writes the main window's globals, which both layouts read (the TV shell is a view inside
 >   that window), so no per-shell adapter is needed. It is split by concern: home, library, accounts, status.
-> - **Order:** the "night mode forces Dark" check depends on v2's night mode; the phone remote (v3)
->   comes first, as below.
-> - **Open questions, suggested answers:** search by typing on the phone, with a basic on-screen
->   keyboard as fallback for CEC/keyboard; ambient idle in, reusing the TV idle screen's pixel shift.
+> - **Order:** the "night mode forces Dark" check depends on v2's night mode; the v3 baseline uses
+>   air mouse / wireless mouse plus the keyboard/Home shortcut, with HDMI-CEC as a later optional path.
+> - **Open questions, suggested answers:** search by typing with the keyboard or air mouse; ambient idle
+>   in, reusing the TV idle screen's pixel shift.
 
 ---
 
@@ -49,11 +49,11 @@ playing behind it); Home's card has Pause, Full screen and Stop. Slint is asked 
 OpenGL, since GLES rules out mpv's VAAPI hardware decoding. No libmpv, or a render context that
 fails, means mpv's own window (as in two screens), resuming where it was.
 
-**Next:** Search on the TV; the phone remote (v3) and HDMI-CEC; night-mode Dark (needs v2).
+**Next:** Search on the TV; an air mouse / wireless mouse + keyboard shortcut as the v3 baseline; night-mode Dark (22:00–06:00) and the auto sentence-clock idle screen.
 
 ## 1. What it is
 
-The same app with a second layout: no laptop panel, everything on the TV. Home is a full-screen 10-foot screen with a side rail; Plex/Jellyfin video and streaming sites play full screen on top of it; **Home** always brings you back.
+The same app with a second layout: no laptop panel, everything on the TV. Home is a full-screen 10-foot screen with a side rail; Plex video and streaming sites play full screen on top of it; **Home** always brings you back.
 
 It's **not a separate app**. It shares every crate; only the UI shell and input handling differ.
 
@@ -62,7 +62,7 @@ It's **not a separate app**. It shares every crate; only the UI shell and input 
 | `core`, `media`, `player`, `discover` | Shared | Shared |
 | Sign-in flows, settings, streaming list, themes | Shared | Shared |
 | Windows | Laptop dashboard + TV idle window | One full-screen window on the TV |
-| Input | Touch and mouse on the laptop | Focus ring: phone remote, HDMI-CEC remote, keyboard or air mouse |
+| Input | Touch and mouse on the laptop | Focus ring: air mouse / wireless mouse, keyboard, and remote-style navigation |
 | Sizes | Desk distance (body 18–24 px) | 10-foot (body ≥ 32 px, safe area 96 / 54 px) |
 
 ---
@@ -100,7 +100,7 @@ Both shells consume the same `AppEvent` stream and send the same commands, so fi
 |---|---|
 | **Home** | Side rail (time, Home, Search, Library, Services, Settings, theme). Main area: **On the TV now** / **Up next** hero tinted from the art, Continue Watching row, Your services row. The On the TV now hero has **Play/Pause** (one toggle), **Full screen** and **Stop** |
 | **Search** | Where to watch (v1.1), 10-foot layout, on-screen keyboard or phone typing |
-| **Library** | Plex + Jellyfin library, same data as dual mode |
+| **Library** | Plex library, same data as dual mode |
 | **Services** | Every streaming site as large logo tiles (wrapping grid) |
 | **Settings** | Same settings as dual mode, focus-navigable |
 | **Playing** | mpv or the browser, full screen |
@@ -146,13 +146,13 @@ When mpv or Chrome is full screen, the tvdash window isn't focused and won't rec
 
 | Source | How |
 |---|---|
-| Phone remote (v3) | WebSocket command `home` to the app's local server |
-| HDMI-CEC remote | A `cec-client` listener process forwards the Home key |
+| Air mouse / wireless mouse | Mouse movement or a mapped button triggers Home; the app accepts the same command path as keyboard/Home |
+| HDMI-CEC remote | Optional later: a `cec-client` listener process forwards the Home key |
 | Keyboard | GNOME custom shortcut runs `tvdash --home`, which signals the running app (D-Bus or a Unix socket) |
 
 On `home`: quit mpv over IPC or close the browser via the DevTools protocol, then raise the tvdash window.
 
-> **Dependency:** TV-only mode needs at least one of these before it's usable. Build the phone remote first (same v3).
+> **Dependency:** TV-only mode needs at least one of these before it's usable. The v3 baseline is the air mouse / wireless mouse plus keyboard shortcut path.
 
 ---
 
@@ -185,7 +185,7 @@ On `home`: quit mpv over IPC or close the browser via the DevTools protocol, the
 - [ ] `layout = "tv"` starts one full-screen window on the TV; `layout = "dual"` still works unchanged.
 - [ ] Every Home screen item is reachable with arrows + OK only.
 - [ ] Rail opens and closes as specified; theme switch works from both rail states.
-- [ ] Home returns to the home screen from mpv and from a streaming site, via phone remote and via the keyboard shortcut.
+- [ ] Home returns to the home screen from mpv and from a streaming site, via the keyboard shortcut and the air mouse / wireless mouse path.
 - [ ] Playback overlay appears on OK and hides after 5 s.
 - [ ] Night-mode hours force Dark on the TV.
 
@@ -193,5 +193,5 @@ On `home`: quit mpv over IPC or close the browser via the DevTools protocol, the
 
 ## 11. Open questions
 
-- [ ] Search: an on-screen keyboard, or rely on typing from the phone remote?
+- [ ] Search: on-screen keyboard, or rely on typing from the keyboard / air mouse path?
 - [ ] Ambient idle screen (Concept 2) after ~5 min on Home: in or out?

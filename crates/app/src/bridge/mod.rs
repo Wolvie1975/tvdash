@@ -25,7 +25,7 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Timelike, Utc};
 use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, Timer, VecModel, Weak};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tvdash_core::{
@@ -64,6 +64,8 @@ pub struct UiState {
     pub tz: Option<chrono_tz::Tz>,
     pub clock: Option<ClockFormat>,
     units: Option<Units>,
+    /// User-chosen theme; runtime theme may override it overnight.
+    base_theme: ThemeMode,
     theme: ThemeMode,
     /// The ten Watch on TV apps, in tile order (same order as `APPS`).
     sites: Vec<StreamingSite>,
@@ -142,6 +144,7 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         s.tz = c.tz;
         s.clock = Some(c.clock);
         s.units = Some(c.units);
+        s.base_theme = c.theme;
         s.sites = c.sites;
         let dash = laptop.global::<Dash>();
         dash.set_continue_watching(ModelRc::from(s.cards.clone()));
@@ -188,6 +191,9 @@ pub fn set_display(laptop: &LaptopWindow, units: Units, clock: ClockFormat, seco
 /// Once a minute: ages ("updated 25 min ago"), end times.
 pub fn on_minute(laptop: &LaptopWindow, _tv: &TvWindow) {
     STATE.with_borrow_mut(|s| {
+        if effective_theme(s.base_theme) != s.theme {
+            apply_theme(s, laptop, s.base_theme);
+        }
         status::refresh_weather(s, laptop);
         status::refresh_diagnostics(s, laptop);
         home::refresh_tv_card(s, laptop);
@@ -219,7 +225,25 @@ pub fn theme_mode(theme: UiTheme) -> ThemeMode {
     }
 }
 
+fn forced_dark_for_hour(hour: u32) -> bool {
+    matches!(hour, 22 | 23 | 0 | 1 | 2 | 3 | 4 | 5)
+}
+
+fn effective_theme_at(mode: ThemeMode, now: chrono::DateTime<chrono::Local>) -> ThemeMode {
+    if forced_dark_for_hour(now.hour()) {
+        ThemeMode::Dark
+    } else {
+        mode
+    }
+}
+
+fn effective_theme(mode: ThemeMode) -> ThemeMode {
+    effective_theme_at(mode, chrono::Local::now())
+}
+
 fn apply_theme(s: &mut UiState, laptop: &LaptopWindow, mode: ThemeMode) {
+    s.base_theme = mode;
+    let mode = effective_theme(mode);
     s.theme = mode;
     laptop.global::<Theme>().set_mode(ui_theme(mode));
     home::refresh_tiles(s, laptop);
