@@ -171,14 +171,7 @@ impl Watch {
 
     fn library_snapshot(&self) -> HashMap<LibraryKey, MediaItem> {
         let lib = self.library.lock().unwrap();
-        // Jellyfin first, then Plex, so a title in both resolves the same way each time.
-        let mut out = HashMap::new();
-        for kind in [SourceKind::Plex, SourceKind::Jellyfin] {
-            if let Some(m) = lib.get(&kind) {
-                out.extend(m.iter().map(|(k, v)| (*k, v.clone())));
-            }
-        }
-        out
+        lib.get(&SourceKind::Plex).map(|m| m.iter().map(|(k, v)| (*k, v.clone())).collect()).unwrap_or_default()
     }
 
     /// Search and rank; results are re-sent as availability arrives.

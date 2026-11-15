@@ -7,6 +7,7 @@ mod controller;
 mod displays;
 mod format;
 mod instance;
+mod portal;
 mod tint;
 mod tv_nav;
 mod video;
@@ -33,9 +34,9 @@ Options:
                     bind it to a GNOME keyboard shortcut
   --check-keyring   Test GNOME Keyring read/write, list which secrets are set, and exit
   --set-secret KEY  Read a value from stdin and store it in the keyring, e.g.
-                    tvdash --set-secret jellyfin_token
+                    tvdash --set-secret tmdb_api_key
   --clear-secret KEY  Remove a secret from the keyring
-                    KEY: plex_token, jellyfin_token
+                    KEY: plex_token, tmdb_api_key, tautulli_api_key
   -h, --help        Show this help
 
 Logging: set RUST_LOG (default: info), e.g. RUST_LOG=tvdash=debug";
@@ -212,13 +213,13 @@ fn main() -> anyhow::Result<()> {
             layout_setting: config.display.layout,
             tv_connected: decision.tv_connected,
             sites: config.streaming.clone(),
-            jellyfin_url: config.jellyfin.server_url.clone(),
         },
     );
 
     // Background → UI events.
     let (event_tx, event_rx) = mpsc::unbounded_channel::<AppEvent>();
     runtime.spawn(bridge::forward(event_rx, laptop.as_weak(), tv.as_weak()));
+    runtime.spawn(portal::watch_color_scheme(event_tx.clone()));
 
     // Header widgets (weather).
     let (general_tx, general_rx) = tokio::sync::watch::channel(config.general.clone());

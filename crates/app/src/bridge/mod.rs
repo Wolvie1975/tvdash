@@ -34,7 +34,7 @@ use tvdash_core::{
 };
 
 pub use accounts::sync_setup;
-pub use home::row;
+pub use home::{row, set_cw_filter, up_next};
 pub use library::{clear_search, close_detail, select, selected, set_filter, start_search};
 
 use crate::{
@@ -44,7 +44,7 @@ use crate::{
 };
 
 /// Display order for sources everywhere (rows, prompts, sessions).
-const SOURCES: [SourceKind; 2] = [SourceKind::Jellyfin, SourceKind::Plex];
+const SOURCES: [SourceKind; 1] = [SourceKind::Plex];
 
 const TOAST_FOR: Duration = Duration::from_secs(5);
 const LONG_TOAST_FOR: Duration = Duration::from_secs(30);
@@ -56,6 +56,7 @@ pub struct UiState {
     pub clock: Option<ClockFormat>,
     units: Option<Units>,
     theme: ThemeMode,
+    system_dark: bool,
     /// Streaming sites in tile order, hidden ones included.
     sites: Vec<StreamingSite>,
     /// What tvdash is showing on the TV: mpv playback, or the browser's site.
@@ -63,8 +64,9 @@ pub struct UiState {
     browser: Option<String>,
     continue_watching: HashMap<SourceKind, Vec<MediaItem>>,
     recently_added: HashMap<SourceKind, Vec<MediaItem>>,
-    /// Dashboard Continue Watching rows; index = card index.
+    /// Dashboard Continue Watching rows (filtered by `cw_filter`); index = card index.
     rows: Vec<MediaItem>,
+    cw_filter: String,
     posters: HashMap<(SourceKind, String), Image>,
     /// TMDB token state.
     tmdb: Option<AccountStatus>,
@@ -103,6 +105,12 @@ pub struct UiState {
     toast_timer: Option<Timer>,
 }
 
+impl UiState {
+    pub(super) fn effective_theme(&self) -> ThemeMode {
+        self.theme.resolve(self.system_dark)
+    }
+}
+
 thread_local! {
     pub static STATE: RefCell<UiState> = RefCell::new(UiState::default());
 }
@@ -121,7 +129,6 @@ pub struct UiConfig {
     pub layout_setting: tvdash_core::LayoutSetting,
     pub tv_connected: bool,
     pub sites: Vec<StreamingSite>,
-    pub jellyfin_url: String,
 }
 
 /// Call once on the UI thread before the event loop starts.
@@ -130,6 +137,8 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         s.tz = c.tz;
         s.clock = Some(c.clock);
         s.units = Some(c.units);
+        s.system_dark = true;
+        s.cw_filter = "tv".into();
         s.sites = c.sites;
         let dash = laptop.global::<Dash>();
         dash.set_tv_connected(c.tv_connected);
@@ -144,7 +153,6 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         let acc = laptop.global::<Accounts>();
         acc.set_accounts(ModelRc::from(s.account_rows.clone()));
         acc.set_sites(ModelRc::from(s.site_rows.clone()));
-        laptop.global::<Setup>().set_jellyfin_url(c.jellyfin_url.as_str().into());
         let d = laptop.global::<Display>();
         d.set_layout_setting(c.layout_setting.as_str().into());
         d.set_celsius(c.units == Units::Celsius);
@@ -200,7 +208,7 @@ pub fn set_theme(laptop: &LaptopWindow, mode: ThemeMode) {
 
 fn ui_theme(mode: ThemeMode) -> UiTheme {
     match mode {
-        ThemeMode::Dark => UiTheme::Dark,
+        ThemeMode::Dark | ThemeMode::FollowSystem => UiTheme::Dark,
         ThemeMode::Stone => UiTheme::Stone,
         ThemeMode::Mist => UiTheme::Mist,
     }
@@ -216,7 +224,9 @@ pub fn theme_mode(theme: UiTheme) -> ThemeMode {
 
 fn apply_theme(s: &mut UiState, laptop: &LaptopWindow, mode: ThemeMode) {
     s.theme = mode;
-    laptop.global::<Theme>().set_mode(ui_theme(mode));
+    let resolved = s.effective_theme();
+    laptop.global::<Display>().set_follow_system(mode == ThemeMode::FollowSystem);
+    laptop.global::<Theme>().set_mode(ui_theme(resolved));
     home::refresh_tiles(s, laptop);
     home::rebuild_rows(s);
     library::rebuild(s, laptop);
@@ -369,6 +379,14 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         }
         AppEvent::DisplaysChanged => {
             crate::displays::on_displays_changed(laptop);
+        }
+        AppEvent::SystemColorScheme(dark) => {
+            if s.system_dark != dark {
+                s.system_dark = dark;
+                if s.theme == ThemeMode::FollowSystem {
+                    apply_theme(s, laptop, ThemeMode::FollowSystem);
+                }
+            }
         }
         AppEvent::Sites(sites) => {
             s.sites = sites;

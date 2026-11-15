@@ -1,34 +1,39 @@
 import { Theme, UiTheme } from "theme.slint";
 import { Icon } from "icons.slint";
-import { ActionButton, Clock, PosterRow, ProgressBar, PromptBanner, SectionLabel, SessionLine } from "components.slint";
-import { Dash, Nav, SiteEditor, SiteTileData } from "state.slint";
+import { ActionButton, Clock, PosterCard, ProgressBar, PromptBanner, SectionLabel, SessionLine } from "components.slint";
+import { Dash, Nav, SiteTileData, Watch } from "state.slint";
+import { SearchPanel } from "watch.slint";
 
-// Laptop dashboard, redesign "Option B": a tall On the TV card tinted from the
-// poster on the left; streaming tiles and Continue Watching on the right.
-// Touch-first: every control is at least 56 px tall and nothing needs hover.
+// Laptop dashboard, redesign "Option B":
+// Header (140 px): [Search][Screensaver] | Clock + Weather | [Dark|Stone|Mist] [Settings]
+// Main: three equal 4-column full-height boxes:
+//   1. On the TV (tinted from poster)
+//   2. Watch on TV (2×5 logo-only grid of 10 apps)
+//   3. Continue Watching (TV / Series · Movies switch + 3×2 poster grid)
+// Search panel slides in over boxes 2 & 3; On the TV stays visible.
 
 component ThemeChoice inherits Rectangle {
     in property <UiTheme> mode;
     in property <string> label;
     property <bool> on: Theme.mode == root.mode;
-    min-height: Theme.hit-target;
-    border-radius: 14px;
+    min-height: 48px;
+    border-radius: 12px;
     background: root.on ? Theme.text-primary : touch.pressed ? Theme.surface-raised : transparent;
     HorizontalLayout {
-        padding-left: 20px;
-        padding-right: 20px;
-        spacing: 10px;
+        padding-left: 16px;
+        padding-right: 16px;
+        spacing: 8px;
         VerticalLayout {
             alignment: center;
             Icon {
                 name: root.mode == UiTheme.dark ? "moon" : "sun";
                 tint: root.on ? Theme.bg : Theme.text-secondary;
-                size: 22px;
+                size: 20px;
             }
         }
         Text {
             text: root.label;
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 500;
             color: root.on ? Theme.bg : Theme.text-secondary;
             vertical-alignment: center;
@@ -41,6 +46,7 @@ component ThemeChoice inherits Rectangle {
 }
 
 component ThemeSwitch inherits Rectangle {
+    height: Theme.hit-target;
     background: Theme.surface;
     border-width: 1px;
     border-color: Theme.border;
@@ -54,11 +60,9 @@ component ThemeSwitch inherits Rectangle {
     }
 }
 
-component WeatherCard inherits Rectangle {
-    background: Theme.surface;
-    border-radius: Theme.radius;
-    min-width: 380px;
-    min-height: 104px;
+component WeatherSummary inherits Rectangle {
+    min-width: 240px;
+    min-height: 96px;
     // No location yet: tapping goes to Settings › Display › Location.
     TouchArea {
         enabled: !Dash.weather-on;
@@ -68,40 +72,42 @@ component WeatherCard inherits Rectangle {
             Nav.page = "settings";
         }
     }
-    // Amber dot when the last fetch failed.
-    if Dash.weather-warn: Rectangle {
-        x: parent.width - 26px;
-        y: 14px;
-        width: 12px;
-        height: 12px;
-        border-radius: 6px;
-        background: Theme.warn;
-    }
     HorizontalLayout {
         opacity: Dash.weather-stale ? 0.55 : 1;
         animate opacity { duration: 400ms; }
-        padding-left: 28px;
-        padding-right: 28px;
-        spacing: 16px;
+        spacing: 14px;
         VerticalLayout {
             alignment: center;
-            Icon { name: Dash.weather-on ? Dash.weather-icon : "partly"; tint: Theme.text-secondary; size: 36px; line: 1.6px; }
+            Icon { name: Dash.weather-on ? Dash.weather-icon : "partly"; tint: Theme.text-secondary; size: 40px; line: 1.6px; }
         }
         VerticalLayout {
             alignment: center;
             spacing: 2px;
-            Text {
-                text: Dash.weather-on ? Dash.weather-temp : "Weather";
-                font-size: Dash.weather-on ? 34px : 24px;
-                color: Theme.text-primary;
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: Dash.weather-on ? Dash.weather-temp : "Weather";
+                    font-size: Dash.weather-on ? 48px : 24px;
+                    font-weight: 300;
+                    color: Theme.text-primary;
+                }
+                if Dash.weather-warn: VerticalLayout {
+                    alignment: start;
+                    Rectangle {
+                        width: 10px;
+                        height: 10px;
+                        border-radius: 5px;
+                        background: Theme.warn;
+                    }
+                }
             }
             Text {
-                text: !Dash.weather-on ? "Tap to set your location"
+                text: !Dash.weather-on ? "Tap to set location"
                     : Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail;
-                font-size: 18px;
+                font-size: 22px;
                 color: Dash.weather-warn && Dash.weather-note != "" ? Theme.warn : Theme.text-secondary;
                 overflow: elide;
-                max-width: 300px;
+                max-width: 320px;
             }
         }
     }
@@ -110,16 +116,22 @@ component WeatherCard inherits Rectangle {
 component SquareButton inherits Rectangle {
     in property <string> icon;
     in property <string> label; // accessible name
+    in property <bool> active: false;
     callback clicked();
     width: 64px;
     height: 64px;
     border-radius: Theme.radius;
     border-width: 1px;
-    border-color: Theme.border;
-    background: touch.pressed ? Theme.surface-raised : Theme.surface;
+    border-color: root.active ? Theme.text-primary : Theme.border;
+    background: root.active ? Theme.text-primary : touch.pressed ? Theme.surface-raised : Theme.surface;
     accessible-role: button;
     accessible-label: root.label;
-    Icon { name: root.icon; tint: Theme.text-secondary; size: 28px; line: 1.7px; }
+    Icon {
+        name: root.icon;
+        tint: root.active ? Theme.bg : Theme.text-secondary;
+        size: 28px;
+        line: 1.7px;
+    }
     touch := TouchArea {
         mouse-cursor: pointer;
         clicked => { root.clicked(); }
@@ -136,6 +148,7 @@ component TvCardView inherits Rectangle {
     background: Dash.tint.card;
     border-radius: Theme.card-radius;
     animate background { duration: 400ms; }
+    clip: true;
 
     // Crossfade (~400 ms) when the card switches to something else.
     property <string> showing: Dash.tv.mode + "|" + Dash.tv.title + "|" + Dash.tv.subtitle;
@@ -156,9 +169,10 @@ component TvCardView inherits Rectangle {
     VerticalLayout {
         opacity: root.shown ? 1 : 0;
         animate opacity { duration: root.shown ? 400ms : 100ms; }
-        padding: 36px;
-        spacing: 24px;
+        padding: 32px;
+        spacing: 16px;
 
+        // 1. Label + Plex badge
         HorizontalLayout {
             spacing: 10px;
             VerticalLayout {
@@ -175,25 +189,61 @@ component TvCardView inherits Rectangle {
                 horizontal-stretch: 1;
             }
             if Dash.tv.source != "": Rectangle {
-                width: pill.preferred-width + 28px;
-                height: 34px;
-                border-radius: 17px;
+                width: pill.preferred-width + 24px;
+                height: 32px;
+                border-radius: 16px;
                 border-width: 1px;
                 border-color: Dash.tint.edge;
-                pill := Text { text: Dash.tv.source; font-size: 18px; color: Dash.tint.sec; }
+                pill := Text { text: Dash.tv.source; font-size: 16px; color: Dash.tint.sec; }
             }
         }
 
-        HorizontalLayout {
-            spacing: 28px;
-            vertical-stretch: 1;
+        // 2. Title + Episode line + Facts
+        VerticalLayout {
+            spacing: 6px;
+            if Dash.tv.note != "": Text {
+                text: Dash.tv.note;
+                font-size: 18px;
+                color: Dash.tint.sec;
+                wrap: word-wrap;
+            }
+            Text {
+                text: Dash.tv.title;
+                font-size: 44px;
+                font-weight: 500;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+            }
+            if Dash.tv.subtitle != "": Text {
+                text: Dash.tv.subtitle;
+                font-size: 22px;
+                color: Dash.tint.sec;
+                wrap: word-wrap;
+            }
+            if root.playing && Dash.tv.paused: HorizontalLayout {
+                alignment: start;
+                padding-top: 4px;
+                Rectangle {
+                    width: paused.preferred-width + 24px;
+                    height: 30px;
+                    border-radius: 15px;
+                    background: Dash.tint.btn;
+                    paused := Text { text: "Paused"; font-size: 16px; font-weight: 600; color: Dash.tint.accent; }
+                }
+            }
+        }
 
-            if Dash.tv.mode != "idle": VerticalLayout {
+        // 3. Poster (160×240) + Description
+        if Dash.tv.mode != "idle": HorizontalLayout {
+            spacing: 20px;
+            vertical-stretch: 1;
+            min-height: 0;
+            VerticalLayout {
                 alignment: start;
                 Rectangle {
-                    width: 230px;
-                    height: 345px;
-                    border-radius: 16px;
+                    width: 160px;
+                    height: 240px;
+                    border-radius: 14px;
                     clip: true;
                     background: Dash.tint.poster;
                     if Dash.tv.has-poster: Image {
@@ -204,8 +254,8 @@ component TvCardView inherits Rectangle {
                     }
                     if !Dash.tv.has-poster: Text {
                         text: Dash.tv.monogram != "" ? Dash.tv.monogram : Dash.tv.title;
-                        width: parent.width - 28px;
-                        font-size: Dash.tv.monogram != "" ? 96px : 24px;
+                        width: parent.width - 20px;
+                        font-size: Dash.tv.monogram != "" ? 68px : 20px;
                         font-weight: Dash.tv.monogram != "" ? 600 : 400;
                         color: Dash.tint.accent;
                         horizontal-alignment: center;
@@ -215,63 +265,40 @@ component TvCardView inherits Rectangle {
                 }
             }
             VerticalLayout {
-                spacing: 10px;
-                alignment: start;
                 horizontal-stretch: 1;
-                if Dash.tv.note != "": Text {
-                    text: Dash.tv.note;
-                    font-size: Theme.body-size;
-                    color: Dash.tint.sec;
-                    wrap: word-wrap;
-                }
+                alignment: start;
                 Text {
-                    text: !Dash.tv-connected && Dash.tv.mode == "idle" ? "TV not connected" : Dash.tv.title;
-                    font-size: 46px;
-                    color: Theme.text-primary;
-                    wrap: word-wrap;
-                }
-                if !Dash.tv-connected && Dash.tv.mode == "idle": Text {
-                    text: "Connect or turn on the TV to play or open streaming apps.";
-                    font-size: 24px;
+                    text: !Dash.tv-connected && Dash.tv.mode == "idle"
+                        ? "TV not connected"
+                        : Dash.tv.summary != "" ? Dash.tv.summary : root.streaming ? "" : "No description on the server.";
+                    font-size: 18px;
                     color: Dash.tint.sec;
                     wrap: word-wrap;
-                }
-                if (Dash.tv-connected || Dash.tv.mode != "idle") && Dash.tv.subtitle != "": Text {
-                    text: Dash.tv.subtitle;
-                    font-size: 24px;
-                    color: Dash.tint.sec;
-                    wrap: word-wrap;
-                }
-                if root.playing && Dash.tv.paused: HorizontalLayout {
-                    alignment: start;
-                    padding-top: 8px;
-                    Rectangle {
-                        width: paused.preferred-width + 28px;
-                        height: 34px;
-                        border-radius: 17px;
-                        background: Dash.tint.btn;
-                        paused := Text { text: "Paused"; font-size: 18px; font-weight: 600; color: Dash.tint.accent; }
-                    }
+                    overflow: elide;
                 }
             }
         }
 
+        if Dash.tv.mode == "idle": Rectangle { vertical-stretch: 1; }
+
+        // 4. Progress bar & times
         if (root.playing || root.next) && Dash.tv.at-text != "": VerticalLayout {
-            spacing: 10px;
+            spacing: 8px;
             ProgressBar { height: 10px; value: Dash.tv.progress; fill: Dash.tint.accent; track: Dash.tint.track; }
             HorizontalLayout {
-                Text { text: Dash.tv.at-text; font-size: 20px; color: Dash.tint.sec; horizontal-stretch: 1; }
-                Text { text: Dash.tv.left-text; font-size: 20px; color: Dash.tint.sec; }
+                Text { text: Dash.tv.at-text; font-size: 18px; color: Dash.tint.sec; horizontal-stretch: 1; }
+                Text { text: Dash.tv.left-text; font-size: 18px; color: Dash.tint.sec; }
             }
         }
 
+        // 5. Actions (76 px)
         if root.playing: HorizontalLayout {
-            spacing: 14px;
+            spacing: 12px;
             height: 76px;
             ActionButton {
                 icon: "back";
-                width: 84px;
-                font-px: 26px;
+                width: 76px;
+                font-px: 24px;
                 fill: Dash.tint.btn;
                 edge: Dash.tint.edge;
                 accessible-label: "Back 10 seconds";
@@ -281,7 +308,7 @@ component TvCardView inherits Rectangle {
                 text: Dash.tv.paused ? "Resume" : "Pause";
                 icon: Dash.tv.paused ? "play" : "pause";
                 primary: true;
-                font-px: 26px;
+                font-px: 24px;
                 horizontal-stretch: 1;
                 fill: Dash.tint.accent;
                 ink: Dash.tint.on-accent;
@@ -289,8 +316,8 @@ component TvCardView inherits Rectangle {
             }
             ActionButton {
                 icon: "forward";
-                width: 84px;
-                font-px: 26px;
+                width: 76px;
+                font-px: 24px;
                 fill: Dash.tint.btn;
                 edge: Dash.tint.edge;
                 accessible-label: "Forward 30 seconds";
@@ -298,7 +325,7 @@ component TvCardView inherits Rectangle {
             }
             ActionButton {
                 text: "Stop";
-                font-px: 24px;
+                font-px: 22px;
                 fill: Dash.tint.btn;
                 edge: Dash.tint.edge;
                 clicked => { Dash.transport("stop"); }
@@ -309,7 +336,7 @@ component TvCardView inherits Rectangle {
             text: "Close browser";
             icon: "stop";
             primary: true;
-            font-px: 26px;
+            font-px: 24px;
             fill: Dash.tint.accent;
             ink: Dash.tint.on-accent;
             clicked => { Dash.transport("stop"); }
@@ -320,13 +347,13 @@ component TvCardView inherits Rectangle {
             icon: "play";
             primary: true;
             enabled: Dash.tv-connected;
-            font-px: 26px;
+            font-px: 24px;
             fill: Dash.tint.accent;
             ink: Dash.tint.on-accent;
-            clicked => { Dash.play-item(0); }
+            clicked => { Dash.play-up-next(); }
         }
 
-        // Other devices, and servers whose sign-in expired.
+        // Other devices & expired Plex sign-in.
         if Dash.sessions.length > 0 || Dash.tv-prompts.length > 0: Rectangle { height: 1px; background: Dash.tint.edge; }
         if Dash.sessions.length > 0: HorizontalLayout {
             Text {
@@ -361,87 +388,119 @@ component TvCardView inherits Rectangle {
     }
 }
 
-// ── Watch on TV ──────────────────────────────────────────────────────
+// ── Watch on TV (2×5 logo-only grid) ─────────────────────────────────
 
-// Tap opens the site on the TV; hold (or right-click) edits it.
 component SiteTile inherits Rectangle {
     in property <SiteTileData> site;
     in property <bool> enabled: true;
     callback clicked();
-    callback held();
-    property <bool> held-fired;
     opacity: root.enabled ? 1.0 : 0.45;
     border-radius: Theme.radius;
     border-width: touch.pressed ? 2px : 1px;
     border-color: touch.pressed ? Theme.accent : Theme.border;
     background: touch.pressed ? Theme.border : Theme.surface-raised;
     accessible-role: button;
-    accessible-label: "Watch " + root.site.name + " on TV";
+    accessible-label: root.site.name;
 
-    VerticalLayout {
-        alignment: center;
-        spacing: 10px;
-        HorizontalLayout {
-            alignment: center;
-            Rectangle {
-                width: 52px;
-                height: 52px;
-                border-radius: 14px;
-                clip: true;
-                background: root.site.has-logo ? transparent : root.site.bg;
-                if root.site.has-logo: Image { width: parent.width; height: parent.height; source: root.site.logo; image-fit: cover; }
-                if !root.site.has-logo: Text {
-                    text: root.site.monogram;
-                    font-size: 26px;
-                    font-weight: 600;
-                    color: root.site.fg;
-                }
-            }
-        }
-        Text {
-            text: root.site.name;
-            font-size: 18px;
-            font-weight: 500;
-            color: Theme.text-primary;
-            horizontal-alignment: center;
-            overflow: elide;
-        }
+    property <image> bundled-logo:
+        root.site.name == "YouTube TV" ? @image-url("../../../assets/logos/youtube-tv.svg")
+        : root.site.name == "YouTube" ? @image-url("../../../assets/logos/youtube.svg")
+        : root.site.name == "Disney+" ? @image-url("../../../assets/logos/disney-plus.svg")
+        : root.site.name == "Hulu" ? @image-url("../../../assets/logos/hulu.svg")
+        : root.site.name == "Apple TV" || root.site.name == "Apple TV+" ? @image-url("../../../assets/logos/apple-tv.svg")
+        : root.site.name == "Netflix" ? @image-url("../../../assets/logos/netflix.svg")
+        : root.site.name == "Fandango at Home" ? @image-url("../../../assets/logos/fandango-at-home.svg")
+        : root.site.name == "Prime Video" ? @image-url("../../../assets/logos/prime-video.svg")
+        : root.site.name == "Crunchyroll" ? @image-url("../../../assets/logos/crunchyroll.svg")
+        : root.site.name == "Tubi" ? @image-url("../../../assets/logos/tubi.svg")
+        : @image-url("../../../assets/logos/netflix.svg");
+
+    property <bool> has-bundled:
+        root.site.name == "YouTube TV" || root.site.name == "YouTube" || root.site.name == "Disney+"
+        || root.site.name == "Hulu" || root.site.name == "Apple TV" || root.site.name == "Apple TV+"
+        || root.site.name == "Netflix" || root.site.name == "Fandango at Home"
+        || root.site.name == "Prime Video" || root.site.name == "Crunchyroll" || root.site.name == "Tubi";
+
+    if root.site.has-logo || root.has-bundled: Image {
+        width: parent.width * 78%;
+        height: parent.height * 68%;
+        source: root.site.has-logo ? root.site.logo : root.bundled-logo;
+        image-fit: contain;
     }
+    if !root.site.has-logo && !root.has-bundled: Text {
+        text: root.site.name;
+        width: parent.width - 20px;
+        font-size: 20px;
+        font-weight: 600;
+        color: Theme.text-primary;
+        horizontal-alignment: center;
+        overflow: elide;
+    }
+
     touch := TouchArea {
         mouse-cursor: pointer;
-        pointer-event(e) => {
-            if e.kind == PointerEventKind.down {
-                root.held-fired = e.button == PointerEventButton.right;
-                if root.held-fired { root.held(); }
+        clicked => { root.clicked(); }
+    }
+}
+
+component WatchOnTvBox inherits Rectangle {
+    background: Theme.surface;
+    border-radius: Theme.card-radius;
+    clip: true;
+
+    VerticalLayout {
+        padding: 28px;
+        spacing: 16px;
+
+        HorizontalLayout {
+            SectionLabel {
+                text: "WATCH ON TV · " + Dash.streaming-sites.length + " APPS";
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+            }
+            Text {
+                text: "Full screen on TV";
+                font-size: Theme.label-size;
+                color: Theme.text-muted;
+                vertical-alignment: center;
             }
         }
-        clicked => {
-            if !root.held-fired && root.enabled { root.clicked(); }
-        }
-    }
-    Timer {
-        interval: 600ms;
-        running: touch.pressed && !root.held-fired;
-        triggered => {
-            root.held-fired = true;
-            root.held();
+        grid := Rectangle {
+            vertical-stretch: 1;
+            property <int> columns: 2;
+            property <int> rows: max(1, Math.ceil(Dash.streaming-sites.length / grid.columns));
+            property <length> gap: 12px;
+            property <length> tile-w: (self.width - gap) / 2;
+            property <length> tile-h: (self.height - (rows - 1) * gap) / rows;
+
+            for site[i] in Dash.streaming-sites: SiteTile {
+                x: Math.mod(i, grid.columns) * (grid.tile-w + grid.gap);
+                y: Math.floor(i / grid.columns) * (grid.tile-h + grid.gap);
+                width: grid.tile-w;
+                height: grid.tile-h;
+                site: site;
+                enabled: Dash.tv-connected;
+                clicked => { if Dash.tv-connected { Dash.open-site(site.index); } }
+            }
         }
     }
 }
 
-component AddTile inherits Rectangle {
+// ── Continue Watching (TV / Series · Movies + 3×2 grid) ──────────────
+
+component CwSwitchTab inherits Rectangle {
+    in property <string> label;
+    in property <bool> on;
     callback clicked();
-    border-radius: Theme.radius;
-    border-width: 1px;
-    border-color: Theme.border;
-    background: touch.pressed ? Theme.surface-raised : transparent;
-    accessible-role: button;
-    accessible-label: "Add service";
-    VerticalLayout {
-        alignment: center;
-        spacing: 10px;
-        HorizontalLayout { alignment: center; Icon { name: "plus"; tint: Theme.text-secondary; size: 30px; } }
-        Text { text: "Add service"; font-size: 18px; font-weight: 500; color: Theme.text-secondary; horizontal-alignment: center; }
+    horizontal-stretch: 1;
+    height: 48px;
+    border-radius: 12px;
+    background: root.on ? Theme.text-primary : touch.pressed ? Theme.surface-raised : transparent;
+    Text {
+        text: root.label;
+        font-size: 18px;
+        font-weight: 500;
+        color: root.on ? Theme.bg : Theme.text-secondary;
     }
     touch := TouchArea {
         mouse-cursor: pointer;
@@ -449,52 +508,18 @@ component AddTile inherits Rectangle {
     }
 }
 
-// Wrapping grid of tiles, five per row, then the Add tile.
-component SiteGrid inherits Rectangle {
-    property <int> columns: 5;
-    property <length> gap: 14px;
-    property <length> tile-h: 104px;
-    property <length> tile-w: (self.width - (root.columns - 1) * root.gap) / root.columns;
-    property <int> count: Dash.streaming-sites.length + 1;
-    property <int> rows: Math.ceil(root.count / root.columns);
-    height: max(0, root.rows * (root.tile-h + root.gap) - root.gap);
-
-    for site[i] in Dash.streaming-sites: SiteTile {
-        x: Math.mod(i, root.columns) * (root.tile-w + root.gap);
-        y: Math.floor(i / root.columns) * (root.tile-h + root.gap);
-        width: root.tile-w;
-        height: root.tile-h;
-        site: site;
-        enabled: Dash.tv-connected;
-        clicked => { Dash.open-site(site.index); }
-        held => { SiteEditor.edit(site.index); }
-    }
-    AddTile {
-        x: Math.mod(Dash.streaming-sites.length, root.columns) * (root.tile-w + root.gap);
-        y: Math.floor(Dash.streaming-sites.length / root.columns) * (root.tile-h + root.gap);
-        width: root.tile-w;
-        height: root.tile-h;
-        clicked => { SiteEditor.add(); }
-    }
-}
-
-// ── Continue Watching ────────────────────────────────────────────────
-
-component ContinueWatching inherits Rectangle {
+component ContinueWatchingBox inherits Rectangle {
     background: Theme.surface;
     border-radius: Theme.card-radius;
     clip: true;
 
     VerticalLayout {
-        padding-top: 24px;
-        padding-bottom: 24px;
-        padding-left: 28px;
-        padding-right: 28px;
+        padding: 28px;
         spacing: 16px;
 
         HorizontalLayout {
             SectionLabel {
-                text: Dash.cw-state == "items" ? "CONTINUE WATCHING · SWIPE FOR MORE" : "CONTINUE WATCHING";
+                text: "CONTINUE WATCHING";
                 horizontal-stretch: 1;
                 vertical-alignment: center;
             }
@@ -503,7 +528,7 @@ component ContinueWatching inherits Rectangle {
                 width: see-all.preferred-width + 8px;
                 see-all := HorizontalLayout {
                     spacing: 6px;
-                    Text { text: "See all in Library"; font-size: 20px; color: link.pressed ? Theme.text-primary : Theme.text-secondary; vertical-alignment: center; }
+                    Text { text: "See all"; font-size: 20px; color: link.pressed ? Theme.text-primary : Theme.text-secondary; vertical-alignment: center; }
                     VerticalLayout { alignment: center; Icon { name: "chevron"; tint: Theme.text-secondary; size: 18px; } }
                 }
                 link := TouchArea {
@@ -513,20 +538,59 @@ component ContinueWatching inherits Rectangle {
             }
         }
 
+        // Full-width TV / Series · Movies switch (56 px)
+        Rectangle {
+            height: Theme.hit-target;
+            border-radius: Theme.radius;
+            background: Theme.surface-raised;
+            border-width: 1px;
+            border-color: Theme.border;
+            HorizontalLayout {
+                padding: 4px;
+                spacing: 4px;
+                CwSwitchTab {
+                    label: "TV / Series";
+                    on: Dash.cw-filter != "movies";
+                    clicked => { Dash.set-cw-filter("tv"); }
+                }
+                CwSwitchTab {
+                    label: "Movies";
+                    on: Dash.cw-filter == "movies";
+                    clicked => { Dash.set-cw-filter("movies"); }
+                }
+            }
+        }
+
         if Dash.cw-state == "items": VerticalLayout {
-            spacing: 14px;
+            spacing: 12px;
             vertical-stretch: 1;
-            // One source missing: slim banner above the row.
+            min-height: 0;
             for p in Dash.prompts: PromptBanner {
                 data: p;
                 action => { Dash.prompt-action(p.source, p.action-id); }
             }
-            PosterRow {
-                cards: Dash.continue-watching;
+            Flickable {
+                vertical-stretch: 1;
+                min-height: 0;
+                content-height: cw-grid.preferred-height;
                 opacity: Dash.tv-connected ? 1.0 : 0.55;
-                clicked(i) => { if Dash.tv-connected { Dash.play-item(i); } }
+                cw-grid := Rectangle {
+                    property <length> gap: 14px;
+                    property <length> card-w: (self.width - 2 * gap) / 3;
+                    property <length> card-h: card-w * 1.5 + 34px;
+                    property <int> rows: Math.ceil(Dash.continue-watching.length / 3);
+                    height: max(0px, rows * card-h + max(0, rows - 1) * gap);
+
+                    for c[i] in Dash.continue-watching: PosterCard {
+                        x: Math.mod(i, 3) * (cw-grid.card-w + cw-grid.gap);
+                        y: Math.floor(i / 3) * (cw-grid.card-h + cw-grid.gap);
+                        width: cw-grid.card-w;
+                        art-width: cw-grid.card-w;
+                        data: c;
+                        clicked => { if Dash.tv-connected { Dash.play-item(i); } }
+                    }
+                }
             }
-            Rectangle { vertical-stretch: 1; }
         }
 
         if Dash.cw-state != "items": VerticalLayout {
@@ -585,88 +649,139 @@ export component HomePage inherits VerticalLayout {
     padding-right: 64px;
     spacing: Theme.gap;
 
-    // ── Header: clock, theme, weather, Settings ──────────────────
-    HorizontalLayout {
+    // ── Header (140 px, 1fr · 2fr · 1fr) ─────────────────────────
+    header := HorizontalLayout {
         spacing: Theme.gap;
         min-height: 140px;
 
+        // Left (1fr)
         HorizontalLayout {
-            spacing: 28px;
+            horizontal-stretch: 1;
+            spacing: 12px;
+            alignment: start;
             VerticalLayout {
                 alignment: center;
+                SquareButton {
+                    icon: "search";
+                    label: "Search";
+                    active: Dash.search-open;
+                    clicked => {
+                        if Dash.search-open {
+                            Dash.search-open = false;
+                            Watch.query = "";
+                            Watch.edited("");
+                            Watch.close-detail();
+                        } else {
+                            Dash.search-open = true;
+                        }
+                    }
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                SquareButton {
+                    icon: "screensaver";
+                    label: "Screensaver";
+                    clicked => {
+                        Dash.search-open = false;
+                        Dash.open-screensaver();
+                    }
+                }
+            }
+        }
+
+        // Centre (2fr): clock + date · divider · weather
+        HorizontalLayout {
+            horizontal-stretch: 2;
+            alignment: center;
+            spacing: 32px;
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 2px;
                 Clock {
                     hh: Dash.clock-hh;
                     mm: Dash.clock-mm;
                     ss: Dash.clock-ss;
                     show-seconds: Dash.show-seconds;
-                    font-px: Theme.laptop-clock-size;
+                    font-px: 112px;
+                }
+                Text {
+                    text: Dash.weekday + ", " + Dash.date-text;
+                    font-size: 24px;
+                    color: Theme.text-secondary;
+                    horizontal-alignment: center;
                 }
             }
+
             VerticalLayout {
                 alignment: center;
-                spacing: 4px;
-                Text { text: Dash.weekday; font-size: 30px; color: Theme.text-primary; }
-                Text { text: Dash.date-text; font-size: Theme.body-size; color: Theme.text-secondary; }
+                Rectangle { width: 1px; height: 84px; background: Theme.border; }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                WeatherSummary { }
             }
         }
-        Rectangle { horizontal-stretch: 1; }
-        VerticalLayout { alignment: center; horizontal-stretch: 0; ThemeSwitch { } }
-        VerticalLayout { alignment: center; horizontal-stretch: 0; WeatherCard { } }
-        VerticalLayout {
-            alignment: center;
-            horizontal-stretch: 0;
-            SquareButton { icon: "search"; label: "Where to watch"; clicked => { Nav.page = "watch"; } }
-        }
-        VerticalLayout {
-            alignment: center;
-            horizontal-stretch: 0;
-            SquareButton { icon: "gear"; label: "Settings"; clicked => { Nav.page = "settings"; } }
+
+        // Right (1fr): Theme switch + Settings
+        HorizontalLayout {
+            horizontal-stretch: 1;
+            spacing: 12px;
+            alignment: end;
+            VerticalLayout { alignment: center; ThemeSwitch { } }
+            VerticalLayout {
+                alignment: center;
+                SquareButton { icon: "gear"; label: "Settings"; clicked => { Nav.page = "settings"; } }
+            }
         }
     }
 
-    // ── Main: On the TV (5/12) · tiles + Continue Watching (7/12) ─
-    // Placed by hand: a layout can't size one column from its own width.
+    // ── Main: three equal 4-column full-height boxes ─────────────
     main := Rectangle {
         vertical-stretch: 1;
         min-height: 640px;
 
-        tv-card := TvCardView {
+        property <length> box-w: (self.width - 2 * Theme.gap) / 3;
+
+        TvCardView {
             x: 0;
             y: 0;
-            width: (main.width - Theme.gap) * 5 / 12;
+            width: main.box-w;
             height: main.height;
         }
 
-        VerticalLayout {
-            x: tv-card.width + Theme.gap;
+        WatchOnTvBox {
+            x: main.box-w + Theme.gap;
             y: 0;
-            width: main.width - self.x;
+            width: main.box-w;
             height: main.height;
-            spacing: Theme.gap;
+        }
 
-            Rectangle {
-                background: Theme.surface;
-                border-radius: Theme.card-radius;
-                vertical-stretch: 0;
-                VerticalLayout {
-                    alignment: start;
-                    padding-top: 24px;
-                    padding-bottom: 24px;
-                    padding-left: 28px;
-                    padding-right: 28px;
-                    spacing: 16px;
-                    HorizontalLayout {
-                        SectionLabel {
-                            text: "WATCH ON TV · " + Dash.streaming-sites.length + (Dash.streaming-sites.length == 1 ? " SERVICE" : " SERVICES");
-                            horizontal-stretch: 1;
-                        }
-                        Text { text: "Hold a tile to edit or remove it"; font-size: Theme.label-size; color: Theme.text-muted; }
-                    }
-                    SiteGrid { }
-                }
+        ContinueWatchingBox {
+            x: (main.box-w + Theme.gap) * 2;
+            y: 0;
+            width: main.box-w;
+            height: main.height;
+        }
+
+        // Slide-in Search panel over Watch on TV and Continue Watching.
+        SearchPanel {
+            x: main.box-w + Theme.gap + (Dash.search-open ? 0px : 48px);
+            y: 0;
+            width: main.width - (main.box-w + Theme.gap);
+            height: main.height;
+            opacity: Dash.search-open ? 1 : 0;
+            visible: self.opacity > 0.01;
+            animate x { duration: 250ms; easing: ease-out; }
+            animate opacity { duration: 250ms; easing: ease-out; }
+            close => {
+                Dash.search-open = false;
+                Watch.query = "";
+                Watch.edited("");
+                Watch.close-detail();
             }
-
-            ContinueWatching { vertical-stretch: 1; }
         }
     }
 }

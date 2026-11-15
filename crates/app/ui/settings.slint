@@ -400,9 +400,10 @@ component DisplayTab inherits VerticalLayout {
                 VerticalLayout {
                     alignment: center;
                     SegmentBox {
-                        Segment { label: "Dark"; on: T.mode == UiTheme.dark; clicked => { Dash.set-theme(UiTheme.dark); } }
-                        Segment { label: "Stone"; on: T.mode == UiTheme.stone; clicked => { Dash.set-theme(UiTheme.stone); } }
-                        Segment { label: "Mist"; on: T.mode == UiTheme.mist; clicked => { Dash.set-theme(UiTheme.mist); } }
+                        Segment { label: "Follow system"; on: Display.follow-system; clicked => { Display.set-follow-system(); } }
+                        Segment { label: "Dark"; on: !Display.follow-system && T.mode == UiTheme.dark; clicked => { Dash.set-theme(UiTheme.dark); } }
+                        Segment { label: "Stone"; on: !Display.follow-system && T.mode == UiTheme.stone; clicked => { Dash.set-theme(UiTheme.stone); } }
+                        Segment { label: "Mist"; on: !Display.follow-system && T.mode == UiTheme.mist; clicked => { Dash.set-theme(UiTheme.mist); } }
                     }
                 }
             }

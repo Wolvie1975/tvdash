@@ -157,7 +157,7 @@ export component WatchPage inherits VerticalLayout {
                     color: Theme.text-secondary;
                     wrap: word-wrap;
                 }
-                Group { title: "IN YOUR LIBRARY"; hint: "Plex and Jellyfin"; cards: Watch.library; }
+                Group { title: "IN YOUR LIBRARY"; hint: "Plex"; cards: Watch.library; }
                 Group { title: "ON YOUR SERVICES"; hint: "Included with a site you have"; cards: Watch.included; }
                 if !Watch.only-now: Group { title: "COSTS EXTRA"; hint: "Rent, buy, or a service you don't have"; cards: Watch.extra; }
                 if !Watch.only-now: Group { title: "NOT STREAMING"; hint: "No US offers"; cards: Watch.none; }
@@ -173,5 +173,83 @@ export component WatchPage inherits VerticalLayout {
         spacing: 10px;
         Text { text: "Availability in the US from JustWatch, via TMDB."; font-size: 16px; color: Theme.text-muted; }
         Text { text: "This product uses the TMDB API but is not endorsed or certified by TMDB."; font-size: 16px; color: Theme.text-muted; horizontal-stretch: 1; }
+    }
+}
+
+// Slide-in Search panel over Watch on TV + Continue Watching on the Home page.
+export component SearchPanel inherits Rectangle {
+    in property <bool> open: false;
+    callback close();
+
+    background: Theme.surface;
+    border-radius: Theme.card-radius;
+    border-width: 1px;
+    border-color: Theme.border;
+    clip: true;
+
+    VerticalLayout {
+        padding: 28px;
+        spacing: 20px;
+
+        HorizontalLayout {
+            spacing: 14px;
+            search-field := TextField {
+                min-height: 72px;
+                placeholder: "Search any movie or show";
+                text <=> Watch.query;
+                edited(q) => { Watch.edited(q); }
+                accepted(q) => { Watch.search(q); }
+            }
+            ActionButton {
+                icon: "close";
+                accessible-label: "Close search";
+                height: 72px;
+                width: 72px;
+                clicked => { root.close(); }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: Theme.gap;
+            vertical-stretch: 1;
+            min-height: 0;
+            preferred-height: 0;
+
+            Flickable {
+                horizontal-stretch: 1;
+                min-height: 0;
+                preferred-height: 0;
+                content-height: panel-groups.preferred-height;
+                panel-groups := VerticalLayout {
+                    width: parent.width;
+                    spacing: 24px;
+                    alignment: start;
+                    if Watch.query == "": Text {
+                        text: "Type a movie or show to search Plex and your streaming apps.";
+                        font-size: Theme.body-size;
+                        color: Theme.text-muted;
+                    }
+                    if Watch.query != "" && (Watch.message != "" || Watch.searching): Text {
+                        text: Watch.searching ? "Searching…" : Watch.message;
+                        font-size: Theme.body-size;
+                        color: Theme.text-secondary;
+                        wrap: word-wrap;
+                    }
+                    Group { title: "IN YOUR LIBRARY"; hint: "Plex"; cards: Watch.library; }
+                    Group { title: "ON YOUR APPS"; hint: "Open on TV"; cards: Watch.included; }
+                    Group { title: "COSTS EXTRA"; hint: ""; cards: Watch.extra; }
+                    Group { title: "NOT STREAMING"; hint: ""; cards: Watch.none; }
+                    Group { title: "CHECKING"; hint: "Looking up where it streams…"; cards: Watch.checking; }
+                }
+            }
+
+            if Watch.detail-open: WatchDetail { }
+        }
+
+        Text {
+            text: "Streaming availability in the US from JustWatch, via TMDB.";
+            font-size: 16px;
+            color: Theme.text-muted;
+        }
     }
 }

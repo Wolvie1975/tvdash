@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn text_on_every_tint_passes_aa() {
         let text = |m: ThemeMode| match m {
-            ThemeMode::Dark => rgb(0xE8EAED),
+            ThemeMode::Dark | ThemeMode::FollowSystem => rgb(0xE8EAED),
             ThemeMode::Stone => rgb(0x1F1D1A),
             ThemeMode::Mist => rgb(0x1A1E23),
         };

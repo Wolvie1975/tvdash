@@ -403,7 +403,7 @@ mod tests {
 
     fn item(id: &str) -> MediaItem {
         MediaItem {
-            source: SourceKind::Jellyfin,
+            source: SourceKind::Plex,
             id: id.into(),
             kind: MediaKind::Movie,
             title: id.into(),
@@ -432,7 +432,6 @@ mod tests {
                 layout_setting: tvdash_core::LayoutSetting::Auto,
                 tv_connected: true,
                 sites: (0..7).map(|i| site(&format!("S{i}"))).collect(),
-                jellyfin_url: String::new(),
             },
         );
         let (tx, rx) = mpsc::channel();
@@ -464,7 +463,7 @@ mod tests {
 
         // Continue Watching arrives: the hero (Resume) and the row appear.
         let t = crate::TvWindow::new().unwrap();
-        bridge::apply_for_test(&l, &t, AppEvent::ContinueWatching(SourceKind::Jellyfin, vec![item("a"), item("b")]));
+        bridge::apply_for_test(&l, &t, AppEvent::ContinueWatching(SourceKind::Plex, vec![item("a"), item("b")]));
         assert_eq!(l.global::<Dash>().get_tv().mode, "next");
         assert!(press(&l, Key::UpArrow));
         assert_eq!(ui.get_focus(), "continue");

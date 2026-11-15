@@ -31,12 +31,13 @@ export struct TvCard {
     // "playing" (mpv) | "streaming" (browser) | "next" (idle, top Continue Watching item) | "idle"
     mode: string,
     label: string,      // "ON THE TV" | "UP NEXT"
-    source: string,     // pill: "Jellyfin" | "Plex" | "Browser" | ""
+    source: string,     // pill: "Plex" | "Browser" | ""
     title: string,
     subtitle: string,
     note: string,       // line above the title ("Nothing on the TV. Pick up where you left off:")
     at-text: string,    // "24:10 / 52:00" | "Stopped at 31:40"
     left-text: string,  // "28 min left · ends 21:40"
+    summary: string,
     progress: float,
     paused: bool,
     poster: image,
@@ -89,6 +90,8 @@ export global Dash {
     // Continue Watching: "loading" | "busy" | "code" | "prompts" | "empty" | "items"
     in property <string> cw-state: "loading";
     in property <string> cw-message;
+    in-out property <string> cw-filter: "tv"; // "tv" | "movies"
+    in-out property <bool> search-open: false;
     in property <string> signin-code;
     in property <string> signin-source;
     in property <[AccountPrompt]> prompts;
@@ -106,6 +109,9 @@ export global Dash {
     callback open-site(int);
     callback transport(string); // "back" | "play-pause" | "forward" | "stop"
     callback play-item(int);
+    callback play-up-next();
+    callback set-cw-filter(string);
+    callback open-screensaver();
     callback prompt-action(string, string); // (source, "sign-in" | "retry")
     callback cancel-sign-in(string);
     callback set-theme(UiTheme);
@@ -124,7 +130,7 @@ export struct DetailData {
 }
 
 export global Library {
-    // "all" | "plex" | "jellyfin"
+    // "all" | "plex"
     in-out property <string> filter: "all";
     in-out property <string> query;
     in property <bool> searching;
@@ -171,7 +177,7 @@ export global Artwork {
 }
 
 export struct AccountRow {
-    id: string,         // "plex" | "jellyfin"
+    id: string,         // "plex"
     name: string,
     status: string,
     detail: string,
@@ -212,20 +218,15 @@ export global Accounts {
 }
 
 export global Setup {
-    // 0 Plex · 1 Jellyfin · 2 Streaming
+    // 0 Plex · 1 Streaming
     in-out property <int> step: 0;
     // Per sign-in: "idle" | "busy" | "code" | "done" | "error"
     in property <string> plex-state: "idle";
     in property <string> plex-code;
     in property <string> plex-message;
-    in property <string> jellyfin-state: "idle";
-    in property <string> jellyfin-code;
-    in property <string> jellyfin-message;
-    in-out property <string> jellyfin-url;
 
-    callback sign-in(string);       // "plex" | "jellyfin" (uses jellyfin-url)
+    callback sign-in(string);       // "plex"
     callback cancel(string);
-    callback jellyfin-password(string, string);
     callback finish();
 }
 
@@ -360,7 +361,9 @@ export global Display {
     in-out property <bool> celsius: false;
     in-out property <bool> h12: false;
     in-out property <bool> seconds: false;
+    in property <bool> follow-system: false;
     callback changed();
+    callback set-follow-system();
 
     // Weather location.
     in property <string> location-name;     // "" = not set

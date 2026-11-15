@@ -26,7 +26,6 @@ fn windows() -> (LaptopWindow, TvWindow) {
                 .into_iter()
                 .map(|name| StreamingSite { url: format!("https://{name}.example"), name, ..Default::default() })
                 .collect(),
-            jellyfin_url: "http://jf:8096".into(),
         },
     );
     (l, t)
@@ -59,9 +58,7 @@ fn account(l: &LaptopWindow, id: &str) -> AccountRow {
 fn setup_flow_advances_on_success() {
     let (l, t) = windows();
     let setup = l.global::<Setup>();
-    assert_eq!(setup.get_jellyfin_url(), "http://jf:8096");
     send(&l, &t, AppEvent::Account(SourceKind::Plex, AccountStatus::NotSetUp));
-    send(&l, &t, AppEvent::Account(SourceKind::Jellyfin, AccountStatus::NotSetUp));
     send(&l, &t, AppEvent::ShowSetup);
     assert_eq!(l.global::<Nav>().get_page(), "setup");
     assert_eq!((setup.get_step(), setup.get_plex_state().as_str()), (0, "idle"));
@@ -77,11 +74,6 @@ fn setup_flow_advances_on_success() {
     assert_eq!(setup.get_plex_state(), "done");
     assert!(setup.get_plex_message().contains("10.0.0.5"));
     assert_eq!((account(&l, "plex").state.as_str(), account(&l, "plex").secondary.as_str()), ("ok", "Sign out"));
-
-    // Jellyfin failure stays on the step with the reason.
-    send(&l, &t, AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Failed("wrong username or password".into())));
-    assert_eq!((setup.get_step(), setup.get_jellyfin_state().as_str()), (1, "error"));
-    assert!(setup.get_jellyfin_message().contains("wrong username"));
 }
 
 #[test]
@@ -105,17 +97,17 @@ fn tv_card_follows_playback_browser_and_theme() {
 
     // Playback wins over "up next"; the browser shows when mpv isn't running.
     let status = PlayerStatus {
-        item: item(SourceKind::Jellyfin, "j1", "Jelly Film"),
+        item: item(SourceKind::Plex, "p2", "Plex Show"),
         state: PlayState::Paused,
         position_ms: 754_000,
         duration_ms: Some(2_700_000),
     };
     send(&l, &t, AppEvent::Player(Some(status)));
     let tv = dash.get_tv();
-    assert_eq!((tv.mode.as_str(), tv.title.as_str(), tv.paused), ("playing", "Jelly Film", true));
+    assert_eq!((tv.mode.as_str(), tv.title.as_str(), tv.paused), ("playing", "Plex Show", true));
     assert_eq!(tv.at_text, "12:34 / 45:00");
     assert!(tv.left_text.starts_with("32 min left · ends "));
-    assert_eq!(t.get_message(), "Starting Jelly Film…");
+    assert_eq!(t.get_message(), "Starting Plex Show…");
     send(&l, &t, AppEvent::Player(None));
     send(&l, &t, AppEvent::Browser(Some("Hulu".into())));
     let tv = dash.get_tv();
@@ -228,14 +220,9 @@ fn location_search_pick_and_timezone() {
 fn library_filter_search_and_detail() {
     let (l, t) = windows();
     let lib = l.global::<Library>();
-    send(
-        &l,
-        &t,
-        AppEvent::ContinueWatching(SourceKind::Jellyfin, vec![item(SourceKind::Jellyfin, "j1", "Jelly Film")]),
-    );
     send(&l, &t, AppEvent::ContinueWatching(SourceKind::Plex, vec![item(SourceKind::Plex, "p1", "Plex Film")]));
     send(&l, &t, AppEvent::RecentlyAdded(SourceKind::Plex, vec![item(SourceKind::Plex, "p2", "New One")]));
-    assert_eq!((lib.get_continue_watching().row_count(), lib.get_recently_added().row_count()), (2, 1));
+    assert_eq!((lib.get_continue_watching().row_count(), lib.get_recently_added().row_count()), (1, 1));
     assert_eq!(l.global::<Dash>().get_cw_state(), "items");
 
     set_filter(&l, "plex");
@@ -248,10 +235,10 @@ fn library_filter_search_and_detail() {
     assert_eq!(lib.get_results_title(), "RESULTS FOR “FILM”");
     send(&l, &t, AppEvent::SearchResults { query: "old".into(), items: vec![item(SourceKind::Plex, "x", "Stale")] });
     assert_eq!(lib.get_results().row_count(), 0);
-    let found = vec![item(SourceKind::Jellyfin, "j1", "Jelly Film"), item(SourceKind::Plex, "p1", "Plex Film")];
+    let found = vec![item(SourceKind::Plex, "p1", "Plex Film")];
     send(&l, &t, AppEvent::SearchResults { query: "film".into(), items: found });
     assert!(!lib.get_searching());
-    assert_eq!(lib.get_results().row_count(), 1, "filtered to Plex");
+    assert_eq!(lib.get_results().row_count(), 1);
 
     // Detail panel, then its poster arrives.
     select(&l, "results", 0);
@@ -273,7 +260,6 @@ fn library_filter_search_and_detail() {
 fn expired_states_and_streaming_sites() {
     let (l, t) = windows();
     let dash = l.global::<Dash>();
-    send(&l, &t, AppEvent::Account(SourceKind::Jellyfin, AccountStatus::Connected));
     send(&l, &t, AppEvent::Account(SourceKind::Plex, AccountStatus::Expired));
     // Expired → On the TV card, not the Continue Watching banners.
     assert_eq!(dash.get_tv_prompts().row_count(), 1);

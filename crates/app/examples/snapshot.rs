@@ -93,7 +93,7 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
     let dash = l.global::<Dash>();
     let theme = l.global::<Theme>();
     theme.set_mode(match theme_mode {
-        ThemeMode::Dark => UiTheme::Dark,
+        ThemeMode::Dark | ThemeMode::FollowSystem => UiTheme::Dark,
         ThemeMode::Stone => UiTheme::Stone,
         ThemeMode::Mist => UiTheme::Mist,
     });
@@ -127,9 +127,9 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
     let teal = tint::Hue { degrees: 182.0, saturation: 0.8 };
 
     let row = cards(&[
-        ("Some Show", "S2 · E5 · The Pilot", 0.33, true, "Jellyfin"),
+        ("Some Show", "S2 · E5 · The Pilot", 0.33, true, "Plex"),
         ("Plex Show", "S3 · E2 · Chapter One", 0.4, true, "Plex"),
-        ("A Film", "1999", 0.8, true, "Jellyfin"),
+        ("A Film", "1999", 0.8, true, "Plex"),
         ("No Poster Show", "S1 · E2", 0.1, false, "Plex"),
     ]);
 
@@ -206,7 +206,7 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
             dash.set_tv(TvCard {
                 mode: "playing".into(),
                 label: "ON THE TV".into(),
-                source: "Jellyfin".into(),
+                source: "Plex".into(),
                 title: "The Long Drive Home".into(),
                 subtitle: "S2 · E7 · Crossroads".into(),
                 at_text: "24:10 / 52:00".into(),
@@ -230,16 +230,16 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
             lib.set_continue_watching(row.clone());
             lib.set_recently_added(cards(&[
                 ("New Film", "2026", 0.0, true, "Plex"),
-                ("Docu Series", "S1 · E1 · Origins", 0.0, true, "Jellyfin"),
-                ("Another Film", "2025", 0.0, false, "Jellyfin"),
+                ("Docu Series", "S1 · E1 · Origins", 0.0, true, "Plex"),
+                ("Another Film", "2025", 0.0, false, "Plex"),
             ]));
             if mode == "library-search" {
                 lib.set_query("film".into());
                 lib.set_results_title("RESULTS FOR “FILM”".into());
                 lib.set_results(cards(&[
-                    ("A Film", "1999", 0.8, true, "Jellyfin"),
+                    ("A Film", "1999", 0.8, true, "Plex"),
                     ("Plex Film", "2001", 0.0, true, "Plex"),
-                    ("Another Film", "2025", 0.0, false, "Jellyfin"),
+                    ("Another Film", "2025", 0.0, false, "Plex"),
                 ]));
                 lib.set_selected_section("results".into());
                 lib.set_selected_index(0);
@@ -247,7 +247,7 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                 lib.set_detail(DetailData {
                     title: "A Film".into(),
                     subtitle: "1999".into(),
-                    badge: "JELLYFIN".into(),
+                    badge: "PLEX".into(),
                     meta: "Movie · 2 h 5 min · 25 min left".into(),
                     poster: fake_poster(0),
                     has_poster: true,
@@ -292,7 +292,6 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                     ui.set_col(1);
                     l.global::<Accounts>().set_accounts(model(vec![
                         account("plex", "Plex", "Connected", "", "ok", "", "Sign out"),
-                        account("jellyfin", "Jellyfin", "Not connected", "", "off", "Sign in", ""),
                     ]));
                 }
                 "tv-ambient" => ui.set_ambient(true),
@@ -319,7 +318,7 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                 "movie:604",
                 "The Matrix Reloaded",
                 "2003 · Movie",
-                "In Jellyfin",
+                "In Plex",
                 "library",
                 30,
             )]));
@@ -377,7 +376,7 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
             };
             let d = l.global::<Diagnostics>();
             d.set_rows(model(vec![
-                row("Jellyfin", "ok", "21:03 · 1 min ago · 4 in Continue Watching", ""),
+                row("Plex", "ok", "21:03 · 1 min ago · 4 in Continue Watching", ""),
                 row(
                     "Plex",
                     "warn",
@@ -423,7 +422,6 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                     "Reconnect",
                     "Sign out",
                 ),
-                account("jellyfin", "Jellyfin", "Connected", "http://republic-city:8096", "ok", "", "Sign out"),
             ]));
             acc.set_confirm_clear(true);
         }
@@ -432,23 +430,17 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
             let setup = l.global::<Setup>();
             let step: i32 = m[6..].parse().unwrap();
             setup.set_step(step);
-            setup.set_jellyfin_url("http://republic-city:8096".into());
             if step > 0 {
                 setup.set_plex_state("done".into());
             }
-            match step {
-                0 => {
-                    setup.set_plex_state("code".into());
-                    setup.set_plex_code("WXYZ".into());
-                }
-                1 => setup.set_jellyfin_state("idle".into()),
-                _ => {}
+            if step == 0 {
+                setup.set_plex_state("code".into());
+                setup.set_plex_code("WXYZ".into());
             }
         }
         _ => {
             dash.set_cw_state("prompts".into());
             dash.set_prompts(model(vec![
-                prompt("jellyfin", "Jellyfin isn't connected.", "Sign in to Jellyfin", false),
                 prompt("plex", "Plex isn't connected.", "Sign in to Plex", false),
             ]));
             dash.set_tv_prompts(model(vec![prompt("plex", "Plex sign-in expired.", "Reconnect", true)]));

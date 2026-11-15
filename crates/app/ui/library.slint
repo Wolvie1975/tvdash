@@ -194,7 +194,6 @@ export component LibraryPage inherits VerticalLayout {
         spacing: 12px;
         ActionButton { text: "All"; primary: Library.filter == "all"; clicked => { Library.set-filter("all"); } }
         ActionButton { text: "Plex"; primary: Library.filter == "plex"; clicked => { Library.set-filter("plex"); } }
-        ActionButton { text: "Jellyfin"; primary: Library.filter == "jellyfin"; clicked => { Library.set-filter("jellyfin"); } }
         Rectangle { width: 24px; }
         search := TextField {
             placeholder: "Search movies and shows";

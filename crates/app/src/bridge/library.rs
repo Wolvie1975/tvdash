@@ -10,7 +10,6 @@ use crate::{DetailData, LaptopWindow, Library, format};
 fn filter_items(items: Vec<MediaItem>, filter: &str) -> Vec<MediaItem> {
     match filter {
         "plex" => items.into_iter().filter(|i| i.source == SourceKind::Plex).collect(),
-        "jellyfin" => items.into_iter().filter(|i| i.source == SourceKind::Jellyfin).collect(),
         _ => items,
     }
 }

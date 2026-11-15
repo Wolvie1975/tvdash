@@ -123,7 +123,7 @@ mod tests {
     fn status(state: PlayState) -> PlayerStatus {
         PlayerStatus {
             item: MediaItem {
-                source: SourceKind::Jellyfin,
+                source: SourceKind::Plex,
                 id: "1".into(),
                 kind: MediaKind::Episode,
                 title: "Some Show".into(),

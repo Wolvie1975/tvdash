@@ -33,7 +33,7 @@ pub struct Config {
     pub display: DisplayConfig,
     pub general: GeneralConfig,
     pub plex: PlexConfig,
-    pub jellyfin: JellyfinConfig,
+    pub tautulli: TautulliConfig,
     pub browser: BrowserConfig,
     pub player: PlayerConfig,
     /// Kept last: TOML arrays of tables must follow plain tables.
@@ -72,8 +72,10 @@ pub enum ClockFormat {
 
 /// Laptop window colours. The TV always stays dark.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 pub enum ThemeMode {
+    #[serde(alias = "system")]
+    FollowSystem,
     #[default]
     Dark,
     /// Warm grey light theme.
@@ -84,7 +86,21 @@ pub enum ThemeMode {
 
 impl ThemeMode {
     pub fn is_light(self) -> bool {
-        self != Self::Dark
+        matches!(self, Self::Stone | Self::Mist)
+    }
+
+    /// Resolve `FollowSystem` into a concrete theme given the desktop preference.
+    pub fn resolve(self, system_dark: bool) -> Self {
+        match self {
+            Self::FollowSystem => {
+                if system_dark {
+                    Self::Dark
+                } else {
+                    Self::Stone
+                }
+            }
+            other => other,
+        }
     }
 }
 
@@ -140,15 +156,11 @@ fn is_default_plex_account_url(url: &String) -> bool {
     url == DEFAULT_PLEX_ACCOUNT_URL
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-pub struct JellyfinConfig {
-    pub enabled: bool,
-    pub server_url: String,
-    /// Filled after sign-in.
-    pub user_id: String,
-    /// Generated UUID, sent as `DeviceId` in the Authorization header.
-    pub device_id: String,
+pub struct TautulliConfig {
+    /// Tautulli base URL (used for Popular on Republic City).
+    pub url: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -259,7 +271,7 @@ impl Default for Config {
             display: DisplayConfig::default(),
             general: GeneralConfig::default(),
             plex: PlexConfig::default(),
-            jellyfin: JellyfinConfig::default(),
+            tautulli: TautulliConfig::default(),
             browser: BrowserConfig::default(),
             player: PlayerConfig::default(),
             streaming: default_streaming_sites(),
@@ -304,17 +316,6 @@ impl Default for PlexConfig {
     }
 }
 
-impl Default for JellyfinConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            server_url: "http://republic-city:8096".into(),
-            user_id: String::new(),
-            device_id: String::new(),
-        }
-    }
-}
-
 impl Default for BrowserConfig {
     fn default() -> Self {
         Self {
@@ -335,12 +336,16 @@ impl Default for PlayerConfig {
 
 fn default_streaming_sites() -> Vec<StreamingSite> {
     [
-        ("Netflix", "https://www.netflix.com"),
+        ("YouTube TV", "https://tv.youtube.com"),
+        ("YouTube", "https://www.youtube.com"),
         ("Disney+", "https://www.disneyplus.com"),
         ("Hulu", "https://www.hulu.com"),
+        ("Apple TV", "https://tv.apple.com"),
+        ("Netflix", "https://www.netflix.com"),
+        ("Fandango at Home", "https://athome.fandango.com"),
         ("Prime Video", "https://www.primevideo.com"),
-        ("Apple TV+", "https://tv.apple.com"),
-        ("YouTube TV", "https://tv.youtube.com"),
+        ("Crunchyroll", "https://www.crunchyroll.com"),
+        ("Tubi", "https://tubitv.com"),
     ]
     .into_iter()
     .map(|(name, url)| StreamingSite { name: name.into(), url: url.into(), ..Default::default() })
@@ -349,7 +354,7 @@ fn default_streaming_sites() -> Vec<StreamingSite> {
 
 const HEADER: &str = "\
 # tvdash configuration.
-# Plex and Jellyfin tokens are kept in GNOME Keyring, not here.
+# Plex, TMDB and Tautulli tokens are kept in GNOME Keyring, not here.
 # Output names: run tvdash once and check the log for \"available monitor\" lines.
 
 ";
@@ -398,17 +403,14 @@ impl Config {
         Ok(LoadedConfig { config, path: path.to_owned(), created })
     }
 
-    /// Generate the Plex client ID and Jellyfin device ID if missing.
+    /// Generate the Plex client ID if missing.
     /// Returns true if anything changed.
     pub fn ensure_ids(&mut self) -> bool {
-        let mut changed = false;
-        for id in [&mut self.plex.client_id, &mut self.jellyfin.device_id] {
-            if id.trim().is_empty() {
-                *id = uuid::Uuid::new_v4().to_string();
-                changed = true;
-            }
+        if self.plex.client_id.trim().is_empty() {
+            self.plex.client_id = uuid::Uuid::new_v4().to_string();
+            return true;
         }
-        changed
+        false
     }
 
     /// Re-read the config at `path`, apply `change`, and save it. Re-reading
@@ -458,8 +460,7 @@ mod tests {
         assert!(loaded.created);
         assert!(path.exists());
         assert!(!loaded.config.plex.client_id.is_empty());
-        assert!(!loaded.config.jellyfin.device_id.is_empty());
-        assert_eq!(loaded.config.streaming.len(), 6);
+        assert_eq!(loaded.config.streaming.len(), 10);
 
         // Second load reads the same file and keeps the same IDs.
         let again = Config::load_or_create_at(&path).unwrap();

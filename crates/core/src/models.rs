@@ -5,14 +5,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SourceKind {
     Plex,
-    Jellyfin,
 }
 
 impl SourceKind {
     pub fn label(self) -> &'static str {
         match self {
             Self::Plex => "Plex",
-            Self::Jellyfin => "Jellyfin",
         }
     }
 }

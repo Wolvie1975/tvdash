@@ -5,7 +5,7 @@ use slint::{ComponentHandle, Image, Model, ModelRc, VecModel};
 use tvdash_core::{
     config::{ClockFormat, ThemeMode},
     events::PlayerStatus,
-    models::{AccountStatus, MediaItem, PlayState, RgbaImage, Session, SignInState, SourceKind},
+    models::{AccountStatus, MediaItem, MediaKind, PlayState, RgbaImage, Session, SignInState, SourceKind},
 };
 
 use super::{SOURCES, UiState, accounts, in_order, to_image};
@@ -19,15 +19,34 @@ pub fn row(index: usize) -> Option<MediaItem> {
     super::STATE.with_borrow(|s| s.rows.get(index).cloned())
 }
 
+/// The top Continue Watching item ("UP NEXT" on the On the TV card).
+pub fn up_next() -> Option<MediaItem> {
+    super::STATE.with_borrow(|s| in_order(&s.continue_watching).into_iter().next())
+}
+
+/// Switch Continue Watching between TV / Series (`"tv"`) and Movies (`"movies"`).
+pub fn set_cw_filter(laptop: &LaptopWindow, filter: String) {
+    super::STATE.with_borrow_mut(|s| {
+        s.cw_filter = filter.clone();
+        laptop.global::<Dash>().set_cw_filter(filter.into());
+        rebuild_rows(s);
+    });
+}
+
 // ── Cards ───────────────────────────────────────────────────────────
 
 fn card(item: &MediaItem, poster: Option<&Image>, hue: Option<Hue>, theme: ThemeMode) -> PosterCardData {
     let hue = hue.unwrap_or(tint::DEFAULT);
+    let badge_text = if item.kind == MediaKind::Movie {
+        format::time_left(item).unwrap_or_else(|| format::item_detail(item))
+    } else {
+        format::item_detail(item)
+    };
     PosterCardData {
         accent: tint::progress_color(hue),
         placeholder: tint::card_tint(Hue { saturation: hue.saturation.max(0.3), ..hue }, theme).poster,
         title: item.title.as_str().into(),
-        subtitle: format::item_detail(item).into(),
+        subtitle: badge_text.into(),
         badge: item.source.label().into(),
         progress: item.progress().unwrap_or(0.0),
         has_poster: poster.is_some(),
@@ -41,13 +60,18 @@ pub(super) fn cards_for(s: &UiState, items: &[MediaItem]) -> Vec<PosterCardData>
         .iter()
         .map(|item| {
             let key = (item.source, item.id.clone());
-            card(item, s.posters.get(&key), s.hues.get(&key).copied(), s.theme)
+            card(item, s.posters.get(&key), s.hues.get(&key).copied(), s.effective_theme())
         })
         .collect()
 }
 
 pub(super) fn rebuild_rows(s: &mut UiState) {
-    s.rows = in_order(&s.continue_watching);
+    let all = in_order(&s.continue_watching);
+    let movies = s.cw_filter == "movies";
+    s.rows = all
+        .into_iter()
+        .filter(|i| if movies { i.kind == MediaKind::Movie } else { i.kind != MediaKind::Movie })
+        .collect();
     s.cards.set_vec(cards_for(s, &s.rows));
 }
 
@@ -72,7 +96,7 @@ pub(super) fn on_poster(
     for (items, model) in models {
         for (i, item) in items.iter().enumerate() {
             if item.source == source && item.id == key.1 {
-                model.set_row_data(i, card(item, Some(&img), Some(hue), s.theme));
+                model.set_row_data(i, card(item, Some(&img), Some(hue), s.effective_theme()));
             }
         }
     }
@@ -92,7 +116,7 @@ pub(super) fn on_poster(
 /// (background, foreground) of a site's monogram in the current theme.
 pub(super) fn site_colors(s: &UiState, index: usize) -> (slint::Color, slint::Color) {
     let name = s.sites.get(index).map(|x| x.name.as_str()).unwrap_or_default();
-    tint::site_colors(tint::site_hue(name, index), s.theme)
+    tint::site_colors(tint::site_hue(name, index), s.effective_theme())
 }
 
 /// First letter of a site name ("Disney+" → "D", "Apple TV+" → "A").
@@ -149,7 +173,7 @@ pub(super) fn on_browser(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, 
 pub(super) fn refresh_tv_card(s: &UiState, laptop: &LaptopWindow) {
     let dash = laptop.global::<Dash>();
     let (card, hue) = tv_card(s);
-    dash.set_tint(tint::card_tint(hue, s.theme));
+    dash.set_tint(tint::card_tint(hue, s.effective_theme()));
     dash.set_tv(card);
 }
 
@@ -190,7 +214,7 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
         };
         return (card, Hue { degrees: tint::site_hue(site, index), saturation: 0.7 });
     }
-    if let Some(item) = s.rows.first() {
+    if let Some(item) = in_order(&s.continue_watching).first() {
         let (poster, hue) = poster_of(item);
         let card = TvCard {
             mode: "next".into(),
