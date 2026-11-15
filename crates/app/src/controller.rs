@@ -304,7 +304,101 @@ impl Controller {
         if !self.state.setup_complete && self.jellyfin.is_none() && self.plex.is_none() {
             self.emit(AppEvent::ShowSetup);
         }
+        self.reconnect_runtime_state().await;
         self.refresh();
+    }
+
+    fn save_runtime_state(&self) {
+        let path = crate::instance::runtime_state_path();
+        let mut rt = crate::instance::RuntimeState::default();
+        if let Some(p) = &self.playback
+            && !p.player.in_window()
+        {
+            rt.mpv_socket = Some(tvdash_player::mpv::socket_path().to_string_lossy().into_owned());
+            if p.status.item.source == SourceKind::Plex {
+                rt.plex_rating_key = Some(p.status.item.id.clone());
+            }
+            rt.source = Some(p.status.item.source);
+            rt.item_id = Some(p.status.item.id.clone());
+            rt.item_title = Some(p.status.item.title.clone());
+        }
+        if let Some(b) = &self.browser {
+            rt.browser_pid = b.pid();
+            rt.browser_site = Some(b.site.clone());
+        }
+        if rt.mpv_socket.is_none() && rt.browser_pid.is_none() {
+            crate::instance::RuntimeState::clear(&path);
+        } else {
+            rt.save(&path);
+        }
+    }
+
+    async fn reconnect_runtime_state(&mut self) {
+        let path = crate::instance::runtime_state_path();
+        let Some(rt) = crate::instance::RuntimeState::load(&path) else {
+            return;
+        };
+
+        if let Some(sock) = &rt.mpv_socket {
+            match Mpv::reconnect(std::path::Path::new(sock)).await {
+                Ok(mpv) => {
+                    let source_kind = rt.source.unwrap_or(SourceKind::Plex);
+                    let item_id = rt.item_id.clone().or_else(|| rt.plex_rating_key.clone()).unwrap_or_default();
+                    let fetched = if source_kind == SourceKind::Plex
+                        && let Some(plex) = &self.plex
+                        && !item_id.is_empty()
+                    {
+                        plex.item(&item_id).await.ok().flatten()
+                    } else {
+                        None
+                    };
+                    let item = fetched.unwrap_or_else(|| MediaItem {
+                        source: source_kind,
+                        id: item_id,
+                        kind: tvdash_core::models::MediaKind::Movie,
+                        title: rt.item_title.clone().unwrap_or_else(|| "Playing on TV".into()),
+                        subtitle: None,
+                        episode_label: None,
+                        duration_ms: None,
+                        resume_ms: None,
+                        poster: None,
+                    });
+                    let (reporter, _) = match self.source_for(item.source) {
+                        Some(src) => (spawn_reporter(src, item.clone()), true),
+                        None => (unbounded_channel().0, false),
+                    };
+                    let status = PlayerStatus {
+                        duration_ms: item.duration_ms,
+                        item,
+                        state: PlayState::Playing,
+                        position_ms: 0,
+                    };
+                    self.emit(AppEvent::Player(Some(status.clone())));
+                    self.playback = Some(Playback {
+                        status,
+                        player: Player::Window(mpv),
+                        reporter,
+                        last_emitted_sec: None,
+                        decode_hint_shown: false,
+                    });
+                    info!(socket = %sock, "reconnected to running mpv");
+                }
+                Err(e) => {
+                    warn!(socket = %sock, error = %e, "couldn't reconnect to mpv socket");
+                }
+            }
+        }
+
+        if let Some(pid) = rt.browser_pid {
+            let site = rt.browser_site.clone().unwrap_or_else(|| "Streaming".into());
+            if let Some(b) = Browser::reconnect(pid, site.clone()) {
+                self.browser = Some(b);
+                self.emit(AppEvent::Browser(Some(site)));
+                info!(pid, "reattached to running browser");
+            }
+        }
+
+        self.save_runtime_state();
     }
 
     fn save_state(&self) {
@@ -514,10 +608,13 @@ impl Controller {
                 if self.playback.as_ref().is_some_and(|p| p.player.in_window()) {
                     self.stop_playback().await;
                 }
-                self.update_config(|c| c.display.layout = layout);
-                let name = match layout {
-                    tvdash_core::config::Layout::Tv => "TV only",
-                    tvdash_core::config::Layout::Dual => "two screens",
+            }
+            Command::SetLayoutSetting(setting) => {
+                self.update_config(|c| c.display.layout = setting);
+                let name = match setting {
+                    tvdash_core::LayoutSetting::Auto => "Automatic",
+                    tvdash_core::LayoutSetting::Dual => "two screens",
+                    tvdash_core::LayoutSetting::Tv => "TV only",
                 };
                 self.toast(format!("Layout: {name}"));
             }
@@ -1161,6 +1258,7 @@ impl Controller {
             PlayerStatus { duration_ms: item.duration_ms, item, state: PlayState::Playing, position_ms: start };
         self.emit(AppEvent::Player(Some(status.clone())));
         self.playback = Some(Playback { status, player, reporter, last_emitted_sec: None, decode_hint_shown: false });
+        self.save_runtime_state();
     }
 
     // ── Streaming browser ───────────────────────────────────────────
@@ -1262,6 +1360,7 @@ impl Controller {
         match Browser::launch(&opts, label, url).await {
             Ok(b) => {
                 self.browser = Some(b);
+                self.save_runtime_state();
                 self.emit(AppEvent::Browser(Some(label.to_owned())));
                 self.health(Service::Browser, Ok(format!("opened {label}")));
                 true
@@ -1325,12 +1424,14 @@ impl Controller {
     async fn close_browser(&mut self) {
         if let Some(b) = self.browser.take() {
             b.close().await;
+            self.save_runtime_state();
             self.emit(AppEvent::Browser(None));
         }
     }
 
     fn on_browser_exited(&mut self) {
         let Some(b) = self.browser.take() else { return };
+        self.save_runtime_state();
         self.emit(AppEvent::Browser(None));
         if b.exited_immediately() {
             warn!(site = %b.site, "browser exited at once; another instance probably owns the profile");
@@ -1381,6 +1482,7 @@ impl Controller {
     }
 
     fn after_playback(&self) {
+        self.save_runtime_state();
         self.emit(AppEvent::Player(None));
         // Give the server a moment to record the stop before re-reading resume points.
         let internal = self.internal.clone();

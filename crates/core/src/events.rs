@@ -146,6 +146,10 @@ pub enum AppEvent {
         result: Result<Vec<crate::models::ArtworkChoice>, String>,
     },
     MetadataRefreshFinished(String),
+    /// Whether a TV display output is currently active/connected.
+    TvConnected(bool),
+    /// Display configuration changed (after debounce); UI thread should re-check monitors.
+    DisplaysChanged,
 }
 
 /// Requests from the UI, handled by background tasks.
@@ -246,8 +250,10 @@ pub enum Command {
     Overlay,
     /// The window couldn't draw the video (in-window playback); play it in mpv's own window.
     VideoFailed(String),
-    /// Two screens or TV only (saved; used on the next start).
+    /// Runtime layout change (does not overwrite `[display] layout = "auto"`).
     SetLayout(crate::config::Layout),
+    /// User changed Settings › Display › Layout (`auto` | `dual` | `tv`).
+    SetLayoutSetting(crate::layout::LayoutSetting),
     /// Remember the laptop theme picked in the header.
     SetTheme(crate::config::ThemeMode),
     /// Settings › Display: temperature units, clock format, seconds.

@@ -350,12 +350,13 @@ component DisplayTab inherits VerticalLayout {
             Rectangle { height: 1px; background: Theme.border; }
             SettingLine {
                 title: "Layout";
-                detail: "Two screens: this dashboard on the laptop, playback on the TV. TV only: everything full screen on the TV, driven with the keyboard. Switches right away.";
+                detail: "Automatic: switches between two screens and TV only when the laptop lid or TV changes. Two screens: dashboard on the laptop, playback on the TV. TV only: everything full screen on the TV.";
                 VerticalLayout {
                     alignment: center;
                     SegmentBox {
-                        Segment { label: "Two screens"; on: !TvUi.layout-tv; clicked => { Display.set-layout(false); } }
-                        Segment { label: "TV only"; on: TvUi.layout-tv; clicked => { Display.set-layout(true); } }
+                        Segment { label: "Automatic"; on: Display.layout-setting == "auto"; clicked => { Display.set-layout-setting("auto"); } }
+                        Segment { label: "Two screens"; on: Display.layout-setting == "dual"; clicked => { Display.set-layout-setting("dual"); } }
+                        Segment { label: "TV only"; on: Display.layout-setting == "tv"; clicked => { Display.set-layout-setting("tv"); } }
                     }
                 }
             }

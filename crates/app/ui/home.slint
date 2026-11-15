@@ -225,12 +225,18 @@ component TvCardView inherits Rectangle {
                     wrap: word-wrap;
                 }
                 Text {
-                    text: Dash.tv.title;
+                    text: !Dash.tv-connected && Dash.tv.mode == "idle" ? "TV not connected" : Dash.tv.title;
                     font-size: 46px;
                     color: Theme.text-primary;
                     wrap: word-wrap;
                 }
-                if Dash.tv.subtitle != "": Text {
+                if !Dash.tv-connected && Dash.tv.mode == "idle": Text {
+                    text: "Connect or turn on the TV to play or open streaming apps.";
+                    font-size: 24px;
+                    color: Dash.tint.sec;
+                    wrap: word-wrap;
+                }
+                if (Dash.tv-connected || Dash.tv.mode != "idle") && Dash.tv.subtitle != "": Text {
                     text: Dash.tv.subtitle;
                     font-size: 24px;
                     color: Dash.tint.sec;
@@ -310,9 +316,10 @@ component TvCardView inherits Rectangle {
         }
         if root.next: ActionButton {
             height: 76px;
-            text: "Resume on TV";
+            text: Dash.tv-connected ? "Resume on TV" : "TV not connected";
             icon: "play";
             primary: true;
+            enabled: Dash.tv-connected;
             font-px: 26px;
             fill: Dash.tint.accent;
             ink: Dash.tint.on-accent;
@@ -359,9 +366,11 @@ component TvCardView inherits Rectangle {
 // Tap opens the site on the TV; hold (or right-click) edits it.
 component SiteTile inherits Rectangle {
     in property <SiteTileData> site;
+    in property <bool> enabled: true;
     callback clicked();
     callback held();
     property <bool> held-fired;
+    opacity: root.enabled ? 1.0 : 0.45;
     border-radius: Theme.radius;
     border-width: touch.pressed ? 2px : 1px;
     border-color: touch.pressed ? Theme.accent : Theme.border;
@@ -407,7 +416,7 @@ component SiteTile inherits Rectangle {
             }
         }
         clicked => {
-            if !root.held-fired { root.clicked(); }
+            if !root.held-fired && root.enabled { root.clicked(); }
         }
     }
     Timer {
@@ -456,6 +465,7 @@ component SiteGrid inherits Rectangle {
         width: root.tile-w;
         height: root.tile-h;
         site: site;
+        enabled: Dash.tv-connected;
         clicked => { Dash.open-site(site.index); }
         held => { SiteEditor.edit(site.index); }
     }
@@ -513,7 +523,8 @@ component ContinueWatching inherits Rectangle {
             }
             PosterRow {
                 cards: Dash.continue-watching;
-                clicked(i) => { Dash.play-item(i); }
+                opacity: Dash.tv-connected ? 1.0 : 0.55;
+                clicked(i) => { if Dash.tv-connected { Dash.play-item(i); } }
             }
             Rectangle { vertical-stretch: 1; }
         }

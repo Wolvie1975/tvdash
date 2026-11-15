@@ -26,12 +26,15 @@ tvdash-player.workspace = true
 tvdash-widgets.workspace = true
 tvdash-discover.workspace = true
 reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 glow = "0.18"
+zbus.workspace = true
+futures-util.workspace = true
 
 [build-dependencies]
 slint-build.workspace = true
 
 
 [dev-dependencies]
-serde_json.workspace = true
 i-slint-backend-testing = "=1.18.1"

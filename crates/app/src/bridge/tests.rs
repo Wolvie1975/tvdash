@@ -20,6 +20,8 @@ fn windows() -> (LaptopWindow, TvWindow) {
             paths: vec!["Log file: /tmp/tvdash.log".into()],
             units: Units::Fahrenheit,
             theme: ThemeMode::Dark,
+            layout_setting: tvdash_core::LayoutSetting::Auto,
+            tv_connected: true,
             sites: sites
                 .into_iter()
                 .map(|name| StreamingSite { url: format!("https://{name}.example"), name, ..Default::default() })

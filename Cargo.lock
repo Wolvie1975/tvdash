@@ -5643,10 +5643,12 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "directories",
+ "futures-util",
  "glow",
  "i-slint-backend-testing",
  "image",
  "reqwest",
+ "serde",
  "serde_json",
  "slint",
  "slint-build",
@@ -5658,6 +5660,7 @@ dependencies = [
  "tvdash-media",
  "tvdash-player",
  "tvdash-widgets",
+ "zbus",
 ]
 
 [[package]]

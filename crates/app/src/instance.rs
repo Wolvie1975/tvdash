@@ -9,8 +9,11 @@ use std::{
     io::{BufRead, BufReader, Write},
     os::unix::net::UnixStream,
     path::{Path, PathBuf},
-    time::Duration,
+    time::{Duration, Instant},
 };
+
+use serde::{Deserialize, Serialize};
+use tvdash_core::models::SourceKind;
 
 use tokio::{
     io::{AsyncBufReadExt, BufReader as TokioBufReader},
@@ -105,6 +108,93 @@ pub fn listen(path: PathBuf, on_message: impl Fn(Message) + Send + Sync + 'stati
         }
     });
     Ok(())
+}
+
+pub fn runtime_dir() -> PathBuf {
+    let base = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
+    base.join("tvdash")
+}
+
+pub fn runtime_state_path() -> PathBuf {
+    runtime_dir().join("state.json")
+}
+
+/// Persisted across a layout re-exec (or crash) so mpv and the browser can be
+/// reattached without interrupting playback.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RuntimeState {
+    pub mpv_socket: Option<String>,
+    pub browser_pid: Option<i32>,
+    pub browser_site: Option<String>,
+    pub plex_rating_key: Option<String>,
+    pub source: Option<SourceKind>,
+    pub item_id: Option<String>,
+    pub item_title: Option<String>,
+}
+
+impl RuntimeState {
+    pub fn load(path: &Path) -> Option<Self> {
+        let text = std::fs::read_to_string(path).ok()?;
+        serde_json::from_str(&text).ok()
+    }
+
+    pub fn save(&self, path: &Path) {
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        if let Ok(body) = serde_json::to_string(self) {
+            let tmp = path.with_extension("json.tmp");
+            if std::fs::write(&tmp, body).is_ok() {
+                let _ = std::fs::rename(tmp, path);
+            }
+        }
+    }
+
+    pub fn clear(path: &Path) {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+/// Exclusive instance lock in `$XDG_RUNTIME_DIR/tvdash/tvdash.lock`.
+pub struct LockGuard {
+    path: PathBuf,
+}
+
+impl Drop for LockGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+/// Acquire the instance lock, waiting up to `wait` for an exiting previous
+/// instance (e.g. during a layout re-exec) to release it.
+pub fn acquire_lock(wait: Duration) -> Option<LockGuard> {
+    let dir = runtime_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    let path = dir.join("tvdash.lock");
+    let deadline = Instant::now() + wait;
+    loop {
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut f) => {
+                let _ = writeln!(f, "{}", std::process::id());
+                return Some(LockGuard { path });
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                if Instant::now() >= deadline {
+                    // Check if the lock holder is actually still alive via the socket;
+                    // if not, replace the stale lock.
+                    if !matches!(send(&socket_path(), Message::Ping), Ok(true)) {
+                        let _ = std::fs::remove_file(&path);
+                        continue;
+                    }
+                    return None;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(_) => return None,
+        }
+    }
 }
 
 /// Remove the socket file on exit.

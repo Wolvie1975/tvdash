@@ -76,6 +76,7 @@ export global Dash {
     in property <string> weather-note;
 
     // On the TV
+    in property <bool> tv-connected: true;
     in property <TvCard> tv: { mode: "idle", label: "ON THE TV", title: "Nothing playing", subtitle: "The TV is showing the idle screen." };
     in property <Tint> tint: {
         card: #121F30, poster: #1C2E45, accent: #8FC1FF, sec: #AFC3DA,
@@ -367,7 +368,9 @@ export global Display {
     in property <bool> place-searching;
     in property <string> place-message;     // "No place called …" / errors
     in property <[string]> places;          // matches to pick from
+    in-out property <string> layout-setting: "auto"; // "auto" | "dual" | "tv"
     callback set-layout(bool);  // true = TV only
+    callback set-layout-setting(string);
     callback find-place(string);
     callback pick-place(int);
 }

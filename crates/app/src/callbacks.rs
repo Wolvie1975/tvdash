@@ -110,6 +110,18 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         }
     });
 
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    laptop.global::<crate::Display>().on_set_layout_setting(move |value| {
+        let Some(setting) = tvdash_core::LayoutSetting::parse(&value) else {
+            return;
+        };
+        if let Some(l) = weak.upgrade() {
+            l.global::<crate::Display>().set_layout_setting(setting.as_str().into());
+            crate::displays::apply_layout_setting(&l, setting);
+        }
+        s(Command::SetLayoutSetting(setting));
+    });
+
     let s = send.clone();
     laptop.global::<crate::Display>().on_pick_place(move |i| {
         if let Some(place) = bridge::place(i as usize) {

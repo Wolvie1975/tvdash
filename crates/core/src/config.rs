@@ -40,6 +40,8 @@ pub struct Config {
     pub streaming: Vec<StreamingSite>,
 }
 
+pub use crate::layout::{Layout, LayoutSetting};
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DisplayConfig {
@@ -47,29 +49,10 @@ pub struct DisplayConfig {
     pub tv_output: String,
     /// Connector name of the laptop panel, e.g. `eDP-1`.
     pub laptop_output: String,
-    /// Two screens (laptop dashboard + TV), or everything on the TV.
-    pub layout: Layout,
-}
-
-/// Screen layout. Changing it takes effect on the next start.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Layout {
-    /// Laptop dashboard + TV playback window.
-    #[default]
-    Dual,
-    /// One full-screen 10-foot window on the TV, driven by remote or keyboard.
-    Tv,
-}
-
-impl Layout {
-    pub fn parse(s: &str) -> Option<Self> {
-        match s {
-            "dual" => Some(Self::Dual),
-            "tv" => Some(Self::Tv),
-            _ => None,
-        }
-    }
+    /// Automatic (based on active screens), two screens, or TV only.
+    pub layout: LayoutSetting,
+    /// Switch layout automatically while running when screens turn on/off (only used when `layout = "auto"`).
+    pub switch_while_running: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -286,7 +269,12 @@ impl Default for Config {
 
 impl Default for DisplayConfig {
     fn default() -> Self {
-        Self { tv_output: "HDMI-A-1".into(), laptop_output: "eDP-1".into(), layout: Layout::Dual }
+        Self {
+            tv_output: "HDMI-A-1".into(),
+            laptop_output: "eDP-1".into(),
+            layout: LayoutSetting::Auto,
+            switch_while_running: true,
+        }
     }
 }
 

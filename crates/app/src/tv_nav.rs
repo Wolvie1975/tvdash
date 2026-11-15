@@ -429,6 +429,8 @@ mod tests {
                 paths: vec![],
                 units: Units::Fahrenheit,
                 theme: ThemeMode::Dark,
+                layout_setting: tvdash_core::LayoutSetting::Auto,
+                tv_connected: true,
                 sites: (0..7).map(|i| site(&format!("S{i}"))).collect(),
                 jellyfin_url: String::new(),
             },
@@ -442,7 +444,8 @@ mod tests {
         });
         crate::callbacks::wire(&l, utx.clone());
         let tv = crate::TvWindow::new().unwrap();
-        crate::displays::remember(&tv, &tvdash_core::config::DisplayConfig::default(), false, utx);
+        let (etx, _erx) = tokio::sync::mpsc::unbounded_channel();
+        crate::displays::remember(&tv, &tvdash_core::config::DisplayConfig::default(), false, None, utx, etx);
         init(&l, Layout::Tv);
         (l, rx)
     }

@@ -136,6 +136,10 @@ fn main() -> anyhow::Result<()> {
         println!("tvdash is already running.");
         return Ok(());
     }
+    let Some(_lock) = instance::acquire_lock(Duration::from_secs(2)) else {
+        println!("tvdash is already running.");
+        return Ok(());
+    };
 
     let loaded = Config::load_or_create().context("loading config")?;
     if loaded.created {
@@ -163,6 +167,30 @@ fn main() -> anyhow::Result<()> {
     let tv = TvWindow::new()?;
     let laptop = LaptopWindow::new()?;
 
+    let startup_outputs = runtime.block_on(displays::active_outputs_dbus());
+    let decision = match &startup_outputs {
+        Some(outputs) => {
+            info!(?outputs, "active outputs at startup");
+            tvdash_core::layout::decide(
+                config.display.layout,
+                outputs,
+                &config.display.tv_output,
+                &config.display.laptop_output,
+            )
+        }
+        None => {
+            let d = tvdash_core::layout::decide(
+                config.display.layout,
+                &[],
+                &config.display.tv_output,
+                &config.display.laptop_output,
+            );
+            // Without Mutter D-Bus we don't know yet; assume TV is connected until winit checks.
+            tvdash_core::Decision { tv_connected: true, ..d }
+        }
+    };
+    let layout = args.layout.unwrap_or(decision.layout);
+
     bridge::init(
         &laptop,
         bridge::UiConfig {
@@ -181,6 +209,8 @@ fn main() -> anyhow::Result<()> {
             .collect(),
             units: config.general.units,
             theme: config.general.theme,
+            layout_setting: config.display.layout,
+            tv_connected: decision.tv_connected,
             sites: config.streaming.clone(),
             jellyfin_url: config.jellyfin.server_url.clone(),
         },
@@ -202,8 +232,7 @@ fn main() -> anyhow::Result<()> {
     let (mut controller, internal_rx) =
         controller::Controller::new((*config).clone(), loaded.path.clone(), args.windowed, event_tx.clone());
     controller.set_general_tx(general_tx);
-    let layout = args.layout.unwrap_or(config.display.layout);
-    info!(?layout, "screen layout");
+    info!(?layout, tv_connected = decision.tv_connected, "screen layout");
     controller.set_layout(layout);
     // Video inside the window (TV-only layout) needs libmpv; without it mpv opens its own window.
     match tvdash_player::libmpv::load() {
@@ -270,7 +299,8 @@ fn main() -> anyhow::Result<()> {
         });
     }
 
-    displays::remember(&tv, &config.display, !args.windowed, cmd_tx.clone());
+    displays::remember(&tv, &config.display, !args.windowed, args.layout, cmd_tx.clone(), event_tx.clone());
+    runtime.spawn(displays::watch(event_tx.clone()));
     match layout {
         tvdash_core::config::Layout::Dual => {
             // TV first so it lands on the primary display even if output matching fails.
@@ -284,6 +314,9 @@ fn main() -> anyhow::Result<()> {
             laptop.show()?;
             displays::place_tv_only(&laptop, &config.display, !args.windowed, cmd_tx);
         }
+    }
+    if startup_outputs.is_none() {
+        displays::on_displays_changed(&laptop);
     }
 
     slint::run_event_loop_until_quit()?;

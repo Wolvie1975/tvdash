@@ -14,7 +14,10 @@ use serde_json::{Value, json};
 use thiserror::Error;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    net::{UnixStream, unix::OwnedWriteHalf},
+    net::{
+        UnixStream,
+        unix::{OwnedReadHalf, OwnedWriteHalf},
+    },
     process::{Child, Command},
     sync::mpsc,
 };
@@ -141,12 +144,38 @@ pub fn parse_line(line: &str) -> Option<MpvEvent> {
     }
 }
 
-/// A running mpv. Dropping it kills the process.
+/// A running mpv. Dropping an owned instance kills the process unless [`Mpv::detach`] is called.
 pub struct Mpv {
-    child: Child,
+    child: Option<Child>,
     writer: OwnedWriteHalf,
     events: mpsc::UnboundedReceiver<MpvEvent>,
     exited: bool,
+}
+
+fn spawn_ipc_reader(read: OwnedReadHalf, tx: mpsc::UnboundedSender<MpvEvent>) {
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(read).lines();
+        loop {
+            match lines.next_line().await {
+                Ok(Some(line)) => {
+                    if let Some(ev) = parse_line(&line) {
+                        let last = ev == MpvEvent::Exited;
+                        if tx.send(ev).is_err() || last {
+                            return;
+                        }
+                    } else {
+                        debug!(line, "mpv ipc");
+                    }
+                }
+                Ok(None) => break,
+                Err(e) => {
+                    warn!(error = %e, "mpv IPC read failed");
+                    break;
+                }
+            }
+        }
+        let _ = tx.send(MpvEvent::Exited);
+    });
 }
 
 impl Mpv {
@@ -171,37 +200,39 @@ impl Mpv {
         let (read, writer) = stream.into_split();
 
         let (tx, events) = mpsc::unbounded_channel();
-        tokio::spawn(async move {
-            let mut lines = BufReader::new(read).lines();
-            loop {
-                match lines.next_line().await {
-                    Ok(Some(line)) => {
-                        if let Some(ev) = parse_line(&line) {
-                            let last = ev == MpvEvent::Exited;
-                            if tx.send(ev).is_err() || last {
-                                return;
-                            }
-                        } else {
-                            debug!(line, "mpv ipc");
-                        }
-                    }
-                    Ok(None) => break,
-                    Err(e) => {
-                        warn!(error = %e, "mpv IPC read failed");
-                        break;
-                    }
-                }
-            }
-            let _ = tx.send(MpvEvent::Exited);
-        });
+        spawn_ipc_reader(read, tx);
 
-        let mut mpv = Self { child, writer, events, exited: false };
-        mpv.command(json!(["observe_property", OBS_TIME_POS, "time-pos"])).await?;
-        mpv.command(json!(["observe_property", OBS_PAUSE, "pause"])).await?;
-        mpv.command(json!(["observe_property", OBS_DURATION, "duration"])).await?;
-        // Errors only (e.g. "Failed to initialize a decoder for codec 'hevc'").
-        mpv.command(json!(["request_log_messages", "error"])).await?;
+        let mut mpv = Self { child: Some(child), writer, events, exited: false };
+        mpv.init_observers().await?;
         Ok(mpv)
+    }
+
+    /// Reconnect to an already-running mpv instance via its IPC socket.
+    pub async fn reconnect(socket: &std::path::Path) -> Result<Self> {
+        let stream = UnixStream::connect(socket).await?;
+        let (read, writer) = stream.into_split();
+        let (tx, events) = mpsc::unbounded_channel();
+        spawn_ipc_reader(read, tx);
+
+        let mut mpv = Self { child: None, writer, events, exited: false };
+        mpv.init_observers().await?;
+        Ok(mpv)
+    }
+
+    async fn init_observers(&mut self) -> Result<()> {
+        self.command(json!(["observe_property", OBS_TIME_POS, "time-pos"])).await?;
+        self.command(json!(["observe_property", OBS_PAUSE, "pause"])).await?;
+        self.command(json!(["observe_property", OBS_DURATION, "duration"])).await?;
+        // Errors only (e.g. "Failed to initialize a decoder for codec 'hevc'").
+        self.command(json!(["request_log_messages", "error"])).await?;
+        Ok(())
+    }
+
+    /// Keep mpv running after tvdash exits (e.g. during a layout re-exec).
+    pub fn detach(mut self) {
+        if let Some(child) = self.child.take() {
+            std::mem::forget(child);
+        }
     }
 
     /// Next event; `None` after [`MpvEvent::Exited`] has been returned.
@@ -241,12 +272,23 @@ impl Mpv {
     /// Ask mpv to quit, then make sure the process is gone.
     pub async fn quit(mut self) {
         let _ = self.command(json!(["quit"])).await;
-        match tokio::time::timeout(Duration::from_secs(3), self.child.wait()).await {
-            Ok(_) => {}
-            Err(_) => {
-                warn!("mpv didn't quit; killing it");
-                let _ = self.child.kill().await;
+        if let Some(mut child) = self.child.take() {
+            match tokio::time::timeout(Duration::from_secs(3), child.wait()).await {
+                Ok(_) => {}
+                Err(_) => {
+                    warn!("mpv didn't quit; killing it");
+                    let _ = child.kill().await;
+                }
             }
+        } else {
+            let _ = tokio::time::timeout(Duration::from_secs(3), async {
+                while let Some(ev) = self.events.recv().await {
+                    if ev == MpvEvent::Exited {
+                        break;
+                    }
+                }
+            })
+            .await;
         }
     }
 }

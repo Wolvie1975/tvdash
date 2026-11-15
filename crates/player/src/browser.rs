@@ -116,13 +116,19 @@ pub fn build_args(opts: &BrowserOptions, url: &str) -> Vec<String> {
     }
 }
 
-/// A running browser. Dropping it kills the process group.
+/// A running browser. Dropping it kills the process group unless [`Browser::detach`] is called.
 pub struct Browser {
-    child: Child,
+    child: Option<Child>,
     pgid: Option<i32>,
     started: Instant,
+    detached: bool,
     /// Site name, for logs and the UI.
     pub site: String,
+}
+
+fn is_pid_alive(pid: i32) -> bool {
+    // SAFETY: kill(pid, 0) checks process existence without sending a signal.
+    unsafe { libc::kill(pid, 0) == 0 }
 }
 
 impl Browser {
@@ -143,12 +149,44 @@ impl Browser {
             })?;
         let pgid = child.id().map(|p| p as i32);
         info!(site, binary = %opts.binary, pid = ?pgid, "browser started");
-        Ok(Self { child, pgid, started: Instant::now(), site: site.to_owned() })
+        Ok(Self { child: Some(child), pgid, started: Instant::now(), detached: false, site: site.to_owned() })
+    }
+
+    /// Reattach to an already-running browser process if it is still alive.
+    pub fn reconnect(pid: i32, site: String) -> Option<Self> {
+        if !is_pid_alive(pid) {
+            return None;
+        }
+        Some(Self { child: None, pgid: Some(pid), started: Instant::now(), detached: false, site })
+    }
+
+    pub fn pid(&self) -> Option<i32> {
+        self.pgid
+    }
+
+    /// Keep the browser running when this handle is dropped (e.g. during re-exec).
+    pub fn detach(mut self) {
+        self.detached = true;
+        if let Some(child) = self.child.take() {
+            std::mem::forget(child);
+        }
     }
 
     /// Resolves when the browser exits on its own.
     pub async fn wait(&mut self) -> std::io::Result<ExitStatus> {
-        self.child.wait().await
+        if let Some(child) = &mut self.child {
+            return child.wait().await;
+        }
+        if let Some(pid) = self.pgid {
+            while is_pid_alive(pid) {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            Ok(ExitStatus::from_raw(0))
+        }
     }
 
     /// Exited almost immediately: Chrome does this when another instance already
@@ -159,13 +197,25 @@ impl Browser {
 
     /// SIGTERM the whole group, then SIGKILL if it hasn't gone within 5 s.
     pub async fn close(mut self) {
+        self.detached = true;
         self.signal(libc::SIGTERM);
-        match tokio::time::timeout(Duration::from_secs(5), self.child.wait()).await {
-            Ok(_) => info!(site = %self.site, "browser closed"),
-            Err(_) => {
+        if let Some(mut child) = self.child.take() {
+            match tokio::time::timeout(Duration::from_secs(5), child.wait()).await {
+                Ok(_) => info!(site = %self.site, "browser closed"),
+                Err(_) => {
+                    warn!(site = %self.site, "browser ignored SIGTERM; killing it");
+                    self.signal(libc::SIGKILL);
+                    let _ = child.wait().await;
+                }
+            }
+        } else if let Some(pid) = self.pgid {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while is_pid_alive(pid) && Instant::now() < deadline {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            if is_pid_alive(pid) {
                 warn!(site = %self.site, "browser ignored SIGTERM; killing it");
                 self.signal(libc::SIGKILL);
-                let _ = self.child.wait().await;
             }
         }
         // Helpers can outlive the main process for a moment; make sure they go too.
@@ -184,7 +234,9 @@ impl Browser {
 
 impl Drop for Browser {
     fn drop(&mut self) {
-        self.signal(libc::SIGTERM);
+        if !self.detached {
+            self.signal(libc::SIGTERM);
+        }
     }
 }
 

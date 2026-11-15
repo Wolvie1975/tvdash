@@ -118,6 +118,8 @@ pub struct UiConfig {
     pub paths: Vec<String>,
     pub units: Units,
     pub theme: ThemeMode,
+    pub layout_setting: tvdash_core::LayoutSetting,
+    pub tv_connected: bool,
     pub sites: Vec<StreamingSite>,
     pub jellyfin_url: String,
 }
@@ -130,6 +132,7 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         s.units = Some(c.units);
         s.sites = c.sites;
         let dash = laptop.global::<Dash>();
+        dash.set_tv_connected(c.tv_connected);
         dash.set_continue_watching(ModelRc::from(s.cards.clone()));
         dash.set_prompts(ModelRc::from(s.prompts.clone()));
         dash.set_tv_prompts(ModelRc::from(s.tv_prompts.clone()));
@@ -143,6 +146,7 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         acc.set_sites(ModelRc::from(s.site_rows.clone()));
         laptop.global::<Setup>().set_jellyfin_url(c.jellyfin_url.as_str().into());
         let d = laptop.global::<Display>();
+        d.set_layout_setting(c.layout_setting.as_str().into());
         d.set_celsius(c.units == Units::Celsius);
         d.set_h12(c.clock == ClockFormat::H12);
         d.set_seconds(c.seconds);
@@ -359,6 +363,12 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             if s.selected.as_ref().is_some_and(|item| item.id == item_id) {
                 laptop.global::<Library>().set_metadata_refreshing(false);
             }
+        }
+        AppEvent::TvConnected(connected) => {
+            laptop.global::<Dash>().set_tv_connected(connected);
+        }
+        AppEvent::DisplaysChanged => {
+            crate::displays::on_displays_changed(laptop);
         }
         AppEvent::Sites(sites) => {
             s.sites = sites;
