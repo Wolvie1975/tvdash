@@ -356,13 +356,31 @@ component Hero inherits Rectangle {
     HorizontalLayout {
         padding: 20px;
         spacing: 24px;
-        if root.mode != "idle": Rectangle {
+        if root.mode != "idle" && !(TvUi.video-on && !TvUi.video-full): Rectangle {
             width: 104px;
             border-radius: 12px;
             clip: true;
             background: Dash.tint.poster;
             if Dash.tv.has-poster: Image { width: parent.width; height: parent.height; source: Dash.tv.poster; image-fit: cover; }
             if !Dash.tv.has-poster: Text { text: Dash.tv.monogram; font-size: 56px; font-weight: 600; color: Dash.tint.accent; }
+        }
+        if TvUi.video-on && !TvUi.video-full: Rectangle {
+            width: 277px;
+            border-radius: 14px;
+            clip: true;
+            background: #000000;
+            border-width: 1px;
+            border-color: Dash.tint.edge;
+            Image {
+                width: parent.width;
+                height: parent.height;
+                source: TvUi.video;
+                image-fit: contain;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { TvUi.click("hero", 1); }
+            }
         }
         VerticalLayout {
             spacing: 6px;
@@ -766,14 +784,132 @@ component Ambient inherits Rectangle {
 }
 
 export component TvShell inherits Rectangle {
-    background: TvUi.video-on ? #000000 : Theme.bg;
+    background: (TvUi.video-on && TvUi.video-full) ? #000000 : Theme.bg;
+    property <bool> hud-visible: false;
 
-    // The video (mpv letterboxes it to the window), under everything else.
-    if TvUi.video-on: Image { width: parent.width; height: parent.height; source: TvUi.video; image-fit: fill; }
-    // Home over a playing video: dimmed so the screens stay readable.
-    if TvUi.video-on && !TvUi.video-full: Rectangle { background: #000000c0; }
+    hud-timer := Timer {
+        interval: 3500ms;
+        running: false;
+        triggered => {
+            root.hud-visible = false;
+            self.running = false;
+        }
+    }
+
+    // Full-screen video when maximized.
+    if TvUi.video-on && TvUi.video-full: Image { width: parent.width; height: parent.height; source: TvUi.video; image-fit: fill; }
     if TvUi.video-on && TvUi.video-full: TouchArea {
-        clicked => { TvUi.click("video", 0); }
+        moved => {
+            root.hud-visible = true;
+            hud-timer.restart();
+        }
+        clicked => {
+            if !root.hud-visible {
+                root.hud-visible = true;
+                hud-timer.restart();
+            } else {
+                root.hud-visible = false;
+                hud-timer.running = false;
+            }
+        }
+    }
+
+    // Floating player HUD on mouse move / tap while video is full-screen.
+    if TvUi.video-on && TvUi.video-full && root.hud-visible: TenButton {
+        x: Ten.safe-x;
+        y: Ten.safe-y;
+        width: self.min-width;
+        compact: true;
+        text: "View dashboard";
+        fill: #0c0f14cc;
+        ink: #E8EAED;
+        clicked => {
+            root.hud-visible = false;
+            hud-timer.running = false;
+            TvUi.click("video", 0);
+        }
+    }
+
+    if TvUi.video-on && TvUi.video-full && root.hud-visible: Rectangle {
+        x: Ten.safe-x;
+        y: parent.height - Ten.safe-y - self.height;
+        width: parent.width - 2 * Ten.safe-x;
+        height: 112px;
+        border-radius: 22px;
+        background: #0c0f14cc;
+        border-width: 1px;
+        border-color: #ffffff26;
+        HorizontalLayout {
+            padding-left: 28px;
+            padding-right: 24px;
+            spacing: 18px;
+            VerticalLayout {
+                horizontal-stretch: 1;
+                alignment: center;
+                spacing: 8px;
+                HorizontalLayout {
+                    spacing: 16px;
+                    Text {
+                        text: Dash.tv.title;
+                        font-size: 28px;
+                        font-weight: 600;
+                        color: Theme.text-primary;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                    if Dash.tv.at-text != "": Text {
+                        text: Dash.tv.at-text;
+                        font-size: 22px;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                }
+                if Dash.tv.at-text != "": ProgressBar {
+                    value: Dash.tv.progress;
+                    fill: Dash.tint.accent;
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                HorizontalLayout {
+                    spacing: 12px;
+                    TenButton {
+                        compact: true;
+                        text: "−10s";
+                        clicked => {
+                            hud-timer.restart();
+                            Dash.transport("back");
+                        }
+                    }
+                    TenButton {
+                        compact: true;
+                        primary: true;
+                        text: Dash.tv.paused ? "Play" : "Pause";
+                        clicked => {
+                            hud-timer.restart();
+                            Dash.transport("play-pause");
+                        }
+                    }
+                    TenButton {
+                        compact: true;
+                        text: "+10s";
+                        clicked => {
+                            hud-timer.restart();
+                            Dash.transport("forward");
+                        }
+                    }
+                    TenButton {
+                        compact: true;
+                        text: "Stop";
+                        clicked => {
+                            root.hud-visible = false;
+                            hud-timer.running = false;
+                            Dash.transport("stop");
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fs := FocusScope {
@@ -812,6 +948,29 @@ export component TvShell inherits Rectangle {
         }
 
         Rail { x: 0; height: parent.height; visible: !TvUi.video-full; }
+
+        // Floating PIP mini-player when browsing other tabs while video is minimized.
+        if TvUi.video-on && !TvUi.video-full && TvUi.screen != "home": Rectangle {
+            x: parent.width - Ten.safe-x - self.width;
+            y: parent.height - Ten.safe-y - self.height;
+            width: 320px;
+            height: 180px;
+            border-radius: 16px;
+            clip: true;
+            background: #000000;
+            border-width: 2px;
+            border-color: Dash.tint.accent;
+            Image {
+                width: parent.width;
+                height: parent.height;
+                source: TvUi.video;
+                image-fit: contain;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { TvUi.click("hero", 1); }
+            }
+        }
 
         if TvUi.ambient: Ambient { width: parent.width; height: parent.height; }
     }

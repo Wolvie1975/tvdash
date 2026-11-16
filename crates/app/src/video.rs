@@ -81,6 +81,9 @@ impl Video {
         let current_id = current.as_ref().map(|(id, _)| *id);
         if self.ctx.as_ref().map(|(id, _)| *id) != current_id {
             let had = self.ctx.take().is_some(); // frees the render context (UI thread, as required)
+            if had {
+                drop_target(gl, &mut self.target);
+            }
             match current {
                 Some((id, handle)) if self.failed != Some(id) => {
                     match RenderContext::new(handle, get_proc_address, wake.clone()) {
@@ -114,13 +117,7 @@ impl Video {
         let (w, h) = (size.width.max(1) as i32, size.height.max(1) as i32);
         let resized = self.target.as_ref().is_none_or(|t| (t.w, t.h) != (w, h));
         if resized {
-            if let Some(old) = self.target.take() {
-                // SAFETY: GL context current; these objects are ours.
-                unsafe {
-                    gl.delete_framebuffer(old.fbo);
-                    gl.delete_texture(old.texture);
-                }
-            }
+            drop_target(gl, &mut self.target);
             // SAFETY: GL context current.
             match unsafe { create_target(gl, w, h) } {
                 Ok(t) => {
@@ -181,14 +178,20 @@ impl Video {
     /// The GL context is going away: free everything that lives in it.
     fn teardown(&mut self) {
         self.ctx = None;
-        if let (Some(gl), Some(t)) = (&self.gl, self.target.take()) {
-            // SAFETY: still current during teardown.
-            unsafe {
-                gl.delete_framebuffer(t.fbo);
-                gl.delete_texture(t.texture);
-            }
+        if let Some(gl) = &self.gl {
+            drop_target(gl, &mut self.target);
         }
         self.gl = None;
+    }
+}
+
+fn drop_target(gl: &glow::Context, target: &mut Option<Target>) {
+    if let Some(old) = target.take() {
+        // SAFETY: GL context current; these objects are ours.
+        unsafe {
+            gl.delete_framebuffer(old.fbo);
+            gl.delete_texture(old.texture);
+        }
     }
 }
 

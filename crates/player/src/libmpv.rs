@@ -350,7 +350,7 @@ impl Embedded {
         let start = opts.start_ms.filter(|&ms| ms > 0).map(|ms| format!("{:.3}", ms as f64 / 1000.0));
         let mut options: Vec<(&str, &str)> = vec![
             ("vo", "libmpv"),
-            ("hwdec", "auto-safe"),
+            ("hwdec", "no"),
             ("keep-open", "no"),
             // Wait for the file (it loads once the render context exists); the event
             // thread quits the core when it ends.
