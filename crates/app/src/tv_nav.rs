@@ -84,12 +84,12 @@ fn rows(laptop: &LaptopWindow) -> Vec<(&'static str, usize)> {
                 "code" | "busy" => 1,
                 _ => dash.get_prompts().row_count(),
             };
-            let continue_ = if cw == "items" { dash.get_continue_watching().row_count() } else { 0 };
+            let continue_ = if cw == "items" { dash.get_continue_watching().row_count().min(5) } else { 0 };
             vec![
                 ("hero", hero),
                 ("prompts", prompts),
                 ("continue", continue_),
-                ("services", dash.get_streaming_sites().row_count()),
+                ("services", dash.get_streaming_sites().row_count().min(10)),
             ]
         }
         "services" => vec![("grid", dash.get_streaming_sites().row_count())],
@@ -274,6 +274,44 @@ pub fn key(laptop: &LaptopWindow, text: &SharedString) -> bool {
             ui.set_col((col - GRID_COLUMNS) as i32);
         } else if down && col + GRID_COLUMNS < len {
             ui.set_col((col + GRID_COLUMNS) as i32);
+        }
+    } else if id == "continue" {
+        if left {
+            open_rail(laptop);
+        } else if right {
+            if let Some((_, n)) = rows.iter().find(|(r, _)| *r == "services") {
+                remember(laptop);
+                focus_row(laptop, "services", *n);
+            }
+        } else if up && col > 0 {
+            ui.set_col(col as i32 - 1);
+        } else if up && at > 0 {
+            remember(laptop);
+            focus_row(laptop, rows[at - 1].0, rows[at - 1].1);
+        } else if down && col + 1 < len {
+            ui.set_col(col as i32 + 1);
+        }
+    } else if id == "services" {
+        if left && col.is_multiple_of(2) {
+            if let Some((prev, n)) = rows.iter().find(|(r, _)| *r == "continue" || *r == "prompts") {
+                remember(laptop);
+                focus_row(laptop, prev, *n);
+            } else {
+                open_rail(laptop);
+            }
+        } else if left {
+            ui.set_col(col as i32 - 1);
+        } else if right && col.is_multiple_of(2) && col + 1 < len {
+            ui.set_col(col as i32 + 1);
+        } else if up && col >= 2 {
+            ui.set_col((col - 2) as i32);
+        } else if up {
+            if let Some((_, n)) = rows.iter().find(|(r, _)| *r == "hero") {
+                remember(laptop);
+                focus_row(laptop, "hero", *n);
+            }
+        } else if down && col + 2 < len {
+            ui.set_col((col + 2) as i32);
         }
     } else if left && col == 0 {
         open_rail(laptop);
@@ -499,25 +537,25 @@ mod tests {
         // Nothing playing, nothing to resume: services row has focus.
         assert_eq!((ui.get_focus().as_str(), ui.get_col()), ("services", 0));
 
-        // Continue Watching arrives: the hero (Resume) and the row appear.
+        // Continue Watching arrives: the hero (Resume) and the column appear.
         let t = crate::TvWindow::new().unwrap();
         bridge::apply_for_test(&l, &t, AppEvent::ContinueWatching(SourceKind::Plex, vec![item("a"), item("b")]));
         assert_eq!(l.global::<Dash>().get_tv().mode, "next");
-        assert!(press(&l, Key::UpArrow));
+        // Left from services col 0 moves to the Continue Watching column.
+        assert!(press(&l, Key::LeftArrow));
         assert_eq!(ui.get_focus(), "continue");
-        assert!(press(&l, Key::RightArrow) && press(&l, Key::RightArrow));
-        assert_eq!(ui.get_col(), 1, "clamped to the row");
-        // Down to services and back up: the row remembers where we were.
-        press(&l, Key::DownArrow);
+        assert!(press(&l, Key::DownArrow) && press(&l, Key::DownArrow));
+        assert_eq!(ui.get_col(), 1, "clamped to the column");
+        // Right to services and back left: the column remembers where we were.
+        press(&l, Key::RightArrow);
         assert_eq!(ui.get_focus(), "services");
-        press(&l, Key::UpArrow);
+        press(&l, Key::LeftArrow);
         assert_eq!((ui.get_focus().as_str(), ui.get_col()), ("continue", 1));
         // OK plays the focused card.
         press(&l, Key::Return);
         assert!(matches!(next_cmd(&rx), Command::Play(i) if i.id == "b"));
 
-        // Left from the first item opens the rail on the current screen.
-        press(&l, Key::LeftArrow);
+        // Left from the Continue Watching column opens the rail on the current screen.
         press(&l, Key::LeftArrow);
         assert!(ui.get_rail_open());
         assert_eq!((ui.get_focus().as_str(), ui.get_col()), ("rail", 0));

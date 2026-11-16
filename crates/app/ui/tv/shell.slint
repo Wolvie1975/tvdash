@@ -34,25 +34,26 @@ component TenButton inherits Rectangle {
     in property <string> icon;
     in property <bool> focused;
     in property <bool> primary;
+    in property <bool> compact: false;
     in property <color> fill: Dash.tint.btn;
     in property <color> ink: Theme.text-primary;
     callback clicked();
-    height: 76px;
-    min-width: row.preferred-width + 56px;
-    border-radius: 20px;
+    height: root.compact ? 56px : 76px;
+    min-width: row.preferred-width + (root.compact ? 40px : 56px);
+    border-radius: root.compact ? 16px : 20px;
     background: root.primary ? Dash.tint.accent : root.fill;
     border-width: root.primary ? 0 : 1px;
     border-color: Dash.tint.edge;
     row := HorizontalLayout {
         alignment: center;
-        spacing: 12px;
+        spacing: 10px;
         if root.icon != "": VerticalLayout {
             alignment: center;
-            Icon { name: root.icon; tint: root.primary ? Dash.tint.on-accent : root.ink; size: 30px; }
+            Icon { name: root.icon; tint: root.primary ? Dash.tint.on-accent : root.ink; size: root.compact ? 24px : 30px; }
         }
         if root.text != "": Text {
             text: root.text;
-            font-size: 30px;
+            font-size: root.compact ? 24px : 30px;
             font-weight: 600;
             color: root.primary ? Dash.tint.on-accent : root.ink;
             vertical-alignment: center;
@@ -62,7 +63,7 @@ component TenButton inherits Rectangle {
         mouse-cursor: pointer;
         clicked => { root.clicked(); }
     }
-    Ring { on: root.focused; corner: 20px; height: parent.height + 20px; width: parent.width + 20px; }
+    Ring { on: root.focused; corner: root.compact ? 16px : 20px; height: parent.height + 20px; width: parent.width + 20px; }
 }
 
 // ── Side rail ────────────────────────────────────────────────────────
@@ -235,12 +236,13 @@ component PosterStrip inherits Flickable {
 component ServiceTile inherits Rectangle {
     in property <SiteTileData> site;
     in property <bool> focused;
+    in property <bool> horizontal: false;
     callback clicked();
-    border-radius: 20px;
+    border-radius: 18px;
     background: Theme.surface-raised;
     border-width: 1px;
     border-color: Theme.border;
-    VerticalLayout {
+    if !root.horizontal: VerticalLayout {
         alignment: center;
         spacing: 12px;
         HorizontalLayout {
@@ -257,11 +259,82 @@ component ServiceTile inherits Rectangle {
         }
         Text { text: root.site.name; font-size: 26px; color: Theme.text-primary; horizontal-alignment: center; overflow: elide; }
     }
+    if root.horizontal: HorizontalLayout {
+        padding-left: 18px;
+        padding-right: 18px;
+        spacing: 16px;
+        alignment: start;
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 56px;
+                height: 56px;
+                border-radius: 14px;
+                clip: true;
+                background: root.site.has-logo ? transparent : root.site.bg;
+                if root.site.has-logo: Image { width: parent.width; height: parent.height; source: root.site.logo; image-fit: cover; }
+                if !root.site.has-logo: Text { text: root.site.monogram; font-size: 28px; font-weight: 600; color: root.site.fg; }
+            }
+        }
+        Text {
+            text: root.site.name;
+            font-size: 24px;
+            font-weight: 500;
+            color: Theme.text-primary;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            overflow: elide;
+        }
+    }
     TouchArea {
         mouse-cursor: pointer;
         clicked => { root.clicked(); }
     }
-    Ring { on: root.focused; corner: 20px; height: parent.height + 20px; width: parent.width + 20px; }
+    Ring { on: root.focused; corner: 18px; height: parent.height + 20px; width: parent.width + 20px; }
+}
+
+component ContinueRowCard inherits Rectangle {
+    in property <PosterCardData> data;
+    in property <bool> focused;
+    callback clicked();
+    height: 102px;
+    border-radius: 16px;
+    background: Theme.surface-raised;
+    border-width: 1px;
+    border-color: Theme.border;
+    HorizontalLayout {
+        padding: 10px;
+        spacing: 16px;
+        Rectangle {
+            width: 56px;
+            height: 82px;
+            border-radius: 8px;
+            clip: true;
+            background: root.data.placeholder;
+            if root.data.has-poster: Image { width: parent.width; height: parent.height; source: root.data.poster; image-fit: cover; }
+            if !root.data.has-poster: Text {
+                text: root.data.title;
+                width: parent.width - 8px;
+                font-size: 14px;
+                color: Theme.on-scrim;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            spacing: 4px;
+            Text { text: root.data.title; font-size: 24px; font-weight: 600; color: Theme.text-primary; overflow: elide; }
+            if root.data.subtitle != "": Text { text: root.data.subtitle; font-size: 20px; color: Theme.text-secondary; overflow: elide; }
+            if root.data.progress > 0: ProgressBar { height: 6px; value: root.data.progress; fill: root.data.accent; }
+        }
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    Ring { on: root.focused; corner: 16px; height: parent.height + 20px; width: parent.width + 20px; }
 }
 
 component ServiceStrip inherits Flickable {
@@ -299,47 +372,58 @@ component RowLabel inherits Text {
 component Hero inherits Rectangle {
     property <string> mode: Dash.tv.mode;
     property <bool> focused: TvUi.focus == "hero";
-    height: 380px;
-    border-radius: 32px;
+    height: 196px;
+    border-radius: 24px;
     background: Dash.tint.card;
     animate background { duration: 400ms; }
     HorizontalLayout {
-        padding: 36px;
-        spacing: 36px;
+        padding: 20px;
+        spacing: 24px;
         if root.mode != "idle": Rectangle {
-            width: 205px;
-            border-radius: 18px;
+            width: 104px;
+            border-radius: 12px;
             clip: true;
             background: Dash.tint.poster;
             if Dash.tv.has-poster: Image { width: parent.width; height: parent.height; source: Dash.tv.poster; image-fit: cover; }
-            if !Dash.tv.has-poster: Text { text: Dash.tv.monogram; font-size: 110px; font-weight: 600; color: Dash.tint.accent; }
+            if !Dash.tv.has-poster: Text { text: Dash.tv.monogram; font-size: 56px; font-weight: 600; color: Dash.tint.accent; }
         }
         VerticalLayout {
-            spacing: 12px;
+            spacing: 6px;
             horizontal-stretch: 1;
-            Text {
-                text: root.mode == "playing" ? (Dash.tv.paused ? "PAUSED" : "PLAYING")
-                    : root.mode == "streaming" ? "ON THE TV NOW" : root.mode == "next" ? "UP NEXT" : "ON THE TV";
-                font-size: Ten.label;
-                font-weight: 600;
-                letter-spacing: 2px;
-                color: Dash.tint.accent;
-            }
-            Text { text: Dash.tv.title; font-size: Ten.title; color: Theme.text-primary; overflow: elide; }
-            if Dash.tv.subtitle != "": Text { text: Dash.tv.subtitle; font-size: Ten.body; color: Dash.tint.sec; overflow: elide; }
-            Rectangle { vertical-stretch: 1; }
-            if (root.mode == "playing" || root.mode == "next") && Dash.tv.at-text != "": VerticalLayout {
-                spacing: 8px;
-                ProgressBar { height: 10px; value: Dash.tv.progress; fill: Dash.tint.accent; track: Dash.tint.track; }
-                HorizontalLayout {
-                    Text { text: Dash.tv.at-text; font-size: 24px; color: Dash.tint.sec; horizontal-stretch: 1; }
-                    Text { text: Dash.tv.left-text; font-size: 24px; color: Dash.tint.sec; }
+            HorizontalLayout {
+                spacing: 12px;
+                Text {
+                    text: root.mode == "playing" ? (Dash.tv.paused ? "PAUSED" : "PLAYING")
+                        : root.mode == "streaming" ? "ON THE TV NOW" : root.mode == "next" ? "UP NEXT" : "ON THE TV";
+                    font-size: 20px;
+                    font-weight: 600;
+                    letter-spacing: 2px;
+                    color: Dash.tint.accent;
+                    vertical-alignment: center;
+                }
+                if Dash.tv.at-text != "": Text {
+                    text: "· " + Dash.tv.at-text + (Dash.tv.left-text != "" ? " · " + Dash.tv.left-text : "");
+                    font-size: 20px;
+                    color: Dash.tint.sec;
+                    vertical-alignment: center;
                 }
             }
+            Text { text: Dash.tv.title; font-size: 36px; font-weight: 600; color: Theme.text-primary; overflow: elide; }
+            if Dash.tv.subtitle != "": Text { text: Dash.tv.subtitle; font-size: 24px; color: Dash.tint.sec; overflow: elide; }
+            if (root.mode == "playing" || root.mode == "next") && Dash.tv.at-text != "": ProgressBar {
+                height: 6px;
+                value: Dash.tv.progress;
+                fill: Dash.tint.accent;
+                track: Dash.tint.track;
+            }
+            if root.mode == "idle": Text { text: "Pick something below, or open Search from the rail."; font-size: 24px; color: Dash.tint.sec; }
+        }
+        VerticalLayout {
+            alignment: center;
             HorizontalLayout {
-                spacing: 20px;
-                alignment: start;
+                spacing: 14px;
                 if root.mode == "playing": TenButton {
+                    compact: true;
                     text: Dash.tv.paused ? "Play" : "Pause";
                     icon: Dash.tv.paused ? "play" : "pause";
                     primary: true;
@@ -347,18 +431,21 @@ component Hero inherits Rectangle {
                     clicked => { TvUi.click("hero", 0); }
                 }
                 if root.mode == "playing" && TvUi.video-on: TenButton {
+                    compact: true;
                     text: "Full screen";
                     icon: "expand";
                     focused: root.focused && TvUi.col == 1;
                     clicked => { TvUi.click("hero", 1); }
                 }
                 if root.mode == "playing": TenButton {
+                    compact: true;
                     text: "Stop";
                     icon: "stop";
                     focused: root.focused && TvUi.col == (TvUi.video-on ? 2 : 1);
                     clicked => { TvUi.click("hero", TvUi.video-on ? 2 : 1); }
                 }
                 if root.mode == "streaming": TenButton {
+                    compact: true;
                     text: "Close";
                     icon: "stop";
                     primary: true;
@@ -366,13 +453,13 @@ component Hero inherits Rectangle {
                     clicked => { TvUi.click("hero", 0); }
                 }
                 if root.mode == "next": TenButton {
+                    compact: true;
                     text: "Resume";
                     icon: "play";
                     primary: true;
                     focused: root.focused && TvUi.col == 0;
                     clicked => { TvUi.click("hero", 0); }
                 }
-                if root.mode == "idle": Text { text: "Pick something below, or open Search from the rail."; font-size: Ten.body; color: Dash.tint.sec; }
             }
         }
     }
@@ -409,25 +496,55 @@ component Prompts inherits VerticalLayout {
 }
 
 component HomeScreen inherits VerticalLayout {
-    spacing: 34px;
+    spacing: 24px;
     Hero { }
-    VerticalLayout {
-        spacing: 14px;
-        RowLabel { text: Dash.cw-state == "items" ? "CONTINUE WATCHING" : "YOUR MEDIA SERVERS"; }
-        if (Dash.cw-state == "items" && Dash.prompts.length > 0) || Dash.cw-state != "items": Prompts { }
-        if Dash.cw-state == "items": PosterStrip { id: "continue"; cards: Dash.continue-watching; }
-        if Dash.cw-state == "loading" || Dash.cw-state == "empty": Text {
-            text: Dash.cw-state == "loading" ? "Loading…" : "Nothing in progress yet.";
-            font-size: Ten.body;
-            color: Theme.text-secondary;
+    HorizontalLayout {
+        spacing: 36px;
+        vertical-stretch: 1;
+        // Left column: Continue Watching (up to 5 items) or server prompts
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 12px;
+            RowLabel { text: Dash.cw-state == "items" ? "CONTINUE WATCHING" : "YOUR MEDIA SERVERS"; }
+            if (Dash.cw-state == "items" && Dash.prompts.length > 0) || Dash.cw-state != "items": Prompts { }
+            if Dash.cw-state == "items": VerticalLayout {
+                spacing: 12px;
+                for c[i] in Dash.continue-watching: ContinueRowCard {
+                    visible: i < 5;
+                    height: i < 5 ? 102px : 0px;
+                    data: c;
+                    focused: TvUi.focus == "continue" && TvUi.col == i;
+                    clicked => { TvUi.click("continue", i); }
+                }
+            }
+            if Dash.cw-state == "loading" || Dash.cw-state == "empty": Text {
+                text: Dash.cw-state == "loading" ? "Loading…" : "Nothing in progress yet.";
+                font-size: Ten.body;
+                color: Theme.text-secondary;
+            }
+            Rectangle { vertical-stretch: 1; }
+        }
+        // Right column: Your Services (all 10 in a 2×5 grid, no scrolling)
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 12px;
+            RowLabel { text: "YOUR SERVICES"; }
+            GridLayout {
+                spacing: 12px;
+                for s[i] in Dash.streaming-sites: ServiceTile {
+                    visible: i < 10;
+                    row: Math.floor(i / 2);
+                    col: Math.mod(i, 2);
+                    height: i < 10 ? 102px : 0px;
+                    horizontal: true;
+                    site: s;
+                    focused: TvUi.focus == "services" && TvUi.col == i;
+                    clicked => { TvUi.click("services", i); }
+                }
+            }
+            Rectangle { vertical-stretch: 1; }
         }
     }
-    VerticalLayout {
-        spacing: 14px;
-        RowLabel { text: "YOUR SERVICES"; }
-        ServiceStrip { }
-    }
-    Rectangle { vertical-stretch: 1; }
 }
 
 // ── Services ─────────────────────────────────────────────────────────
