@@ -45,6 +45,14 @@ assets = [
     { source = "../../packaging/tvdash.desktop", dest = "/usr/share/applications/tvdash.desktop", mode = "644" },
     { source = "../../packaging/tvdash.svg", dest = "/usr/share/icons/hicolor/scalable/apps/tvdash.svg", mode = "644" },
 ]
+post_install_script = """
+update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+gtk-update-icon-cache -q -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+"""
+post_uninstall_script = """
+update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+gtk-update-icon-cache -q -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+"""
 
 [package.metadata.generate-rpm.requires]
 mpv = "*"
