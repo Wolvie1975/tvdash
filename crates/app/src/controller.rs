@@ -721,12 +721,8 @@ impl Controller {
                     .unwrap_or(0);
 
                 if is_tv {
-                    shelves.finish_season = plex.finish_a_season(&sec.key, 6).await.unwrap_or_default();
                     shelves.genres = plex.section_genres(&sec.key).await.unwrap_or_default();
                 } else {
-                    let cw = plex.continue_watching().await.unwrap_or_default();
-                    shelves.continue_watching =
-                        cw.into_iter().filter(|i| i.kind == tvdash_core::models::MediaKind::Movie).collect();
                     shelves.collections = plex.collections(&sec.key).await.unwrap_or_default();
                 }
                 shelves.added_this_week = plex.added_since(&sec.key, since_epoch, sort, 6).await.unwrap_or_default();

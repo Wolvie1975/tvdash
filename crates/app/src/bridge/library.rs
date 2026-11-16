@@ -3,7 +3,7 @@
 
 use slint::{ComponentHandle, ModelRc, VecModel};
 use tvdash_core::models::{
-    CollectionDetail, EpisodeInfo, LibraryShelves, MediaItem, ShowDetail, SourceKind,
+    CollectionDetail, EpisodeInfo, LibraryShelves, MediaItem, MediaKind, ShowDetail, SourceKind,
 };
 
 use super::{STATE, UiState, home::cards_for, in_order};
@@ -22,7 +22,11 @@ fn filter_items(items: Vec<MediaItem>, filter: &str) -> Vec<MediaItem> {
 pub(super) fn rebuild(s: &mut UiState, laptop: &LaptopWindow) {
     let lib = laptop.global::<Library>();
     let filter = lib.get_filter();
-    s.lib_continue = filter_items(in_order(&s.continue_watching), &filter);
+    let movies = lib.get_media_tab() == "movies";
+    s.lib_continue = filter_items(in_order(&s.continue_watching), &filter)
+        .into_iter()
+        .filter(|i| if movies { i.kind == MediaKind::Movie } else { i.kind != MediaKind::Movie })
+        .collect();
     s.lib_recent = filter_items(in_order(&s.recently_added), &filter);
     s.lib_results = filter_items(s.search.as_ref().map(|(_, i)| i.clone()).unwrap_or_default(), &filter);
     s.lib_continue_cards.set_vec(cards_for(s, &s.lib_continue));
@@ -48,6 +52,12 @@ pub(super) fn on_results(s: &mut UiState, laptop: &LaptopWindow, query: String, 
 /// Filter buttons.
 pub fn set_filter(laptop: &LaptopWindow, filter: &str) {
     laptop.global::<Library>().set_filter(filter.into());
+    STATE.with_borrow_mut(|s| rebuild(s, laptop));
+}
+
+/// Switch Library between TV Series (`"tv"`) and Movies (`"movies"`).
+pub fn set_media_tab(laptop: &LaptopWindow, tab: &str) {
+    laptop.global::<Library>().set_media_tab(tab.into());
     STATE.with_borrow_mut(|s| rebuild(s, laptop));
 }
 

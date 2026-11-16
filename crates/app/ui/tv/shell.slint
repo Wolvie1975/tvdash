@@ -337,29 +337,6 @@ component ContinueRowCard inherits Rectangle {
     Ring { on: root.focused; corner: 16px; height: parent.height + 20px; width: parent.width + 20px; }
 }
 
-component ServiceStrip inherits Flickable {
-    property <bool> active: TvUi.focus == "services";
-    property <length> step: 230px + 24px;
-    height: 150px;
-    interactive: true;
-    content-width: row.preferred-width + 20px;
-    content-x: root.active ? -max(0px, min(self.content-width - self.width, TvUi.col * root.step - (self.width - root.step) / 2)) : 0px;
-    animate content-x { duration: 200ms; easing: ease-out; }
-    row := HorizontalLayout {
-        x: 10px;
-        y: 10px;
-        spacing: 24px;
-        alignment: start;
-        for s[i] in Dash.streaming-sites: ServiceTile {
-            width: 230px;
-            height: 130px;
-            site: s;
-            focused: root.active && TvUi.col == i;
-            clicked => { TvUi.click("services", i); }
-        }
-    }
-}
-
 component RowLabel inherits Text {
     font-size: Ten.label;
     font-weight: 600;

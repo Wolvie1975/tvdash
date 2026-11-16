@@ -316,24 +316,84 @@ export component SessionLine inherits HorizontalLayout {
 }
 
 // Horizontally scrolling row of poster cards (swipe or drag to scroll).
-export component PosterRow inherits Flickable {
+export component PosterRow inherits Rectangle {
     in property <[PosterCardData]> cards;
     in property <int> selected: -1;
     in property <length> art-width: 140px;
     in property <bool> show-subtitle: false;
     callback clicked(int);
 
-    min-height: row.preferred-height;
-    content-width: row.preferred-width;
-    row := HorizontalLayout {
-        spacing: 16px;
-        alignment: start;
-        for c[i] in root.cards: PosterCard {
-            data: c;
-            art-width: root.art-width;
-            show-subtitle: root.show-subtitle;
-            selected: i == root.selected;
-            clicked => { root.clicked(i); }
+    property <bool> can-left: flick.content-x < -2px;
+    property <bool> can-right: flick.content-width > flick.width && flick.content-x > -(flick.content-width - flick.width) + 2px;
+    property <length> step: max(root.art-width + 16px, flick.width * 0.7);
+
+    height: row.preferred-height;
+
+    flick := Flickable {
+        width: parent.width;
+        height: parent.height;
+        content-width: row.preferred-width;
+        animate content-x { duration: 220ms; easing: ease-out; }
+        row := HorizontalLayout {
+            spacing: 16px;
+            alignment: start;
+            for c[i] in root.cards: PosterCard {
+                data: c;
+                art-width: root.art-width;
+                show-subtitle: root.show-subtitle;
+                selected: i == root.selected;
+                clicked => { root.clicked(i); }
+            }
+        }
+    }
+
+    if root.can-left: Rectangle {
+        x: 6px;
+        y: (root.art-width * 1.5 - self.height) / 2;
+        width: 44px;
+        height: 56px;
+        border-radius: 12px;
+        background: left-touch.pressed ? Theme.accent : #0B0D10CC;
+        border-width: 1px;
+        border-color: Theme.border;
+        Text {
+            text: "‹";
+            font-size: 32px;
+            font-weight: 600;
+            color: left-touch.pressed ? #0B0D10 : #E8EAED;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        left-touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => {
+                flick.content-x = min(0px, flick.content-x + root.step);
+            }
+        }
+    }
+
+    if root.can-right: Rectangle {
+        x: parent.width - self.width - 6px;
+        y: (root.art-width * 1.5 - self.height) / 2;
+        width: 44px;
+        height: 56px;
+        border-radius: 12px;
+        background: right-touch.pressed ? Theme.accent : #0B0D10CC;
+        border-width: 1px;
+        border-color: Theme.border;
+        Text {
+            text: "›";
+            font-size: 32px;
+            font-weight: 600;
+            color: right-touch.pressed ? #0B0D10 : #E8EAED;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        right-touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => {
+                flick.content-x = max(-(flick.content-width - flick.width), flick.content-x - root.step);
+            }
         }
     }
 }

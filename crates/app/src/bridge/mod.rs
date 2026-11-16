@@ -35,7 +35,9 @@ use tvdash_core::{
 
 pub use accounts::sync_setup;
 pub use home::{row, set_cw_filter, up_next};
-pub use library::{clear_search, close_detail, reorder_collection, select, selected, set_filter, start_search};
+pub use library::{
+    clear_search, close_detail, reorder_collection, select, selected, set_filter, set_media_tab, start_search,
+};
 
 use crate::{
     AccountPrompt, AccountRow, Accounts, Artwork, ArtworkRow, Dash, Diagnostics, Display, LaptopWindow, Library, Nav,

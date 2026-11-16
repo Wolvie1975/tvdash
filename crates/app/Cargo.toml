@@ -38,3 +38,14 @@ slint-build.workspace = true
 
 [dev-dependencies]
 i-slint-backend-testing = "=1.18.1"
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/tvdash", dest = "/usr/bin/tvdash", mode = "755" },
+    { source = "../../packaging/tvdash.desktop", dest = "/usr/share/applications/tvdash.desktop", mode = "644" },
+    { source = "../../packaging/tvdash.svg", dest = "/usr/share/icons/hicolor/scalable/apps/tvdash.svg", mode = "644" },
+]
+
+[package.metadata.generate-rpm.requires]
+mpv = "*"
+mpv-libs = "*"

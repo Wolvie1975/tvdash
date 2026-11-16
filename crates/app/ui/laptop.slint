@@ -30,7 +30,10 @@ export component LaptopWindow inherits Window {
 
     // Scrolls vertically if the panel is shorter than the content.
     scroller := Flickable {
+        width: root.width;
+        height: root.height;
         visible: Nav.layout == "dual";
+        content-width: self.width;
         content-height: max(self.height, body.preferred-height);
         body := VerticalLayout {
             width: scroller.width;

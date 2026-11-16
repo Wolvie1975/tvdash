@@ -205,7 +205,7 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     let (weak, s) = (laptop.as_weak(), send.clone());
     lib.on_set_media_tab(move |tab| {
         if let Some(l) = weak.upgrade() {
-            l.global::<Library>().set_media_tab(tab);
+            bridge::set_media_tab(&l, &tab);
             reload_shelves(&l, &s);
         }
     });

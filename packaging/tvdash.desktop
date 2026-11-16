@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=tvdash
+GenericName=TV Dashboard
+Comment=Laptop control dashboard and TV playback for Plex, Jellyfin and streaming sites
+Exec=/usr/bin/tvdash
+Icon=tvdash
+Terminal=false
+Categories=AudioVideo;Video;Player;
+StartupWMClass=tvdash

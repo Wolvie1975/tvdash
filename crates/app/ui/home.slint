@@ -241,8 +241,8 @@ component TvCardView inherits Rectangle {
             VerticalLayout {
                 alignment: start;
                 Rectangle {
-                    width: 160px;
-                    height: 240px;
+                    width: 140px;
+                    height: 210px;
                     border-radius: 14px;
                     clip: true;
                     background: Dash.tint.poster;
@@ -291,14 +291,14 @@ component TvCardView inherits Rectangle {
             }
         }
 
-        // 5. Actions (76 px)
+        // 5. Actions
         if root.playing: HorizontalLayout {
             spacing: 12px;
-            height: 76px;
+            height: 64px;
             ActionButton {
                 icon: "back";
-                width: 76px;
-                font-px: 24px;
+                width: 64px;
+                font-px: 22px;
                 fill: Dash.tint.btn;
                 edge: Dash.tint.edge;
                 accessible-label: "Back 10 seconds";
@@ -308,7 +308,7 @@ component TvCardView inherits Rectangle {
                 text: Dash.tv.paused ? "Resume" : "Pause";
                 icon: Dash.tv.paused ? "play" : "pause";
                 primary: true;
-                font-px: 24px;
+                font-px: 22px;
                 horizontal-stretch: 1;
                 fill: Dash.tint.accent;
                 ink: Dash.tint.on-accent;
@@ -316,8 +316,8 @@ component TvCardView inherits Rectangle {
             }
             ActionButton {
                 icon: "forward";
-                width: 76px;
-                font-px: 24px;
+                width: 64px;
+                font-px: 22px;
                 fill: Dash.tint.btn;
                 edge: Dash.tint.edge;
                 accessible-label: "Forward 30 seconds";
@@ -325,29 +325,29 @@ component TvCardView inherits Rectangle {
             }
             ActionButton {
                 text: "Stop";
-                font-px: 22px;
+                font-px: 20px;
                 fill: Dash.tint.btn;
                 edge: Dash.tint.edge;
                 clicked => { Dash.transport("stop"); }
             }
         }
         if root.streaming: ActionButton {
-            height: 76px;
+            height: 64px;
             text: "Close browser";
             icon: "stop";
             primary: true;
-            font-px: 24px;
+            font-px: 22px;
             fill: Dash.tint.accent;
             ink: Dash.tint.on-accent;
             clicked => { Dash.transport("stop"); }
         }
         if root.next: ActionButton {
-            height: 76px;
+            height: 64px;
             text: Dash.tv-connected ? "Resume on TV" : "TV not connected";
             icon: "play";
             primary: true;
             enabled: Dash.tv-connected;
-            font-px: 24px;
+            font-px: 22px;
             fill: Dash.tint.accent;
             ink: Dash.tint.on-accent;
             clicked => { Dash.play-up-next(); }
@@ -646,20 +646,19 @@ component ContinueWatchingBox inherits Rectangle {
 }
 
 export component HomePage inherits VerticalLayout {
-    padding-top: 40px;
-    padding-bottom: 40px;
-    padding-left: 64px;
-    padding-right: 64px;
-    spacing: Theme.gap;
+    padding-top: 24px;
+    padding-bottom: 24px;
+    padding-left: 40px;
+    padding-right: 40px;
+    spacing: 20px;
 
-    // ── Header (140 px, 1fr · 2fr · 1fr) ─────────────────────────
+    // ── Header ───────────────────────────────────────────────────
     header := HorizontalLayout {
-        spacing: Theme.gap;
-        min-height: 140px;
+        spacing: 16px;
+        min-height: 112px;
 
-        // Left (1fr)
+        // Left
         HorizontalLayout {
-            horizontal-stretch: 1;
             spacing: 12px;
             alignment: start;
             VerticalLayout {
@@ -693,11 +692,12 @@ export component HomePage inherits VerticalLayout {
             }
         }
 
-        // Centre (2fr): clock + date · divider · weather
+        Rectangle { horizontal-stretch: 1; }
+
+        // Centre: clock + date · divider · weather
         HorizontalLayout {
-            horizontal-stretch: 2;
             alignment: center;
-            spacing: 32px;
+            spacing: 28px;
 
             VerticalLayout {
                 alignment: center;
@@ -707,11 +707,11 @@ export component HomePage inherits VerticalLayout {
                     mm: Dash.clock-mm;
                     ss: Dash.clock-ss;
                     show-seconds: Dash.show-seconds;
-                    font-px: 112px;
+                    font-px: 88px;
                 }
                 Text {
                     text: Dash.weekday + ", " + Dash.date-text;
-                    font-size: 24px;
+                    font-size: 20px;
                     color: Theme.text-secondary;
                     horizontal-alignment: center;
                 }
@@ -719,7 +719,7 @@ export component HomePage inherits VerticalLayout {
 
             VerticalLayout {
                 alignment: center;
-                Rectangle { width: 1px; height: 84px; background: Theme.border; }
+                Rectangle { width: 1px; height: 76px; background: Theme.border; }
             }
 
             VerticalLayout {
@@ -728,9 +728,10 @@ export component HomePage inherits VerticalLayout {
             }
         }
 
-        // Right (1fr): Theme switch + Settings
+        Rectangle { horizontal-stretch: 1; }
+
+        // Right: Theme switch + Settings
         HorizontalLayout {
-            horizontal-stretch: 1;
             spacing: 12px;
             alignment: end;
             VerticalLayout { alignment: center; ThemeSwitch { } }
@@ -744,7 +745,7 @@ export component HomePage inherits VerticalLayout {
     // ── Main: three equal 4-column full-height boxes ─────────────
     main := Rectangle {
         vertical-stretch: 1;
-        min-height: 640px;
+        min-height: 0;
 
         property <length> box-w: (self.width - 2 * Theme.gap) / 3;
 

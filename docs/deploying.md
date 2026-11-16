@@ -52,6 +52,26 @@ tvdash-0.1.0-x86_64/install.sh              # or: install.sh --autostart to star
 No root is needed: it installs to `~/.local/bin/tvdash` plus an app-menu entry, for that user
 only. The installer then lists anything missing (mpv, Brave, the keyring service).
 
+#### Fedora `.rpm` package (alternative to the tarball)
+
+If both the build machine and destination are on Fedora, you can build a native `.rpm` instead
+(one-time tool install: `cargo install cargo-generate-rpm`):
+
+```bash
+cargo build --release -j 2
+packaging/rpm.sh
+```
+
+That writes `dist/tvdash-0.1.0-1.x86_64.rpm`, which declares `mpv` and `mpv-libs` as dependencies.
+Install it on the destination machine with:
+
+```bash
+sudo dnf install ./tvdash-0.1.0-1.x86_64.rpm
+```
+
+You still need RPM Fusion's full `ffmpeg` and Brave (step 3 below) for H.264/HEVC video and
+Widevine DRM.
+
 ### B. Build on the new machine
 
 ```bash
