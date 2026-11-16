@@ -1,8 +1,19 @@
-tvdash — Fedora Destination Machine Install Guide (Option B + Players & Codecs)
-================================================================================
+tvdash — Fedora Destination Machine Install Guide (RPM or Build + Players & Codecs)
+===================================================================================
 
 Run these steps in a terminal on the destination Fedora (GNOME Wayland) machine.
 
+Option A: Install from the prebuilt .rpm (recommended — no Rust/source needed)
+------------------------------------------------------------------------------
+1. Copy dist/tvdash-0.1.0-1.x86_64.rpm from your build machine, then install it:
+   sudo dnf install ./tvdash-0.1.0-1.x86_64.rpm
+   (This installs /usr/bin/tvdash, the app-menu entry, mpv, and mpv-libs.)
+
+2. Install full codecs + Brave (see step 3 below).
+
+
+Option B: Build from source on the destination machine
+------------------------------------------------------
 1. Build dependencies
 ---------------------
 sudo dnf install -y git gcc fontconfig-devel
