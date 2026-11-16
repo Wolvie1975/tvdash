@@ -195,10 +195,11 @@ impl Browser {
         self.started.elapsed() < Duration::from_secs(3)
     }
 
-    /// SIGTERM the whole group, then SIGKILL if it hasn't gone within 5 s.
+    /// SIGTERM the main browser process so it flushes cookies and sign-ins,
+    /// then SIGKILL the process group if anything hasn't exited within 5 s.
     pub async fn close(mut self) {
         self.detached = true;
-        self.signal(libc::SIGTERM);
+        self.signal_main(libc::SIGTERM);
         if let Some(mut child) = self.child.take() {
             match tokio::time::timeout(Duration::from_secs(5), child.wait()).await {
                 Ok(_) => info!(site = %self.site, "browser closed"),
@@ -222,6 +223,16 @@ impl Browser {
         self.signal(libc::SIGKILL);
     }
 
+    fn signal_main(&self, sig: i32) {
+        if let Some(pid) = self.pgid {
+            // SAFETY: plain syscall; targets only the main browser process so
+            // it can flush cookies/storage before tearing down its helpers.
+            unsafe {
+                libc::kill(pid, sig);
+            }
+        }
+    }
+
     fn signal(&self, sig: i32) {
         if let Some(pgid) = self.pgid {
             // SAFETY: plain syscall; a negative pid targets the process group we created.
@@ -235,7 +246,7 @@ impl Browser {
 impl Drop for Browser {
     fn drop(&mut self) {
         if !self.detached {
-            self.signal(libc::SIGTERM);
+            self.signal_main(libc::SIGTERM);
         }
     }
 }

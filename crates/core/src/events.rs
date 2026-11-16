@@ -242,6 +242,8 @@ pub enum Command {
     Refresh,
     /// Where the TV output is, once the windows know (used to place the browser).
     TvGeometry(Geometry),
+    /// Detected connector name of the TV output (e.g. `HDMI-1`, `DP-1`).
+    TvOutput(String),
     /// Forget a media server's sign-in (keyring token + config).
     SignOut(SourceKind),
     /// Close the browser, delete its profile (all streaming sign-ins) and history.

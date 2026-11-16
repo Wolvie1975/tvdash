@@ -130,6 +130,7 @@ pub struct Controller {
     browser: Option<Browser>,
     inhibit: Option<crate::portal::IdleInhibit>,
     tv_geometry: Option<Geometry>,
+    tv_output: Option<String>,
     state: AppState,
     state_path: Option<PathBuf>,
     posters_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
@@ -185,6 +186,7 @@ impl Controller {
             browser: None,
             inhibit: None,
             tv_geometry: None,
+            tv_output: None,
             state: AppState::default(),
             state_path,
             posters_requested: Arc::default(),
@@ -516,6 +518,10 @@ impl Controller {
             Command::TvGeometry(g) => {
                 debug!(?g, "TV geometry");
                 self.tv_geometry = Some(g);
+            }
+            Command::TvOutput(name) => {
+                debug!(%name, "TV output");
+                self.tv_output = (!name.is_empty()).then_some(name);
             }
             Command::Search(query) => self.search(query),
             Command::ServerScan { index } => self.server_scan(index).await,
@@ -1385,7 +1391,10 @@ impl Controller {
         };
         let opts = MpvOptions {
             binary: self.config.player.mpv.clone(),
-            screen_name: Some(self.config.display.tv_output.clone()).filter(|s| !s.is_empty()),
+            screen_name: self
+                .tv_output
+                .clone()
+                .or_else(|| Some(self.config.display.tv_output.clone()).filter(|s| !s.is_empty())),
             title: format::item_line(&item),
             start_ms: item.resume_ms,
             fullscreen: !self.windowed,

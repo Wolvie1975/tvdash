@@ -391,6 +391,9 @@ fn spawn_placement<C: ComponentHandle + 'static>(
             let g = geometry(m);
             info!(?g, "TV output geometry");
             let _ = tx.send(Command::TvGeometry(g));
+            if let Some(name) = m.name() {
+                let _ = tx.send(Command::TvOutput(name));
+            }
         }
 
         if !fullscreen {
