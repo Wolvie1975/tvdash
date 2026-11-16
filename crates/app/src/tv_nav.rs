@@ -41,6 +41,12 @@ pub fn init(laptop: &LaptopWindow, layout: Layout) {
     set_layout(laptop, layout);
     let weak = laptop.as_weak();
     laptop.global::<TvUi>().on_key(move |text| weak.upgrade().is_some_and(|l| key(&l, &text)));
+    let weak = laptop.as_weak();
+    laptop.global::<TvUi>().on_click(move |row, col| {
+        if let Some(l) = weak.upgrade() {
+            click(&l, &row, col.max(0) as usize);
+        }
+    });
     sync(laptop);
 }
 
@@ -323,6 +329,38 @@ fn cycle_theme(laptop: &LaptopWindow) {
         _ => UiTheme::Dark,
     };
     laptop.global::<Dash>().invoke_set_theme(next);
+}
+
+/// Handle a mouse or touch click on any interactive element in the TV shell.
+pub fn click(laptop: &LaptopWindow, row: &str, col: usize) {
+    S.with_borrow_mut(|s| s.last_key = Instant::now());
+    let ui = laptop.global::<TvUi>();
+    ui.set_focus_ticket(ui.get_focus_ticket() + 1);
+    match row {
+        "ambient" => {
+            ui.set_ambient(false);
+        }
+        "video" => {
+            ui.set_video_full(false);
+            show(laptop, "home");
+            focus_row(laptop, "hero", rows(laptop).iter().find(|(id, _)| *id == "hero").map_or(1, |(_, n)| *n));
+        }
+        "rail" => {
+            if col == RAIL_THEME {
+                cycle_theme(laptop);
+            } else if let Some(&screen) = SCREENS.get(col) {
+                show(laptop, screen);
+            }
+        }
+        _ => {
+            if ui.get_rail_open() {
+                ui.set_rail_open(false);
+            }
+            ui.set_focus(row.into());
+            ui.set_col(col as i32);
+            activate(laptop, row, col);
+        }
+    }
 }
 
 fn activate(laptop: &LaptopWindow, row: &str, col: usize) {

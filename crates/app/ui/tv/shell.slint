@@ -36,6 +36,7 @@ component TenButton inherits Rectangle {
     in property <bool> primary;
     in property <color> fill: Dash.tint.btn;
     in property <color> ink: Theme.text-primary;
+    callback clicked();
     height: 76px;
     min-width: row.preferred-width + 56px;
     border-radius: 20px;
@@ -56,6 +57,10 @@ component TenButton inherits Rectangle {
             color: root.primary ? Dash.tint.on-accent : root.ink;
             vertical-alignment: center;
         }
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
     }
     Ring { on: root.focused; corner: 20px; height: parent.height + 20px; width: parent.width + 20px; }
 }
@@ -87,6 +92,10 @@ component RailItem inherits Rectangle {
             opacity: TvUi.rail-open ? 1 : 0;
             animate opacity { duration: 200ms; }
         }
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { TvUi.click("rail", root.index); }
     }
     Ring { on: root.focused; height: parent.height + 20px; width: parent.width + 20px; }
 }
@@ -151,6 +160,10 @@ component Rail inherits Rectangle {
                 }
             }
             Ring { on: TvUi.focus == "rail" && TvUi.col == 5; height: parent.height + 20px; width: parent.width + 20px; }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { TvUi.click("rail", 5); }
+            }
         }
     }
 }
@@ -160,6 +173,7 @@ component Rail inherits Rectangle {
 component Poster inherits Rectangle {
     in property <PosterCardData> data;
     in property <bool> focused;
+    callback clicked();
     width: 170px;
     height: col.preferred-height;
     col := VerticalLayout {
@@ -187,6 +201,10 @@ component Poster inherits Rectangle {
         }
         Text { text: root.data.title; font-size: 24px; color: Theme.text-primary; overflow: elide; }
     }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
     Ring { on: root.focused; height: 255px + 20px; width: parent.width + 20px; }
 }
 
@@ -196,7 +214,7 @@ component PosterStrip inherits Flickable {
     property <bool> active: TvUi.focus == root.id;
     property <length> step: 170px + 28px;
     height: 310px;
-    interactive: false;
+    interactive: true;
     content-width: row.preferred-width + 20px;
     // Keep the focused card in view.
     content-x: root.active ? -max(0px, min(self.content-width - self.width, TvUi.col * root.step - (self.width - root.step) / 2)) : 0px;
@@ -206,13 +224,18 @@ component PosterStrip inherits Flickable {
         y: 10px;
         spacing: 28px;
         alignment: start;
-        for c[i] in root.cards: Poster { data: c; focused: root.active && TvUi.col == i; }
+        for c[i] in root.cards: Poster {
+            data: c;
+            focused: root.active && TvUi.col == i;
+            clicked => { TvUi.click(root.id, i); }
+        }
     }
 }
 
 component ServiceTile inherits Rectangle {
     in property <SiteTileData> site;
     in property <bool> focused;
+    callback clicked();
     border-radius: 20px;
     background: Theme.surface-raised;
     border-width: 1px;
@@ -234,6 +257,10 @@ component ServiceTile inherits Rectangle {
         }
         Text { text: root.site.name; font-size: 26px; color: Theme.text-primary; horizontal-alignment: center; overflow: elide; }
     }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
     Ring { on: root.focused; corner: 20px; height: parent.height + 20px; width: parent.width + 20px; }
 }
 
@@ -241,7 +268,7 @@ component ServiceStrip inherits Flickable {
     property <bool> active: TvUi.focus == "services";
     property <length> step: 230px + 24px;
     height: 150px;
-    interactive: false;
+    interactive: true;
     content-width: row.preferred-width + 20px;
     content-x: root.active ? -max(0px, min(self.content-width - self.width, TvUi.col * root.step - (self.width - root.step) / 2)) : 0px;
     animate content-x { duration: 200ms; easing: ease-out; }
@@ -250,7 +277,13 @@ component ServiceStrip inherits Flickable {
         y: 10px;
         spacing: 24px;
         alignment: start;
-        for s[i] in Dash.streaming-sites: ServiceTile { width: 230px; height: 130px; site: s; focused: root.active && TvUi.col == i; }
+        for s[i] in Dash.streaming-sites: ServiceTile {
+            width: 230px;
+            height: 130px;
+            site: s;
+            focused: root.active && TvUi.col == i;
+            clicked => { TvUi.click("services", i); }
+        }
     }
 }
 
@@ -311,11 +344,34 @@ component Hero inherits Rectangle {
                     icon: Dash.tv.paused ? "play" : "pause";
                     primary: true;
                     focused: root.focused && TvUi.col == 0;
+                    clicked => { TvUi.click("hero", 0); }
                 }
-                if root.mode == "playing" && TvUi.video-on: TenButton { text: "Full screen"; icon: "expand"; focused: root.focused && TvUi.col == 1; }
-                if root.mode == "playing": TenButton { text: "Stop"; icon: "stop"; focused: root.focused && TvUi.col == (TvUi.video-on ? 2 : 1); }
-                if root.mode == "streaming": TenButton { text: "Close"; icon: "stop"; primary: true; focused: root.focused && TvUi.col == 0; }
-                if root.mode == "next": TenButton { text: "Resume"; icon: "play"; primary: true; focused: root.focused && TvUi.col == 0; }
+                if root.mode == "playing" && TvUi.video-on: TenButton {
+                    text: "Full screen";
+                    icon: "expand";
+                    focused: root.focused && TvUi.col == 1;
+                    clicked => { TvUi.click("hero", 1); }
+                }
+                if root.mode == "playing": TenButton {
+                    text: "Stop";
+                    icon: "stop";
+                    focused: root.focused && TvUi.col == (TvUi.video-on ? 2 : 1);
+                    clicked => { TvUi.click("hero", TvUi.video-on ? 2 : 1); }
+                }
+                if root.mode == "streaming": TenButton {
+                    text: "Close";
+                    icon: "stop";
+                    primary: true;
+                    focused: root.focused && TvUi.col == 0;
+                    clicked => { TvUi.click("hero", 0); }
+                }
+                if root.mode == "next": TenButton {
+                    text: "Resume";
+                    icon: "play";
+                    primary: true;
+                    focused: root.focused && TvUi.col == 0;
+                    clicked => { TvUi.click("hero", 0); }
+                }
                 if root.mode == "idle": Text { text: "Pick something below, or open Search from the rail."; font-size: Ten.body; color: Dash.tint.sec; }
             }
         }
@@ -337,6 +393,7 @@ component Prompts inherits VerticalLayout {
             text: "Cancel";
             fill: Theme.surface-raised;
             focused: TvUi.focus == "prompts" && TvUi.col == 0;
+            clicked => { TvUi.click("prompts", 0); }
         }
         if Dash.cw-state != "code" && Dash.cw-state != "busy": HorizontalLayout {
             spacing: 24px;
@@ -345,6 +402,7 @@ component Prompts inherits VerticalLayout {
                 primary: !p.warn;
                 fill: Theme.surface-raised;
                 focused: TvUi.focus == "prompts" && TvUi.col == i;
+                clicked => { TvUi.click("prompts", i); }
             }
         }
     }
@@ -383,7 +441,7 @@ component ServicesScreen inherits Rectangle {
         spacing: 24px;
         Text { text: "Services"; font-size: Ten.title; color: Theme.text-primary; }
         grid := Flickable {
-            interactive: false;
+            interactive: true;
             vertical-stretch: 1;
             property <int> focus-row: TvUi.focus == "grid" ? Math.floor(TvUi.col / root.columns) : 0;
             content-y: -max(0px, self.focus-row * (root.tile-h + root.gap) - (self.height - root.tile-h - 20px));
@@ -396,6 +454,7 @@ component ServicesScreen inherits Rectangle {
                 height: root.tile-h;
                 site: s;
                 focused: TvUi.focus == "grid" && TvUi.col == i;
+                clicked => { TvUi.click("grid", i); }
             }
         }
     }
@@ -427,12 +486,17 @@ component Chip inherits Rectangle {
     in property <string> text;
     in property <bool> on;
     in property <bool> focused;
+    callback clicked();
     height: 72px;
     min-width: t.preferred-width + 56px;
     horizontal-stretch: 0;
     border-radius: 18px;
     background: root.on ? Theme.text-primary : Theme.surface-raised;
     t := Text { text: root.text; font-size: 28px; font-weight: 500; color: root.on ? Theme.bg : Theme.text-primary; }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
     Ring { on: root.focused; height: parent.height + 20px; width: parent.width + 20px; }
 }
 
@@ -507,31 +571,32 @@ component SettingsScreen inherits VerticalLayout {
     Text { text: "Settings"; font-size: Ten.title; color: Theme.text-primary; }
     SettingRow {
         label: "Layout";
-        Chip { text: "Two screens"; on: !TvUi.layout-tv; focused: f("set-layout", 0); }
-        Chip { text: "TV only"; on: TvUi.layout-tv; focused: f("set-layout", 1); }
+        Chip { text: "Two screens"; on: !TvUi.layout-tv; focused: f("set-layout", 0); clicked => { TvUi.click("set-layout", 0); } }
+        Chip { text: "TV only"; on: TvUi.layout-tv; focused: f("set-layout", 1); clicked => { TvUi.click("set-layout", 1); } }
         Text { text: "Two screens moves the dashboard back to the laptop."; font-size: 24px; color: Theme.text-muted; vertical-alignment: center; }
     }
     SettingRow {
         label: "Theme";
-        Chip { text: "Dark"; on: Theme.mode == UiTheme.dark; focused: f("set-theme", 0); }
-        Chip { text: "Stone"; on: Theme.mode == UiTheme.stone; focused: f("set-theme", 1); }
-        Chip { text: "Mist"; on: Theme.mode == UiTheme.mist; focused: f("set-theme", 2); }
+        Chip { text: "Dark"; on: Theme.mode == UiTheme.dark; focused: f("set-theme", 0); clicked => { TvUi.click("set-theme", 0); } }
+        Chip { text: "Stone"; on: Theme.mode == UiTheme.stone; focused: f("set-theme", 1); clicked => { TvUi.click("set-theme", 1); } }
+        Chip { text: "Mist"; on: Theme.mode == UiTheme.mist; focused: f("set-theme", 2); clicked => { TvUi.click("set-theme", 2); } }
     }
     SettingRow {
         label: "Temperature";
-        Chip { text: "°F"; on: !Display.celsius; focused: f("set-units", 0); }
-        Chip { text: "°C"; on: Display.celsius; focused: f("set-units", 1); }
+        Chip { text: "°F"; on: !Display.celsius; focused: f("set-units", 0); clicked => { TvUi.click("set-units", 0); } }
+        Chip { text: "°C"; on: Display.celsius; focused: f("set-units", 1); clicked => { TvUi.click("set-units", 1); } }
     }
     SettingRow {
         label: "Clock";
-        Chip { text: "24-hour"; on: !Display.h12; focused: f("set-clock", 0); }
-        Chip { text: "12-hour"; on: Display.h12; focused: f("set-clock", 1); }
+        Chip { text: "24-hour"; on: !Display.h12; focused: f("set-clock", 0); clicked => { TvUi.click("set-clock", 0); } }
+        Chip { text: "12-hour"; on: Display.h12; focused: f("set-clock", 1); clicked => { TvUi.click("set-clock", 1); } }
     }
     SettingRow {
         label: "Accounts";
         for a[i] in Accounts.accounts: Chip {
             text: a.name + " · " + (a.primary != "" ? a.primary : a.secondary != "" ? a.secondary : a.status);
             focused: f("set-accounts", i);
+            clicked => { TvUi.click("set-accounts", i); }
         }
     }
     VerticalLayout {
@@ -558,7 +623,7 @@ component SettingsScreen inherits VerticalLayout {
             font-size: 26px;
             color: Theme.text-secondary;
         }
-        Chip { text: "Scan all"; focused: f("server-scan", 0); }
+        Chip { text: "Scan all"; focused: f("server-scan", 0); clicked => { TvUi.click("server-scan", 0); } }
     }
     if Server.name == "Plex server": Text {
         text: "Plex server monitoring is available on the laptop when a Plex server is connected.";
@@ -567,7 +632,7 @@ component SettingsScreen inherits VerticalLayout {
     }
     SettingRow {
         label: "";
-        Chip { text: "Quit tvdash"; focused: f("set-quit", 0); }
+        Chip { text: "Quit tvdash"; focused: f("set-quit", 0); clicked => { TvUi.click("set-quit", 0); } }
     }
     Text {
         text: "Streaming sites, the TMDB token and diagnostics are on the laptop layout for now.";
@@ -601,6 +666,9 @@ component Ambient inherits Rectangle {
         Text { text: Dash.weekday + ", " + Dash.date-text; font-size: 36px; color: #A0A6AFcc; }
         if Dash.tv.mode == "next": Text { text: "Up next · " + Dash.tv.title; font-size: 32px; color: #A0A6AFcc; }
     }
+    TouchArea {
+        clicked => { TvUi.click("ambient", 0); }
+    }
 }
 
 export component TvShell inherits Rectangle {
@@ -610,6 +678,9 @@ export component TvShell inherits Rectangle {
     if TvUi.video-on: Image { width: parent.width; height: parent.height; source: TvUi.video; image-fit: fill; }
     // Home over a playing video: dimmed so the screens stay readable.
     if TvUi.video-on && !TvUi.video-full: Rectangle { background: #000000c0; }
+    if TvUi.video-on && TvUi.video-full: TouchArea {
+        clicked => { TvUi.click("video", 0); }
+    }
 
     fs := FocusScope {
         key-pressed(e) => {

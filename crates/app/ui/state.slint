@@ -548,6 +548,8 @@ export global TvUi {
     in property <bool> video-full;
     // A key press (Slint key text); returns true when handled.
     callback key(string) -> bool;
+    // Mouse/touch click on a focusable item (row, col).
+    callback click(string, int);
     // Show the playback overlay (title, progress, end time) on the video.
     callback overlay();
 }
