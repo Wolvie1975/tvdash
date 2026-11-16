@@ -5637,7 +5637,7 @@ checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 
 [[package]]
 name = "tvdash"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5665,7 +5665,7 @@ dependencies = [
 
 [[package]]
 name = "tvdash-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -5680,7 +5680,7 @@ dependencies = [
 
 [[package]]
 name = "tvdash-discover"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "reqwest",
  "rusqlite",
@@ -5694,7 +5694,7 @@ dependencies = [
 
 [[package]]
 name = "tvdash-media"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-trait",
  "reqwest",
@@ -5708,7 +5708,7 @@ dependencies = [
 
 [[package]]
 name = "tvdash-player"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "libc",
  "libloading",
@@ -5722,7 +5722,7 @@ dependencies = [
 
 [[package]]
 name = "tvdash-widgets"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "reqwest",
  "serde",
