@@ -52,7 +52,7 @@ sudo dnf install -y brave-browser
     ```
 - **Upgrade later:** Download the newer `.rpm` and run:
   ```bash
-  sudo dnf upgrade ./tvdash-<version>-1.x86_64.rpm
+  sudo dnf upgrade ./tvdash-0.1.1-1.x86_64.rpm
   ```
   Your settings (`~/.config/tvdash/`), browser profile (`~/.local/share/tvdash/`), and keyring sign-ins are preserved across upgrades.
 - **Uninstall:**
