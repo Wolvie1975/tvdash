@@ -55,3 +55,8 @@ sudo dnf install -y brave-browser
   sudo dnf upgrade ./tvdash-<version>-1.x86_64.rpm
   ```
   Your settings (`~/.config/tvdash/`), browser profile (`~/.local/share/tvdash/`), and keyring sign-ins are preserved across upgrades.
+- **Uninstall:**
+  ```bash
+  sudo dnf remove tvdash
+  ```
+  Your settings (`~/.config/tvdash/`) and app data (`~/.local/share/tvdash/`) are kept; delete those directories if you want a full wipe.
