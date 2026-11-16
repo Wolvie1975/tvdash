@@ -45,6 +45,11 @@ sudo dnf install -y brave-browser
 ## 3. Launch & Upgrades
 
 - **Launch:** Open **tvdash** from the GNOME app menu (or run `tvdash` in a terminal).
+  - If **tvdash** doesn't appear in the GNOME app menu right away, refresh the desktop/icon cache (or log out and back in):
+    ```bash
+    sudo update-desktop-database /usr/share/applications
+    sudo gtk-update-icon-cache -f /usr/share/icons/hicolor
+    ```
 - **Upgrade later:** Download the newer `.rpm` and run:
   ```bash
   sudo dnf upgrade ./tvdash-<version>-1.x86_64.rpm
