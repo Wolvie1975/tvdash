@@ -1,0 +1,52 @@
+# Installing `tvdash` on Fedora (RPM)
+
+## 1. Install the RPM
+
+Download `tvdash-0.1.0-1.x86_64.rpm` from this folder, then install it on Fedora (`x86_64`, GNOME Wayland):
+
+```bash
+sudo dnf install ./tvdash-0.1.0-1.x86_64.rpm
+```
+
+This installs `/usr/bin/tvdash`, the app-menu entry, and pulls in `mpv` and `mpv-libs` automatically.
+
+> If you previously installed `tvdash` with `packaging/install.sh`, run `packaging/install.sh --uninstall` once so `~/.local/bin/tvdash` does not shadow `/usr/bin/tvdash`.
+
+---
+
+## 2. One-Time Codecs & Browser Setup
+
+### Full FFmpeg codecs (H.264 / HEVC video)
+Fedora's default `ffmpeg-free` lacks H.264/HEVC decoders. Switch to RPM Fusion's full `ffmpeg`:
+
+```bash
+sudo dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
+sudo dnf swap -y ffmpeg-free ffmpeg --allowerasing
+mpv --vd=help | grep -wE "h264|hevc"
+```
+
+*(Optional, for smoother 4K on Intel graphics:)*
+```bash
+sudo dnf install -y intel-media-driver
+mkdir -p ~/.config/mpv && echo "hwdec=auto" >> ~/.config/mpv/mpv.conf
+```
+
+### Brave Browser (Widevine DRM for streaming tiles)
+Install Brave from its RPM repo (not Flatpak):
+
+```bash
+sudo dnf install -y dnf-plugins-core
+sudo dnf config-manager addrepo --from-repofile=https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo
+sudo dnf install -y brave-browser
+```
+
+---
+
+## 3. Launch & Upgrades
+
+- **Launch:** Open **tvdash** from the GNOME app menu (or run `tvdash` in a terminal).
+- **Upgrade later:** Download the newer `.rpm` and run:
+  ```bash
+  sudo dnf upgrade ./tvdash-<version>-1.x86_64.rpm
+  ```
+  Your settings (`~/.config/tvdash/`), browser profile (`~/.local/share/tvdash/`), and keyring sign-ins are preserved across upgrades.
