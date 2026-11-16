@@ -405,7 +405,7 @@ mod tests {
         MediaItem {
             source: SourceKind::Plex,
             id: id.into(),
-            kind: MediaKind::Movie,
+            kind: MediaKind::Episode,
             title: id.into(),
             subtitle: None,
             episode_label: None,

@@ -1,7 +1,7 @@
 import { Theme, UiTheme } from "theme.slint";
 import { Icon } from "icons.slint";
 import { ActionButton, Clock, PosterCard, ProgressBar, PromptBanner, SectionLabel, SessionLine } from "components.slint";
-import { Dash, Nav, SiteTileData, Watch } from "state.slint";
+import { Dash, Library, Nav, SiteTileData, Watch } from "state.slint";
 import { SearchPanel } from "watch.slint";
 
 // Laptop dashboard, redesign "Option B":
@@ -533,7 +533,10 @@ component ContinueWatchingBox inherits Rectangle {
                 }
                 link := TouchArea {
                     mouse-cursor: pointer;
-                    clicked => { Nav.page = "library"; }
+                    clicked => {
+                        Library.set-media-tab(Library.media-tab);
+                        Nav.page = "library";
+                    }
                 }
             }
         }

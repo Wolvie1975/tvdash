@@ -223,6 +223,8 @@ fn library_filter_search_and_detail() {
     send(&l, &t, AppEvent::ContinueWatching(SourceKind::Plex, vec![item(SourceKind::Plex, "p1", "Plex Film")]));
     send(&l, &t, AppEvent::RecentlyAdded(SourceKind::Plex, vec![item(SourceKind::Plex, "p2", "New One")]));
     assert_eq!((lib.get_continue_watching().row_count(), lib.get_recently_added().row_count()), (1, 1));
+    assert_eq!(l.global::<Dash>().get_cw_state(), "empty");
+    set_cw_filter(&l, "movies".into());
     assert_eq!(l.global::<Dash>().get_cw_state(), "items");
 
     set_filter(&l, "plex");

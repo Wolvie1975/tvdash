@@ -7,6 +7,10 @@ import { Dash, Nav, SiteEditor } from "state.slint";
 import { SiteEditorDialog } from "site_editor.slint";
 import { WatchPage } from "watch.slint";
 import { TvShell } from "tv/shell.slint";
+import { ScreensaverOverlay } from "screensaver.slint";
+import { ShowPage } from "show.slint";
+import { CollectionPage } from "collection.slint";
+import { CollectionPageState, ShowPageState } from "state.slint";
 
 // The main window. Two screens: the laptop dashboard pages. TV only
 // (Nav.layout == "tv"): the 10-foot shell, full screen on the TV.
@@ -32,7 +36,9 @@ export component LaptopWindow inherits Window {
             width: scroller.width;
             height: scroller.content-height;
             if Nav.page == "home": HomePage { }
-            if Nav.page == "library": LibraryPage { }
+            if Nav.page == "library" && !ShowPageState.open && !CollectionPageState.open: LibraryPage { }
+            if Nav.page == "library" && ShowPageState.open: ShowPage { }
+            if Nav.page == "library" && !ShowPageState.open && CollectionPageState.open: CollectionPage { }
             if Nav.page == "watch": WatchPage { }
             if Nav.page == "settings": SettingsPage { }
             if Nav.page == "setup": SetupPage { }
@@ -42,6 +48,8 @@ export component LaptopWindow inherits Window {
     if Nav.layout == "tv": TvShell { width: root.width; height: root.height; }
 
     if SiteEditor.open: SiteEditorDialog { width: root.width; height: root.height; }
+
+    if Nav.layout == "dual" && Dash.screensaver-open: ScreensaverOverlay { width: root.width; height: root.height; }
 
     if Dash.toast != "": Rectangle {
         x: (parent.width - self.width) / 2;

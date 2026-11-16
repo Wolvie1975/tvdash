@@ -10,7 +10,8 @@ use tvdash_core::{
 
 use super::{SOURCES, UiState, accounts, in_order, to_image};
 use crate::{
-    AccountPrompt, Dash, LaptopWindow, Library, PosterCardData, SessionRow, SiteTileData, TvCard, TvWindow, format,
+    AccountPrompt, CollectionPageState, Dash, LaptopWindow, Library, PosterCardData, SessionRow, ShowPageState,
+    SiteTileData, TvCard, TvWindow, format,
     tint::{self, Hue},
 };
 
@@ -30,6 +31,7 @@ pub fn set_cw_filter(laptop: &LaptopWindow, filter: String) {
         s.cw_filter = filter.clone();
         laptop.global::<Dash>().set_cw_filter(filter.into());
         rebuild_rows(s);
+        update_cw_state(s, laptop);
     });
 }
 
@@ -107,7 +109,25 @@ pub(super) fn on_poster(
         d.has_poster = true;
         lib.set_detail(d);
     }
-    s.posters.insert(key, img);
+    s.posters.insert(key.clone(), img.clone());
+    let sp = laptop.global::<ShowPageState>();
+    if sp.get_open() {
+        let eps = sp.get_episodes();
+        for i in 0..eps.row_count() {
+            if let Some(mut row) = eps.row_data(i)
+                && row.rating_key == key.1.as_str()
+            {
+                row.has_thumb = true;
+                row.thumb = img.clone();
+                eps.set_row_data(i, row);
+            }
+        }
+    }
+    if laptop.global::<CollectionPageState>().get_open()
+        && s.collection_detail.as_ref().is_some_and(|d| d.items.iter().any(|i| i.id == key.1))
+    {
+        super::library::rebuild_collection_items(s, laptop);
+    }
     refresh_tv_card(s, laptop);
 }
 
@@ -175,6 +195,17 @@ pub(super) fn refresh_tv_card(s: &UiState, laptop: &LaptopWindow) {
     let (card, hue) = tv_card(s);
     dash.set_tint(tint::card_tint(hue, s.effective_theme()));
     dash.set_tv(card);
+    let ends_at = s
+        .player
+        .as_ref()
+        .and_then(|st| {
+            let dur = st.duration_ms?;
+            let rem = dur.saturating_sub(st.position_ms).min(i64::MAX as u64) as i64;
+            let end = format::now_local(s.tz) + chrono::TimeDelta::milliseconds(rem);
+            Some(format::hm(end, s.clock.unwrap_or(ClockFormat::H24)))
+        })
+        .unwrap_or_default();
+    dash.set_tv_ends_at(ends_at.into());
 }
 
 fn tv_card(s: &UiState) -> (TvCard, Hue) {

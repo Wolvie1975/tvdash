@@ -1,6 +1,6 @@
 import { Theme } from "theme.slint";
 import { ActionButton, Card, PageHeader, PosterRow, ProgressBar, SectionLabel, TextField } from "components.slint";
-import { Artwork, Library, Nav } from "state.slint";
+import { Artwork, Dash, Library, Nav, Server } from "state.slint";
 
 component DetailPanel inherits Card {
     width: 400px;
@@ -184,13 +184,284 @@ export component LibraryPage inherits VerticalLayout {
     padding: 40px;
     spacing: Theme.gap;
 
-    PageHeader {
-        title: "Library";
-        back => { Nav.page = "home"; }
+    HorizontalLayout {
+        spacing: 16px;
+        PageHeader {
+            horizontal-stretch: 1;
+            title: "Library";
+            back => { Nav.page = "home"; }
+        }
+        ActionButton {
+            text: "TV / Series";
+            primary: Library.media-tab == "tv";
+            clicked => { Library.set-media-tab("tv"); }
+        }
+        ActionButton {
+            text: "Movies";
+            primary: Library.media-tab == "movies";
+            clicked => { Library.set-media-tab("movies"); }
+        }
+        ActionButton {
+            text: Library.sort == "title_asc" ? "Sort: A–Z"
+                : Library.sort == "title_desc" ? "Sort: Z–A"
+                : "Sort: Recent";
+            clicked => {
+                Library.set-sort(
+                    Library.sort == "recent" ? "title_asc"
+                    : Library.sort == "title_asc" ? "title_desc"
+                    : "recent"
+                );
+            }
+        }
+        ActionButton {
+            text: Library.browse-all ? "Smart shelves" : "Browse all";
+            primary: Library.browse-all;
+            clicked => { Library.browse-all = !Library.browse-all; }
+        }
+        ActionButton {
+            text: "Server ›";
+            clicked => {
+                Nav.settings-tab = "server";
+                Nav.page = "settings";
+                Server.open();
+            }
+        }
     }
 
-    // Filter + search
-    HorizontalLayout {
+    // Smart shelves (Library C) when not browsing all or searching
+    if !Library.browse-all && Library.results-title == "": VerticalLayout {
+        spacing: Theme.gap;
+
+        // Row 1: Watching now (5 cols) | Big box (7 cols)
+        HorizontalLayout {
+            spacing: Theme.gap;
+
+            Card {
+                horizontal-stretch: 5;
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 12px;
+                    HorizontalLayout {
+                        SectionLabel { text: "WATCHING NOW"; }
+                        Rectangle { horizontal-stretch: 1; }
+                        Text {
+                            text: Dash.sessions.length + " streams";
+                            font-size: 16px;
+                            color: Theme.text-muted;
+                        }
+                    }
+                    if Dash.sessions.length == 0: Text {
+                        text: "Nothing is streaming on the server.";
+                        font-size: Theme.body-size;
+                        color: Theme.text-muted;
+                    }
+                    for s in Dash.sessions: Rectangle {
+                        min-height: 68px;
+                        border-radius: 10px;
+                        background: Theme.surface-raised;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 4px;
+                            Text { text: s.title; font-size: 18px; font-weight: 600; color: Theme.text-primary; overflow: elide; }
+                            Text { text: s.detail; font-size: 15px; color: Theme.text-secondary; overflow: elide; }
+                        }
+                    }
+                }
+            }
+
+            Card {
+                horizontal-stretch: 7;
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 12px;
+                    SectionLabel { text: Library.media-tab == "tv" ? "FINISH A SEASON" : "CONTINUE WATCHING"; }
+
+                    if Library.media-tab == "tv" && Library.finish-season.length == 0: Text {
+                        text: "No seasons close to finishing.";
+                        font-size: Theme.body-size;
+                        color: Theme.text-muted;
+                    }
+                    if Library.media-tab == "tv": VerticalLayout {
+                        spacing: 10px;
+                        for f in Library.finish-season: Rectangle {
+                            min-height: 68px;
+                            border-radius: 10px;
+                            background: Theme.surface-raised;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            HorizontalLayout {
+                                padding: 14px;
+                                spacing: 12px;
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    Text { text: f.title; font-size: 18px; font-weight: 600; color: Theme.text-primary; overflow: elide; }
+                                    Text { text: f.season + " · " + f.watched + "/" + f.total + " episodes"; font-size: 15px; color: Theme.text-secondary; }
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    ActionButton {
+                                        text: "Open";
+                                        clicked => { Library.open-show(f.rating-key); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if Library.media-tab == "movies": Section {
+                        title: "";
+                        id: "continue";
+                        cards: Library.continue-watching;
+                        empty-text: "No movies in progress.";
+                    }
+                }
+            }
+        }
+
+        // Row 2: Added this week (6 cols) | Watch again (6 cols)
+        HorizontalLayout {
+            spacing: Theme.gap;
+            Card {
+                horizontal-stretch: 1;
+                VerticalLayout {
+                    padding: 24px;
+                    Section {
+                        title: "ADDED THIS WEEK";
+                        id: "added-week";
+                        cards: Library.added-week;
+                        empty-text: "Nothing added since Monday.";
+                    }
+                }
+            }
+            Card {
+                horizontal-stretch: 1;
+                VerticalLayout {
+                    padding: 24px;
+                    Section {
+                        title: "WATCH AGAIN";
+                        id: "watch-again";
+                        cards: Library.watch-again;
+                        empty-text: "Nothing rewatched yet.";
+                    }
+                }
+            }
+        }
+
+        // Row 3: Popular on Republic City (hidden if Tautulli isn't set up / empty)
+        if Library.popular.length > 0: Card {
+            VerticalLayout {
+                padding: 24px;
+                spacing: 14px;
+                HorizontalLayout {
+                    spacing: 12px;
+                    SectionLabel { text: "POPULAR ON REPUBLIC CITY"; }
+                    Rectangle { horizontal-stretch: 1; }
+                    ActionButton {
+                        text: "Last 7 days";
+                        primary: Library.popular-days == 7;
+                        clicked => { Library.set-popular-days(7); }
+                    }
+                    ActionButton {
+                        text: "Last 30 days";
+                        primary: Library.popular-days == 30;
+                        clicked => { Library.set-popular-days(30); }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 12px;
+                    for p in Library.popular: Rectangle {
+                        horizontal-stretch: 1;
+                        min-height: 110px;
+                        border-radius: 12px;
+                        background: Theme.surface-raised;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            Text { text: "#" + p.rank; font-size: 16px; font-weight: 700; color: Theme.accent; }
+                            Text { text: p.title; font-size: 17px; font-weight: 600; color: Theme.text-primary; wrap: word-wrap; overflow: elide; }
+                            Text { text: p.plays; font-size: 15px; color: Theme.text-muted; }
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                if Library.media-tab == "tv" {
+                                    Library.open-show(p.rating-key);
+                                } else {
+                                    Library.play-key(p.rating-key, true);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Row 4: Genres (TV) or Collections (Movies)
+        if Library.media-tab == "tv" && Library.genres.length > 0: Card {
+            VerticalLayout {
+                padding: 24px;
+                spacing: 14px;
+                SectionLabel { text: "GENRES"; }
+                HorizontalLayout {
+                    spacing: 12px;
+                    for g in Library.genres: Rectangle {
+                        horizontal-stretch: 1;
+                        min-height: 76px;
+                        border-radius: 12px;
+                        background: Theme.surface-raised;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 4px;
+                            Text { text: g.title; font-size: 18px; font-weight: 600; color: Theme.text-primary; overflow: elide; }
+                            Text { text: g.count + " shows"; font-size: 15px; color: Theme.text-muted; }
+                        }
+                    }
+                }
+            }
+        }
+
+        if Library.media-tab == "movies" && Library.collections.length > 0: Card {
+            VerticalLayout {
+                padding: 24px;
+                spacing: 14px;
+                HorizontalLayout {
+                    SectionLabel { text: "COLLECTIONS"; }
+                    Rectangle { horizontal-stretch: 1; }
+                    Text { text: Library.collections.length + " collections"; font-size: 16px; color: Theme.text-muted; }
+                }
+                HorizontalLayout {
+                    spacing: 12px;
+                    for c in Library.collections: Rectangle {
+                        horizontal-stretch: 1;
+                        min-height: 112px;
+                        border-radius: 12px;
+                        background: Theme.surface-raised;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        VerticalLayout {
+                            padding: 16px;
+                            spacing: 6px;
+                            Text { text: c.title; font-size: 20px; font-weight: 600; color: Theme.text-primary; wrap: word-wrap; }
+                            Text { text: c.detail; font-size: 15px; color: Theme.text-secondary; }
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Library.open-collection(c.rating-key); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Filter + search (shown in Browse all or when searching)
+    if Library.browse-all || Library.results-title != "": HorizontalLayout {
         spacing: 12px;
         ActionButton { text: "All"; primary: Library.filter == "all"; clicked => { Library.set-filter("all"); } }
         ActionButton { text: "Plex"; primary: Library.filter == "plex"; clicked => { Library.set-filter("plex"); } }
@@ -217,7 +488,7 @@ export component LibraryPage inherits VerticalLayout {
         }
     }
 
-    HorizontalLayout {
+    if Library.browse-all || Library.results-title != "": HorizontalLayout {
         spacing: Theme.gap;
         vertical-stretch: 1;
 

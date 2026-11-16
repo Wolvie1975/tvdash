@@ -3,6 +3,7 @@
 //! The UI only ever sees [`MediaItem`] / [`Session`]; `source` drives the badge.
 
 pub mod plex;
+pub mod tautulli;
 
 use thiserror::Error;
 pub use tvdash_core::models::{MediaItem, PlayState, Session, SourceKind};

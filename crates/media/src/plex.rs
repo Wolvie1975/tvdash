@@ -9,7 +9,9 @@ use std::time::Duration;
 use reqwest::{Method, RequestBuilder};
 use serde::{Deserialize, de::DeserializeOwned};
 use tracing::{debug, info, warn};
-use tvdash_core::models::MediaKind;
+use tvdash_core::models::{
+    CollectionInfo, EpisodeInfo, FinishSeasonItem, GenreTile, LibrarySort, MediaKind, SeasonInfo,
+};
 
 use crate::{MediaError, MediaItem, MediaSource, PlayState, Result, Session, SourceKind};
 
@@ -269,6 +271,181 @@ impl PlexClient {
 
     fn items(meta: Vec<Metadata>) -> Vec<MediaItem> {
         meta.into_iter().filter_map(Metadata::into_media_item).collect()
+    }
+
+    pub async fn sections(&self) -> Result<Vec<Section>> {
+        self.admin()?.sections().await
+    }
+
+    pub async fn show_seasons(&self, show_key: &str) -> Result<Vec<SeasonInfo>> {
+        let meta = self.metadata(&format!("/library/metadata/{show_key}/children"), &[], "show seasons").await?;
+        let mut seasons: Vec<SeasonInfo> = meta
+            .into_iter()
+            .filter(|m| m.kind == "season")
+            .map(|m| SeasonInfo {
+                rating_key: m.rating_key,
+                index: m.index.unwrap_or(0),
+                title: if m.title.is_empty() { format!("Season {}", m.index.unwrap_or(0)) } else { m.title },
+                leaf_count: m.leaf_count.unwrap_or(0),
+                viewed_leaf_count: m.viewed_leaf_count.unwrap_or(0),
+                thumb: m.thumb,
+            })
+            .collect();
+        // Put Specials (index 0) last per spec §5.
+        seasons.sort_by_key(|s| (s.index == 0, s.index));
+        Ok(seasons)
+    }
+
+    pub async fn season_episodes(&self, season_key: &str) -> Result<Vec<EpisodeInfo>> {
+        let meta = self.metadata(&format!("/library/metadata/{season_key}/children"), &[], "season episodes").await?;
+        Ok(meta.into_iter().filter(|m| m.kind == "episode").map(to_episode).collect())
+    }
+
+    pub async fn show_on_deck(&self, show_key: &str) -> Result<Option<EpisodeInfo>> {
+        let meta = self.metadata(&format!("/library/metadata/{show_key}/onDeck"), &[], "show onDeck").await?;
+        Ok(meta.into_iter().find(|m| m.kind == "episode").map(to_episode))
+    }
+
+    pub async fn collections(&self, section_key: &str) -> Result<Vec<CollectionInfo>> {
+        let meta = self
+            .metadata(&format!("/library/sections/{section_key}/collections"), &[], "collections")
+            .await?;
+        Ok(meta
+            .into_iter()
+            .map(|m| CollectionInfo {
+                rating_key: m.rating_key,
+                title: m.title,
+                child_count: m.child_count.unwrap_or(0),
+                watched_count: m.viewed_leaf_count.unwrap_or(0),
+                smart: m.smart.unwrap_or(false),
+                thumb: m.thumb,
+                summary: m.summary.filter(|s| !s.is_empty()),
+                min_year: m.year.map(|y| y as i32),
+                max_year: None,
+                total_duration_ms: 0,
+            })
+            .collect())
+    }
+
+    pub async fn collection_items(&self, collection_key: &str, sort: Option<&str>) -> Result<Vec<MediaItem>> {
+        let q: Vec<(&str, String)> = sort.map(|s| vec![("sort", s.to_owned())]).unwrap_or_default();
+        let meta = self
+            .metadata(&format!("/library/collections/{collection_key}/children"), &q, "collection items")
+            .await?;
+        Ok(Self::items(meta))
+    }
+
+    /// Collection items plus the `ratingKey`s of items that have been watched.
+    pub async fn collection_entries(&self, collection_key: &str) -> Result<(Vec<MediaItem>, Vec<String>)> {
+        let meta = self
+            .metadata(&format!("/library/collections/{collection_key}/children"), &[], "collection items")
+            .await?;
+        let watched_keys: Vec<String> = meta
+            .iter()
+            .filter(|m| m.view_count.unwrap_or(0) > 0 && m.view_offset.unwrap_or(0) == 0)
+            .map(|m| m.rating_key.clone())
+            .collect();
+        Ok((Self::items(meta), watched_keys))
+    }
+
+    pub async fn section_genres(&self, section_key: &str) -> Result<Vec<GenreTile>> {
+        let c: GenreContainer = send_json(
+            self.request(Method::GET, &format!("/library/sections/{section_key}/genre")),
+            "section genres",
+        )
+        .await?;
+        Ok(c.media_container
+            .directory
+            .into_iter()
+            .map(|d| GenreTile { key: d.key, title: d.title, count: d.count.unwrap_or(0) })
+            .collect())
+    }
+
+    pub async fn section_items(
+        &self,
+        section_key: &str,
+        sort: LibrarySort,
+        genre_key: Option<&str>,
+        limit: u32,
+    ) -> Result<Vec<MediaItem>> {
+        let mut q = vec![
+            ("sort", sort.plex_sort().to_owned()),
+            ("X-Plex-Container-Start", "0".into()),
+            ("X-Plex-Container-Size", limit.to_string()),
+        ];
+        if let Some(g) = genre_key {
+            q.push(("genre", g.to_owned()));
+        }
+        let meta = self.metadata(&format!("/library/sections/{section_key}/all"), &q, "section items").await?;
+        Ok(Self::items(meta))
+    }
+
+    pub async fn added_since(
+        &self,
+        section_key: &str,
+        since_epoch: i64,
+        sort: LibrarySort,
+        limit: u32,
+    ) -> Result<Vec<MediaItem>> {
+        let q = [
+            ("addedAt>=", since_epoch.to_string()),
+            ("sort", sort.plex_sort().to_owned()),
+            ("X-Plex-Container-Start", "0".into()),
+            ("X-Plex-Container-Size", limit.to_string()),
+        ];
+        let meta = self.metadata(&format!("/library/sections/{section_key}/all"), &q, "added since").await?;
+        Ok(Self::items(meta))
+    }
+
+    pub async fn watch_again(
+        &self,
+        section_key: &str,
+        is_tv: bool,
+        sort: LibrarySort,
+        limit: u32,
+    ) -> Result<Vec<MediaItem>> {
+        let filter = if is_tv { ("unwatchedLeaves", "0".into()) } else { ("viewCount>=", "2".into()) };
+        let q = [
+            filter,
+            ("sort", sort.plex_sort().to_owned()),
+            ("X-Plex-Container-Start", "0".into()),
+            ("X-Plex-Container-Size", limit.to_string()),
+        ];
+        let meta = self.metadata(&format!("/library/sections/{section_key}/all"), &q, "watch again").await?;
+        Ok(Self::items(meta))
+    }
+
+    pub async fn finish_a_season(&self, section_key: &str, limit: u32) -> Result<Vec<FinishSeasonItem>> {
+        let q = [
+            ("type", "3".into()),
+            ("inProgress", "1".into()),
+            ("X-Plex-Container-Start", "0".into()),
+            ("X-Plex-Container-Size", "40".into()),
+        ];
+        let meta = self
+            .metadata(&format!("/library/sections/{section_key}/all"), &q, "finish a season")
+            .await?;
+        let mut out = Vec::new();
+        for m in meta {
+            let total = m.leaf_count.unwrap_or(0);
+            let viewed = m.viewed_leaf_count.unwrap_or(0);
+            let remaining = total.saturating_sub(viewed);
+            if remaining > 0 && remaining <= 3 {
+                let season_title = m.title.clone();
+                if let Some(item) = m.into_media_item() {
+                    out.push(FinishSeasonItem {
+                        item,
+                        season_title,
+                        total_episodes: total,
+                        watched_episodes: viewed,
+                    });
+                    if out.len() >= limit as usize {
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(out)
     }
 }
 
@@ -815,6 +992,12 @@ struct Metadata {
     view_offset: Option<u64>,
     thumb: Option<String>,
     grandparent_thumb: Option<String>,
+    summary: Option<String>,
+    leaf_count: Option<u32>,
+    viewed_leaf_count: Option<u32>,
+    view_count: Option<u32>,
+    child_count: Option<u32>,
+    smart: Option<bool>,
     #[serde(rename = "Media")]
     media: Vec<Media>,
     #[serde(rename = "Player")]
@@ -823,6 +1006,40 @@ struct Metadata {
     session_key: Option<String>,
     #[serde(rename = "Guid")]
     guid: Vec<Guid>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct GenreContainer {
+    media_container: GenreInner,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+struct GenreInner {
+    directory: Vec<GenreDirectory>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct GenreDirectory {
+    key: String,
+    title: String,
+    count: Option<u32>,
+}
+
+fn to_episode(m: Metadata) -> EpisodeInfo {
+    EpisodeInfo {
+        rating_key: m.rating_key,
+        index: m.index.unwrap_or(0),
+        season_index: m.parent_index.unwrap_or(0),
+        title: m.title,
+        summary: m.summary.filter(|s| !s.is_empty()),
+        duration_ms: m.duration,
+        view_offset_ms: m.view_offset,
+        view_count: m.view_count.unwrap_or(0),
+        thumb: m.thumb,
+    }
 }
 
 fn string_from_number<'de, D>(deserializer: D) -> std::result::Result<Option<String>, D::Error>

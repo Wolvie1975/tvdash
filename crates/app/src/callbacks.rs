@@ -5,7 +5,10 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{error, warn};
 use tvdash_core::{Command, models::SourceKind};
 
-use crate::{Accounts, Artwork, Dash, LaptopWindow, Library, Nav, Server, Setup, SiteEditor, Watch, bridge, watch_ui};
+use crate::{
+    Accounts, Artwork, CollectionPageState, Dash, LaptopWindow, Library, Nav, Server, Setup, ShowPageState, SiteEditor,
+    Watch, bridge, watch_ui,
+};
 use tvdash_core::config::StreamingSite;
 
 fn parse_source(s: &str) -> Option<SourceKind> {
@@ -54,6 +57,22 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     dash.on_set_cw_filter(move |filter| {
         if let Some(l) = weak.upgrade() {
             bridge::set_cw_filter(&l, filter.to_string());
+        }
+    });
+
+    let weak = laptop.as_weak();
+    dash.on_open_screensaver(move || {
+        if let Some(l) = weak.upgrade() {
+            let d = l.global::<Dash>();
+            d.set_search_open(false);
+            d.set_screensaver_open(true);
+        }
+    });
+
+    let weak = laptop.as_weak();
+    dash.on_close_screensaver(move || {
+        if let Some(l) = weak.upgrade() {
+            l.global::<Dash>().set_screensaver_open(false);
         }
     });
 
@@ -172,6 +191,145 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     lib.on_set_filter(move |f| {
         if let Some(l) = weak.upgrade() {
             bridge::set_filter(&l, &f);
+        }
+    });
+
+    let reload_shelves = |l: &LaptopWindow, s: &dyn Fn(Command)| {
+        let lib = l.global::<Library>();
+        let is_tv = lib.get_media_tab() != "movies";
+        let sort = tvdash_core::models::LibrarySort::parse(&lib.get_sort());
+        let popular_days = lib.get_popular_days().max(7) as u32;
+        s(Command::LoadLibraryShelves { is_tv, sort, popular_days });
+    };
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    lib.on_set_media_tab(move |tab| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<Library>().set_media_tab(tab);
+            reload_shelves(&l, &s);
+        }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    lib.on_set_sort(move |sort| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<Library>().set_sort(sort);
+            reload_shelves(&l, &s);
+        }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    lib.on_set_popular_days(move |days| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<Library>().set_popular_days(days);
+            reload_shelves(&l, &s);
+        }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    lib.on_open_show(move |key| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<ShowPageState>().set_loading(true);
+        }
+        s(Command::OpenShow(key.to_string()));
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    lib.on_open_collection(move |key| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<CollectionPageState>().set_loading(true);
+        }
+        s(Command::OpenCollection(key.to_string()));
+    });
+
+    let s = send.clone();
+    lib.on_play_key(move |key, resume| {
+        s(Command::PlayRatingKey { rating_key: key.to_string(), resume });
+    });
+
+    let sp = laptop.global::<ShowPageState>();
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    sp.on_select_season(move |key| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<ShowPageState>().set_selected_season(key.clone());
+        }
+        s(Command::LoadSeasonEpisodes(key.to_string()));
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    sp.on_play_episode(move |key, resume| {
+        s(Command::PlayRatingKey { rating_key: key.to_string(), resume });
+        if let Some(l) = weak.upgrade() {
+            l.global::<ShowPageState>().set_open(false);
+            l.global::<Nav>().set_page("home".into());
+        }
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    sp.on_play_from_start(move || {
+        if let Some(l) = weak.upgrade() {
+            let key = l.global::<ShowPageState>().get_up_next_key().to_string();
+            if !key.is_empty() {
+                s(Command::PlayRatingKey { rating_key: key, resume: false });
+            }
+            l.global::<ShowPageState>().set_open(false);
+            l.global::<Nav>().set_page("home".into());
+        }
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    sp.on_shuffle(move || {
+        if let Some(l) = weak.upgrade() {
+            let key = l.global::<ShowPageState>().get_rating_key().to_string();
+            if !key.is_empty() {
+                s(Command::ShuffleShow(key));
+            }
+            l.global::<ShowPageState>().set_open(false);
+            l.global::<Nav>().set_page("home".into());
+        }
+    });
+    let weak = laptop.as_weak();
+    sp.on_close(move || {
+        if let Some(l) = weak.upgrade() {
+            l.global::<ShowPageState>().set_open(false);
+        }
+    });
+
+    let cp = laptop.global::<CollectionPageState>();
+    let weak = laptop.as_weak();
+    cp.on_set_order(move |order| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<CollectionPageState>().set_order(order);
+            bridge::reorder_collection(&l);
+        }
+    });
+    let weak = laptop.as_weak();
+    cp.on_set_hide_watched(move |hide| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<CollectionPageState>().set_hide_watched(hide);
+            bridge::reorder_collection(&l);
+        }
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    cp.on_play_item(move |key, resume| {
+        s(Command::PlayRatingKey { rating_key: key.to_string(), resume });
+        if let Some(l) = weak.upgrade() {
+            l.global::<CollectionPageState>().set_open(false);
+            l.global::<Nav>().set_page("home".into());
+        }
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    cp.on_shuffle(move || {
+        if let Some(l) = weak.upgrade() {
+            let key = l.global::<CollectionPageState>().get_rating_key().to_string();
+            if !key.is_empty() {
+                s(Command::ShuffleCollection(key));
+            }
+            l.global::<CollectionPageState>().set_open(false);
+            l.global::<Nav>().set_page("home".into());
+        }
+    });
+    let weak = laptop.as_weak();
+    cp.on_close(move || {
+        if let Some(l) = weak.upgrade() {
+            l.global::<CollectionPageState>().set_open(false);
         }
     });
 
@@ -305,6 +463,7 @@ fn wire_accounts(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static
             (_, "cancel", Some(kind)) => Command::CancelSignIn(kind),
             (_, "retry", _) => Command::Refresh,
             ("tmdb", "remove", _) => Command::SetTmdbToken(String::new()),
+            ("tautulli", "remove", _) => Command::ClearTautulli,
             _ => {
                 warn!(%id, %action, "unknown account action");
                 return;
@@ -313,10 +472,24 @@ fn wire_accounts(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static
         s(cmd);
     });
 
-    let s = send.clone();
+    let (weak, s) = (laptop.as_weak(), send.clone());
     acc.on_submit(move |id, value| {
         if id == "tmdb" && !value.trim().is_empty() {
             s(Command::SetTmdbToken(value.to_string()));
+        } else if id == "tautulli" {
+            let trimmed = value.trim();
+            if let Some((url, key)) = trimmed.split_once('|').or_else(|| trimmed.split_once(' ')) {
+                let url = url.trim().to_string();
+                let api_key = key.trim().to_string();
+                if !url.is_empty() && !api_key.is_empty() {
+                    s(Command::SetTautulli { url, api_key });
+                    if let Some(l) = weak.upgrade() {
+                        l.global::<Accounts>().set_editing("".into());
+                    }
+                }
+            } else if let Some(l) = weak.upgrade() {
+                l.global::<Accounts>().set_edit_error("Enter: http://host:8181 | API_KEY".into());
+            }
         }
     });
 

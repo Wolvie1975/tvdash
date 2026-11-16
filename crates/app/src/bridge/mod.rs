@@ -35,7 +35,7 @@ use tvdash_core::{
 
 pub use accounts::sync_setup;
 pub use home::{row, set_cw_filter, up_next};
-pub use library::{clear_search, close_detail, select, selected, set_filter, start_search};
+pub use library::{clear_search, close_detail, reorder_collection, select, selected, set_filter, start_search};
 
 use crate::{
     AccountPrompt, AccountRow, Accounts, Artwork, ArtworkRow, Dash, Diagnostics, Display, LaptopWindow, Library, Nav,
@@ -70,6 +70,10 @@ pub struct UiState {
     posters: HashMap<(SourceKind, String), Image>,
     /// TMDB token state.
     tmdb: Option<AccountStatus>,
+    /// Tautulli status.
+    tautulli_configured: bool,
+    tautulli_url: String,
+    collection_detail: Option<tvdash_core::models::CollectionDetail>,
     /// Last weather and when it arrived; the last fetch error, if the latest fetch failed.
     weather: Option<(Weather, DateTime<Utc>)>,
     weather_err: Option<String>,
@@ -189,13 +193,20 @@ pub fn set_display(laptop: &LaptopWindow, units: Units, clock: ClockFormat, seco
     });
 }
 
-/// Once a minute: ages ("updated 25 min ago"), end times.
+/// Once a minute: ages ("updated 25 min ago"), end times, screensaver burn-in drift.
 pub fn on_minute(laptop: &LaptopWindow, _tv: &TvWindow) {
     STATE.with_borrow(|s| {
         status::refresh_weather(s, laptop);
         status::refresh_diagnostics(s, laptop);
         home::refresh_tv_card(s, laptop);
     });
+    let min = chrono::Local::now().format("%M").to_string().parse::<i32>().unwrap_or(0);
+    // Gentle deterministic drift (±8 px x, ±6 px y) to prevent burn-in on the screensaver.
+    let dx = ((min * 7) % 17) - 8;
+    let dy = ((min * 5) % 13) - 6;
+    let dash = laptop.global::<Dash>();
+    dash.set_screensaver_dx(dx);
+    dash.set_screensaver_dy(dy);
     crate::tv_nav::tick(laptop);
 }
 
@@ -387,6 +398,23 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
                     apply_theme(s, laptop, ThemeMode::FollowSystem);
                 }
             }
+        }
+        AppEvent::Tautulli { configured, url } => {
+            s.tautulli_configured = configured;
+            s.tautulli_url = url;
+            accounts::refresh(s, laptop);
+        }
+        AppEvent::LibraryShelves(shelves) => {
+            library::on_shelves(s, laptop, shelves);
+        }
+        AppEvent::ShowDetail(res) => {
+            library::on_show_detail(s, laptop, res);
+        }
+        AppEvent::SeasonEpisodes { season_key, result } => {
+            library::on_season_episodes(s, laptop, &season_key, result);
+        }
+        AppEvent::CollectionDetail(res) => {
+            library::on_collection_detail(s, laptop, res);
         }
         AppEvent::Sites(sites) => {
             s.sites = sites;

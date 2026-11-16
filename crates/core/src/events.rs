@@ -149,6 +149,22 @@ pub enum AppEvent {
     DisplaysChanged,
     /// Desktop portal `org.freedesktop.appearance color-scheme` (`true` = dark).
     SystemColorScheme(bool),
+    /// Tautulli account status (URL + whether an API key is stored).
+    Tautulli {
+        configured: bool,
+        url: String,
+    },
+    /// Library C smart shelves payload.
+    LibraryShelves(crate::models::LibraryShelves),
+    /// Show page data.
+    ShowDetail(Result<crate::models::ShowDetail, String>),
+    /// Episodes for one season on the Show page.
+    SeasonEpisodes {
+        season_key: String,
+        result: Result<Vec<crate::models::EpisodeInfo>, String>,
+    },
+    /// Collection page data.
+    CollectionDetail(Result<crate::models::CollectionDetail, String>),
 }
 
 /// Requests from the UI, handled by background tasks.
@@ -254,4 +270,32 @@ pub enum Command {
         clock: crate::config::ClockFormat,
         seconds: bool,
     },
+    /// Save Tautulli URL + API key.
+    SetTautulli {
+        url: String,
+        api_key: String,
+    },
+    /// Remove Tautulli URL + API key.
+    ClearTautulli,
+    /// Load Library C smart shelves.
+    LoadLibraryShelves {
+        is_tv: bool,
+        sort: crate::models::LibrarySort,
+        popular_days: u32,
+    },
+    /// Open Show page for `rating_key`.
+    OpenShow(String),
+    /// Load episodes for `season_key`.
+    LoadSeasonEpisodes(String),
+    /// Open Collection page for `rating_key`.
+    OpenCollection(String),
+    /// Play a specific Plex item by `rating_key` (optionally resuming).
+    PlayRatingKey {
+        rating_key: String,
+        resume: bool,
+    },
+    /// Shuffle an episode from show `rating_key`.
+    ShuffleShow(String),
+    /// Shuffle an unwatched movie from collection `rating_key`.
+    ShuffleCollection(String),
 }

@@ -185,9 +185,42 @@ fn site_status(opened: Option<&DateTime<Utc>>) -> String {
     }
 }
 
+fn tautulli_row(s: &UiState) -> AccountRow {
+    let input_hint = "http://host:8181 | API_KEY".into();
+    if s.tautulli_configured {
+        AccountRow {
+            input_hint,
+            ..Row {
+                id: "tautulli",
+                name: "Tautulli · Popular on server",
+                status: "Connected".into(),
+                detail: s.tautulli_url.clone(),
+                state: "ok",
+                primary: ("Change", "edit"),
+                secondary: ("Remove", "remove"),
+            }
+            .into()
+        }
+    } else {
+        AccountRow {
+            input_hint,
+            ..Row {
+                id: "tautulli",
+                name: "Tautulli · Popular on server",
+                status: "Not set up".into(),
+                detail: "Add your Tautulli URL and API key for Popular on Republic City".into(),
+                state: "off",
+                primary: ("Set up", "edit"),
+                secondary: NONE,
+            }
+            .into()
+        }
+    }
+}
+
 /// Rebuild Settings › Accounts and Settings › Streaming (and setup, if it's showing).
 pub(super) fn refresh(s: &UiState, laptop: &LaptopWindow) {
-    s.account_rows.set_vec(vec![media_account_row(s, SourceKind::Plex), tmdb_row(s)]);
+    s.account_rows.set_vec(vec![media_account_row(s, SourceKind::Plex), tmdb_row(s), tautulli_row(s)]);
     let sites: Vec<SiteRow> = s
         .sites
         .iter()

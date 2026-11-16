@@ -68,6 +68,7 @@ export global Dash {
     in property <bool> weather-on: false;
     in property <string> weather-temp: "—";
     in property <string> weather-detail;
+    in property <string> weather-condition;
     // Icon name (see icons.slint): "clear" | "partly" | "cloud" | "fog" | "rain" | "snow" | "storm"
     in property <string> weather-icon: "partly";
     // Last value is old (shown dimmed) / the last fetch failed (amber dot).
@@ -92,6 +93,10 @@ export global Dash {
     in property <string> cw-message;
     in-out property <string> cw-filter: "tv"; // "tv" | "movies"
     in-out property <bool> search-open: false;
+    in-out property <bool> screensaver-open: false;
+    in property <int> screensaver-dx: 0;
+    in property <int> screensaver-dy: 0;
+    in property <string> tv-ends-at;
     in property <string> signin-code;
     in property <string> signin-source;
     in property <[AccountPrompt]> prompts;
@@ -112,6 +117,7 @@ export global Dash {
     callback play-up-next();
     callback set-cw-filter(string);
     callback open-screensaver();
+    callback close-screensaver();
     callback prompt-action(string, string); // (source, "sign-in" | "retry")
     callback cancel-sign-in(string);
     callback set-theme(UiTheme);
@@ -129,9 +135,74 @@ export struct DetailData {
     can-resume: bool,
 }
 
+export struct PopularCardData {
+    rank: int,
+    rating-key: string,
+    title: string,
+    plays: string,
+}
+
+export struct FinishSeasonRow {
+    rating-key: string,
+    title: string,
+    season: string,
+    watched: int,
+    total: int,
+}
+
+export struct GenreTileData {
+    key: string,
+    title: string,
+    count: int,
+}
+
+export struct CollectionCardData {
+    rating-key: string,
+    title: string,
+    detail: string,
+    progress: float,
+    smart: bool,
+}
+
+export struct SeasonTabData {
+    rating-key: string,
+    index: int,
+    title: string,
+    progress: string,
+    fraction: float,
+}
+
+export struct EpisodeRowData {
+    rating-key: string,
+    num: string,
+    title: string,
+    meta: string,
+    summary: string,
+    progress: float,
+    watched: bool,
+    can-resume: bool,
+    has-thumb: bool,
+    thumb: image,
+}
+
+export struct CollectionItemData {
+    rating-key: string,
+    num: string,
+    title: string,
+    status: string,
+    watched: bool,
+    can-resume: bool,
+    has-poster: bool,
+    poster: image,
+}
+
 export global Library {
     // "all" | "plex"
     in-out property <string> filter: "all";
+    in-out property <string> media-tab: "tv"; // "tv" | "movies"
+    in-out property <string> sort: "recent";  // "recent" | "title_asc" | "title_desc"
+    in-out property <int> popular-days: 30;   // 7 | 30
+    in-out property <bool> browse-all: false;
     in-out property <string> query;
     in property <bool> searching;
     // Non-empty while showing search results ("Results for “x”").
@@ -139,6 +210,12 @@ export global Library {
     in property <[PosterCardData]> continue-watching;
     in property <[PosterCardData]> recently-added;
     in property <[PosterCardData]> results;
+    in property <[FinishSeasonRow]> finish-season;
+    in property <[PosterCardData]> added-week;
+    in property <[PosterCardData]> watch-again;
+    in property <[PopularCardData]> popular;
+    in property <[GenreTileData]> genres;
+    in property <[CollectionCardData]> collections;
     in property <bool> detail-open;
     in-out property <bool> metadata-refreshing;
     in property <DetailData> detail;
@@ -147,12 +224,68 @@ export global Library {
     in-out property <int> selected-index: -1;
 
     callback set-filter(string);
+    callback set-media-tab(string);
+    callback set-sort(string);
+    callback set-popular-days(int);
+    callback open-show(string);
+    callback open-collection(string);
+    callback play-key(string, bool);
     callback search(string);
     callback clear-search();
     // section: "continue" | "recent" | "results"
     callback select(string, int);
     callback play-detail(bool); // true = from the start
     callback close-detail();
+}
+
+export global ShowPageState {
+    in-out property <bool> open: false;
+    in property <bool> loading: false;
+    in property <string> rating-key;
+    in property <string> title;
+    in property <string> meta;
+    in property <string> summary;
+    in property <string> up-next;
+    in property <string> up-next-key;
+    in property <bool> can-resume;
+    in property <[SeasonTabData]> seasons;
+    in-out property <string> selected-season;
+    in property <[EpisodeRowData]> episodes;
+    in property <Tint> tint: {
+        card: #121F30, poster: #1C2E45, accent: #8FC1FF, sec: #AFC3DA,
+        track: #1E3048, btn: #172840, edge: #24395A, on-accent: #0B0D10,
+    };
+
+    callback select-season(string);
+    callback play-episode(string, bool);
+    callback play-from-start();
+    callback shuffle();
+    callback close();
+}
+
+export global CollectionPageState {
+    in-out property <bool> open: false;
+    in property <bool> loading: false;
+    in property <string> rating-key;
+    in property <string> title;
+    in property <string> meta;
+    in property <string> progress-text;
+    in property <string> summary;
+    in property <string> up-next-key;
+    in property <string> up-next-label: "Play next on TV";
+    in-out property <string> order: "collection"; // "collection" | "release" | "alpha"
+    in-out property <bool> hide-watched: false;
+    in property <[CollectionItemData]> items;
+    in property <Tint> tint: {
+        card: #121F30, poster: #1C2E45, accent: #8FC1FF, sec: #AFC3DA,
+        track: #1E3048, btn: #172840, edge: #24395A, on-accent: #0B0D10,
+    };
+
+    callback set-order(string);
+    callback set-hide-watched(bool);
+    callback play-item(string, bool);
+    callback shuffle();
+    callback close();
 }
 
 export struct ArtworkRow {

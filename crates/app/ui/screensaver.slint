@@ -1,0 +1,180 @@
+import { Dash } from "state.slint";
+
+// Screensaver 3 — Sentence clock (§7).
+// Manual start from the header; always dark (#07090B); wakes on any tap or key.
+export component ScreensaverOverlay inherits Rectangle {
+    background: #07090B;
+
+    // Gentle burn-in drift driven by Dash.screensaver-dx / dy.
+    property <length> base-x: 180px + Dash.screensaver-dx * 1px;
+
+    scope := FocusScope {
+        width: 100%;
+        height: 100%;
+        key-pressed(event) => {
+            Dash.close-screensaver();
+            accept
+        }
+    }
+
+    init => { scope.focus(); }
+
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { Dash.close-screensaver(); }
+    }
+
+    VerticalLayout {
+        x: root.base-x;
+        y: (parent.height - self.height) / 2 + Dash.screensaver-dy * 1px;
+        width: max(400px, parent.width - 360px);
+        spacing: 12px;
+
+        // Sentence 1: "It's 12:32 on Thursday."
+        HorizontalLayout {
+            spacing: 0px;
+            Text {
+                text: "It's ";
+                font-size: 92px;
+                font-weight: 300;
+                color: #8A9099;
+            }
+            Text {
+                text: Dash.clock-hh + ":" + Dash.clock-mm;
+                font-size: 92px;
+                font-weight: 400;
+                color: #E8EAED;
+            }
+            Text {
+                text: " on ";
+                font-size: 92px;
+                font-weight: 300;
+                color: #8A9099;
+            }
+            Text {
+                text: Dash.weekday + ".";
+                font-size: 92px;
+                font-weight: 400;
+                color: #E8EAED;
+            }
+        }
+
+        // Sentence 2: "Outside, 51° and partly sunny."
+        if Dash.weather-on: HorizontalLayout {
+            spacing: 0px;
+            Text {
+                text: "Outside, ";
+                font-size: 92px;
+                font-weight: 300;
+                color: #8A9099;
+            }
+            Text {
+                text: Dash.weather-temp;
+                font-size: 92px;
+                font-weight: 400;
+                color: #E8EAED;
+            }
+            if Dash.weather-condition != "": Text {
+                text: " and ";
+                font-size: 92px;
+                font-weight: 300;
+                color: #8A9099;
+            }
+            if Dash.weather-condition != "": Text {
+                text: Dash.weather-condition + ".";
+                font-size: 92px;
+                font-weight: 400;
+                color: #E8EAED;
+            }
+            if Dash.weather-condition == "": Text {
+                text: ".";
+                font-size: 92px;
+                font-weight: 300;
+                color: #8A9099;
+            }
+        }
+
+        // On the TV block, 64 px below.
+        Rectangle { height: 52px; }
+
+        VerticalLayout {
+            spacing: 14px;
+
+            HorizontalLayout {
+                spacing: 12px;
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 10px;
+                        height: 10px;
+                        border-radius: 5px;
+                        background: Dash.tv.mode == "playing" || Dash.tv.mode == "streaming"
+                            ? Dash.tint.accent
+                            : #8A9099;
+                    }
+                }
+                Text {
+                    text: Dash.tv.mode == "playing"
+                        ? (Dash.tv.paused ? "ON THE TV · PAUSED · PLEX" : "ON THE TV · PLAYING · PLEX")
+                        : Dash.tv.mode == "streaming"
+                        ? "ON THE TV · STREAMING"
+                        : "ON THE TV · NOTHING PLAYING";
+                    font-size: 22px;
+                    font-weight: 600;
+                    letter-spacing: 2px;
+                    color: Dash.tv.mode == "playing" || Dash.tv.mode == "streaming"
+                        ? Dash.tint.accent
+                        : #8A9099;
+                }
+            }
+
+            Text {
+                text: (Dash.tv.mode == "next" ? "Up next: " : "") + Dash.tv.title;
+                font-size: 52px;
+                font-weight: 500;
+                color: #E8EAED;
+                wrap: word-wrap;
+            }
+
+            if Dash.tv.subtitle != "" && Dash.tv.mode != "idle": Text {
+                text: Dash.tv.subtitle;
+                font-size: 26px;
+                color: #A0A6AF;
+                wrap: word-wrap;
+            }
+
+            if Dash.tv.mode == "playing": VerticalLayout {
+                spacing: 12px;
+                Rectangle {
+                    width: min(760px, parent.width);
+                    height: 8px;
+                    border-radius: 4px;
+                    background: #1E242D;
+                    Rectangle {
+                        x: 0;
+                        y: 0;
+                        width: parent.width * clamp(Dash.tv.progress, 0.0, 1.0);
+                        height: parent.height;
+                        border-radius: 4px;
+                        background: Dash.tint.accent;
+                    }
+                }
+                HorizontalLayout {
+                    width: min(760px, parent.width);
+                    Text {
+                        text: Dash.tv.at-text + (Dash.tv.left-text != "" ? " / " + Dash.tv.left-text : "");
+                        font-size: 24px;
+                        color: #A0A6AF;
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    if Dash.tv-ends-at != "": Text {
+                        text: "Ends at " + Dash.tv-ends-at;
+                        font-size: 24px;
+                        color: #A0A6AF;
+                    }
+                }
+            }
+        }
+    }
+}

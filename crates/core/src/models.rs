@@ -224,8 +224,150 @@ pub struct WatchHit {
     pub services: Vec<(usize, String)>,
     /// Other offers, e.g. "Rent · Apple TV", "Max (not one of yours)".
     pub elsewhere: Vec<String>,
-    /// The matching Plex/Jellyfin item.
+    /// The matching Plex item.
     pub library: Option<MediaItem>,
     /// TMDB's watch page for the title.
     pub link: Option<String>,
+}
+
+/// Sort order for Library C shelves and Browse all.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LibrarySort {
+    #[default]
+    RecentlyAdded,
+    TitleAsc,
+    TitleDesc,
+}
+
+impl LibrarySort {
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "title_asc" | "titleSort" => Self::TitleAsc,
+            "title_desc" | "titleSort:desc" => Self::TitleDesc,
+            _ => Self::RecentlyAdded,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::RecentlyAdded => "recent",
+            Self::TitleAsc => "title_asc",
+            Self::TitleDesc => "title_desc",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::RecentlyAdded => "Recently added",
+            Self::TitleAsc => "A–Z",
+            Self::TitleDesc => "Z–A",
+        }
+    }
+
+    pub fn plex_sort(self) -> &'static str {
+        match self {
+            Self::RecentlyAdded => "addedAt:desc",
+            Self::TitleAsc => "titleSort",
+            Self::TitleDesc => "titleSort:desc",
+        }
+    }
+}
+
+/// A season on a TV Show page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SeasonInfo {
+    pub rating_key: String,
+    pub index: u32,
+    pub title: String,
+    pub leaf_count: u32,
+    pub viewed_leaf_count: u32,
+    pub thumb: Option<String>,
+}
+
+/// An episode row on a TV Show page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EpisodeInfo {
+    pub rating_key: String,
+    pub index: u32,
+    pub season_index: u32,
+    pub title: String,
+    pub summary: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub view_offset_ms: Option<u64>,
+    pub view_count: u32,
+    pub thumb: Option<String>,
+}
+
+/// Full data for the Show page.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShowDetail {
+    pub item: MediaItem,
+    pub seasons: Vec<SeasonInfo>,
+    pub up_next_season_key: Option<String>,
+    pub up_next_episode: Option<EpisodeInfo>,
+}
+
+/// A movie collection card or header.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CollectionInfo {
+    pub rating_key: String,
+    pub title: String,
+    pub child_count: u32,
+    pub watched_count: u32,
+    pub smart: bool,
+    pub thumb: Option<String>,
+    pub summary: Option<String>,
+    pub min_year: Option<i32>,
+    pub max_year: Option<i32>,
+    pub total_duration_ms: u64,
+}
+
+/// Full data for a Collection page.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollectionDetail {
+    pub collection: CollectionInfo,
+    pub items: Vec<MediaItem>,
+    pub watched_keys: Vec<String>,
+    pub up_next_key: Option<String>,
+}
+
+/// A genre tile with item count (Library C bottom row on TV).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GenreTile {
+    pub key: String,
+    pub title: String,
+    pub count: u32,
+}
+
+/// An entry in Popular on Republic City (from Tautulli `get_home_stats`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PopularItem {
+    pub rank: u32,
+    pub rating_key: String,
+    pub title: String,
+    pub plays: u32,
+    pub thumb: Option<String>,
+}
+
+/// A "Finish a season" entry (TV big box in Library C).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FinishSeasonItem {
+    pub item: MediaItem,
+    pub season_title: String,
+    pub total_episodes: u32,
+    pub watched_episodes: u32,
+}
+
+/// Data loaded for the Library C smart-shelves view.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct LibraryShelves {
+    pub is_tv: bool,
+    pub finish_season: Vec<FinishSeasonItem>,
+    pub continue_watching: Vec<MediaItem>,
+    pub added_this_week: Vec<MediaItem>,
+    pub watch_again: Vec<MediaItem>,
+    pub popular: Vec<PopularItem>,
+    pub genres: Vec<GenreTile>,
+    pub collections: Vec<CollectionInfo>,
 }
