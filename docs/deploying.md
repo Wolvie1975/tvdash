@@ -23,7 +23,7 @@ Either way, the steps after installing (players, codecs, sign-ins, screens) are 
 | Linux desktop, GNOME on Wayland (Fedora 44+ Workstation is what tvdash is built for) | Windows, keyring, display placement | `echo $XDG_SESSION_TYPE` → `wayland` |
 | x86-64 (for a bundle) | The bundle is built for x86-64 | `uname -m` → `x86_64` |
 | glibc 2.39 or newer (for a bundle) | The bundle is built against it | `ldd --version` → 2.39 or higher (Fedora 40+, Ubuntu 24.04+, Debian 13+) |
-| GNOME Keyring | Keeps the Plex, Jellyfin and TMDB sign-ins | Comes with GNOME |
+| GNOME Keyring | Keeps the Plex, TMDB and Tautulli sign-ins | Comes with GNOME |
 | HDMI to the TV | Playback | — |
 
 ---
@@ -36,7 +36,7 @@ On the machine you build on (here, or in the dev container):
 
 ```bash
 cd ~/Development/Environment/Rust_Projects/tvdash
-cargo build --release
+cargo build --release -j 2
 packaging/bundle.sh
 ```
 
@@ -59,7 +59,7 @@ sudo dnf install git gcc fontconfig-devel
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh    # then open a new terminal
 git clone <your copy of the repo> tvdash      # or copy the project folder over
 cd tvdash
-cargo build --release
+cargo build --release -j 2
 packaging/install.sh                          # or --autostart
 ```
 
@@ -111,7 +111,7 @@ tvdash's files on the old machine:
 | What | Where | Copy it? |
 |---|---|---|
 | Settings | `~/.config/tvdash/config.toml` | **Yes, with one change** (below) |
-| Plex, Jellyfin and TMDB sign-ins | GNOME Keyring (service `tvdash`) | **No**: keyrings don't move. Sign in again (step 5) |
+| Plex, TMDB and Tautulli sign-ins | GNOME Keyring (service `tvdash`) | **No**: keyrings don't move. Sign in again (step 5) |
 | Streaming sign-ins | `~/.local/share/tvdash/browser` | **No**: Brave encrypts them with a key in the old machine's keyring, so they won't open on the new one. Sign in again on the TV |
 | "Opened N days ago", setup done | `~/.local/share/tvdash/state.toml` | Optional |
 | Where to watch cache | `~/.local/share/tvdash/cache.db` | No, it refills itself |
