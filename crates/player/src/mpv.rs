@@ -262,6 +262,10 @@ impl Mpv {
         self.command(json!(["seek", seconds, "relative"])).await
     }
 
+    pub async fn seek_to(&mut self, seconds: u64) -> Result<()> {
+        self.command(json!(["seek", seconds, "absolute"])).await
+    }
+
     pub async fn cycle_audio(&mut self) -> Result<()> {
         self.command(json!(["cycle", "audio"])).await
     }

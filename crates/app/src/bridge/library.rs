@@ -314,9 +314,8 @@ pub(super) fn on_show_detail(s: &UiState, laptop: &LaptopWindow, res: Result<Sho
         })
         .collect();
     sp.set_seasons(ModelRc::new(VecModel::from(seasons)));
-    if let Some(sel) = detail.up_next_season_key {
-        sp.set_selected_season(sel.into());
-    }
+    sp.set_episodes(ModelRc::default());
+    sp.set_selected_season(detail.up_next_season_key.unwrap_or_default().into());
     sp.set_open(true);
 }
 

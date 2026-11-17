@@ -457,6 +457,10 @@ impl Embedded {
         self.handle.command(&["seek", &seconds.to_string(), "relative"])
     }
 
+    pub fn seek_to(&self, seconds: u64) -> Result<()> {
+        self.handle.command(&["seek", &seconds.to_string(), "absolute"])
+    }
+
     pub fn cycle_audio(&self) -> Result<()> {
         self.handle.command(&["cycle", "audio"])
     }

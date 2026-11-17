@@ -47,6 +47,15 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     });
 
     let s = send.clone();
+    dash.on_play_item_from_start(move |i| match bridge::row(i as usize) {
+        Some(mut item) => {
+            item.resume_ms = None;
+            s(Command::Play(item));
+        }
+        None => warn!(index = i, "play from start: no such card"),
+    });
+
+    let s = send.clone();
     dash.on_play_up_next(move || {
         if let Some(item) = bridge::up_next() {
             s(Command::Play(item));
@@ -99,6 +108,7 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         let cmd = match action.as_str() {
             "back" => Command::Seek(-10),
             "forward" => Command::Seek(30),
+            "restart" => Command::SeekTo(0),
             "play-pause" if paused => Command::Resume,
             "play-pause" => Command::Pause,
             "stop" => Command::Stop,
@@ -242,7 +252,10 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     let (weak, s) = (laptop.as_weak(), send.clone());
     lib.on_open_show(move |key| {
         if let Some(l) = weak.upgrade() {
-            l.global::<ShowPageState>().set_loading(true);
+            let sp = l.global::<ShowPageState>();
+            sp.set_loading(true);
+            sp.set_episodes(slint::ModelRc::default());
+            sp.set_selected_season("".into());
         }
         s(Command::OpenShow(key.to_string()));
     });
@@ -264,7 +277,11 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     let (weak, s) = (laptop.as_weak(), send.clone());
     sp.on_select_season(move |key| {
         if let Some(l) = weak.upgrade() {
-            l.global::<ShowPageState>().set_selected_season(key.clone());
+            let sp = l.global::<ShowPageState>();
+            if sp.get_selected_season() != key {
+                sp.set_episodes(slint::ModelRc::default());
+            }
+            sp.set_selected_season(key.clone());
         }
         s(Command::LoadSeasonEpisodes(key.to_string()));
     });
@@ -301,7 +318,9 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     let weak = laptop.as_weak();
     sp.on_close(move || {
         if let Some(l) = weak.upgrade() {
-            l.global::<ShowPageState>().set_open(false);
+            let sp = l.global::<ShowPageState>();
+            sp.set_open(false);
+            sp.set_episodes(slint::ModelRc::default());
         }
     });
 

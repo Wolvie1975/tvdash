@@ -175,6 +175,8 @@ pub enum Command {
     Resume,
     /// Relative seek in seconds (negative = back).
     Seek(i64),
+    /// Absolute seek in seconds (e.g. `0` to start from the beginning).
+    SeekTo(u64),
     Stop,
     /// Cycle audio track, cycle subtitle track, or adjust volume (relative %).
     CycleAudio,

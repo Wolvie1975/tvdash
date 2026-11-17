@@ -114,8 +114,9 @@ export global Dash {
     in property <string> version;
 
     callback open-site(int);
-    callback transport(string); // "back" | "play-pause" | "forward" | "stop"
+    callback transport(string); // "back" | "forward" | "restart" | "play-pause" | "stop" | ...
     callback play-item(int);
+    callback play-item-from-start(int);
     callback play-up-next();
     callback set-cw-filter(string);
     callback open-screensaver();

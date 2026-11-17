@@ -1467,10 +1467,10 @@ export component TvShell inherits Rectangle {
                     }
                     TenButton {
                         compact: true;
-                        text: "−10s";
+                        text: "Start from beginning";
                         clicked => {
                             hud-timer.restart();
-                            Dash.transport("back");
+                            Dash.transport("restart");
                         }
                     }
                     TenButton {
@@ -1480,14 +1480,6 @@ export component TvShell inherits Rectangle {
                         clicked => {
                             hud-timer.restart();
                             Dash.transport("play-pause");
-                        }
-                    }
-                    TenButton {
-                        compact: true;
-                        text: "+10s";
-                        clicked => {
-                            hud-timer.restart();
-                            Dash.transport("forward");
                         }
                     }
                     if Dash.tv.is-episode: TenButton {

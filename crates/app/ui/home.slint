@@ -304,13 +304,13 @@ component TvCardView inherits Rectangle {
                 clicked => { Dash.transport("prev-ep"); }
             }
             ActionButton {
+                text: "From start";
                 icon: "back";
-                width: 64px;
-                font-px: 22px;
+                font-px: 18px;
                 fill: Dash.tint.btn;
                 edge: Dash.tint.edge;
-                accessible-label: "Back 10 seconds";
-                clicked => { Dash.transport("back"); }
+                accessible-label: "Start from beginning";
+                clicked => { Dash.transport("restart"); }
             }
             ActionButton {
                 text: Dash.tv.paused ? "Resume" : "Pause";
@@ -321,15 +321,6 @@ component TvCardView inherits Rectangle {
                 fill: Dash.tint.accent;
                 ink: Dash.tint.on-accent;
                 clicked => { Dash.transport("play-pause"); }
-            }
-            ActionButton {
-                icon: "forward";
-                width: 64px;
-                font-px: 22px;
-                fill: Dash.tint.btn;
-                edge: Dash.tint.edge;
-                accessible-label: "Forward 30 seconds";
-                clicked => { Dash.transport("forward"); }
             }
             if Dash.tv.is-episode: ActionButton {
                 text: "Next";
@@ -816,7 +807,7 @@ export component HomePage inherits VerticalLayout {
             property <PosterCardData> item: Dash.continue-watching[main.confirm-index];
             TouchArea { clicked => { main.confirm-index = -1; } }
             Rectangle {
-                width: 520px;
+                width: 580px;
                 height: confirm-col.preferred-height + 56px;
                 border-radius: Theme.card-radius;
                 background: Theme.surface;
@@ -854,6 +845,13 @@ export component HomePage inherits VerticalLayout {
                             horizontal-stretch: 1;
                             clicked => {
                                 Dash.play-item(main.confirm-index);
+                                main.confirm-index = -1;
+                            }
+                        }
+                        if item.progress > 0: ActionButton {
+                            text: "Play from start";
+                            clicked => {
+                                Dash.play-item-from-start(main.confirm-index);
                                 main.confirm-index = -1;
                             }
                         }

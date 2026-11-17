@@ -87,6 +87,13 @@ impl Player {
         }
     }
 
+    async fn seek_to(&mut self, secs: u64) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.seek_to(secs).await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.seek_to(secs).map_err(|e| e.to_string()),
+        }
+    }
+
     async fn cycle_audio(&mut self) -> Result<(), String> {
         match self {
             Self::Window(m) => m.cycle_audio().await.map_err(|e| e.to_string()),
@@ -469,6 +476,13 @@ impl Controller {
                     warn!(error = %e, "mpv seek failed");
                 }
             }
+            Command::SeekTo(secs) => {
+                if let Some(p) = self.playback.as_mut()
+                    && let Err(e) = p.player.seek_to(secs).await
+                {
+                    warn!(error = %e, "mpv seek_to failed");
+                }
+            }
             Command::CycleAudio => {
                 if let Some(p) = self.playback.as_mut()
                     && let Err(e) = p.player.cycle_audio().await
@@ -838,6 +852,7 @@ impl Controller {
     fn open_show(&self, rating_key: String) {
         let Some(plex) = self.plex.clone() else { return };
         let events = self.events.clone();
+        let requested = self.posters_requested.clone();
         tokio::spawn(async move {
             let res = async {
                 let item = plex
@@ -860,7 +875,11 @@ impl Controller {
                 })
             }
             .await;
+            let initial_season = res.as_ref().ok().and_then(|d| d.up_next_season_key.clone());
             let _ = events.send(AppEvent::ShowDetail(res));
+            if let Some(season_key) = initial_season {
+                fetch_season_episodes(plex, season_key, requested, events).await;
+            }
         });
     }
 
@@ -868,28 +887,7 @@ impl Controller {
         let Some(plex) = self.plex.clone() else { return };
         let events = self.events.clone();
         let requested = self.posters_requested.clone();
-        tokio::spawn(async move {
-            let result = plex.season_episodes(&season_key).await.map_err(|e| e.to_string());
-            if let Ok(ref eps) = result {
-                let thumb_items: Vec<tvdash_core::models::MediaItem> = eps
-                    .iter()
-                    .filter(|ep| ep.thumb.is_some())
-                    .map(|ep| tvdash_core::models::MediaItem {
-                        source: SourceKind::Plex,
-                        id: ep.rating_key.clone(),
-                        kind: tvdash_core::models::MediaKind::Episode,
-                        title: ep.title.clone(),
-                        subtitle: None,
-                        episode_label: None,
-                        duration_ms: ep.duration_ms,
-                        resume_ms: ep.view_offset_ms,
-                        poster: ep.thumb.clone(),
-                    })
-                    .collect();
-                fetch_posters(plex, thumb_items, requested, events.clone());
-            }
-            let _ = events.send(AppEvent::SeasonEpisodes { season_key, result });
-        });
+        tokio::spawn(fetch_season_episodes(plex, season_key, requested, events));
     }
 
     fn open_collection(&self, rating_key: String) {
@@ -2161,6 +2159,34 @@ fn spawn_reporter(source: Arc<dyn MediaSource>, item: MediaItem) -> UnboundedSen
         }
     });
     tx
+}
+
+async fn fetch_season_episodes(
+    plex: Arc<PlexClient>,
+    season_key: String,
+    requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
+    events: UnboundedSender<AppEvent>,
+) {
+    let result = plex.season_episodes(&season_key).await.map_err(|e| e.to_string());
+    if let Ok(ref eps) = result {
+        let thumb_items: Vec<tvdash_core::models::MediaItem> = eps
+            .iter()
+            .filter(|ep| ep.thumb.is_some())
+            .map(|ep| tvdash_core::models::MediaItem {
+                source: SourceKind::Plex,
+                id: ep.rating_key.clone(),
+                kind: tvdash_core::models::MediaKind::Episode,
+                title: ep.title.clone(),
+                subtitle: None,
+                episode_label: None,
+                duration_ms: ep.duration_ms,
+                resume_ms: ep.view_offset_ms,
+                poster: ep.thumb.clone(),
+            })
+            .collect();
+        fetch_posters(plex, thumb_items, requested, events.clone());
+    }
+    let _ = events.send(AppEvent::SeasonEpisodes { season_key, result });
 }
 
 fn fetch_posters(
