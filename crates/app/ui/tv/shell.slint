@@ -5,7 +5,7 @@
 import { Theme, UiTheme } from "../theme.slint";
 import { Icon } from "../icons.slint";
 import { Clock, PosterCardData, ProgressBar } from "../components.slint";
-import { Accounts, Dash, Display, Library, Server, ShowPageState, SiteTileData, TvUi, Watch, WatchCard } from "../state.slint";
+import { Accounts, CollectionPageState, Dash, Display, Library, Server, ShowPageState, SiteTileData, TvUi, Watch, WatchCard } from "../state.slint";
 
 // 10-foot sizes: body ≥ 32 px, safe area 96 / 54 px.
 global Ten {
@@ -751,8 +751,97 @@ component ShowDetailOverlay inherits Rectangle {
     }
 }
 
+component CollectionDetailOverlay inherits Rectangle {
+    VerticalLayout {
+        spacing: 20px;
+        HorizontalLayout {
+            spacing: 14px;
+            alignment: start;
+            TenButton {
+                compact: true;
+                primary: true;
+                text: CollectionPageState.up-next-label != "" ? CollectionPageState.up-next-label : "Play";
+                focused: TvUi.focus == "col-actions" && TvUi.col == 0;
+                clicked => { TvUi.click("col-actions", 0); }
+            }
+            TenButton {
+                compact: true;
+                text: "Shuffle";
+                focused: TvUi.focus == "col-actions" && TvUi.col == 1;
+                clicked => { TvUi.click("col-actions", 1); }
+            }
+            TenButton {
+                compact: true;
+                text: CollectionPageState.order == "release" ? "Sort: Release"
+                    : CollectionPageState.order == "alpha" ? "Sort: A–Z" : "Sort: Collection";
+                focused: TvUi.focus == "col-actions" && TvUi.col == 2;
+                clicked => { TvUi.click("col-actions", 2); }
+            }
+            TenButton {
+                compact: true;
+                text: CollectionPageState.hide-watched ? "Showing unwatched" : "Hide watched";
+                focused: TvUi.focus == "col-actions" && TvUi.col == 3;
+                clicked => { TvUi.click("col-actions", 3); }
+            }
+            TenButton {
+                compact: true;
+                text: "Back";
+                focused: TvUi.focus == "col-actions" && TvUi.col == 4;
+                clicked => { TvUi.click("col-actions", 4); }
+            }
+        }
+        Text { text: CollectionPageState.title; font-size: Ten.title; color: Theme.text-primary; overflow: elide; }
+        if CollectionPageState.meta != "" || CollectionPageState.progress-text != "": Text {
+            text: CollectionPageState.meta != "" && CollectionPageState.progress-text != ""
+                ? CollectionPageState.meta + " · " + CollectionPageState.progress-text
+                : CollectionPageState.meta + CollectionPageState.progress-text;
+            font-size: 24px;
+            color: Theme.text-secondary;
+        }
+        if CollectionPageState.summary != "": Text {
+            text: CollectionPageState.summary;
+            font-size: 22px;
+            color: Theme.text-secondary;
+            wrap: word-wrap;
+            max-height: 90px;
+            overflow: elide;
+        }
+        Flickable {
+            vertical-stretch: 1;
+            interactive: true;
+            property <length> row-h: 84px;
+            content-height: CollectionPageState.items.length * (self.row-h + 10px) + 20px;
+            content-y: TvUi.focus == "col-items" ? -max(0px, TvUi.col * (self.row-h + 10px) - (self.height - self.row-h - 20px)) : 0px;
+            animate content-y { duration: 180ms; easing: ease-out; }
+            for item[i] in CollectionPageState.items: Rectangle {
+                x: 10px;
+                y: 10px + i * (parent.row-h + 10px);
+                width: parent.width - 20px;
+                height: parent.row-h;
+                border-radius: 16px;
+                background: Theme.surface-raised;
+                border-width: 1px;
+                border-color: item.can-resume ? Dash.tint.accent : Theme.border;
+                HorizontalLayout {
+                    padding-left: 22px;
+                    padding-right: 22px;
+                    spacing: 18px;
+                    Text { text: item.num; font-size: 24px; font-weight: 600; color: Theme.text-secondary; width: 64px; vertical-alignment: center; }
+                    Text { text: item.title; font-size: 26px; color: Theme.text-primary; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
+                    Text { text: item.watched ? "Watched" : item.status; font-size: 22px; color: item.watched ? Theme.ok : Theme.text-muted; vertical-alignment: center; }
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { TvUi.click("col-items", i); }
+                }
+                Ring { on: TvUi.focus == "col-items" && TvUi.col == i; corner: 16px; height: parent.height + 16px; width: parent.width + 16px; x: -8px; y: -8px; }
+            }
+        }
+    }
+}
+
 component LibraryScreen inherits Rectangle {
-    if !ShowPageState.open: VerticalLayout {
+    if !ShowPageState.open && !CollectionPageState.open: VerticalLayout {
         spacing: 24px;
         HorizontalLayout {
             vertical-stretch: 0;
@@ -844,7 +933,7 @@ component LibraryScreen inherits Rectangle {
             interactive: true;
             content-height: shelves.preferred-height + 20px;
             content-y: TvUi.focus == "lib-again" ? -max(0px, shelves.preferred-height - self.height + 20px)
-                : (TvUi.focus == "lib-week" || TvUi.focus == "lib-finish") ? -min(max(0px, shelves.preferred-height - self.height), 340px)
+                : (TvUi.focus == "lib-week" || TvUi.focus == "lib-finish" || TvUi.focus == "lib-collections") ? -min(max(0px, shelves.preferred-height - self.height), 340px)
                 : 0px;
             animate content-y { duration: 220ms; easing: ease-out; }
             shelves := VerticalLayout {
@@ -889,6 +978,37 @@ component LibraryScreen inherits Rectangle {
                         }
                     }
                 }
+                if Library.media-tab == "movies" && Library.collections.length > 0: VerticalLayout {
+                    spacing: 12px;
+                    RowLabel { text: "COLLECTIONS"; }
+                    Flickable {
+                        height: 132px;
+                        interactive: true;
+                        property <length> step: 360px;
+                        content-width: Library.collections.length * self.step + 20px;
+                        content-x: TvUi.focus == "lib-collections" ? -max(0px, TvUi.col * self.step - (self.width - self.step - 20px)) : 0px;
+                        animate content-x { duration: 180ms; easing: ease-out; }
+                        for c[i] in Library.collections: Rectangle {
+                            x: 10px + i * parent.step;
+                            y: 10px;
+                            width: 340px;
+                            height: 112px;
+                            border-radius: 16px;
+                            background: Theme.surface-raised;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            VerticalLayout {
+                                padding: 16px;
+                                spacing: 6px;
+                                alignment: center;
+                                Text { text: c.title; font-size: 24px; font-weight: 600; color: Theme.text-primary; overflow: elide; }
+                                Text { text: c.detail; font-size: 20px; color: Theme.text-secondary; overflow: elide; }
+                            }
+                            TouchArea { mouse-cursor: pointer; clicked => { TvUi.click("lib-collections", i); } }
+                            Ring { on: TvUi.focus == "lib-collections" && TvUi.col == i; corner: 16px; height: parent.height + 16px; width: parent.width + 16px; x: -8px; y: -8px; }
+                        }
+                    }
+                }
                 if Library.added-week.length > 0: VerticalLayout {
                     spacing: 12px;
                     RowLabel { text: "ADDED THIS WEEK"; }
@@ -903,6 +1023,7 @@ component LibraryScreen inherits Rectangle {
         }
     }
     if ShowPageState.open: ShowDetailOverlay { width: parent.width; height: parent.height; }
+    if CollectionPageState.open: CollectionDetailOverlay { width: parent.width; height: parent.height; }
 }
 
 // ── Search (Where to watch) ──────────────────────────────────────────
@@ -1232,51 +1353,67 @@ component SettingsScreen inherits VerticalLayout {
             color: Theme.text-muted;
             vertical-alignment: center;
         }
+        Rectangle { horizontal-stretch: 1; }
+        HorizontalLayout {
+            spacing: 12px;
+            alignment: end;
+            Chip { text: "Display"; on: TvUi.settings-tab == "display"; focused: f("set-tabs", 0); clicked => { TvUi.click("set-tabs", 0); } }
+            Chip { text: "Accounts"; on: TvUi.settings-tab == "accounts"; focused: f("set-tabs", 1); clicked => { TvUi.click("set-tabs", 1); } }
+            Chip { text: "Server"; on: TvUi.settings-tab == "server"; focused: f("set-tabs", 2); clicked => { TvUi.click("set-tabs", 2); } }
+            Chip { text: "What's new"; on: TvUi.settings-tab == "changelog"; focused: f("set-tabs", 3); clicked => { TvUi.click("set-tabs", 3); } }
+        }
     }
     Flickable {
         vertical-stretch: 1;
         interactive: true;
         content-height: settings-col.preferred-height + 24px;
-        content-y: (TvUi.focus == "server-scan" || TvUi.focus == "set-quit")
+        content-y: TvUi.focus == "set-quit"
             ? -max(0px, settings-col.preferred-height - self.height + 24px)
-            : (TvUi.focus == "set-accounts" ? -min(max(0px, settings-col.preferred-height - self.height), 220px) : 0px);
+            : 0px;
         animate content-y { duration: 200ms; easing: ease-out; }
         settings-col := VerticalLayout {
             x: 10px;
             y: 10px;
             width: parent.width - 20px;
             spacing: 22px;
-            SettingRow {
-                label: "Layout";
-                Chip { text: "Two screens"; on: !TvUi.layout-tv; focused: f("set-layout", 0); clicked => { TvUi.click("set-layout", 0); } }
-                Chip { text: "TV only"; on: TvUi.layout-tv; focused: f("set-layout", 1); clicked => { TvUi.click("set-layout", 1); } }
-                Text {
-                    text: "Two screens moves the dashboard back to the laptop.";
-                    font-size: 22px;
-                    color: Theme.text-muted;
-                    vertical-alignment: center;
-                    horizontal-stretch: 1;
-                    wrap: word-wrap;
+            if TvUi.settings-tab == "display": VerticalLayout {
+                spacing: 22px;
+                SettingRow {
+                    label: "Layout";
+                    Chip { text: "Two screens"; on: !TvUi.layout-tv; focused: f("set-layout", 0); clicked => { TvUi.click("set-layout", 0); } }
+                    Chip { text: "TV only"; on: TvUi.layout-tv; focused: f("set-layout", 1); clicked => { TvUi.click("set-layout", 1); } }
+                    Text {
+                        text: "Two screens moves the dashboard back to the laptop.";
+                        font-size: 22px;
+                        color: Theme.text-muted;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        wrap: word-wrap;
+                    }
+                }
+                SettingRow {
+                    label: "Theme";
+                    Chip { text: "Dark"; on: Theme.mode == UiTheme.dark; focused: f("set-theme", 0); clicked => { TvUi.click("set-theme", 0); } }
+                    Chip { text: "Stone"; on: Theme.mode == UiTheme.stone; focused: f("set-theme", 1); clicked => { TvUi.click("set-theme", 1); } }
+                    Chip { text: "Mist"; on: Theme.mode == UiTheme.mist; focused: f("set-theme", 2); clicked => { TvUi.click("set-theme", 2); } }
+                }
+                SettingRow {
+                    label: "Temperature";
+                    Chip { text: "°F"; on: !Display.celsius; focused: f("set-units", 0); clicked => { TvUi.click("set-units", 0); } }
+                    Chip { text: "°C"; on: Display.celsius; focused: f("set-units", 1); clicked => { TvUi.click("set-units", 1); } }
+                }
+                SettingRow {
+                    label: "Clock";
+                    Chip { text: "24-hour"; on: !Display.h12; focused: f("set-clock", 0); clicked => { TvUi.click("set-clock", 0); } }
+                    Chip { text: "12-hour"; on: Display.h12; focused: f("set-clock", 1); clicked => { TvUi.click("set-clock", 1); } }
+                }
+                SettingRow {
+                    label: "";
+                    Chip { text: "Quit tvdash"; focused: f("set-quit", 0); clicked => { TvUi.click("set-quit", 0); } }
                 }
             }
-            SettingRow {
-                label: "Theme";
-                Chip { text: "Dark"; on: Theme.mode == UiTheme.dark; focused: f("set-theme", 0); clicked => { TvUi.click("set-theme", 0); } }
-                Chip { text: "Stone"; on: Theme.mode == UiTheme.stone; focused: f("set-theme", 1); clicked => { TvUi.click("set-theme", 1); } }
-                Chip { text: "Mist"; on: Theme.mode == UiTheme.mist; focused: f("set-theme", 2); clicked => { TvUi.click("set-theme", 2); } }
-            }
-            SettingRow {
-                label: "Temperature";
-                Chip { text: "°F"; on: !Display.celsius; focused: f("set-units", 0); clicked => { TvUi.click("set-units", 0); } }
-                Chip { text: "°C"; on: Display.celsius; focused: f("set-units", 1); clicked => { TvUi.click("set-units", 1); } }
-            }
-            SettingRow {
-                label: "Clock";
-                Chip { text: "24-hour"; on: !Display.h12; focused: f("set-clock", 0); clicked => { TvUi.click("set-clock", 0); } }
-                Chip { text: "12-hour"; on: Display.h12; focused: f("set-clock", 1); clicked => { TvUi.click("set-clock", 1); } }
-            }
-            VerticalLayout {
-                spacing: 12px;
+            if TvUi.settings-tab == "accounts": VerticalLayout {
+                spacing: 16px;
                 RowLabel { text: "ACCOUNTS"; }
                 Rectangle {
                     property <length> col-w: (self.width - 16px) / 2;
@@ -1290,8 +1427,14 @@ component SettingsScreen inherits VerticalLayout {
                         clicked => { TvUi.click("set-accounts", i); }
                     }
                 }
+                Text {
+                    text: "Streaming sites, the TMDB token and diagnostics are on the laptop layout for now.";
+                    font-size: 24px;
+                    color: Theme.text-muted;
+                    wrap: word-wrap;
+                }
             }
-            VerticalLayout {
+            if TvUi.settings-tab == "server": VerticalLayout {
                 spacing: 14px;
                 Text { text: Server.name + " · " + Server.status; font-size: 30px; color: Theme.text-primary; wrap: word-wrap; }
                 HorizontalLayout {
@@ -1317,22 +1460,40 @@ component SettingsScreen inherits VerticalLayout {
                     wrap: word-wrap;
                 }
                 Chip { text: "Scan all"; focused: f("server-scan", 0); clicked => { TvUi.click("server-scan", 0); } }
+                if Server.name == "Plex server": Text {
+                    text: "Plex server monitoring is available on the laptop when a Plex server is connected.";
+                    font-size: 24px;
+                    color: Theme.text-muted;
+                    wrap: word-wrap;
+                }
             }
-            if Server.name == "Plex server": Text {
-                text: "Plex server monitoring is available on the laptop when a Plex server is connected.";
-                font-size: 24px;
-                color: Theme.text-muted;
-                wrap: word-wrap;
-            }
-            SettingRow {
-                label: "";
-                Chip { text: "Quit tvdash"; focused: f("set-quit", 0); clicked => { TvUi.click("set-quit", 0); } }
-            }
-            Text {
-                text: "Streaming sites, the TMDB token and diagnostics are on the laptop layout for now.";
-                font-size: 24px;
-                color: Theme.text-muted;
-                wrap: word-wrap;
+            if TvUi.settings-tab == "changelog": VerticalLayout {
+                spacing: 18px;
+                for entry in Dash.changelog: Rectangle {
+                    border-radius: 16px;
+                    background: Theme.surface-raised;
+                    border-width: 1px;
+                    border-color: Theme.border;
+                    height: cl-col.preferred-height + 36px;
+                    cl-col := VerticalLayout {
+                        x: 24px;
+                        y: 18px;
+                        width: parent.width - 48px;
+                        spacing: 10px;
+                        HorizontalLayout {
+                            spacing: 14px;
+                            Text { text: entry.version; font-size: 28px; font-weight: 600; color: Theme.text-primary; vertical-alignment: center; }
+                            Rectangle { horizontal-stretch: 1; }
+                            if entry.date != "": Text { text: entry.date; font-size: 22px; color: Theme.text-muted; vertical-alignment: center; }
+                        }
+                        Text {
+                            text: entry.notes;
+                            font-size: 22px;
+                            color: Theme.text-secondary;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
             }
         }
     }

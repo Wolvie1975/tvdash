@@ -687,6 +687,29 @@ component ServerTab inherits VerticalLayout {
     }
 }
 
+component ChangelogTab inherits VerticalLayout {
+    spacing: Theme.gap;
+
+    for entry in Dash.changelog: Card {
+        VerticalLayout {
+            padding: 24px;
+            spacing: 12px;
+            HorizontalLayout {
+                spacing: 12px;
+                Text { text: entry.version; font-size: 22px; font-weight: 600; color: Theme.text-primary; vertical-alignment: center; }
+                Rectangle { horizontal-stretch: 1; }
+                if entry.date != "": Text { text: entry.date; font-size: 16px; color: Theme.text-muted; vertical-alignment: center; }
+            }
+            Text {
+                text: entry.notes;
+                font-size: 17px;
+                color: Theme.text-secondary;
+                wrap: word-wrap;
+            }
+        }
+    }
+}
+
 export component SettingsPage inherits VerticalLayout {
     padding: 40px;
     spacing: Theme.gap;
@@ -717,6 +740,7 @@ export component SettingsPage inherits VerticalLayout {
                 Tab { id: "display"; label: "Display"; }
                 Tab { id: "server"; label: "Server"; }
                 Tab { id: "diagnostics"; label: "Diagnostics"; }
+                Tab { id: "changelog"; label: "What's new"; }
             }
         }
         ActionButton { text: "Quit tvdash"; clicked => { Dash.quit(); } }
@@ -733,6 +757,7 @@ export component SettingsPage inherits VerticalLayout {
             if Nav.settings-tab == "display": DisplayTab { }
             if Nav.settings-tab == "server": ServerTab { }
             if Nav.settings-tab == "diagnostics": DiagnosticsTab { }
+            if Nav.settings-tab == "changelog": ChangelogTab { }
         }
     }
 }

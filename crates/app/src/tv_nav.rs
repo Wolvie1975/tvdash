@@ -15,7 +15,7 @@ use std::{
 use slint::{ComponentHandle, Model, SharedString, platform::Key};
 use tvdash_core::config::Layout;
 
-use crate::{Accounts, Dash, Display, LaptopWindow, Library, ShowPageState, TvUi, UiTheme, Watch};
+use crate::{Accounts, CollectionPageState, Dash, Display, LaptopWindow, Library, ShowPageState, TvUi, UiTheme, Watch};
 
 /// Ambient idle starts after this long without a key on Home.
 pub const AMBIENT_AFTER: Duration = Duration::from_secs(5 * 60);
@@ -131,6 +131,7 @@ fn rows(laptop: &LaptopWindow) -> Vec<(&'static str, usize)> {
         "services" => vec![("grid", dash.get_streaming_sites().row_count())],
         "library" => {
             let sp = laptop.global::<ShowPageState>();
+            let cp = laptop.global::<CollectionPageState>();
             let lib = laptop.global::<Library>();
             if sp.get_open() {
                 vec![
@@ -138,6 +139,8 @@ fn rows(laptop: &LaptopWindow) -> Vec<(&'static str, usize)> {
                     ("show-seasons", sp.get_seasons().row_count()),
                     ("show-episodes", sp.get_episodes().row_count()),
                 ]
+            } else if cp.get_open() {
+                vec![("col-actions", 5), ("col-items", cp.get_items().row_count())]
             } else if lib.get_detail_open() {
                 vec![("lib-detail", if lib.get_detail().can_resume { 3 } else { 2 })]
             } else if lib.get_browse_all() {
@@ -147,25 +150,32 @@ fn rows(laptop: &LaptopWindow) -> Vec<(&'static str, usize)> {
                         ("lib-browse", lib.get_browse_items().row_count()),
                     ]
                 } else {
-                    vec![
+                    let mut shelf_rows = vec![
                         ("lib-tabs", 3),
                         ("lib-continue", lib.get_continue_watching().row_count()),
                         ("lib-recent", lib.get_recently_added().row_count()),
                         ("lib-finish", lib.get_finish_season().row_count()),
-                        ("lib-week", lib.get_added_week().row_count()),
-                        ("lib-again", lib.get_watch_again().row_count()),
-                    ]
+                    ];
+                    if lib.get_media_tab() == "movies" {
+                        shelf_rows.push(("lib-collections", lib.get_collections().row_count()));
+                    }
+                    shelf_rows.push(("lib-week", lib.get_added_week().row_count()));
+                    shelf_rows.push(("lib-again", lib.get_watch_again().row_count()));
+                    shelf_rows
                 }
             }
-        "settings" => vec![
-            ("set-layout", 2),
-            ("set-theme", 3),
-            ("set-units", 2),
-            ("set-clock", 2),
-            ("set-accounts", laptop.global::<Accounts>().get_accounts().row_count()),
-            ("server-scan", 1),
-            ("set-quit", 1),
-        ],
+        "settings" => {
+            let mut r = vec![("set-tabs", 4)];
+            match laptop.global::<TvUi>().get_settings_tab().as_str() {
+                "accounts" => r.push(("set-accounts", laptop.global::<Accounts>().get_accounts().row_count())),
+                "server" => r.push(("server-scan", 1)),
+                "changelog" => {}
+                _ => {
+                    r.extend([("set-layout", 2), ("set-theme", 3), ("set-units", 2), ("set-clock", 2), ("set-quit", 1)]);
+                }
+            }
+            r
+        }
         _ => vec![],
     };
     rows.into_iter().filter(|(_, n)| *n > 0).collect()
@@ -520,6 +530,9 @@ pub fn key(laptop: &LaptopWindow, text: &SharedString) -> bool {
         } else if id.starts_with("show-") {
             laptop.global::<ShowPageState>().invoke_close();
             sync(laptop);
+        } else if id.starts_with("col-") {
+            laptop.global::<CollectionPageState>().invoke_close();
+            sync(laptop);
         } else if ui.get_screen() != "home" {
             show(laptop, "home");
         } else {
@@ -761,6 +774,44 @@ fn activate(laptop: &LaptopWindow, row: &str, col: usize) {
                 lib.invoke_open_show(item.rating_key);
             }
         }
+        "lib-collections" => {
+            let lib = laptop.global::<Library>();
+            if let Some(c) = lib.get_collections().row_data(col) {
+                lib.invoke_open_collection(c.rating_key);
+            }
+        }
+        "col-actions" => {
+            let cp = laptop.global::<CollectionPageState>();
+            match col {
+                0 => {
+                    let key = cp.get_up_next_key();
+                    if !key.is_empty() {
+                        cp.invoke_play_item(key, true);
+                    }
+                }
+                1 => cp.invoke_shuffle(),
+                2 => {
+                    let next = match cp.get_order().as_str() {
+                        "collection" => "release",
+                        "release" => "alpha",
+                        _ => "collection",
+                    };
+                    cp.invoke_set_order(next.into());
+                }
+                3 => cp.invoke_set_hide_watched(!cp.get_hide_watched()),
+                4 => {
+                    cp.invoke_close();
+                    sync(laptop);
+                }
+                _ => {}
+            }
+        }
+        "col-items" => {
+            let cp = laptop.global::<CollectionPageState>();
+            if let Some(item) = cp.get_items().row_data(col) {
+                cp.invoke_play_item(item.rating_key, item.can_resume);
+            }
+        }
         "show-actions" => {
             let sp = laptop.global::<ShowPageState>();
             match col {
@@ -789,6 +840,11 @@ fn activate(laptop: &LaptopWindow, row: &str, col: usize) {
             if let Some(ep) = sp.get_episodes().row_data(col) {
                 sp.invoke_play_episode(ep.rating_key, ep.progress > 0.0);
             }
+        }
+        "set-tabs" => {
+            let tab = ["display", "accounts", "server", "changelog"].get(col).copied().unwrap_or("display");
+            laptop.global::<TvUi>().set_settings_tab(tab.into());
+            sync(laptop);
         }
         "set-layout" => {
             let layout = if col == 1 { Layout::Tv } else { Layout::Dual };
@@ -1011,6 +1067,8 @@ mod tests {
         let (l, rx) = setup();
         let ui = l.global::<TvUi>();
         show(&l, "settings");
+        assert_eq!(ui.get_focus(), "set-tabs");
+        press(&l, Key::DownArrow);
         assert_eq!(ui.get_focus(), "set-layout");
         press(&l, Key::Return); // "Two screens": switches right away, and is saved
         assert!(matches!(next_cmd(&rx), Command::SetLayout(Layout::Dual)));
@@ -1021,8 +1079,9 @@ mod tests {
         assert!(matches!(next_cmd(&rx), Command::SetLayout(Layout::Tv)));
         assert_eq!((current(&l), ui.get_screen().as_str()), (Layout::Tv, "home"));
         show(&l, "settings");
-        press(&l, Key::DownArrow);
-        press(&l, Key::DownArrow);
+        press(&l, Key::DownArrow); // set-layout
+        press(&l, Key::DownArrow); // set-theme
+        press(&l, Key::DownArrow); // set-units
         press(&l, Key::RightArrow);
         press(&l, Key::Return); // °C
         assert!(matches!(next_cmd(&rx), Command::SetDisplay { units: Units::Celsius, .. }));

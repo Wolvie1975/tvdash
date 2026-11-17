@@ -58,6 +58,12 @@ export struct SiteTileData {
 }
 
 // Control dashboard (home page) + things shared with every page.
+export struct ChangelogEntry {
+    version: string,
+    date: string,
+    notes: string,
+}
+
 export global Dash {
     // Header
     in property <string> clock-hh: "--";
@@ -112,6 +118,7 @@ export global Dash {
     // Transient message at the bottom of the window ("" = hidden).
     in property <string> toast;
     in property <string> version;
+    in property <[ChangelogEntry]> changelog;
 
     callback open-site(int);
     callback transport(string); // "back" | "forward" | "restart" | "play-pause" | "stop" | ...
@@ -536,6 +543,7 @@ export global Diagnostics {
 export global TvUi {
     // "home" | "search" | "library" | "services" | "settings"
     in-out property <string> screen: "home";
+    in-out property <string> settings-tab: "display"; // "display" | "accounts" | "server" | "changelog"
     in property <bool> rail-open;
     // What has focus: "rail" | "hero" | "prompts" | "continue" | "services" | "lib-continue"
     // | "lib-recent" | "grid" | "set-layout" | "set-theme" | "set-units" | "set-clock"

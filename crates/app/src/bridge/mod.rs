@@ -176,6 +176,41 @@ pub struct UiConfig {
 }
 
 /// Call once on the UI thread before the event loop starts.
+fn parse_changelog(md: &str) -> Vec<crate::ChangelogEntry> {
+    let mut entries = Vec::new();
+    let mut cur: Option<(String, String, Vec<String>)> = None;
+    for raw in md.lines() {
+        let line = raw.trim();
+        if let Some(rest) = line.strip_prefix("## ") {
+            if let Some((version, date, lines)) = cur.take() {
+                entries.push(crate::ChangelogEntry {
+                    version: version.into(),
+                    date: date.into(),
+                    notes: lines.join("\n").into(),
+                });
+            }
+            let (version, date) = rest
+                .split_once(" — ")
+                .or_else(|| rest.split_once(" - "))
+                .map_or((rest, ""), |(v, d)| (v.trim(), d.trim()));
+            cur = Some((version.to_string(), date.to_string(), Vec::new()));
+        } else if let Some((_, _, ref mut lines)) = cur
+            && !line.is_empty()
+        {
+            let text = line.strip_prefix("- ").map_or_else(|| line.to_string(), |s| format!("• {s}"));
+            lines.push(text);
+        }
+    }
+    if let Some((version, date, lines)) = cur {
+        entries.push(crate::ChangelogEntry {
+            version: version.into(),
+            date: date.into(),
+            notes: lines.join("\n").into(),
+        });
+    }
+    entries
+}
+
 pub fn init(laptop: &LaptopWindow, c: UiConfig) {
     STATE.with_borrow_mut(|s| {
         s.tz = c.tz;
@@ -186,6 +221,9 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         s.sites = c.sites;
         let dash = laptop.global::<Dash>();
         dash.set_version(env!("CARGO_PKG_VERSION").into());
+        dash.set_changelog(ModelRc::new(VecModel::from(parse_changelog(include_str!(
+            "../../../../CHANGELOG.md"
+        )))));
         dash.set_tv_connected(c.tv_connected);
         dash.set_continue_watching(ModelRc::from(s.cards.clone()));
         dash.set_prompts(ModelRc::from(s.prompts.clone()));

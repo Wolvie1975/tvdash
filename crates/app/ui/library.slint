@@ -409,32 +409,7 @@ export component LibraryPage inherits VerticalLayout {
             }
         }
 
-        // Row 4: Genres (TV) or Collections (Movies)
-        if Library.media-tab == "tv" && Library.genres.length > 0: Card {
-            VerticalLayout {
-                padding: 24px;
-                spacing: 14px;
-                SectionLabel { text: "GENRES"; }
-                HorizontalLayout {
-                    spacing: 12px;
-                    for g in Library.genres: Rectangle {
-                        horizontal-stretch: 1;
-                        min-height: 76px;
-                        border-radius: 12px;
-                        background: Theme.surface-raised;
-                        border-width: 1px;
-                        border-color: Theme.border;
-                        VerticalLayout {
-                            padding: 14px;
-                            spacing: 4px;
-                            Text { text: g.title; font-size: 18px; font-weight: 600; color: Theme.text-primary; overflow: elide; }
-                            Text { text: g.count + " shows"; font-size: 15px; color: Theme.text-muted; }
-                        }
-                    }
-                }
-            }
-        }
-
+        // Row 4: Collections (Movies)
         if Library.media-tab == "movies" && Library.collections.length > 0: Card {
             VerticalLayout {
                 padding: 24px;
@@ -444,11 +419,15 @@ export component LibraryPage inherits VerticalLayout {
                     Rectangle { horizontal-stretch: 1; }
                     Text { text: Library.collections.length + " collections"; font-size: 16px; color: Theme.text-muted; }
                 }
-                HorizontalLayout {
-                    spacing: 12px;
-                    for c in Library.collections: Rectangle {
-                        horizontal-stretch: 1;
-                        min-height: 112px;
+                Flickable {
+                    height: 112px;
+                    interactive: true;
+                    content-width: Library.collections.length * 272px;
+                    for c[i] in Library.collections: Rectangle {
+                        x: i * 272px;
+                        y: 0;
+                        width: 260px;
+                        height: 112px;
                         border-radius: 12px;
                         background: Theme.surface-raised;
                         border-width: 1px;
@@ -456,8 +435,8 @@ export component LibraryPage inherits VerticalLayout {
                         VerticalLayout {
                             padding: 16px;
                             spacing: 6px;
-                            Text { text: c.title; font-size: 20px; font-weight: 600; color: Theme.text-primary; wrap: word-wrap; }
-                            Text { text: c.detail; font-size: 15px; color: Theme.text-secondary; }
+                            Text { text: c.title; font-size: 20px; font-weight: 600; color: Theme.text-primary; wrap: word-wrap; max-height: 52px; overflow: elide; }
+                            Text { text: c.detail; font-size: 15px; color: Theme.text-secondary; overflow: elide; }
                         }
                         TouchArea {
                             mouse-cursor: pointer;
