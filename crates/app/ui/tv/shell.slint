@@ -551,6 +551,8 @@ component ConfirmPlayModal inherits Rectangle {
     in property <bool> has-poster;
     in property <bool> can-resume;
     in property <bool> offer-restart: false;
+    in property <string> heading: "CONFIRM PLAYBACK";
+    in property <string> play-label: "";
     callback dismiss();
 
     background: #0B0D10C0;
@@ -580,7 +582,7 @@ component ConfirmPlayModal inherits Rectangle {
                     horizontal-stretch: 1;
                     alignment: center;
                     spacing: 10px;
-                    Text { text: "CONFIRM PLAYBACK"; font-size: 20px; font-weight: 600; color: Theme.text-muted; letter-spacing: 1.2px; }
+                    Text { text: root.heading; font-size: 20px; font-weight: 600; color: Theme.text-muted; letter-spacing: 1.2px; }
                     Text { text: root.title; font-size: 40px; font-weight: 600; color: Theme.text-primary; wrap: word-wrap; }
                     if root.subtitle != "": Text { text: root.subtitle; font-size: 26px; color: Theme.text-secondary; wrap: word-wrap; }
                     if root.meta != "": Text { text: root.meta; font-size: 22px; color: Theme.text-muted; wrap: word-wrap; }
@@ -592,7 +594,7 @@ component ConfirmPlayModal inherits Rectangle {
                 TenButton {
                     compact: true;
                     primary: true;
-                    text: root.can-resume ? "Resume" : "Play";
+                    text: root.play-label != "" ? root.play-label : (root.can-resume ? "Resume" : "Play");
                     focused: TvUi.focus == root.row-id && TvUi.col == 0;
                     clicked => { TvUi.click(root.row-id, 0); }
                 }
@@ -1743,6 +1745,19 @@ export component TvShell inherits Rectangle {
                 can-resume: Library.detail.can-resume;
                 offer-restart: true;
                 dismiss => { TvUi.click("lib-detail", Library.detail.can-resume ? 2 : 1); }
+            }
+            if Dash.next-ep-open: ConfirmPlayModal {
+                width: parent.width;
+                height: parent.height;
+                row-id: "next-ep";
+                heading: "UP NEXT";
+                play-label: "Play Next";
+                title: Dash.next-ep-title;
+                subtitle: Dash.next-ep-subtitle;
+                poster: Dash.next-ep-poster;
+                has-poster: Dash.next-ep-has-poster;
+                can-resume: false;
+                dismiss => { TvUi.click("next-ep", 1); }
             }
         }
 

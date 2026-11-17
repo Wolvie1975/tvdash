@@ -62,6 +62,24 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         }
     });
 
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    dash.on_play_next_ep(move || {
+        if let Some(l) = weak.upgrade() {
+            l.global::<Dash>().set_next_ep_open(false);
+        }
+        if let Some(item) = bridge::take_next_ep() {
+            s(Command::Play(item));
+        }
+    });
+
+    let weak = laptop.as_weak();
+    dash.on_dismiss_next_ep(move || {
+        if let Some(l) = weak.upgrade() {
+            l.global::<Dash>().set_next_ep_open(false);
+        }
+        bridge::clear_next_ep();
+    });
+
     let weak = laptop.as_weak();
     dash.on_set_cw_filter(move |filter| {
         if let Some(l) = weak.upgrade() {

@@ -163,6 +163,8 @@ pub enum AppEvent {
         season_key: String,
         result: Result<Vec<crate::models::EpisodeInfo>, String>,
     },
+    /// Prompt to continue to the next episode after an episode finishes.
+    NextEpisodePrompt(Option<MediaItem>),
     /// Collection page data.
     CollectionDetail(Result<crate::models::CollectionDetail, String>),
 }

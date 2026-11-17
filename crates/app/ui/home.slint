@@ -863,5 +863,60 @@ export component HomePage inherits VerticalLayout {
                 }
             }
         }
+
+        if Dash.next-ep-open: Rectangle {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: parent.height;
+            background: #0B0D10B3;
+            TouchArea { clicked => { Dash.dismiss-next-ep(); } }
+            Rectangle {
+                width: 560px;
+                height: next-ep-col.preferred-height + 56px;
+                border-radius: Theme.card-radius;
+                background: Theme.surface;
+                border-width: 1px;
+                border-color: Theme.border;
+                TouchArea { }
+                next-ep-col := VerticalLayout {
+                    padding: 28px;
+                    spacing: 20px;
+                    HorizontalLayout {
+                        spacing: 20px;
+                        Rectangle {
+                            width: 104px;
+                            height: 156px;
+                            border-radius: 12px;
+                            clip: true;
+                            background: Theme.surface-raised;
+                            if Dash.next-ep-has-poster: Image { width: parent.width; height: parent.height; source: Dash.next-ep-poster; image-fit: cover; }
+                        }
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            alignment: center;
+                            spacing: 8px;
+                            Text { text: "UP NEXT"; font-size: 14px; font-weight: 600; color: Theme.text-muted; letter-spacing: 0.8px; }
+                            Text { text: Dash.next-ep-title; font-size: 24px; font-weight: 600; color: Theme.text-primary; wrap: word-wrap; }
+                            if Dash.next-ep-subtitle != "": Text { text: Dash.next-ep-subtitle; font-size: 18px; color: Theme.text-secondary; wrap: word-wrap; }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 12px;
+                        ActionButton {
+                            text: "Play Next";
+                            icon: "play";
+                            primary: true;
+                            horizontal-stretch: 1;
+                            clicked => { Dash.play-next-ep(); }
+                        }
+                        ActionButton {
+                            text: "Cancel";
+                            clicked => { Dash.dismiss-next-ep(); }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

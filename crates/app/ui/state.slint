@@ -120,11 +120,20 @@ export global Dash {
     in property <string> version;
     in property <[ChangelogEntry]> changelog;
 
+    // Next episode prompt when an episode finishes naturally.
+    in-out property <bool> next-ep-open: false;
+    in property <string> next-ep-title;
+    in property <string> next-ep-subtitle;
+    in property <image> next-ep-poster;
+    in property <bool> next-ep-has-poster;
+
     callback open-site(int);
     callback transport(string); // "back" | "forward" | "restart" | "play-pause" | "stop" | ...
     callback play-item(int);
     callback play-item-from-start(int);
     callback play-up-next();
+    callback play-next-ep();
+    callback dismiss-next-ep();
     callback set-cw-filter(string);
     callback open-screensaver();
     callback close-screensaver();

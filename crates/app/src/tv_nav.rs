@@ -84,6 +84,9 @@ fn is_tv(laptop: &LaptopWindow) -> bool {
 fn rows(laptop: &LaptopWindow) -> Vec<(&'static str, usize)> {
     let ui = laptop.global::<TvUi>();
     let dash = laptop.global::<Dash>();
+    if dash.get_next_ep_open() {
+        return vec![("next-ep", 2)];
+    }
     let rows: Vec<(&'static str, usize)> = match ui.get_screen().as_str() {
         "home" => {
             if ui.get_confirm_cw_index() >= 0 {
@@ -519,7 +522,10 @@ pub fn key(laptop: &LaptopWindow, text: &SharedString) -> bool {
     if ok {
         activate(laptop, id, col);
     } else if back {
-        if id == "confirm-cw" {
+        if id == "next-ep" {
+            laptop.global::<Dash>().invoke_dismiss_next_ep();
+            sync(laptop);
+        } else if id == "confirm-cw" {
             ui.set_confirm_cw_index(-1);
             sync(laptop);
         } else if id == "lib-detail" {
@@ -638,6 +644,14 @@ fn activate(laptop: &LaptopWindow, row: &str, col: usize) {
         "continue" => {
             let ui = laptop.global::<TvUi>();
             ui.set_confirm_cw_index(col as i32);
+            sync(laptop);
+        }
+        "next-ep" => {
+            if col == 0 {
+                dash.invoke_play_next_ep();
+            } else {
+                dash.invoke_dismiss_next_ep();
+            }
             sync(laptop);
         }
         "confirm-cw" => {

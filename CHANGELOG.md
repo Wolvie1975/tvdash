@@ -1,5 +1,9 @@
 # tvdash Changelog
 
+## v0.1.9 — 2026-11-17
+- Added an Up Next ("Play Next" / "Cancel") popup when a TV episode finishes playing in both two-screen and TV-only layouts.
+- Fixed end-of-episode completion reporting so Plex marks finished episodes as watched and keeps the show in Continue Watching / Up Next.
+
 ## v0.1.8 — 2026-11-17
 - Added Movie Collections to TV-only Library (shelf + 10-foot detail view with sort, hide watched, up next, and shuffle) and made two-screen Collections horizontally scrollable.
 - Removed unused Genre filters from Library.

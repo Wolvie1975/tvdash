@@ -142,6 +142,8 @@ struct Playback {
     last_emitted_sec: Option<u64>,
     /// The "can't decode" hint was already shown for this item (frame errors repeat).
     decode_hint_shown: bool,
+    /// True when playback reached natural end-of-file (rather than user stop).
+    ended_eof: bool,
 }
 
 pub struct Controller {
@@ -408,6 +410,7 @@ impl Controller {
                         reporter,
                         last_emitted_sec: None,
                         decode_hint_shown: false,
+                        ended_eof: false,
                     });
                     info!(socket = %sock, "reconnected to running mpv");
                 }
@@ -1532,8 +1535,10 @@ impl Controller {
         let _ = reporter.send((start, PlayState::Playing));
         let status =
             PlayerStatus { duration_ms: item.duration_ms, item, state: PlayState::Playing, position_ms: start };
+        self.emit(AppEvent::NextEpisodePrompt(None));
         self.emit(AppEvent::Player(Some(status.clone())));
-        self.playback = Some(Playback { status, player, reporter, last_emitted_sec: None, decode_hint_shown: false });
+        self.playback =
+            Some(Playback { status, player, reporter, last_emitted_sec: None, decode_hint_shown: false, ended_eof: false });
         self.save_runtime_state();
         self.update_inhibit().await;
     }
@@ -1813,6 +1818,12 @@ impl Controller {
             }
             Some(MpvEvent::Ended { reason }) => {
                 info!(reason, "mpv playback ended");
+                if reason == "eof" {
+                    p.ended_eof = true;
+                    if let Some(dur) = p.status.item.duration_ms {
+                        p.status.position_ms = dur;
+                    }
+                }
                 return;
             }
             Some(MpvEvent::Error { prefix, text }) => {
@@ -1831,9 +1842,30 @@ impl Controller {
             Some(MpvEvent::Exited) | None => {
                 let p = self.playback.take().expect("checked above");
                 self.detach_video(&p.player);
-                let _ = p.reporter.send((p.status.position_ms, PlayState::Stopped));
+                let final_pos = if p.ended_eof {
+                    p.status.item.duration_ms.unwrap_or(p.status.position_ms)
+                } else {
+                    p.status.position_ms
+                };
+                let _ = p.reporter.send((final_pos, PlayState::Stopped));
                 info!("mpv exited; TV back to idle");
                 self.after_playback().await;
+                if p.ended_eof
+                    && p.status.item.kind == tvdash_core::models::MediaKind::Episode
+                    && p.status.item.source == SourceKind::Plex
+                    && let Some(plex) = self.plex.clone()
+                {
+                    let item_id = p.status.item.id;
+                    let events = self.events.clone();
+                    let requested = self.posters_requested.clone();
+                    tokio::spawn(async move {
+                        if let Ok(Some(mut next_ep)) = plex.adjacent_episode(&item_id, true).await {
+                            next_ep.resume_ms = None;
+                            fetch_posters(plex, vec![next_ep.clone()], requested, events.clone());
+                            let _ = events.send(AppEvent::NextEpisodePrompt(Some(next_ep)));
+                        }
+                    });
+                }
                 return;
             }
         }

@@ -80,6 +80,7 @@ pub struct UiState {
     tautulli_configured: bool,
     tautulli_url: String,
     collection_detail: Option<tvdash_core::models::CollectionDetail>,
+    next_ep: Option<MediaItem>,
     /// Last weather and when it arrived; the last fetch error, if the latest fetch failed.
     weather: Option<(Weather, DateTime<Utc>)>,
     weather_err: Option<String>,
@@ -176,6 +177,14 @@ pub struct UiConfig {
 }
 
 /// Call once on the UI thread before the event loop starts.
+pub(crate) fn take_next_ep() -> Option<MediaItem> {
+    STATE.with_borrow_mut(|s| s.next_ep.take())
+}
+
+pub(crate) fn clear_next_ep() {
+    STATE.with_borrow_mut(|s| s.next_ep = None);
+}
+
 fn parse_changelog(md: &str) -> Vec<crate::ChangelogEntry> {
     let mut entries = Vec::new();
     let mut cur: Option<(String, String, Vec<String>)> = None;
@@ -499,6 +508,20 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         }
         AppEvent::SeasonEpisodes { season_key, result } => {
             library::on_season_episodes(s, laptop, &season_key, result);
+        }
+        AppEvent::NextEpisodePrompt(opt) => {
+            s.next_ep = opt.clone();
+            let dash = laptop.global::<Dash>();
+            if let Some(item) = opt {
+                let poster = s.posters.get(&(item.source, item.id.clone()));
+                dash.set_next_ep_title(item.title.as_str().into());
+                dash.set_next_ep_subtitle(crate::format::item_detail(&item).into());
+                dash.set_next_ep_has_poster(poster.is_some());
+                dash.set_next_ep_poster(poster.cloned().unwrap_or_default());
+                dash.set_next_ep_open(true);
+            } else {
+                dash.set_next_ep_open(false);
+            }
         }
         AppEvent::CollectionDetail(res) => {
             library::on_collection_detail(s, laptop, res);
