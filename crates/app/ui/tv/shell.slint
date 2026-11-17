@@ -542,6 +542,77 @@ component HomeScreen inherits VerticalLayout {
     }
 }
 
+component ConfirmPlayModal inherits Rectangle {
+    in property <string> row-id;
+    in property <string> title;
+    in property <string> subtitle;
+    in property <string> meta;
+    in property <image> poster;
+    in property <bool> has-poster;
+    in property <bool> can-resume;
+    in property <bool> offer-restart: false;
+    callback dismiss();
+
+    background: #0B0D10C0;
+    TouchArea { clicked => { root.dismiss(); } }
+    Rectangle {
+        width: 780px;
+        height: modal-col.preferred-height + 64px;
+        border-radius: 24px;
+        background: Theme.surface;
+        border-width: 1px;
+        border-color: Theme.border;
+        TouchArea { }
+        modal-col := VerticalLayout {
+            padding: 32px;
+            spacing: 28px;
+            HorizontalLayout {
+                spacing: 28px;
+                Rectangle {
+                    width: 150px;
+                    height: 225px;
+                    border-radius: 16px;
+                    clip: true;
+                    background: Theme.surface-raised;
+                    if root.has-poster: Image { width: parent.width; height: parent.height; source: root.poster; image-fit: cover; }
+                }
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+                    spacing: 10px;
+                    Text { text: "CONFIRM PLAYBACK"; font-size: 20px; font-weight: 600; color: Theme.text-muted; letter-spacing: 1.2px; }
+                    Text { text: root.title; font-size: 40px; font-weight: 600; color: Theme.text-primary; wrap: word-wrap; }
+                    if root.subtitle != "": Text { text: root.subtitle; font-size: 26px; color: Theme.text-secondary; wrap: word-wrap; }
+                    if root.meta != "": Text { text: root.meta; font-size: 22px; color: Theme.text-muted; wrap: word-wrap; }
+                }
+            }
+            HorizontalLayout {
+                spacing: 18px;
+                alignment: start;
+                TenButton {
+                    compact: true;
+                    primary: true;
+                    text: root.can-resume ? "Resume" : "Play";
+                    focused: TvUi.focus == root.row-id && TvUi.col == 0;
+                    clicked => { TvUi.click(root.row-id, 0); }
+                }
+                if root.offer-restart && root.can-resume: TenButton {
+                    compact: true;
+                    text: "Play from start";
+                    focused: TvUi.focus == root.row-id && TvUi.col == 1;
+                    clicked => { TvUi.click(root.row-id, 1); }
+                }
+                TenButton {
+                    compact: true;
+                    text: "Cancel";
+                    focused: TvUi.focus == root.row-id && TvUi.col == (root.offer-restart && root.can-resume ? 2 : 1);
+                    clicked => { TvUi.click(root.row-id, root.offer-restart && root.can-resume ? 2 : 1); }
+                }
+            }
+        }
+    }
+}
+
 // ── Services ─────────────────────────────────────────────────────────
 
 component ServicesScreen inherits Rectangle {
@@ -684,25 +755,32 @@ component LibraryScreen inherits Rectangle {
     if !ShowPageState.open: VerticalLayout {
         spacing: 24px;
         HorizontalLayout {
+            vertical-stretch: 0;
             spacing: 24px;
             Text { text: "Library"; font-size: Ten.title; color: Theme.text-primary; vertical-alignment: center; }
             Rectangle { horizontal-stretch: 1; }
             HorizontalLayout {
-                spacing: 14px;
+                horizontal-stretch: 0;
+                spacing: 24px;
+                alignment: end;
                 Chip {
                     text: "TV Shows";
-                    on: !Library.browse-all && Library.media-tab == "tv";
+                    on: Library.media-tab == "tv";
                     focused: TvUi.focus == "lib-tabs" && TvUi.col == 0;
                     clicked => { TvUi.click("lib-tabs", 0); }
                 }
                 Chip {
                     text: "Movies";
-                    on: !Library.browse-all && Library.media-tab == "movies";
+                    on: Library.media-tab == "movies";
                     focused: TvUi.focus == "lib-tabs" && TvUi.col == 1;
                     clicked => { TvUi.click("lib-tabs", 1); }
                 }
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle { width: 2px; height: 42px; background: Theme.border; }
+                }
                 Chip {
-                    text: "Browse All";
+                    text: Library.browse-all ? "Smart shelves" : "Browse All";
                     on: Library.browse-all;
                     focused: TvUi.focus == "lib-tabs" && TvUi.col == 2;
                     clicked => { TvUi.click("lib-tabs", 2); }
@@ -782,7 +860,7 @@ component LibraryScreen inherits Rectangle {
                     RowLabel { text: "RECENTLY ADDED"; }
                     PosterStrip { id: "lib-recent"; cards: Library.recently-added; }
                 }
-                if Library.finish-season.length > 0: VerticalLayout {
+                if Library.media-tab == "tv" && Library.finish-season.length > 0: VerticalLayout {
                     spacing: 12px;
                     RowLabel { text: "FINISH THE SEASON"; }
                     HorizontalLayout {
@@ -1488,6 +1566,30 @@ export component TvShell inherits Rectangle {
                 if TvUi.screen == "library": LibraryScreen { }
                 if TvUi.screen == "settings": SettingsScreen { }
                 if TvUi.screen == "search": SearchScreen { }
+            }
+            if TvUi.screen == "home" && TvUi.confirm-cw-index >= 0 && TvUi.confirm-cw-index < Dash.continue-watching.length: ConfirmPlayModal {
+                width: parent.width;
+                height: parent.height;
+                row-id: "confirm-cw";
+                title: Dash.continue-watching[TvUi.confirm-cw-index].title;
+                subtitle: Dash.continue-watching[TvUi.confirm-cw-index].subtitle;
+                poster: Dash.continue-watching[TvUi.confirm-cw-index].poster;
+                has-poster: Dash.continue-watching[TvUi.confirm-cw-index].has-poster;
+                can-resume: Dash.continue-watching[TvUi.confirm-cw-index].progress > 0;
+                dismiss => { TvUi.click("confirm-cw", 1); }
+            }
+            if TvUi.screen == "library" && Library.detail-open && !ShowPageState.open: ConfirmPlayModal {
+                width: parent.width;
+                height: parent.height;
+                row-id: "lib-detail";
+                title: Library.detail.title;
+                subtitle: Library.detail.subtitle;
+                meta: Library.detail.meta;
+                poster: Library.detail.poster;
+                has-poster: Library.detail.has-poster;
+                can-resume: Library.detail.can-resume;
+                offer-restart: true;
+                dismiss => { TvUi.click("lib-detail", Library.detail.can-resume ? 2 : 1); }
             }
         }
 

@@ -552,6 +552,8 @@ export global TvUi {
     in property <image> video;
     in property <bool> video-on;
     in property <bool> video-full;
+    // Home Continue Watching confirmation dialog (-1 = closed).
+    in-out property <int> confirm-cw-index: -1;
     // A key press (Slint key text); returns true when handled.
     callback key(string) -> bool;
     // Mouse/touch click on a focusable item (row, col).

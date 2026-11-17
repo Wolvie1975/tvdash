@@ -692,6 +692,7 @@ export component SettingsPage inherits VerticalLayout {
     spacing: Theme.gap;
 
     HorizontalLayout {
+        vertical-stretch: 0;
         spacing: 20px;
         PageHeader {
             title: "Settings";
@@ -721,9 +722,17 @@ export component SettingsPage inherits VerticalLayout {
         ActionButton { text: "Quit tvdash"; clicked => { Dash.quit(); } }
     }
 
-    if Nav.settings-tab == "accounts": AccountsTab { }
-    if Nav.settings-tab == "streaming": StreamingTab { }
-    if Nav.settings-tab == "display": DisplayTab { }
-    if Nav.settings-tab == "server": ServerTab { }
-    if Nav.settings-tab == "diagnostics": DiagnosticsTab { }
+    Flickable {
+        vertical-stretch: 1;
+        interactive: true;
+        content-height: tab-body.preferred-height + 16px;
+        tab-body := VerticalLayout {
+            width: parent.width;
+            if Nav.settings-tab == "accounts": AccountsTab { }
+            if Nav.settings-tab == "streaming": StreamingTab { }
+            if Nav.settings-tab == "display": DisplayTab { }
+            if Nav.settings-tab == "server": ServerTab { }
+            if Nav.settings-tab == "diagnostics": DiagnosticsTab { }
+        }
+    }
 }

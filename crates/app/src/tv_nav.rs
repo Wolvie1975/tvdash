@@ -86,24 +86,28 @@ fn rows(laptop: &LaptopWindow) -> Vec<(&'static str, usize)> {
     let dash = laptop.global::<Dash>();
     let rows: Vec<(&'static str, usize)> = match ui.get_screen().as_str() {
         "home" => {
-            let hero = match dash.get_tv().mode.as_str() {
-                // Play/Pause, (Full screen,) Stop
-                "playing" => 2 + ui.get_video_on() as usize,
-                "streaming" | "next" => 1,
-                _ => 0,
-            };
-            let cw = dash.get_cw_state();
-            let prompts = match cw.as_str() {
-                "code" | "busy" => 1,
-                _ => dash.get_prompts().row_count(),
-            };
-            let continue_ = if cw == "items" { dash.get_continue_watching().row_count().min(5) } else { 0 };
-            vec![
-                ("hero", hero),
-                ("prompts", prompts),
-                ("continue", continue_),
-                ("services", dash.get_streaming_sites().row_count().min(10)),
-            ]
+            if ui.get_confirm_cw_index() >= 0 {
+                vec![("confirm-cw", 2)]
+            } else {
+                let hero = match dash.get_tv().mode.as_str() {
+                    // Play/Pause, (Full screen,) Stop
+                    "playing" => 2 + ui.get_video_on() as usize,
+                    "streaming" | "next" => 1,
+                    _ => 0,
+                };
+                let cw = dash.get_cw_state();
+                let prompts = match cw.as_str() {
+                    "code" | "busy" => 1,
+                    _ => dash.get_prompts().row_count(),
+                };
+                let continue_ = if cw == "items" { dash.get_continue_watching().row_count().min(5) } else { 0 };
+                vec![
+                    ("hero", hero),
+                    ("prompts", prompts),
+                    ("continue", continue_),
+                    ("services", dash.get_streaming_sites().row_count().min(10)),
+                ]
+            }
         }
         "search" => {
             let w = laptop.global::<Watch>();
@@ -127,15 +131,16 @@ fn rows(laptop: &LaptopWindow) -> Vec<(&'static str, usize)> {
         "services" => vec![("grid", dash.get_streaming_sites().row_count())],
         "library" => {
             let sp = laptop.global::<ShowPageState>();
+            let lib = laptop.global::<Library>();
             if sp.get_open() {
                 vec![
                     ("show-actions", 3),
                     ("show-seasons", sp.get_seasons().row_count()),
                     ("show-episodes", sp.get_episodes().row_count()),
                 ]
-            } else {
-                let lib = laptop.global::<Library>();
-                if lib.get_browse_all() {
+            } else if lib.get_detail_open() {
+                vec![("lib-detail", if lib.get_detail().can_resume { 3 } else { 2 })]
+            } else if lib.get_browse_all() {
                     vec![
                         ("lib-tabs", 3),
                         ("lib-letters", BROWSE_LETTERS.len()),
@@ -152,7 +157,6 @@ fn rows(laptop: &LaptopWindow) -> Vec<(&'static str, usize)> {
                     ]
                 }
             }
-        }
         "settings" => vec![
             ("set-layout", 2),
             ("set-theme", 3),
@@ -505,7 +509,13 @@ pub fn key(laptop: &LaptopWindow, text: &SharedString) -> bool {
     if ok {
         activate(laptop, id, col);
     } else if back {
-        if id == "watch-detail" {
+        if id == "confirm-cw" {
+            ui.set_confirm_cw_index(-1);
+            sync(laptop);
+        } else if id == "lib-detail" {
+            laptop.global::<Library>().invoke_close_detail();
+            sync(laptop);
+        } else if id == "watch-detail" {
             close_watch_detail(laptop);
         } else if id.starts_with("show-") {
             laptop.global::<ShowPageState>().invoke_close();
@@ -612,7 +622,20 @@ fn activate(laptop: &LaptopWindow, row: &str, col: usize) {
                 }
             }
         },
-        "continue" => dash.invoke_play_item(col as i32),
+        "continue" => {
+            let ui = laptop.global::<TvUi>();
+            ui.set_confirm_cw_index(col as i32);
+            sync(laptop);
+        }
+        "confirm-cw" => {
+            let ui = laptop.global::<TvUi>();
+            let idx = ui.get_confirm_cw_index();
+            ui.set_confirm_cw_index(-1);
+            if col == 0 && idx >= 0 {
+                dash.invoke_play_item(idx);
+            }
+            sync(laptop);
+        }
         "services" | "grid" => {
             if let Some(site) = dash.get_streaming_sites().row_data(col) {
                 dash.invoke_open_site(site.index);
@@ -691,14 +714,8 @@ fn activate(laptop: &LaptopWindow, row: &str, col: usize) {
         "lib-tabs" => {
             let lib = laptop.global::<Library>();
             match col {
-                0 => {
-                    lib.set_browse_all(false);
-                    lib.invoke_set_media_tab("tv".into());
-                }
-                1 => {
-                    lib.set_browse_all(false);
-                    lib.invoke_set_media_tab("movies".into());
-                }
+                0 => lib.invoke_set_media_tab("tv".into()),
+                1 => lib.invoke_set_media_tab("movies".into()),
                 2 => lib.set_browse_all(!lib.get_browse_all()),
                 _ => {}
             }
@@ -725,8 +742,18 @@ fn activate(laptop: &LaptopWindow, row: &str, col: usize) {
                 lib.invoke_close_detail();
                 lib.invoke_open_show(show_key);
             } else {
-                lib.invoke_play_detail(false);
+                sync(laptop);
             }
+        }
+        "lib-detail" => {
+            let lib = laptop.global::<Library>();
+            let can_resume = lib.get_detail().can_resume;
+            match col {
+                0 => lib.invoke_play_detail(false),
+                1 if can_resume => lib.invoke_play_detail(true),
+                _ => lib.invoke_close_detail(),
+            }
+            sync(laptop);
         }
         "lib-finish" => {
             let lib = laptop.global::<Library>();
@@ -883,9 +910,12 @@ mod tests {
         assert_eq!(ui.get_focus(), "services");
         press(&l, Key::LeftArrow);
         assert_eq!((ui.get_focus().as_str(), ui.get_col()), ("continue", 1));
-        // OK plays the focused card.
+        // OK opens confirmation; second OK plays the focused card.
+        press(&l, Key::Return);
+        assert_eq!((ui.get_focus().as_str(), ui.get_confirm_cw_index()), ("confirm-cw", 1));
         press(&l, Key::Return);
         assert!(matches!(next_cmd(&rx), Command::Play(i) if i.id == "b"));
+        assert_eq!(ui.get_confirm_cw_index(), -1);
 
         // Left from the Continue Watching column opens the rail on the current screen.
         press(&l, Key::LeftArrow);

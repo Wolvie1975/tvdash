@@ -60,8 +60,10 @@ fn rebuild_browse(s: &mut UiState, laptop: &LaptopWindow) {
     let filter = lib.get_filter();
     let letter = lib.get_browse_letter();
     let desc = lib.get_sort() == "title_desc";
+    let movies = lib.get_media_tab() == "movies";
     let mut items: Vec<MediaItem> = filter_items(s.lib_browse_all.clone(), &filter)
         .into_iter()
+        .filter(|i| if movies { i.kind == MediaKind::Movie } else { i.kind != MediaKind::Movie })
         .filter(|i| matches_letter(&i.title, &letter))
         .collect();
     items.sort_by(|a, b| {
@@ -80,7 +82,10 @@ pub(super) fn rebuild(s: &mut UiState, laptop: &LaptopWindow) {
         .into_iter()
         .filter(|i| if movies { i.kind == MediaKind::Movie } else { i.kind != MediaKind::Movie })
         .collect();
-    s.lib_recent = filter_items(in_order(&s.recently_added), &filter);
+    s.lib_recent = filter_items(in_order(&s.recently_added), &filter)
+        .into_iter()
+        .filter(|i| if movies { i.kind == MediaKind::Movie } else { i.kind != MediaKind::Movie })
+        .collect();
     s.lib_results = filter_items(s.search.as_ref().map(|(_, i)| i.clone()).unwrap_or_default(), &filter);
     s.lib_continue_cards.set_vec(cards_for(s, &s.lib_continue));
     s.lib_recent_cards.set_vec(cards_for(s, &s.lib_recent));

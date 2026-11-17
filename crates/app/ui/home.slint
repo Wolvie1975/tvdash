@@ -1,6 +1,6 @@
 import { Theme, UiTheme } from "theme.slint";
 import { Icon } from "icons.slint";
-import { ActionButton, Clock, PosterCard, ProgressBar, PromptBanner, SectionLabel, SessionLine } from "components.slint";
+import { ActionButton, Clock, PosterCard, PosterCardData, ProgressBar, PromptBanner, SectionLabel, SessionLine } from "components.slint";
 import { Dash, Library, Nav, SiteTileData, Watch } from "state.slint";
 import { SearchPanel } from "watch.slint";
 
@@ -525,6 +525,7 @@ component CwSwitchTab inherits Rectangle {
 }
 
 component ContinueWatchingBox inherits Rectangle {
+    callback pick(int);
     background: Theme.surface;
     border-radius: Theme.card-radius;
     clip: true;
@@ -606,7 +607,7 @@ component ContinueWatchingBox inherits Rectangle {
                         width: cw-grid.card-w;
                         art-width: cw-grid.card-w;
                         data: c;
-                        clicked => { if Dash.tv-connected { Dash.play-item(i); } }
+                        clicked => { if Dash.tv-connected { root.pick(i); } }
                     }
                 }
             }
@@ -764,6 +765,7 @@ export component HomePage inherits VerticalLayout {
         min-height: 0;
 
         property <length> box-w: (self.width - 2 * Theme.gap) / 3;
+        property <int> confirm-index: -1;
 
         TvCardView {
             x: 0;
@@ -784,6 +786,7 @@ export component HomePage inherits VerticalLayout {
             y: 0;
             width: main.box-w;
             height: main.height;
+            pick(i) => { main.confirm-index = i; }
         }
 
         // Slide-in Search panel over Watch on TV and Continue Watching.
@@ -801,6 +804,65 @@ export component HomePage inherits VerticalLayout {
                 Watch.query = "";
                 Watch.edited("");
                 Watch.close-detail();
+            }
+        }
+
+        if main.confirm-index >= 0 && main.confirm-index < Dash.continue-watching.length: Rectangle {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: parent.height;
+            background: #0B0D10B3;
+            property <PosterCardData> item: Dash.continue-watching[main.confirm-index];
+            TouchArea { clicked => { main.confirm-index = -1; } }
+            Rectangle {
+                width: 520px;
+                height: confirm-col.preferred-height + 56px;
+                border-radius: Theme.card-radius;
+                background: Theme.surface;
+                border-width: 1px;
+                border-color: Theme.border;
+                TouchArea { }
+                confirm-col := VerticalLayout {
+                    padding: 28px;
+                    spacing: 20px;
+                    HorizontalLayout {
+                        spacing: 20px;
+                        Rectangle {
+                            width: 104px;
+                            height: 156px;
+                            border-radius: 12px;
+                            clip: true;
+                            background: item.placeholder;
+                            if item.has-poster: Image { width: parent.width; height: parent.height; source: item.poster; image-fit: cover; }
+                        }
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            alignment: center;
+                            spacing: 8px;
+                            Text { text: "CONFIRM PLAYBACK"; font-size: 14px; font-weight: 600; color: Theme.text-muted; letter-spacing: 0.8px; }
+                            Text { text: item.title; font-size: 24px; font-weight: 600; color: Theme.text-primary; wrap: word-wrap; }
+                            if item.subtitle != "": Text { text: item.subtitle; font-size: 18px; color: Theme.text-secondary; wrap: word-wrap; }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 12px;
+                        ActionButton {
+                            text: item.progress > 0 ? "Resume on TV" : "Play on TV";
+                            icon: "play";
+                            primary: true;
+                            horizontal-stretch: 1;
+                            clicked => {
+                                Dash.play-item(main.confirm-index);
+                                main.confirm-index = -1;
+                            }
+                        }
+                        ActionButton {
+                            text: "Cancel";
+                            clicked => { main.confirm-index = -1; }
+                        }
+                    }
+                }
             }
         }
     }
