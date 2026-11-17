@@ -9,3 +9,7 @@
   - `cargo test -j 2 -p tvdash-player` (if modified)
   - `cargo test -j 2 -p tvdash-widgets` (if modified)
   - `cargo test -j 2 -p tvdash -- --test-threads=1`
+
+## Releases & Versioning
+- **Always bump the version number when modifying the application before building a release/RPM** so `dnf upgrade` picks up the new package cleanly.
+- Update `Cargo.toml`, `CHANGELOG.md`, `docs/fedora-install.txt`, `docs/status.md`, and `releases/README.md` together.
