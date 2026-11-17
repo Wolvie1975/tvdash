@@ -19,11 +19,25 @@ fn filter_items(items: Vec<MediaItem>, filter: &str) -> Vec<MediaItem> {
     }
 }
 
+fn sort_title(title: &str) -> &str {
+    let t = title.trim_start();
+    let lower = t.to_ascii_lowercase();
+    for prefix in ["the ", "an ", "a "] {
+        if lower.starts_with(prefix) {
+            let rest = t[prefix.len()..].trim_start();
+            if !rest.is_empty() {
+                return rest;
+            }
+        }
+    }
+    t
+}
+
 fn matches_letter(title: &str, letter: &str) -> bool {
     if letter.is_empty() {
         return true;
     }
-    let Some(first) = title.trim_start().chars().next() else {
+    let Some(first) = sort_title(title).chars().next() else {
         return false;
     };
     if letter == "#" {
@@ -32,14 +46,29 @@ fn matches_letter(title: &str, letter: &str) -> bool {
     first.to_ascii_uppercase().to_string() == letter
 }
 
+fn browse_sort_key(title: &str) -> (u8, String) {
+    let trimmed = sort_title(title);
+    let group = match trimmed.chars().next() {
+        Some(c) if c.is_ascii_alphabetic() => 1,
+        _ => 0,
+    };
+    (group, trimmed.to_ascii_lowercase())
+}
+
 fn rebuild_browse(s: &mut UiState, laptop: &LaptopWindow) {
     let lib = laptop.global::<Library>();
     let filter = lib.get_filter();
     let letter = lib.get_browse_letter();
-    s.lib_browse = filter_items(s.lib_browse_all.clone(), &filter)
+    let desc = lib.get_sort() == "title_desc";
+    let mut items: Vec<MediaItem> = filter_items(s.lib_browse_all.clone(), &filter)
         .into_iter()
         .filter(|i| matches_letter(&i.title, &letter))
         .collect();
+    items.sort_by(|a, b| {
+        let ord = browse_sort_key(&a.title).cmp(&browse_sort_key(&b.title));
+        if desc { ord.reverse() } else { ord }
+    });
+    s.lib_browse = items;
     s.lib_browse_cards.set_vec(cards_for(s, &s.lib_browse));
 }
 
@@ -401,4 +430,22 @@ pub(super) fn rebuild_collection_items(s: &UiState, laptop: &LaptopWindow) {
         })
         .collect();
     cp.set_items(ModelRc::new(VecModel::from(rows)));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{browse_sort_key, matches_letter};
+
+    #[test]
+    fn browse_sort_and_letter_ignore_articles() {
+        let mut titles = ["Zorro", "The Matrix", "alpha", "300", "A Quiet Place", "An Education", "1917"];
+        titles.sort_by_key(|t| browse_sort_key(t));
+        assert_eq!(titles, ["1917", "300", "alpha", "An Education", "The Matrix", "A Quiet Place", "Zorro"]);
+
+        assert!(matches_letter("The Matrix", "M"));
+        assert!(!matches_letter("The Matrix", "T"));
+        assert!(matches_letter("A Quiet Place", "Q"));
+        assert!(matches_letter("An Education", "E"));
+        assert!(matches_letter("300", "#"));
+    }
 }

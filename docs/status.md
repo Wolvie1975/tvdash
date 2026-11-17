@@ -1,16 +1,16 @@
 # tvdash: where things stand
 
-Last updated 2026-11-17 (v0.1.4). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-17 (v0.1.5). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-1. **Build & install v0.1.4 RPM on the TV machine:**
+1. **Build & install v0.1.5 RPM on the TV machine:**
    ```bash
    cargo build --release -j 2
    ./packaging/rpm.sh
-   cp dist/tvdash-0.1.4-1.x86_64.rpm releases/
-   sudo dnf upgrade ./releases/tvdash-0.1.4-1.x86_64.rpm
+   cp dist/tvdash-0.1.5-1.x86_64.rpm releases/
+   sudo dnf upgrade ./releases/tvdash-0.1.5-1.x86_64.rpm
    ```
    Then Settings › Quit tvdash and start it again from the app menu.
 2. **Check in-window video on the real TV** (TV-only layout). See
@@ -27,7 +27,7 @@ next, and the practical details that aren't obvious from the code.
 | TV-only layout, step 1 | Built: side rail, 10-foot screens, arrow/OK/Back navigation, ambient clock, `tvdash --home`, live layout switch |
 | TV-only layout, step 2 | Built: Plex/Jellyfin video plays inside the tvdash window through libmpv; floating player HUD and live PIP mini-player |
 | Library v0.1.3 | Built: smart shelves, full-width Browse All with A–Z filter, shelf caching |
-| TV-only step 3 (v0.1.4) | Built: 10-foot Search (6×6 keyboard + physical typing + detail), Library parity (smart shelves, 8-col Browse All + A–Z filter, Show detail), scrollable Settings + version number, Audio/Subs/Vol/Prev-Next Episode controls (also Prev/Next Ep on dashboard), Night mode forcing Dark on TV, local HTTP Phone Remote (`:8765`) |
+| TV-only step 3 (v0.1.4–v0.1.5) | Built: 10-foot Search (6×6 keyboard + physical typing + detail), Library parity (smart shelves, 8-col A–Z Browse All ignoring leading articles + Show detail), scrollable Settings + version number, Audio/Subs/Vol/Prev-Next Episode controls (also Prev/Next Ep on dashboard), Night mode forcing Dark on TV, local HTTP Phone Remote (`:8765`) |
 | Cleanup | `bridge.rs` split into `bridge/` (home, library, accounts, status); repeated controller code folded |
 
 Decisions made along the way:
