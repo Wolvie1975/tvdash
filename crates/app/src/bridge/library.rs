@@ -19,6 +19,30 @@ fn filter_items(items: Vec<MediaItem>, filter: &str) -> Vec<MediaItem> {
     }
 }
 
+fn matches_letter(title: &str, letter: &str) -> bool {
+    if letter.is_empty() {
+        return true;
+    }
+    let Some(first) = title.trim_start().chars().next() else {
+        return false;
+    };
+    if letter == "#" {
+        return !first.is_ascii_alphabetic();
+    }
+    first.to_ascii_uppercase().to_string() == letter
+}
+
+fn rebuild_browse(s: &mut UiState, laptop: &LaptopWindow) {
+    let lib = laptop.global::<Library>();
+    let filter = lib.get_filter();
+    let letter = lib.get_browse_letter();
+    s.lib_browse = filter_items(s.lib_browse_all.clone(), &filter)
+        .into_iter()
+        .filter(|i| matches_letter(&i.title, &letter))
+        .collect();
+    s.lib_browse_cards.set_vec(cards_for(s, &s.lib_browse));
+}
+
 pub(super) fn rebuild(s: &mut UiState, laptop: &LaptopWindow) {
     let lib = laptop.global::<Library>();
     let filter = lib.get_filter();
@@ -32,6 +56,7 @@ pub(super) fn rebuild(s: &mut UiState, laptop: &LaptopWindow) {
     s.lib_continue_cards.set_vec(cards_for(s, &s.lib_continue));
     s.lib_recent_cards.set_vec(cards_for(s, &s.lib_recent));
     s.lib_result_cards.set_vec(cards_for(s, &s.lib_results));
+    rebuild_browse(s, laptop);
     lib.set_results_title(match &s.search {
         Some((q, _)) => format!("RESULTS FOR “{}”", q.to_uppercase()).into(),
         None => "".into(),
@@ -59,6 +84,15 @@ pub fn set_filter(laptop: &LaptopWindow, filter: &str) {
 pub fn set_media_tab(laptop: &LaptopWindow, tab: &str) {
     laptop.global::<Library>().set_media_tab(tab.into());
     STATE.with_borrow_mut(|s| rebuild(s, laptop));
+}
+
+/// Filter Browse All by starting letter (`""`, `"#"`, or `"A"`..`"Z"`).
+pub fn set_browse_letter(laptop: &LaptopWindow, letter: &str) {
+    let lib = laptop.global::<Library>();
+    let next = if lib.get_browse_letter().as_str() == letter { "" } else { letter };
+    lib.set_browse_letter(next.into());
+    lib.set_selected_index(-1);
+    STATE.with_borrow_mut(|s| rebuild_browse(s, laptop));
 }
 
 /// Returns false for an empty query (nothing to send).
@@ -89,11 +123,15 @@ pub fn select(laptop: &LaptopWindow, section: &str, index: usize) {
         let list = match section {
             "continue" => &s.lib_continue,
             "recent" => &s.lib_recent,
+            "added-week" => &s.lib_added_week,
+            "watch-again" => &s.lib_watch_again,
+            "browse" => &s.lib_browse,
             _ => &s.lib_results,
         };
         let Some(item) = list.get(index).cloned() else { return };
         let poster = s.posters.get(&(item.source, item.id.clone())).cloned();
         let lib = laptop.global::<Library>();
+        let show_key = if item.kind == MediaKind::Series { item.id.as_str() } else { "" };
         lib.set_detail(DetailData {
             title: item.title.as_str().into(),
             subtitle: format::item_detail(&item).into(),
@@ -103,6 +141,7 @@ pub fn select(laptop: &LaptopWindow, section: &str, index: usize) {
             poster: poster.unwrap_or_default(),
             progress: item.progress().unwrap_or(0.0),
             can_resume: item.resume_ms.is_some(),
+            show_key: show_key.into(),
         });
         lib.set_detail_open(true);
         s.selected = Some(item);
@@ -121,7 +160,7 @@ pub fn close_detail(laptop: &LaptopWindow) {
     lib.set_selected_index(-1);
 }
 
-pub(super) fn on_shelves(s: &UiState, laptop: &LaptopWindow, shelves: LibraryShelves) {
+pub(super) fn on_shelves(s: &mut UiState, laptop: &LaptopWindow, shelves: LibraryShelves) {
     let lib = laptop.global::<Library>();
     let finish_rows: Vec<FinishSeasonRow> = shelves
         .finish_season
@@ -135,8 +174,12 @@ pub(super) fn on_shelves(s: &UiState, laptop: &LaptopWindow, shelves: LibraryShe
         })
         .collect();
     lib.set_finish_season(ModelRc::new(VecModel::from(finish_rows)));
-    lib.set_added_week(ModelRc::new(VecModel::from(cards_for(s, &s.added_this_week_or_empty(&shelves)))));
-    lib.set_watch_again(ModelRc::new(VecModel::from(cards_for(s, &shelves.watch_again))));
+    s.lib_added_week = s.added_this_week_or_empty(&shelves).to_vec();
+    s.lib_watch_again = shelves.watch_again;
+    s.lib_browse_all = shelves.browse_items;
+    s.lib_added_week_cards.set_vec(cards_for(s, &s.lib_added_week));
+    s.lib_watch_again_cards.set_vec(cards_for(s, &s.lib_watch_again));
+    rebuild_browse(s, laptop);
 
     let popular: Vec<PopularCardData> = shelves
         .popular

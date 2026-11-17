@@ -707,9 +707,22 @@ impl Controller {
         let tautulli = self.tautulli.clone();
         let cache = self.tautulli_cache.clone();
         let events = self.events.clone();
+        let requested = self.posters_requested.clone();
         let days = if popular_days == 7 { 7 } else { 30 };
 
         tokio::spawn(async move {
+            let shelves_key = format!("plex:shelves:{is_tv}:{}:{days}", sort.plex_sort());
+            if let Some(cached_shelves) =
+                cache.as_ref().and_then(|c| c.get::<tvdash_core::models::LibraryShelves>(&shelves_key, Duration::from_secs(1800)))
+            {
+                let source: Arc<dyn MediaSource> = plex;
+                fetch_posters(source.clone(), cached_shelves.added_this_week.clone(), requested.clone(), events.clone());
+                fetch_posters(source.clone(), cached_shelves.watch_again.clone(), requested.clone(), events.clone());
+                fetch_posters(source, cached_shelves.browse_items.clone(), requested, events.clone());
+                let _ = events.send(AppEvent::LibraryShelves(cached_shelves));
+                return;
+            }
+
             let mut shelves = tvdash_core::models::LibraryShelves { is_tv, ..Default::default() };
             let target_type = if is_tv { "show" } else { "movie" };
             let sections = plex.sections().await.unwrap_or_default();
@@ -733,6 +746,11 @@ impl Controller {
                 }
                 shelves.added_this_week = plex.added_since(&sec.key, since_epoch, sort, 6).await.unwrap_or_default();
                 shelves.watch_again = plex.watch_again(&sec.key, is_tv, sort, 6).await.unwrap_or_default();
+                shelves.browse_items = plex.section_items(&sec.key, sort, None, 1000).await.unwrap_or_default();
+                let source: Arc<dyn MediaSource> = plex;
+                fetch_posters(source.clone(), shelves.added_this_week.clone(), requested.clone(), events.clone());
+                fetch_posters(source.clone(), shelves.watch_again.clone(), requested.clone(), events.clone());
+                fetch_posters(source, shelves.browse_items.clone(), requested, events.clone());
             }
 
             let stat_id = if is_tv { "top_tv" } else { "top_movies" };
@@ -751,6 +769,9 @@ impl Controller {
                 shelves.popular = items;
             }
 
+            if let Some(c) = &cache {
+                c.put(&shelves_key, &shelves);
+            }
             let _ = events.send(AppEvent::LibraryShelves(shelves));
         });
     }
@@ -1373,8 +1394,29 @@ impl Controller {
 
     // ── Playback ────────────────────────────────────────────────────
 
-    async fn play(&mut self, item: MediaItem) {
+    async fn play(&mut self, mut item: MediaItem) {
         self.clear_tv().await;
+        if item.kind == tvdash_core::models::MediaKind::Series
+            && let Some(plex) = &self.plex
+        {
+            let ep_key = match plex.show_on_deck(&item.id).await.ok().flatten() {
+                Some(ep) => Some(ep.rating_key),
+                None => match plex.show_seasons(&item.id).await.ok().and_then(|s| s.into_iter().next()) {
+                    Some(season) => plex
+                        .season_episodes(&season.rating_key)
+                        .await
+                        .ok()
+                        .and_then(|eps| eps.into_iter().next())
+                        .map(|ep| ep.rating_key),
+                    None => None,
+                },
+            };
+            if let Some(key) = ep_key
+                && let Ok(Some(resolved)) = plex.item(&key).await
+            {
+                item = resolved;
+            }
+        }
         let Some(source) = self.source_for(item.source) else {
             self.toast(format!("{} isn't connected", item.source.label()));
             return;

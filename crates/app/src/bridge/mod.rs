@@ -36,7 +36,8 @@ use tvdash_core::{
 pub use accounts::sync_setup;
 pub use home::{row, set_cw_filter, up_next};
 pub use library::{
-    clear_search, close_detail, reorder_collection, select, selected, set_filter, set_media_tab, start_search,
+    clear_search, close_detail, reorder_collection, select, selected, set_browse_letter, set_filter, set_media_tab,
+    start_search,
 };
 
 use crate::{
@@ -97,6 +98,10 @@ pub struct UiState {
     lib_continue: Vec<MediaItem>,
     lib_recent: Vec<MediaItem>,
     lib_results: Vec<MediaItem>,
+    lib_added_week: Vec<MediaItem>,
+    lib_watch_again: Vec<MediaItem>,
+    lib_browse_all: Vec<MediaItem>,
+    lib_browse: Vec<MediaItem>,
     selected: Option<MediaItem>,
     // Models
     cards: Rc<VecModel<PosterCardData>>,
@@ -106,6 +111,9 @@ pub struct UiState {
     lib_continue_cards: Rc<VecModel<PosterCardData>>,
     lib_recent_cards: Rc<VecModel<PosterCardData>>,
     lib_result_cards: Rc<VecModel<PosterCardData>>,
+    lib_added_week_cards: Rc<VecModel<PosterCardData>>,
+    lib_watch_again_cards: Rc<VecModel<PosterCardData>>,
+    lib_browse_cards: Rc<VecModel<PosterCardData>>,
     account_rows: Rc<VecModel<AccountRow>>,
     site_rows: Rc<VecModel<SiteRow>>,
     toast_timer: Option<Timer>,
@@ -156,6 +164,9 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         lib.set_continue_watching(ModelRc::from(s.lib_continue_cards.clone()));
         lib.set_recently_added(ModelRc::from(s.lib_recent_cards.clone()));
         lib.set_results(ModelRc::from(s.lib_result_cards.clone()));
+        lib.set_added_week(ModelRc::from(s.lib_added_week_cards.clone()));
+        lib.set_watch_again(ModelRc::from(s.lib_watch_again_cards.clone()));
+        lib.set_browse_items(ModelRc::from(s.lib_browse_cards.clone()));
         let acc = laptop.global::<Accounts>();
         acc.set_accounts(ModelRc::from(s.account_rows.clone()));
         acc.set_sites(ModelRc::from(s.site_rows.clone()));

@@ -226,6 +226,13 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
         }
     });
 
+    let weak = laptop.as_weak();
+    lib.on_set_browse_letter(move |letter| {
+        if let Some(l) = weak.upgrade() {
+            bridge::set_browse_letter(&l, &letter);
+        }
+    });
+
     let (weak, s) = (laptop.as_weak(), send.clone());
     lib.on_open_show(move |key| {
         if let Some(l) = weak.upgrade() {

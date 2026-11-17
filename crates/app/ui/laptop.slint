@@ -1,9 +1,9 @@
 import { Theme } from "theme.slint";
 import { HomePage } from "home.slint";
-import { LibraryPage } from "library.slint";
+import { ArtworkPicker, LibraryPage } from "library.slint";
 import { SettingsPage } from "settings.slint";
 import { SetupPage } from "setup.slint";
-import { Dash, Nav, SiteEditor } from "state.slint";
+import { Artwork, Dash, Nav, SiteEditor } from "state.slint";
 import { SiteEditorDialog } from "site_editor.slint";
 import { WatchPage } from "watch.slint";
 import { TvShell } from "tv/shell.slint";
@@ -51,6 +51,8 @@ export component LaptopWindow inherits Window {
     if Nav.layout == "tv": TvShell { width: root.width; height: root.height; }
 
     if SiteEditor.open: SiteEditorDialog { width: root.width; height: root.height; }
+
+    if Artwork.open: ArtworkPicker { width: root.width; height: root.height; }
 
     if Nav.layout == "dual" && Dash.screensaver-open: ScreensaverOverlay { width: root.width; height: root.height; }
 

@@ -367,6 +367,7 @@ pub struct LibraryShelves {
     pub continue_watching: Vec<MediaItem>,
     pub added_this_week: Vec<MediaItem>,
     pub watch_again: Vec<MediaItem>,
+    pub browse_items: Vec<MediaItem>,
     pub popular: Vec<PopularItem>,
     pub genres: Vec<GenreTile>,
     pub collections: Vec<CollectionInfo>,

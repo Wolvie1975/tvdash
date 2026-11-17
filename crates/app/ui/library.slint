@@ -1,5 +1,5 @@
 import { Theme } from "theme.slint";
-import { ActionButton, Card, PageHeader, PosterRow, ProgressBar, SectionLabel, TextField } from "components.slint";
+import { ActionButton, Card, PageHeader, PosterCard, PosterRow, ProgressBar, SectionLabel, TextField } from "components.slint";
 import { Artwork, Dash, Library, Nav, Server } from "state.slint";
 
 component DetailPanel inherits Card {
@@ -60,6 +60,13 @@ component DetailPanel inherits Card {
             text: "Play from the start";
             clicked => { Library.play-detail(true); }
         }
+        if Library.detail.show-key != "": ActionButton {
+            text: "Episodes & seasons ›";
+            clicked => {
+                Library.open-show(Library.detail.show-key);
+                Library.close-detail();
+            }
+        }
         if Library.detail.badge == "PLEX": ActionButton {
             text: Library.metadata-refreshing ? "Refreshing…" : "Refresh metadata";
             enabled: !Library.metadata-refreshing;
@@ -77,7 +84,7 @@ component DetailPanel inherits Card {
     }
 }
 
-component ArtworkPicker inherits Rectangle {
+export component ArtworkPicker inherits Rectangle {
     background: #000000AA;
     VerticalLayout {
         alignment: center;
@@ -228,9 +235,43 @@ export component LibraryPage inherits VerticalLayout {
         }
     }
 
+    // Search + source filter (always available on Library)
+    HorizontalLayout {
+        spacing: 12px;
+        if Library.browse-all || Library.results-title != "": ActionButton {
+            text: "All";
+            primary: Library.filter == "all";
+            clicked => { Library.set-filter("all"); }
+        }
+        if Library.browse-all || Library.results-title != "": ActionButton {
+            text: "Plex";
+            primary: Library.filter == "plex";
+            clicked => { Library.set-filter("plex"); }
+        }
+        if Library.browse-all || Library.results-title != "": Rectangle { width: 12px; }
+        search := TextField {
+            placeholder: "Search movies and shows";
+            text <=> Library.query;
+            accepted(q) => { Library.search(q); }
+        }
+        ActionButton { text: "Search"; clicked => { Library.search(Library.query); } }
+        if Library.results-title != "": ActionButton {
+            text: "Clear";
+            clicked => {
+                Library.query = "";
+                Library.clear-search();
+            }
+        }
+    }
+
     // Smart shelves (Library C) when not browsing all or searching
-    if !Library.browse-all && Library.results-title == "": VerticalLayout {
+    if !Library.browse-all && Library.results-title == "": HorizontalLayout {
         spacing: Theme.gap;
+        vertical-stretch: 1;
+
+        VerticalLayout {
+            spacing: Theme.gap;
+            horizontal-stretch: 1;
 
         // Row 1: Watching now (5 cols) | Big box (7 cols)
         HorizontalLayout {
@@ -426,34 +467,9 @@ export component LibraryPage inherits VerticalLayout {
                 }
             }
         }
-    }
-
-    // Filter + search (shown in Browse all or when searching)
-    if Library.browse-all || Library.results-title != "": HorizontalLayout {
-        spacing: 12px;
-        ActionButton { text: "All"; primary: Library.filter == "all"; clicked => { Library.set-filter("all"); } }
-        ActionButton { text: "Plex"; primary: Library.filter == "plex"; clicked => { Library.set-filter("plex"); } }
-        Rectangle { width: 24px; }
-        search := TextField {
-            placeholder: "Search movies and shows";
-            text <=> Library.query;
-            accepted(q) => { Library.search(q); }
         }
-        ActionButton { text: "Search"; clicked => { Library.search(Library.query); } }
-        if Library.results-title != "": ActionButton {
-            text: "Clear";
-            clicked => {
-                Library.query = "";
-                Library.clear-search();
-            }
 
-            if Artwork.open: ArtworkPicker {
-                x: 0;
-                y: 0;
-                width: parent.width;
-                height: parent.height;
-            }
-        }
+        if Library.detail-open: DetailPanel { }
     }
 
     if Library.browse-all || Library.results-title != "": HorizontalLayout {
@@ -471,17 +487,63 @@ export component LibraryPage inherits VerticalLayout {
                 cards: Library.results;
                 empty-text: Library.searching ? "Searching…" : "No matches.";
             }
-            if Library.results-title == "": Section {
-                title: "CONTINUE WATCHING";
-                id: "continue";
-                cards: Library.continue-watching;
-                empty-text: "Nothing in progress.";
-            }
-            if Library.results-title == "": Section {
-                title: "RECENTLY ADDED";
-                id: "recent";
-                cards: Library.recently-added;
-                empty-text: "Nothing new yet.";
+            if Library.results-title == "": VerticalLayout {
+                spacing: 14px;
+                property <length> avail-width: max(600px, root.width - 80px - (Library.detail-open ? (400px + Theme.gap) : 0px));
+                property <int> browse-cols: max(4, floor((avail-width + 16px) / 186px));
+                property <length> card-width: (avail-width - 16px * (browse-cols - 1)) / browse-cols;
+                SectionLabel { text: Library.media-tab == "tv" ? "ALL TV SERIES" : "ALL MOVIES"; }
+                GridLayout {
+                    spacing: 8px;
+                    for letter[idx] in [
+                        "All", "#", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
+                        "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
+                    ]: Rectangle {
+                        row: idx / 14;
+                        col: Math.mod(idx, 14);
+                        height: 44px;
+                        border-radius: 10px;
+                        property <string> key: letter == "All" ? "" : letter;
+                        property <bool> active: Library.browse-letter == key;
+                        background: active ? Theme.accent : Theme.surface-raised;
+                        border-width: 1px;
+                        border-color: active ? Theme.accent : Theme.border;
+                        Text {
+                            text: letter;
+                            font-size: 16px;
+                            font-weight: 600;
+                            color: active ? Theme.on-accent : Theme.text-primary;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Library.set-browse-letter(key); }
+                        }
+                    }
+                }
+                if Library.browse-items.length == 0: Text {
+                    text: Library.browse-letter == ""
+                        ? "No items in this library."
+                        : "No items starting with “" + Library.browse-letter + "”.";
+                    font-size: Theme.body-size;
+                    color: Theme.text-muted;
+                }
+                if Library.browse-items.length > 0: GridLayout {
+                    spacing: 16px;
+                    for item[index] in Library.browse-items: PosterCard {
+                        row: index / browse-cols;
+                        col: Math.mod(index, browse-cols);
+                        art-width: card-width;
+                        data: item;
+                        selected: Library.selected-section == "browse" && Library.selected-index == index;
+                        clicked => {
+                            Library.selected-section = "browse";
+                            Library.selected-index = index;
+                            Library.select("browse", index);
+                        }
+                    }
+                }
             }
         }
 

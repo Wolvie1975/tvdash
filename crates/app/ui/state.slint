@@ -133,6 +133,7 @@ export struct DetailData {
     has-poster: bool,
     progress: float,
     can-resume: bool,
+    show-key: string,
 }
 
 export struct PopularCardData {
@@ -203,6 +204,7 @@ export global Library {
     in-out property <string> sort: "recent";  // "recent" | "title_asc" | "title_desc"
     in-out property <int> popular-days: 30;   // 7 | 30
     in-out property <bool> browse-all: false;
+    in-out property <string> browse-letter: ""; // "" (all) | "#" | "A".."Z"
     in-out property <string> query;
     in property <bool> searching;
     // Non-empty while showing search results ("Results for “x”").
@@ -213,6 +215,7 @@ export global Library {
     in property <[FinishSeasonRow]> finish-season;
     in property <[PosterCardData]> added-week;
     in property <[PosterCardData]> watch-again;
+    in property <[PosterCardData]> browse-items;
     in property <[PopularCardData]> popular;
     in property <[GenreTileData]> genres;
     in property <[CollectionCardData]> collections;
@@ -227,6 +230,7 @@ export global Library {
     callback set-media-tab(string);
     callback set-sort(string);
     callback set-popular-days(int);
+    callback set-browse-letter(string);
     callback open-show(string);
     callback open-collection(string);
     callback play-key(string, bool);

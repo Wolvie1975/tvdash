@@ -94,6 +94,9 @@ pub(super) fn on_poster(
         (&s.lib_continue, &s.lib_continue_cards),
         (&s.lib_recent, &s.lib_recent_cards),
         (&s.lib_results, &s.lib_result_cards),
+        (&s.lib_added_week, &s.lib_added_week_cards),
+        (&s.lib_watch_again, &s.lib_watch_again_cards),
+        (&s.lib_browse, &s.lib_browse_cards),
     ];
     for (items, model) in models {
         for (i, item) in items.iter().enumerate() {

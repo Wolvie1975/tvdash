@@ -253,6 +253,7 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
                     has_poster: true,
                     progress: 0.8,
                     can_resume: true,
+                    show_key: "".into(),
                 });
             }
         }
