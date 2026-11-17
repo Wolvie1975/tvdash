@@ -5,7 +5,7 @@
 import { Theme, UiTheme } from "../theme.slint";
 import { Icon } from "../icons.slint";
 import { Clock, PosterCardData, ProgressBar } from "../components.slint";
-import { Accounts, Dash, Display, Library, Server, SiteTileData, TvUi } from "../state.slint";
+import { Accounts, Dash, Display, Library, Server, ShowPageState, SiteTileData, TvUi, Watch, WatchCard } from "../state.slint";
 
 // 10-foot sizes: body ≥ 32 px, safe area 96 / 54 px.
 global Ten {
@@ -572,28 +572,6 @@ component ServicesScreen inherits Rectangle {
     }
 }
 
-// ── Library ──────────────────────────────────────────────────────────
-
-component LibraryScreen inherits VerticalLayout {
-    spacing: 30px;
-    Text { text: "Library"; font-size: Ten.title; color: Theme.text-primary; }
-    VerticalLayout {
-        spacing: 14px;
-        RowLabel { text: "CONTINUE WATCHING"; }
-        if Library.continue-watching.length == 0: Text { text: "Nothing in progress."; font-size: Ten.body; color: Theme.text-secondary; }
-        PosterStrip { id: "lib-continue"; cards: Library.continue-watching; }
-    }
-    VerticalLayout {
-        spacing: 14px;
-        RowLabel { text: "RECENTLY ADDED"; }
-        PosterStrip { id: "lib-recent"; cards: Library.recently-added; }
-    }
-    Text { text: "OK plays from where you left off."; font-size: 24px; color: Theme.text-muted; }
-    Rectangle { vertical-stretch: 1; }
-}
-
-// ── Settings ─────────────────────────────────────────────────────────
-
 component Chip inherits Rectangle {
     in property <string> text;
     in property <bool> on;
@@ -612,11 +590,498 @@ component Chip inherits Rectangle {
     Ring { on: root.focused; height: parent.height + 20px; width: parent.width + 20px; }
 }
 
+// ── Library ──────────────────────────────────────────────────────────
+
+component ShowDetailOverlay inherits Rectangle {
+    background: Theme.bg;
+    VerticalLayout {
+        spacing: 22px;
+        HorizontalLayout {
+            spacing: 20px;
+            alignment: start;
+            TenButton {
+                compact: true;
+                primary: ShowPageState.up-next-key != "";
+                text: ShowPageState.can-resume ? "Resume " + ShowPageState.up-next : (ShowPageState.up-next != "" ? "Play " + ShowPageState.up-next : "Play");
+                focused: TvUi.focus == "show-actions" && TvUi.col == 0;
+                clicked => { TvUi.click("show-actions", 0); }
+            }
+            TenButton {
+                compact: true;
+                text: "Shuffle";
+                focused: TvUi.focus == "show-actions" && TvUi.col == 1;
+                clicked => { TvUi.click("show-actions", 1); }
+            }
+            TenButton {
+                compact: true;
+                text: "Back";
+                focused: TvUi.focus == "show-actions" && TvUi.col == 2;
+                clicked => { TvUi.click("show-actions", 2); }
+            }
+        }
+        Text { text: ShowPageState.title; font-size: Ten.title; color: Theme.text-primary; overflow: elide; }
+        if ShowPageState.meta != "": Text { text: ShowPageState.meta; font-size: 24px; color: Theme.text-secondary; }
+        if ShowPageState.summary != "": Text {
+            text: ShowPageState.summary;
+            font-size: 22px;
+            color: Theme.text-secondary;
+            wrap: word-wrap;
+            max-height: 90px;
+            overflow: elide;
+        }
+        if ShowPageState.seasons.length > 0: HorizontalLayout {
+            spacing: 14px;
+            alignment: start;
+            for s[i] in ShowPageState.seasons: Chip {
+                text: s.title;
+                on: ShowPageState.selected-season == s.rating-key;
+                focused: TvUi.focus == "show-seasons" && TvUi.col == i;
+                clicked => { TvUi.click("show-seasons", i); }
+            }
+        }
+        Flickable {
+            vertical-stretch: 1;
+            interactive: true;
+            property <length> row-h: 84px;
+            content-height: ShowPageState.episodes.length * (self.row-h + 10px) + 20px;
+            content-y: TvUi.focus == "show-episodes" ? -max(0px, TvUi.col * (self.row-h + 10px) - (self.height - self.row-h - 20px)) : 0px;
+            animate content-y { duration: 180ms; easing: ease-out; }
+            for ep[i] in ShowPageState.episodes: Rectangle {
+                x: 10px;
+                y: 10px + i * (parent.row-h + 10px);
+                width: parent.width - 20px;
+                height: parent.row-h;
+                border-radius: 16px;
+                background: Theme.surface-raised;
+                border-width: 1px;
+                border-color: Theme.border;
+                HorizontalLayout {
+                    padding-left: 22px;
+                    padding-right: 22px;
+                    spacing: 18px;
+                    Text { text: ep.num; font-size: 24px; font-weight: 600; color: Theme.text-secondary; width: 64px; vertical-alignment: center; }
+                    Text { text: ep.title; font-size: 26px; color: Theme.text-primary; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
+                    Text { text: ep.watched ? "Watched" : ep.meta; font-size: 22px; color: Theme.text-muted; vertical-alignment: center; }
+                }
+                if ep.progress > 0: Rectangle {
+                    y: parent.height - 6px;
+                    height: 6px;
+                    width: parent.width;
+                    background: Theme.border;
+                    Rectangle { x: 0; width: parent.width * ep.progress; background: Dash.tint.accent; }
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { TvUi.click("show-episodes", i); }
+                }
+                Ring { on: TvUi.focus == "show-episodes" && TvUi.col == i; corner: 16px; height: parent.height + 16px; width: parent.width + 16px; x: -8px; y: -8px; }
+            }
+        }
+    }
+}
+
+component LibraryScreen inherits Rectangle {
+    if !ShowPageState.open: VerticalLayout {
+        spacing: 24px;
+        HorizontalLayout {
+            spacing: 24px;
+            Text { text: "Library"; font-size: Ten.title; color: Theme.text-primary; vertical-alignment: center; }
+            Rectangle { horizontal-stretch: 1; }
+            HorizontalLayout {
+                spacing: 14px;
+                Chip {
+                    text: "TV Shows";
+                    on: !Library.browse-all && Library.media-tab == "tv";
+                    focused: TvUi.focus == "lib-tabs" && TvUi.col == 0;
+                    clicked => { TvUi.click("lib-tabs", 0); }
+                }
+                Chip {
+                    text: "Movies";
+                    on: !Library.browse-all && Library.media-tab == "movies";
+                    focused: TvUi.focus == "lib-tabs" && TvUi.col == 1;
+                    clicked => { TvUi.click("lib-tabs", 1); }
+                }
+                Chip {
+                    text: "Browse All";
+                    on: Library.browse-all;
+                    focused: TvUi.focus == "lib-tabs" && TvUi.col == 2;
+                    clicked => { TvUi.click("lib-tabs", 2); }
+                }
+            }
+        }
+        if Library.browse-all: VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 18px;
+            property <[string]> letters: [
+                "All", "#", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
+                "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+            ];
+            Rectangle {
+                height: 116px;
+                property <length> btn-gap: 10px;
+                property <length> btn-w: (self.width - 13 * self.btn-gap) / 14;
+                for letter[i] in parent.letters: Rectangle {
+                    property <string> key: letter == "All" ? "" : letter;
+                    property <bool> on: Library.browse-letter == self.key;
+                    x: Math.mod(i, 14) * (parent.btn-w + parent.btn-gap);
+                    y: Math.floor(i / 14) * 58px;
+                    width: parent.btn-w;
+                    height: 50px;
+                    border-radius: 12px;
+                    background: self.on ? Theme.text-primary : Theme.surface-raised;
+                    border-width: 1px;
+                    border-color: Theme.border;
+                    Text { text: letter; font-size: 22px; font-weight: 600; color: parent.on ? Theme.bg : Theme.text-primary; }
+                    TouchArea { mouse-cursor: pointer; clicked => { TvUi.click("lib-letters", i); } }
+                    Ring { on: TvUi.focus == "lib-letters" && TvUi.col == i; corner: 12px; height: parent.height + 12px; width: parent.width + 12px; x: -6px; y: -6px; }
+                }
+            }
+            if Library.browse-items.length == 0: Text {
+                text: Library.browse-letter == "" ? "No items in this library." : "No items starting with “" + Library.browse-letter + "”.";
+                font-size: Ten.body;
+                color: Theme.text-muted;
+            }
+            if Library.browse-items.length > 0: Flickable {
+                property <int> columns: 8;
+                property <length> tile-w: 170px;
+                property <length> gap: max(20px, (self.width - self.columns * self.tile-w - 20px) / (self.columns - 1));
+                property <length> tile-h: 300px;
+                property <int> focus-row: TvUi.focus == "lib-browse" ? Math.floor(TvUi.col / self.columns) : 0;
+                vertical-stretch: 1;
+                interactive: true;
+                content-y: -max(0px, self.focus-row * (self.tile-h + self.gap) - (self.height - self.tile-h - 20px));
+                animate content-y { duration: 200ms; easing: ease-out; }
+                content-height: Math.ceil(Library.browse-items.length / self.columns) * (self.tile-h + self.gap) + 20px;
+                for c[i] in Library.browse-items: Poster {
+                    x: 10px + Math.mod(i, parent.columns) * (parent.tile-w + parent.gap);
+                    y: 10px + Math.floor(i / parent.columns) * (parent.tile-h + parent.gap);
+                    data: c;
+                    focused: TvUi.focus == "lib-browse" && TvUi.col == i;
+                    clicked => { TvUi.click("lib-browse", i); }
+                }
+            }
+        }
+        if !Library.browse-all: Flickable {
+            vertical-stretch: 1;
+            interactive: true;
+            content-height: shelves.preferred-height + 20px;
+            content-y: TvUi.focus == "lib-again" ? -max(0px, shelves.preferred-height - self.height + 20px)
+                : (TvUi.focus == "lib-week" || TvUi.focus == "lib-finish") ? -min(max(0px, shelves.preferred-height - self.height), 340px)
+                : 0px;
+            animate content-y { duration: 220ms; easing: ease-out; }
+            shelves := VerticalLayout {
+                width: parent.width;
+                spacing: 24px;
+                if Library.continue-watching.length > 0: VerticalLayout {
+                    spacing: 12px;
+                    RowLabel { text: "CONTINUE WATCHING"; }
+                    PosterStrip { id: "lib-continue"; cards: Library.continue-watching; }
+                }
+                if Library.recently-added.length > 0: VerticalLayout {
+                    spacing: 12px;
+                    RowLabel { text: "RECENTLY ADDED"; }
+                    PosterStrip { id: "lib-recent"; cards: Library.recently-added; }
+                }
+                if Library.finish-season.length > 0: VerticalLayout {
+                    spacing: 12px;
+                    RowLabel { text: "FINISH THE SEASON"; }
+                    HorizontalLayout {
+                        spacing: 20px;
+                        alignment: start;
+                        for f[i] in Library.finish-season: Rectangle {
+                            width: 340px;
+                            height: 112px;
+                            border-radius: 16px;
+                            background: Theme.surface-raised;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            HorizontalLayout {
+                                padding: 12px;
+                                spacing: 14px;
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: 4px;
+                                    horizontal-stretch: 1;
+                                    Text { text: f.title; font-size: 24px; font-weight: 600; color: Theme.text-primary; overflow: elide; }
+                                    Text { text: f.season + " · " + f.watched + "/" + f.total; font-size: 20px; color: Theme.text-secondary; overflow: elide; }
+                                }
+                            }
+                            TouchArea { mouse-cursor: pointer; clicked => { TvUi.click("lib-finish", i); } }
+                            Ring { on: TvUi.focus == "lib-finish" && TvUi.col == i; corner: 16px; height: parent.height + 16px; width: parent.width + 16px; x: -8px; y: -8px; }
+                        }
+                    }
+                }
+                if Library.added-week.length > 0: VerticalLayout {
+                    spacing: 12px;
+                    RowLabel { text: "ADDED THIS WEEK"; }
+                    PosterStrip { id: "lib-week"; cards: Library.added-week; }
+                }
+                if Library.watch-again.length > 0: VerticalLayout {
+                    spacing: 12px;
+                    RowLabel { text: "WATCH AGAIN"; }
+                    PosterStrip { id: "lib-again"; cards: Library.watch-again; }
+                }
+            }
+        }
+    }
+    if ShowPageState.open: ShowDetailOverlay { width: parent.width; height: parent.height; }
+}
+
+// ── Search (Where to watch) ──────────────────────────────────────────
+
+component WatchPoster inherits Rectangle {
+    in property <WatchCard> data;
+    in property <bool> focused;
+    callback clicked();
+    width: 180px;
+    height: col.preferred-height;
+    col := VerticalLayout {
+        spacing: 8px;
+        Rectangle {
+            height: 260px;
+            border-radius: 14px;
+            clip: true;
+            background: Theme.surface-raised;
+            if root.data.has-poster: Image { width: parent.width; height: parent.height; source: root.data.poster; image-fit: cover; }
+            if !root.data.has-poster: Text {
+                text: root.data.title;
+                width: parent.width - 20px;
+                font-size: 22px;
+                color: Theme.text-primary;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+        }
+        Text { text: root.data.title; font-size: 22px; font-weight: 600; color: Theme.text-primary; overflow: elide; }
+        Text { text: root.data.line; font-size: 18px; color: Theme.text-secondary; overflow: elide; }
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    Ring { on: root.focused; height: 260px + 20px; width: parent.width + 20px; }
+}
+
+component WatchStrip inherits Flickable {
+    in property <[WatchCard]> cards;
+    in property <string> id;
+    property <bool> active: TvUi.focus == root.id;
+    property <length> step: 180px + 24px;
+    height: 340px;
+    interactive: true;
+    content-width: row.preferred-width + 20px;
+    content-x: root.active ? -max(0px, min(self.content-width - self.width, TvUi.col * root.step - (self.width - root.step) / 2)) : 0px;
+    animate content-x { duration: 200ms; easing: ease-out; }
+    row := HorizontalLayout {
+        x: 10px;
+        y: 10px;
+        spacing: 24px;
+        alignment: start;
+        for c[i] in root.cards: WatchPoster {
+            data: c;
+            focused: root.active && TvUi.col == i;
+            clicked => { TvUi.click(root.id, i); }
+        }
+    }
+}
+
+component WatchDetailOverlay inherits Rectangle {
+    background: Theme.bg;
+    HorizontalLayout {
+        spacing: 40px;
+        Rectangle {
+            width: 300px;
+            height: 450px;
+            border-radius: 20px;
+            clip: true;
+            background: Theme.surface-raised;
+            if Watch.detail.has-poster: Image { width: parent.width; height: parent.height; source: Watch.detail.poster; image-fit: cover; }
+            if !Watch.detail.has-poster: Text { text: Watch.detail.title; width: parent.width - 24px; font-size: 28px; color: Theme.text-primary; horizontal-alignment: center; wrap: word-wrap; }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 18px;
+            Text { text: Watch.detail.title; font-size: Ten.title; color: Theme.text-primary; wrap: word-wrap; }
+            Text { text: Watch.detail.meta + " · " + Watch.detail.line; font-size: 26px; color: Theme.text-secondary; }
+            if Watch.detail-overview != "": Text {
+                text: Watch.detail-overview;
+                font-size: 24px;
+                color: Theme.text-secondary;
+                wrap: word-wrap;
+                max-height: 180px;
+                overflow: elide;
+            }
+            if Watch.detail-yours.length > 0: VerticalLayout {
+                spacing: 6px;
+                RowLabel { text: "ON YOUR SERVICES"; }
+                for s in Watch.detail-yours: Text { text: "• " + s; font-size: 24px; color: Theme.text-primary; }
+            }
+            if Watch.detail-elsewhere.length > 0: VerticalLayout {
+                spacing: 6px;
+                RowLabel { text: "ELSEWHERE"; }
+                for s in Watch.detail-elsewhere: Text { text: "• " + s; font-size: 22px; color: Theme.text-secondary; }
+            }
+            Rectangle { vertical-stretch: 1; }
+            HorizontalLayout {
+                spacing: 16px;
+                alignment: start;
+                for a[i] in Watch.detail-actions: TenButton {
+                    compact: true;
+                    primary: a.primary;
+                    text: a.label;
+                    focused: TvUi.focus == "watch-detail" && TvUi.col == i;
+                    clicked => { TvUi.click("watch-detail", i); }
+                }
+                TenButton {
+                    compact: true;
+                    text: "Back";
+                    focused: TvUi.focus == "watch-detail" && TvUi.col == Watch.detail-actions.length;
+                    clicked => { TvUi.click("watch-detail", Watch.detail-actions.length); }
+                }
+            }
+        }
+    }
+}
+
+component SearchScreen inherits Rectangle {
+    property <[string]> kbd-keys: [
+        "A", "B", "C", "D", "E", "F",
+        "G", "H", "I", "J", "K", "L",
+        "M", "N", "O", "P", "Q", "R",
+        "S", "T", "U", "V", "W", "X",
+        "Y", "Z", "0", "1", "2", "3",
+        "4", "5", "6", "7", "8", "9",
+    ];
+    if !Watch.detail-open: VerticalLayout {
+        spacing: 24px;
+        HorizontalLayout {
+            spacing: 24px;
+            Text { text: "Search"; font-size: Ten.title; color: Theme.text-primary; vertical-alignment: center; }
+            Rectangle {
+                horizontal-stretch: 1;
+                height: 68px;
+                border-radius: 16px;
+                background: Theme.surface-raised;
+                border-width: 1px;
+                border-color: Theme.border;
+                HorizontalLayout {
+                    padding-left: 24px;
+                    padding-right: 24px;
+                    Text {
+                        text: Watch.query != "" ? Watch.query : "Type or use the keys below…";
+                        font-size: 28px;
+                        color: Watch.query != "" ? Theme.text-primary : Theme.text-muted;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
+        HorizontalLayout {
+            vertical-stretch: 1;
+            spacing: 36px;
+            // Left: 6x6 on-screen keyboard + action bar
+            VerticalLayout {
+                width: 440px;
+                spacing: 18px;
+                Rectangle {
+                    width: 440px;
+                    height: 410px;
+                    for k[i] in root.kbd-keys: Rectangle {
+                        x: Math.mod(i, 6) * 74px;
+                        y: Math.floor(i / 6) * 68px;
+                        width: 64px;
+                        height: 58px;
+                        border-radius: 12px;
+                        background: Theme.surface-raised;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        Text { text: k; font-size: 26px; font-weight: 600; color: Theme.text-primary; }
+                        TouchArea { mouse-cursor: pointer; clicked => { TvUi.click("search-kbd", i); } }
+                        Ring { on: TvUi.focus == "search-kbd" && TvUi.col == i; corner: 12px; height: parent.height + 14px; width: parent.width + 14px; x: -7px; y: -7px; }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    for act[i] in [
+                        { label: "Space", on: false },
+                        { label: "⌫", on: false },
+                        { label: "Clear", on: false },
+                        { label: "Only mine", on: Watch.only-now },
+                        { label: "Go", on: true },
+                    ]: Rectangle {
+                        height: 58px;
+                        horizontal-stretch: 1;
+                        border-radius: 12px;
+                        background: act.on ? Theme.text-primary : Theme.surface-raised;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        Text { text: act.label; font-size: 20px; font-weight: 600; color: act.on ? Theme.bg : Theme.text-primary; }
+                        TouchArea { mouse-cursor: pointer; clicked => { TvUi.click("search-actions", i); } }
+                        Ring { on: TvUi.focus == "search-actions" && TvUi.col == i; corner: 12px; height: parent.height + 14px; width: parent.width + 14px; x: -7px; y: -7px; }
+                    }
+                }
+                Rectangle { vertical-stretch: 1; }
+            }
+            // Right: Where to watch results
+            Flickable {
+                horizontal-stretch: 1;
+                interactive: true;
+                content-height: results-col.preferred-height + 20px;
+                content-y: (TvUi.focus == "watch-extra" || TvUi.focus == "watch-none" || TvUi.focus == "watch-check")
+                    ? -max(0px, min(results-col.preferred-height - self.height, 360px))
+                    : 0px;
+                animate content-y { duration: 200ms; easing: ease-out; }
+                results-col := VerticalLayout {
+                    width: parent.width;
+                    spacing: 20px;
+                    if Watch.searching: Text { text: "Searching…"; font-size: Ten.body; color: Theme.text-secondary; }
+                    if !Watch.searching && Watch.message != "": Text { text: Watch.message; font-size: Ten.body; color: Theme.text-secondary; wrap: word-wrap; }
+                    if !Watch.searching && Watch.query == "" && Watch.message == "": Text {
+                        text: "Search Plex, Jellyfin, and streaming services.";
+                        font-size: Ten.body;
+                        color: Theme.text-muted;
+                        wrap: word-wrap;
+                    }
+                    if Watch.library.length > 0: VerticalLayout {
+                        spacing: 10px;
+                        RowLabel { text: "IN YOUR LIBRARY"; }
+                        WatchStrip { id: "watch-lib"; cards: Watch.library; }
+                    }
+                    if Watch.included.length > 0: VerticalLayout {
+                        spacing: 10px;
+                        RowLabel { text: "ON YOUR SERVICES"; }
+                        WatchStrip { id: "watch-inc"; cards: Watch.included; }
+                    }
+                    if !Watch.only-now && Watch.extra.length > 0: VerticalLayout {
+                        spacing: 10px;
+                        RowLabel { text: "COSTS EXTRA"; }
+                        WatchStrip { id: "watch-extra"; cards: Watch.extra; }
+                    }
+                    if !Watch.only-now && Watch.none.length > 0: VerticalLayout {
+                        spacing: 10px;
+                        RowLabel { text: "NOT STREAMING"; }
+                        WatchStrip { id: "watch-none"; cards: Watch.none; }
+                    }
+                    if Watch.checking.length > 0: VerticalLayout {
+                        spacing: 10px;
+                        RowLabel { text: "CHECKING…"; }
+                        WatchStrip { id: "watch-check"; cards: Watch.checking; }
+                    }
+                }
+            }
+        }
+    }
+    if Watch.detail-open: WatchDetailOverlay { width: parent.width; height: parent.height; }
+}
+
+// ── Settings ─────────────────────────────────────────────────────────
+
 component SettingRow inherits HorizontalLayout {
     in property <string> label;
     spacing: 24px;
     alignment: start;
-    Text { text: root.label; font-size: Ten.body; color: Theme.text-secondary; width: 300px; vertical-alignment: center; }
+    Text { text: root.label; font-size: Ten.body; color: Theme.text-secondary; width: 220px; vertical-alignment: center; }
     @children
 }
 
@@ -680,78 +1145,119 @@ component SettingsScreen inherits VerticalLayout {
         }
     }
     function f(id: string, i: int) -> bool { return TvUi.focus == id && TvUi.col == i; }
-    Text { text: "Settings"; font-size: Ten.title; color: Theme.text-primary; }
-    SettingRow {
-        label: "Layout";
-        Chip { text: "Two screens"; on: !TvUi.layout-tv; focused: f("set-layout", 0); clicked => { TvUi.click("set-layout", 0); } }
-        Chip { text: "TV only"; on: TvUi.layout-tv; focused: f("set-layout", 1); clicked => { TvUi.click("set-layout", 1); } }
-        Text { text: "Two screens moves the dashboard back to the laptop."; font-size: 24px; color: Theme.text-muted; vertical-alignment: center; }
-    }
-    SettingRow {
-        label: "Theme";
-        Chip { text: "Dark"; on: Theme.mode == UiTheme.dark; focused: f("set-theme", 0); clicked => { TvUi.click("set-theme", 0); } }
-        Chip { text: "Stone"; on: Theme.mode == UiTheme.stone; focused: f("set-theme", 1); clicked => { TvUi.click("set-theme", 1); } }
-        Chip { text: "Mist"; on: Theme.mode == UiTheme.mist; focused: f("set-theme", 2); clicked => { TvUi.click("set-theme", 2); } }
-    }
-    SettingRow {
-        label: "Temperature";
-        Chip { text: "°F"; on: !Display.celsius; focused: f("set-units", 0); clicked => { TvUi.click("set-units", 0); } }
-        Chip { text: "°C"; on: Display.celsius; focused: f("set-units", 1); clicked => { TvUi.click("set-units", 1); } }
-    }
-    SettingRow {
-        label: "Clock";
-        Chip { text: "24-hour"; on: !Display.h12; focused: f("set-clock", 0); clicked => { TvUi.click("set-clock", 0); } }
-        Chip { text: "12-hour"; on: Display.h12; focused: f("set-clock", 1); clicked => { TvUi.click("set-clock", 1); } }
-    }
-    SettingRow {
-        label: "Accounts";
-        for a[i] in Accounts.accounts: Chip {
-            text: a.name + " · " + (a.primary != "" ? a.primary : a.secondary != "" ? a.secondary : a.status);
-            focused: f("set-accounts", i);
-            clicked => { TvUi.click("set-accounts", i); }
+    HorizontalLayout {
+        spacing: 24px;
+        Text { text: "Settings"; font-size: Ten.title; color: Theme.text-primary; vertical-alignment: center; }
+        if Dash.version != "": Text {
+            text: "v" + Dash.version;
+            font-size: Ten.body;
+            color: Theme.text-muted;
+            vertical-alignment: center;
         }
     }
-    VerticalLayout {
-        spacing: 14px;
-        Text { text: Server.name + " · " + Server.status; font-size: 30px; color: Theme.text-primary; }
-        HorizontalLayout {
-            spacing: 28px;
-            Text { text: "Streams  " + Server.streams; font-size: 28px; color: Theme.text-secondary; }
-            Text { text: "Transcodes  " + Server.transcodes; font-size: 28px; color: Theme.text-secondary; }
-            Text { text: "Bandwidth  " + Server.bandwidth + " Mb/s"; font-size: 28px; color: Theme.text-secondary; }
-            Text { text: "CPU  " + Server.cpu + "%"; font-size: 28px; color: Theme.text-secondary; }
-            Text { text: "RAM  " + Server.ram + "%"; font-size: 28px; color: Theme.text-secondary; }
+    Flickable {
+        vertical-stretch: 1;
+        interactive: true;
+        content-height: settings-col.preferred-height + 24px;
+        content-y: (TvUi.focus == "server-scan" || TvUi.focus == "set-quit")
+            ? -max(0px, settings-col.preferred-height - self.height + 24px)
+            : (TvUi.focus == "set-accounts" ? -min(max(0px, settings-col.preferred-height - self.height), 220px) : 0px);
+        animate content-y { duration: 200ms; easing: ease-out; }
+        settings-col := VerticalLayout {
+            x: 10px;
+            y: 10px;
+            width: parent.width - 20px;
+            spacing: 22px;
+            SettingRow {
+                label: "Layout";
+                Chip { text: "Two screens"; on: !TvUi.layout-tv; focused: f("set-layout", 0); clicked => { TvUi.click("set-layout", 0); } }
+                Chip { text: "TV only"; on: TvUi.layout-tv; focused: f("set-layout", 1); clicked => { TvUi.click("set-layout", 1); } }
+                Text {
+                    text: "Two screens moves the dashboard back to the laptop.";
+                    font-size: 22px;
+                    color: Theme.text-muted;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    wrap: word-wrap;
+                }
+            }
+            SettingRow {
+                label: "Theme";
+                Chip { text: "Dark"; on: Theme.mode == UiTheme.dark; focused: f("set-theme", 0); clicked => { TvUi.click("set-theme", 0); } }
+                Chip { text: "Stone"; on: Theme.mode == UiTheme.stone; focused: f("set-theme", 1); clicked => { TvUi.click("set-theme", 1); } }
+                Chip { text: "Mist"; on: Theme.mode == UiTheme.mist; focused: f("set-theme", 2); clicked => { TvUi.click("set-theme", 2); } }
+            }
+            SettingRow {
+                label: "Temperature";
+                Chip { text: "°F"; on: !Display.celsius; focused: f("set-units", 0); clicked => { TvUi.click("set-units", 0); } }
+                Chip { text: "°C"; on: Display.celsius; focused: f("set-units", 1); clicked => { TvUi.click("set-units", 1); } }
+            }
+            SettingRow {
+                label: "Clock";
+                Chip { text: "24-hour"; on: !Display.h12; focused: f("set-clock", 0); clicked => { TvUi.click("set-clock", 0); } }
+                Chip { text: "12-hour"; on: Display.h12; focused: f("set-clock", 1); clicked => { TvUi.click("set-clock", 1); } }
+            }
+            VerticalLayout {
+                spacing: 12px;
+                RowLabel { text: "ACCOUNTS"; }
+                Rectangle {
+                    property <length> col-w: (self.width - 16px) / 2;
+                    height: Math.ceil(Accounts.accounts.length / 2) * 86px;
+                    for a[i] in Accounts.accounts: Chip {
+                        x: Math.mod(i, 2) * (parent.col-w + 16px);
+                        y: Math.floor(i / 2) * 86px;
+                        width: parent.col-w;
+                        text: a.name + " · " + (a.primary != "" ? a.primary : a.secondary != "" ? a.secondary : a.status);
+                        focused: f("set-accounts", i);
+                        clicked => { TvUi.click("set-accounts", i); }
+                    }
+                }
+            }
+            VerticalLayout {
+                spacing: 14px;
+                Text { text: Server.name + " · " + Server.status; font-size: 30px; color: Theme.text-primary; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 20px;
+                    Text { text: "Streams  " + Server.streams; font-size: 24px; color: Theme.text-secondary; horizontal-stretch: 1; }
+                    Text { text: "Transcodes  " + Server.transcodes; font-size: 24px; color: Theme.text-secondary; horizontal-stretch: 1; }
+                    Text { text: "Bandwidth  " + Server.bandwidth + " Mb/s"; font-size: 24px; color: Theme.text-secondary; horizontal-stretch: 1; }
+                    Text { text: "CPU  " + Server.cpu + "%"; font-size: 24px; color: Theme.text-secondary; horizontal-stretch: 1; }
+                    Text { text: "RAM  " + Server.ram + "%"; font-size: 24px; color: Theme.text-secondary; horizontal-stretch: 1; }
+                }
+                if Server.plex-pass: HorizontalLayout {
+                    spacing: 20px;
+                    TenGraph { label: "CPU · Host / Plex"; line-a: Server.cpu-host-path; line-b: Server.cpu-process-path; horizontal-stretch: 1; }
+                    TenGraph { label: "RAM · Host / Plex"; line-a: Server.ram-host-path; line-b: Server.ram-process-path; horizontal-stretch: 1; }
+                    TenGraph { label: "Bandwidth · LAN / WAN"; line-a: Server.bandwidth-lan-path; line-b: Server.bandwidth-wan-path; scale: Server.bandwidth-scale + " Mb/s"; horizontal-stretch: 1; }
+                }
+                Text { text: "ACTIVITY"; font-size: 24px; font-weight: 600; color: Theme.text-muted; }
+                if Server.activity.length == 0: Text { text: "Nothing running on the server."; font-size: 26px; color: Theme.text-secondary; wrap: word-wrap; }
+                for activity in Server.activity: Text {
+                    text: activity.title + " · " + activity.subtitle + " · " + activity.progress + "%";
+                    font-size: 26px;
+                    color: Theme.text-secondary;
+                    wrap: word-wrap;
+                }
+                Chip { text: "Scan all"; focused: f("server-scan", 0); clicked => { TvUi.click("server-scan", 0); } }
+            }
+            if Server.name == "Plex server": Text {
+                text: "Plex server monitoring is available on the laptop when a Plex server is connected.";
+                font-size: 24px;
+                color: Theme.text-muted;
+                wrap: word-wrap;
+            }
+            SettingRow {
+                label: "";
+                Chip { text: "Quit tvdash"; focused: f("set-quit", 0); clicked => { TvUi.click("set-quit", 0); } }
+            }
+            Text {
+                text: "Streaming sites, the TMDB token and diagnostics are on the laptop layout for now.";
+                font-size: 24px;
+                color: Theme.text-muted;
+                wrap: word-wrap;
+            }
         }
-        if Server.plex-pass: HorizontalLayout {
-            spacing: 20px;
-            TenGraph { label: "CPU · Host / Plex"; line-a: Server.cpu-host-path; line-b: Server.cpu-process-path; horizontal-stretch: 1; }
-            TenGraph { label: "RAM · Host / Plex"; line-a: Server.ram-host-path; line-b: Server.ram-process-path; horizontal-stretch: 1; }
-            TenGraph { label: "Bandwidth · LAN / WAN"; line-a: Server.bandwidth-lan-path; line-b: Server.bandwidth-wan-path; scale: Server.bandwidth-scale + " Mb/s"; horizontal-stretch: 1; }
-        }
-        Text { text: "ACTIVITY"; font-size: 24px; font-weight: 600; color: Theme.text-muted; }
-        if Server.activity.length == 0: Text { text: "Nothing running on the server."; font-size: 26px; color: Theme.text-secondary; }
-        for activity in Server.activity: Text {
-            text: activity.title + " · " + activity.subtitle + " · " + activity.progress + "%";
-            font-size: 26px;
-            color: Theme.text-secondary;
-        }
-        Chip { text: "Scan all"; focused: f("server-scan", 0); clicked => { TvUi.click("server-scan", 0); } }
     }
-    if Server.name == "Plex server": Text {
-        text: "Plex server monitoring is available on the laptop when a Plex server is connected.";
-        font-size: 24px;
-        color: Theme.text-muted;
-    }
-    SettingRow {
-        label: "";
-        Chip { text: "Quit tvdash"; focused: f("set-quit", 0); clicked => { TvUi.click("set-quit", 0); } }
-    }
-    Text {
-        text: "Streaming sites, the TMDB token and diagnostics are on the laptop layout for now.";
-        font-size: 24px;
-        color: Theme.text-muted;
-    }
-    Rectangle { vertical-stretch: 1; }
 }
 
 // ── Ambient idle ─────────────────────────────────────────────────────
@@ -873,6 +1379,14 @@ export component TvShell inherits Rectangle {
                 alignment: center;
                 HorizontalLayout {
                     spacing: 12px;
+                    if Dash.tv.is-episode: TenButton {
+                        compact: true;
+                        text: "Prev Ep";
+                        clicked => {
+                            hud-timer.restart();
+                            Dash.transport("prev-ep");
+                        }
+                    }
                     TenButton {
                         compact: true;
                         text: "−10s";
@@ -896,6 +1410,46 @@ export component TvShell inherits Rectangle {
                         clicked => {
                             hud-timer.restart();
                             Dash.transport("forward");
+                        }
+                    }
+                    if Dash.tv.is-episode: TenButton {
+                        compact: true;
+                        text: "Next Ep";
+                        clicked => {
+                            hud-timer.restart();
+                            Dash.transport("next-ep");
+                        }
+                    }
+                    TenButton {
+                        compact: true;
+                        text: "Audio";
+                        clicked => {
+                            hud-timer.restart();
+                            Dash.transport("audio");
+                        }
+                    }
+                    TenButton {
+                        compact: true;
+                        text: "Subs";
+                        clicked => {
+                            hud-timer.restart();
+                            Dash.transport("sub");
+                        }
+                    }
+                    TenButton {
+                        compact: true;
+                        text: "Vol −";
+                        clicked => {
+                            hud-timer.restart();
+                            Dash.transport("vol-down");
+                        }
+                    }
+                    TenButton {
+                        compact: true;
+                        text: "Vol +";
+                        clicked => {
+                            hud-timer.restart();
+                            Dash.transport("vol-up");
                         }
                     }
                     TenButton {
@@ -933,17 +1487,7 @@ export component TvShell inherits Rectangle {
                 if TvUi.screen == "services": ServicesScreen { }
                 if TvUi.screen == "library": LibraryScreen { }
                 if TvUi.screen == "settings": SettingsScreen { }
-                if TvUi.screen == "search": VerticalLayout {
-                    spacing: 24px;
-                    Text { text: "Search"; font-size: Ten.title; color: Theme.text-primary; }
-                    Text {
-                        text: "Where to watch on the TV comes next, with typing from the phone remote or an on-screen keyboard. For now, search from the laptop layout.";
-                        font-size: Ten.body;
-                        color: Theme.text-secondary;
-                        wrap: word-wrap;
-                    }
-                    Rectangle { vertical-stretch: 1; }
-                }
+                if TvUi.screen == "search": SearchScreen { }
             }
         }
 

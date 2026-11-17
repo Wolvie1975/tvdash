@@ -230,6 +230,7 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
             left_text: left.into(),
             progress: format::fraction(st),
             paused: st.state == PlayState::Paused,
+            is_episode: st.item.kind == MediaKind::Episode,
             has_poster: poster.is_some(),
             poster: poster.unwrap_or_default(),
             ..base

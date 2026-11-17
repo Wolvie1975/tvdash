@@ -176,6 +176,12 @@ pub enum Command {
     /// Relative seek in seconds (negative = back).
     Seek(i64),
     Stop,
+    /// Cycle audio track, cycle subtitle track, or adjust volume (relative %).
+    CycleAudio,
+    CycleSub,
+    VolumeDelta(i64),
+    PreviousEpisode,
+    NextEpisode,
     /// Open `config.streaming[index]` on the TV.
     OpenSite(usize),
     /// Add (`index: None`) or replace a streaming site. Already validated.

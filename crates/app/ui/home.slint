@@ -295,6 +295,14 @@ component TvCardView inherits Rectangle {
         if root.playing: HorizontalLayout {
             spacing: 12px;
             height: 64px;
+            if Dash.tv.is-episode: ActionButton {
+                text: "Prev";
+                font-px: 18px;
+                fill: Dash.tint.btn;
+                edge: Dash.tint.edge;
+                accessible-label: "Previous episode";
+                clicked => { Dash.transport("prev-ep"); }
+            }
             ActionButton {
                 icon: "back";
                 width: 64px;
@@ -322,6 +330,14 @@ component TvCardView inherits Rectangle {
                 edge: Dash.tint.edge;
                 accessible-label: "Forward 30 seconds";
                 clicked => { Dash.transport("forward"); }
+            }
+            if Dash.tv.is-episode: ActionButton {
+                text: "Next";
+                font-px: 18px;
+                fill: Dash.tint.btn;
+                edge: Dash.tint.edge;
+                accessible-label: "Next episode";
+                clicked => { Dash.transport("next-ep"); }
             }
             ActionButton {
                 text: "Stop";

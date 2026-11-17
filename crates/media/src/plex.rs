@@ -306,6 +306,51 @@ impl PlexClient {
         Ok(meta.into_iter().find(|m| m.kind == "episode").map(to_episode))
     }
 
+    /// Find the previous or next episode in the same series (crossing seasons when needed).
+    pub async fn adjacent_episode(&self, episode_key: &str, next: bool) -> Result<Option<MediaItem>> {
+        let meta = self.metadata(&format!("/library/metadata/{episode_key}"), &[], "episode meta").await?;
+        let Some(ep) = meta.into_iter().find(|m| m.kind == "episode") else {
+            return Ok(None);
+        };
+        let Some(season_key) = ep.parent_rating_key else {
+            return Ok(None);
+        };
+        let eps = self.season_episodes(&season_key).await?;
+        let Some(pos) = eps.iter().position(|e| e.rating_key == episode_key) else {
+            return Ok(None);
+        };
+        if next {
+            if let Some(target) = eps.get(pos + 1) {
+                return self.item(&target.rating_key).await;
+            }
+            if let Some(show_key) = ep.grandparent_rating_key {
+                let seasons: Vec<_> =
+                    self.show_seasons(&show_key).await?.into_iter().filter(|s| s.index != 0).collect();
+                if let Some(s_pos) = seasons.iter().position(|s| s.rating_key == season_key)
+                    && let Some(next_season) = seasons.get(s_pos + 1)
+                    && let Some(first) = self.season_episodes(&next_season.rating_key).await?.into_iter().next()
+                {
+                    return self.item(&first.rating_key).await;
+                }
+            }
+        } else {
+            if pos > 0 {
+                return self.item(&eps[pos - 1].rating_key).await;
+            }
+            if let Some(show_key) = ep.grandparent_rating_key {
+                let seasons: Vec<_> =
+                    self.show_seasons(&show_key).await?.into_iter().filter(|s| s.index != 0).collect();
+                if let Some(s_pos) = seasons.iter().position(|s| s.rating_key == season_key)
+                    && s_pos > 0
+                    && let Some(last) = self.season_episodes(&seasons[s_pos - 1].rating_key).await?.into_iter().last()
+                {
+                    return self.item(&last.rating_key).await;
+                }
+            }
+        }
+        Ok(None)
+    }
+
     pub async fn collections(&self, section_key: &str) -> Result<Vec<CollectionInfo>> {
         let meta = self
             .metadata(&format!("/library/sections/{section_key}/collections"), &[], "collections")
@@ -985,6 +1030,8 @@ struct Metadata {
     kind: String,
     title: String,
     grandparent_title: Option<String>,
+    parent_rating_key: Option<String>,
+    grandparent_rating_key: Option<String>,
     parent_index: Option<u32>,
     index: Option<u32>,
     year: Option<u32>,

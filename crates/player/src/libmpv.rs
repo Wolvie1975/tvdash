@@ -457,6 +457,18 @@ impl Embedded {
         self.handle.command(&["seek", &seconds.to_string(), "relative"])
     }
 
+    pub fn cycle_audio(&self) -> Result<()> {
+        self.handle.command(&["cycle", "audio"])
+    }
+
+    pub fn cycle_sub(&self) -> Result<()> {
+        self.handle.command(&["cycle", "sub"])
+    }
+
+    pub fn add_volume(&self, delta: i64) -> Result<()> {
+        self.handle.command(&["add", "volume", &delta.to_string()])
+    }
+
     /// OSD text on the video; `duration_ms: None` keeps it up until replaced.
     pub fn show_text(&self, text: &str, duration_ms: Option<u32>) -> Result<()> {
         let ms = duration_ms.unwrap_or(86_400_000);

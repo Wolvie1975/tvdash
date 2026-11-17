@@ -697,6 +697,12 @@ export component SettingsPage inherits VerticalLayout {
             title: "Settings";
             back => { Nav.page = "home"; }
         }
+        if Dash.version != "": Text {
+            text: "v" + Dash.version;
+            font-size: 18px;
+            color: Theme.text-muted;
+            vertical-alignment: center;
+        }
         Rectangle { horizontal-stretch: 1; }
         Rectangle {
             background: Theme.surface;

@@ -262,6 +262,18 @@ impl Mpv {
         self.command(json!(["seek", seconds, "relative"])).await
     }
 
+    pub async fn cycle_audio(&mut self) -> Result<()> {
+        self.command(json!(["cycle", "audio"])).await
+    }
+
+    pub async fn cycle_sub(&mut self) -> Result<()> {
+        self.command(json!(["cycle", "sub"])).await
+    }
+
+    pub async fn add_volume(&mut self, delta: i64) -> Result<()> {
+        self.command(json!(["add", "volume", delta])).await
+    }
+
     /// OSD text on the TV; `duration_ms: None` keeps it up until replaced.
     pub async fn show_text(&mut self, text: &str, duration_ms: Option<u32>) -> Result<()> {
         // mpv has no "forever"; a day is close enough for a paused overlay.

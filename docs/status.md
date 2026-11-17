@@ -1,21 +1,19 @@
 # tvdash: where things stand
 
-Last updated 2026-11-12. A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-17 (v0.1.4). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-1. **Push.** Commits `6f755a2`, `26f728c` and `8d2a071` are local only. Push from VS Code
-   (Source Control › Sync, or `git push` in a VS Code terminal). Claude's shell can't reach
-   VS Code's GitHub login, so it can't push.
-2. **Install on the TV machine.** The release build in `target/release/` is current
-   (`8d2a071`). On the Fedora host, in the project folder:
+1. **Build & install v0.1.4 RPM on the TV machine:**
    ```bash
-   packaging/install.sh          # warns if mpv-libs (libmpv) is missing: sudo dnf install mpv-libs
+   cargo build --release -j 2
+   ./packaging/rpm.sh
+   cp dist/tvdash-0.1.4-1.x86_64.rpm releases/
+   sudo dnf upgrade ./releases/tvdash-0.1.4-1.x86_64.rpm
    ```
    Then Settings › Quit tvdash and start it again from the app menu.
-3. **Check in-window video on the real TV** (TV-only layout). It has only been seen on a
-   virtual display with Mesa's software OpenGL, not on Wayland with a real GPU. See
+2. **Check in-window video on the real TV** (TV-only layout). See
    [Things to check](#things-to-check-on-the-tv-machine).
 
 ## Done
@@ -25,10 +23,12 @@ next, and the practical details that aren't obvious from the code.
 | v1 (M1–M6) | Built: Plex + Jellyfin sign-in, Continue Watching, mpv playback with progress sync, streaming sites in Brave, weather, first-run setup, Library |
 | Laptop redesign | Built: two columns, poster tint, Dark / Stone / Mist, touch-first, 5-column service grid with Add service and long-press edit |
 | v1.1 | Built: manage streaming sites, Where to watch (TMDB), service logos, Display settings, stale/error states, Diagnostics, pixel shift, crossfades |
-| Tile logos (2026-11-12) | TMDB logos kept on disk in `~/.local/share/tvdash/logos/`; per-site `logo = "path"` override in `[[streaming]]` |
+| Tile logos | TMDB logos kept on disk in `~/.local/share/tvdash/logos/`; per-site `logo = "path"` override in `[[streaming]]` |
 | TV-only layout, step 1 | Built: side rail, 10-foot screens, arrow/OK/Back navigation, ambient clock, `tvdash --home`, live layout switch |
-| TV-only layout, step 2 (2026-11-12) | Built: Plex/Jellyfin video plays inside the tvdash window through libmpv. Falls back to mpv's own window without libmpv or if drawing fails |
-| Cleanup (2026-11-12) | `bridge.rs` split into `bridge/` (home, library, accounts, status); repeated controller code folded |
+| TV-only layout, step 2 | Built: Plex/Jellyfin video plays inside the tvdash window through libmpv; floating player HUD and live PIP mini-player |
+| Library v0.1.3 | Built: smart shelves, full-width Browse All with A–Z filter, shelf caching |
+| TV-only step 3 (v0.1.4) | Built: 10-foot Search (6×6 keyboard + physical typing + detail), Library parity (smart shelves, 8-col Browse All + A–Z filter, Show detail), scrollable Settings + version number, Audio/Subs/Vol/Prev-Next Episode controls (also Prev/Next Ep on dashboard), Night mode forcing Dark on TV, local HTTP Phone Remote (`:8765`) |
+| Cleanup | `bridge.rs` split into `bridge/` (home, library, accounts, status); repeated controller code folded |
 
 Decisions made along the way:
 - **Themes:** no "Follow system" option. Keep the three explicit themes (Dark / Stone / Mist).
@@ -41,12 +41,9 @@ Decisions made along the way:
 In the order agreed or planned (see [tv-only-plan.md](tv-only-plan.md) and
 [future-plan.md](future-plan.md)):
 
-1. Confirm in-window video on the TV machine (above).
-2. **Search on the TV.** Open question: on-screen keyboard, or typing from the phone remote?
-3. **v3:** phone remote, HDMI-CEC remote, next episode / skip intro, audio, subtitle and volume.
-4. **v2:** night mode (also forces Dark on the TV), alerts strip, severe-weather takeover,
-   headlines, richer "up next".
-5. **v4:** "What should I watch?" (Ollama), watch stats, Home Assistant, cross-service watchlist.
+1. **Optional / Later:** HDMI-CEC remote (`cec-client` listener), skip intro.
+2. **v2:** alerts strip, severe-weather takeover, headlines, richer "up next".
+3. **v4:** "What should I watch?" (Ollama), watch stats, Home Assistant, cross-service watchlist.
 
 ## Things to check on the TV machine
 

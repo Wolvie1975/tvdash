@@ -60,6 +60,9 @@ pub struct UiState {
     units: Option<Units>,
     theme: ThemeMode,
     system_dark: bool,
+    tv_layout: bool,
+    night_active: bool,
+    night_display: tvdash_core::config::DisplayConfig,
     /// Streaming sites in tile order, hidden ones included.
     sites: Vec<StreamingSite>,
     /// What tvdash is showing on the TV: mpv playback, or the browser's site.
@@ -121,8 +124,35 @@ pub struct UiState {
 
 impl UiState {
     pub(super) fn effective_theme(&self) -> ThemeMode {
-        self.theme.resolve(self.system_dark)
+        if self.tv_layout && self.night_active {
+            ThemeMode::Dark
+        } else {
+            self.theme.resolve(self.system_dark)
+        }
     }
+}
+
+fn now_time(tz: Option<chrono_tz::Tz>) -> chrono::NaiveTime {
+    match tz {
+        Some(tz) => chrono::Utc::now().with_timezone(&tz).time(),
+        None => chrono::Local::now().time(),
+    }
+}
+
+pub fn set_tv_layout(laptop: &LaptopWindow, is_tv: bool) {
+    STATE.with_borrow_mut(|s| {
+        s.tv_layout = is_tv;
+        s.night_active = s.night_display.is_night_now(now_time(s.tz));
+        apply_theme(s, laptop, s.theme);
+    });
+}
+
+pub fn set_night_config(laptop: &LaptopWindow, display: tvdash_core::config::DisplayConfig) {
+    STATE.with_borrow_mut(|s| {
+        s.night_display = display;
+        s.night_active = s.night_display.is_night_now(now_time(s.tz));
+        apply_theme(s, laptop, s.theme);
+    });
 }
 
 thread_local! {
@@ -155,6 +185,7 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         s.cw_filter = "tv".into();
         s.sites = c.sites;
         let dash = laptop.global::<Dash>();
+        dash.set_version(env!("CARGO_PKG_VERSION").into());
         dash.set_tv_connected(c.tv_connected);
         dash.set_continue_watching(ModelRc::from(s.cards.clone()));
         dash.set_prompts(ModelRc::from(s.prompts.clone()));
@@ -208,7 +239,12 @@ pub fn set_display(laptop: &LaptopWindow, units: Units, clock: ClockFormat, seco
 
 /// Once a minute: ages ("updated 25 min ago"), end times, screensaver burn-in drift.
 pub fn on_minute(laptop: &LaptopWindow, _tv: &TvWindow) {
-    STATE.with_borrow(|s| {
+    STATE.with_borrow_mut(|s| {
+        let night = s.night_display.is_night_now(now_time(s.tz));
+        if night != s.night_active {
+            s.night_active = night;
+            apply_theme(s, laptop, s.theme);
+        }
         status::refresh_weather(s, laptop);
         status::refresh_diagnostics(s, laptop);
         home::refresh_tv_card(s, laptop);

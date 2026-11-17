@@ -40,6 +40,7 @@ export struct TvCard {
     summary: string,
     progress: float,
     paused: bool,
+    is-episode: bool,
     poster: image,
     has-poster: bool,
     monogram: string,   // shown instead of a poster (streaming site initial)
@@ -110,6 +111,7 @@ export global Dash {
 
     // Transient message at the bottom of the window ("" = hidden).
     in property <string> toast;
+    in property <string> version;
 
     callback open-site(int);
     callback transport(string); // "back" | "play-pause" | "forward" | "stop"

@@ -15,7 +15,7 @@ use std::{
 use slint::{ComponentHandle, Model, SharedString, platform::Key};
 use tvdash_core::config::Layout;
 
-use crate::{Accounts, Dash, Display, LaptopWindow, Library, TvUi, UiTheme};
+use crate::{Accounts, Dash, Display, LaptopWindow, Library, ShowPageState, TvUi, UiTheme, Watch};
 
 /// Ambient idle starts after this long without a key on Home.
 pub const AMBIENT_AFTER: Duration = Duration::from_secs(5 * 60);
@@ -24,16 +24,28 @@ const SCREENS: [&str; 5] = ["home", "search", "library", "services", "settings"]
 const RAIL_THEME: usize = 5;
 /// Services grid columns (matches tv/shell.slint).
 const GRID_COLUMNS: usize = 5;
+/// Library Browse All grid columns (matches tv/shell.slint).
+const BROWSE_COLUMNS: usize = 8;
+/// On-screen keyboard columns (A-Z, 0-9 = 6x6).
+const KBD_COLUMNS: usize = 6;
+const KBD_KEYS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+/// A-Z filter bar columns in Library Browse All (2 rows x 14).
+const LETTER_COLUMNS: usize = 14;
+const BROWSE_LETTERS: [&str; 28] = [
+    "", "#", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
+    "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+];
 
 struct NavState {
     /// Last focused item per row id, so coming back lands on the same item.
     cols: HashMap<&'static str, usize>,
+    last_watch_row: Option<&'static str>,
     last_key: Instant,
 }
 
 thread_local! {
     static S: RefCell<NavState> =
-        RefCell::new(NavState { cols: HashMap::new(), last_key: Instant::now() });
+        RefCell::new(NavState { cols: HashMap::new(), last_watch_row: None, last_key: Instant::now() });
 }
 
 /// Set the starting layout and take the TV shell's keys.
@@ -54,6 +66,7 @@ pub fn init(laptop: &LaptopWindow, layout: Layout) {
 pub fn set_layout(laptop: &LaptopWindow, layout: Layout) {
     laptop.global::<crate::Nav>().set_layout(if layout == Layout::Tv { "tv" } else { "dual" }.into());
     laptop.global::<TvUi>().set_layout_tv(layout == Layout::Tv);
+    crate::bridge::set_tv_layout(laptop, layout == Layout::Tv);
     if layout == Layout::Tv {
         sync(laptop);
     }
@@ -92,13 +105,53 @@ fn rows(laptop: &LaptopWindow) -> Vec<(&'static str, usize)> {
                 ("services", dash.get_streaming_sites().row_count().min(10)),
             ]
         }
+        "search" => {
+            let w = laptop.global::<Watch>();
+            if w.get_detail_open() {
+                vec![("watch-detail", w.get_detail_actions().row_count() + 1)]
+            } else {
+                let mut r = vec![
+                    ("search-kbd", KBD_KEYS.len()),
+                    ("search-actions", 5),
+                    ("watch-lib", w.get_library().row_count()),
+                    ("watch-inc", w.get_included().row_count()),
+                ];
+                if !w.get_only_now() {
+                    r.push(("watch-extra", w.get_extra().row_count()));
+                    r.push(("watch-none", w.get_none().row_count()));
+                }
+                r.push(("watch-check", w.get_checking().row_count()));
+                r
+            }
+        }
         "services" => vec![("grid", dash.get_streaming_sites().row_count())],
         "library" => {
-            let lib = laptop.global::<Library>();
-            vec![
-                ("lib-continue", lib.get_continue_watching().row_count()),
-                ("lib-recent", lib.get_recently_added().row_count()),
-            ]
+            let sp = laptop.global::<ShowPageState>();
+            if sp.get_open() {
+                vec![
+                    ("show-actions", 3),
+                    ("show-seasons", sp.get_seasons().row_count()),
+                    ("show-episodes", sp.get_episodes().row_count()),
+                ]
+            } else {
+                let lib = laptop.global::<Library>();
+                if lib.get_browse_all() {
+                    vec![
+                        ("lib-tabs", 3),
+                        ("lib-letters", BROWSE_LETTERS.len()),
+                        ("lib-browse", lib.get_browse_items().row_count()),
+                    ]
+                } else {
+                    vec![
+                        ("lib-tabs", 3),
+                        ("lib-continue", lib.get_continue_watching().row_count()),
+                        ("lib-recent", lib.get_recently_added().row_count()),
+                        ("lib-finish", lib.get_finish_season().row_count()),
+                        ("lib-week", lib.get_added_week().row_count()),
+                        ("lib-again", lib.get_watch_again().row_count()),
+                    ]
+                }
+            }
         }
         "settings" => vec![
             ("set-layout", 2),
@@ -172,11 +225,28 @@ fn close_rail(laptop: &LaptopWindow) {
     sync(laptop);
 }
 
+fn close_watch_detail(laptop: &LaptopWindow) {
+    laptop.global::<Watch>().invoke_close_detail();
+    if let Some(row_id) = S.with_borrow(|s| s.last_watch_row)
+        && let Some((_, n)) = rows(laptop).into_iter().find(|(id, _)| *id == row_id)
+    {
+        focus_row(laptop, row_id, n);
+        return;
+    }
+    sync(laptop);
+}
+
 fn show(laptop: &LaptopWindow, screen: &str) {
     let ui = laptop.global::<TvUi>();
     ui.set_screen(screen.into());
     ui.set_rail_open(false);
     ui.set_focus("".into());
+    if screen == "library" {
+        let lib = laptop.global::<Library>();
+        if lib.get_browse_items().row_count() == 0 {
+            lib.invoke_set_media_tab(lib.get_media_tab());
+        }
+    }
     sync(laptop);
 }
 
@@ -244,6 +314,28 @@ pub fn key(laptop: &LaptopWindow, text: &SharedString) -> bool {
         return true;
     }
 
+    // ── Search physical keyboard input ──
+    if ui.get_screen() == "search" && ui.get_focus() != "rail" && !laptop.global::<Watch>().get_detail_open() {
+        let w = laptop.global::<Watch>();
+        if is(text, Key::Backspace) && !w.get_query().is_empty() {
+            let mut q = w.get_query().to_string();
+            q.pop();
+            w.set_query(q.as_str().into());
+            w.invoke_edited(q.into());
+            return true;
+        }
+        if let Some(ch) = text.as_str().chars().next()
+            && text.as_str().chars().count() == 1
+            && (ch.is_ascii_alphanumeric() || ch == ' ' || ch == '-' || ch == '\'')
+        {
+            let mut q = w.get_query().to_string();
+            q.push(ch);
+            w.set_query(q.as_str().into());
+            w.invoke_edited(q.into());
+            return true;
+        }
+    }
+
     // ── Screen ──
     sync(laptop);
     let rows = rows(laptop);
@@ -263,17 +355,101 @@ pub fn key(laptop: &LaptopWindow, text: &SharedString) -> bool {
     };
     let (id, len) = rows[at];
 
-    if id == "grid" {
-        if left && col.is_multiple_of(GRID_COLUMNS) {
+    if id == "grid" || id == "lib-browse" {
+        let cols = if id == "lib-browse" { BROWSE_COLUMNS } else { GRID_COLUMNS };
+        if left && col.is_multiple_of(cols) {
             open_rail(laptop);
         } else if left {
             ui.set_col(col as i32 - 1);
         } else if right {
             ui.set_col((col + 1).min(len - 1) as i32);
-        } else if up && col >= GRID_COLUMNS {
-            ui.set_col((col - GRID_COLUMNS) as i32);
-        } else if down && col + GRID_COLUMNS < len {
-            ui.set_col((col + GRID_COLUMNS) as i32);
+        } else if up && col >= cols {
+            ui.set_col((col - cols) as i32);
+        } else if up && at > 0 {
+            remember(laptop);
+            focus_row(laptop, rows[at - 1].0, rows[at - 1].1);
+        } else if down && col + cols < len {
+            ui.set_col((col + cols) as i32);
+        }
+    } else if id == "lib-letters" {
+        if left && col.is_multiple_of(LETTER_COLUMNS) {
+            open_rail(laptop);
+        } else if left {
+            ui.set_col(col as i32 - 1);
+        } else if right {
+            ui.set_col((col + 1).min(len - 1) as i32);
+        } else if up && col >= LETTER_COLUMNS {
+            ui.set_col((col - LETTER_COLUMNS) as i32);
+        } else if up && at > 0 {
+            remember(laptop);
+            focus_row(laptop, rows[at - 1].0, rows[at - 1].1);
+        } else if down && col + LETTER_COLUMNS < len {
+            ui.set_col((col + LETTER_COLUMNS) as i32);
+        } else if down && at + 1 < rows.len() {
+            remember(laptop);
+            focus_row(laptop, rows[at + 1].0, rows[at + 1].1);
+        }
+    } else if id == "search-kbd" {
+        let first_result = rows.iter().find(|(r, _)| r.starts_with("watch-")).copied();
+        if left && col.is_multiple_of(KBD_COLUMNS) {
+            open_rail(laptop);
+        } else if left {
+            ui.set_col(col as i32 - 1);
+        } else if right && (col % KBD_COLUMNS == KBD_COLUMNS - 1 || col + 1 == len) {
+            if let Some((r, n)) = first_result {
+                remember(laptop);
+                focus_row(laptop, r, n);
+            }
+        } else if right {
+            ui.set_col((col + 1).min(len - 1) as i32);
+        } else if up && col >= KBD_COLUMNS {
+            ui.set_col((col - KBD_COLUMNS) as i32);
+        } else if down && col + KBD_COLUMNS < len {
+            ui.set_col((col + KBD_COLUMNS) as i32);
+        } else if down {
+            if let Some((_, n)) = rows.iter().find(|(r, _)| *r == "search-actions") {
+                remember(laptop);
+                ui.set_focus("search-actions".into());
+                ui.set_col((col % KBD_COLUMNS).min(*n - 1) as i32);
+            }
+        }
+    } else if id == "search-actions" {
+        let first_result = rows.iter().find(|(r, _)| r.starts_with("watch-")).copied();
+        if left && col == 0 {
+            open_rail(laptop);
+        } else if left {
+            ui.set_col(col as i32 - 1);
+        } else if right && col + 1 < len {
+            ui.set_col(col as i32 + 1);
+        } else if right {
+            if let Some((r, n)) = first_result {
+                remember(laptop);
+                focus_row(laptop, r, n);
+            }
+        } else if up {
+            remember(laptop);
+            ui.set_focus("search-kbd".into());
+            ui.set_col((30 + col.min(KBD_COLUMNS - 1)).min(KBD_KEYS.len() - 1) as i32);
+        } else if down {
+            if let Some((r, n)) = first_result {
+                remember(laptop);
+                focus_row(laptop, r, n);
+            }
+        }
+    } else if id.starts_with("watch-") && id != "watch-detail" {
+        if left && col == 0 {
+            remember(laptop);
+            focus_row(laptop, "search-kbd", KBD_KEYS.len());
+        } else if left {
+            ui.set_col(col as i32 - 1);
+        } else if right {
+            ui.set_col((col + 1).min(len - 1) as i32);
+        } else if up && at > 0 && rows[at - 1].0.starts_with("watch-") {
+            remember(laptop);
+            focus_row(laptop, rows[at - 1].0, rows[at - 1].1);
+        } else if down && at + 1 < rows.len() {
+            remember(laptop);
+            focus_row(laptop, rows[at + 1].0, rows[at + 1].1);
         }
     } else if id == "continue" {
         if left {
@@ -329,7 +505,12 @@ pub fn key(laptop: &LaptopWindow, text: &SharedString) -> bool {
     if ok {
         activate(laptop, id, col);
     } else if back {
-        if ui.get_screen() != "home" {
+        if id == "watch-detail" {
+            close_watch_detail(laptop);
+        } else if id.starts_with("show-") {
+            laptop.global::<ShowPageState>().invoke_close();
+            sync(laptop);
+        } else if ui.get_screen() != "home" {
             show(laptop, "home");
         } else {
             open_rail(laptop);
@@ -350,6 +531,18 @@ fn video_key(laptop: &LaptopWindow, text: &SharedString) -> bool {
         dash.invoke_transport("back".into());
     } else if is(text, Key::RightArrow) {
         dash.invoke_transport("forward".into());
+    } else if text.as_str() == "a" || text.as_str() == "A" {
+        dash.invoke_transport("audio".into());
+    } else if text.as_str() == "s" || text.as_str() == "S" {
+        dash.invoke_transport("sub".into());
+    } else if text.as_str() == "-" {
+        dash.invoke_transport("vol-down".into());
+    } else if text.as_str() == "+" || text.as_str() == "=" {
+        dash.invoke_transport("vol-up".into());
+    } else if text.as_str() == "p" || text.as_str() == "P" {
+        dash.invoke_transport("prev-ep".into());
+    } else if text.as_str() == "n" || text.as_str() == "N" {
+        dash.invoke_transport("next-ep".into());
     } else if is(text, Key::Escape) || is(text, Key::Backspace) {
         ui.set_video_full(false);
         show(laptop, "home");
@@ -425,11 +618,150 @@ fn activate(laptop: &LaptopWindow, row: &str, col: usize) {
                 dash.invoke_open_site(site.index);
             }
         }
-        "lib-continue" | "lib-recent" => {
+        "search-kbd" => {
+            if let Some(ch) = KBD_KEYS.chars().nth(col) {
+                let w = laptop.global::<Watch>();
+                let mut q = w.get_query().to_string();
+                q.push(ch.to_ascii_lowercase());
+                w.set_query(q.as_str().into());
+                w.invoke_edited(q.into());
+            }
+        }
+        "search-actions" => {
+            let w = laptop.global::<Watch>();
+            match col {
+                0 => {
+                    let mut q = w.get_query().to_string();
+                    q.push(' ');
+                    w.set_query(q.as_str().into());
+                    w.invoke_edited(q.into());
+                }
+                1 => {
+                    let mut q = w.get_query().to_string();
+                    q.pop();
+                    w.set_query(q.as_str().into());
+                    w.invoke_edited(q.into());
+                }
+                2 => {
+                    w.set_query("".into());
+                    w.set_message("".into());
+                    w.invoke_edited("".into());
+                }
+                3 => {
+                    w.set_only_now(!w.get_only_now());
+                    sync(laptop);
+                }
+                4 => w.invoke_search(w.get_query()),
+                _ => {}
+            }
+        }
+        "watch-lib" | "watch-inc" | "watch-extra" | "watch-none" | "watch-check" => {
+            let row_id: &'static str = match row {
+                "watch-lib" => "watch-lib",
+                "watch-inc" => "watch-inc",
+                "watch-extra" => "watch-extra",
+                "watch-none" => "watch-none",
+                _ => "watch-check",
+            };
+            S.with_borrow_mut(|s| {
+                s.cols.insert(row_id, col);
+                s.last_watch_row = Some(row_id);
+            });
+            let w = laptop.global::<Watch>();
+            let model = match row {
+                "watch-lib" => w.get_library(),
+                "watch-inc" => w.get_included(),
+                "watch-extra" => w.get_extra(),
+                "watch-none" => w.get_none(),
+                _ => w.get_checking(),
+            };
+            if let Some(card) = model.row_data(col) {
+                w.invoke_select(card.key);
+            }
+        }
+        "watch-detail" => {
+            let w = laptop.global::<Watch>();
+            let actions = w.get_detail_actions();
+            if let Some(a) = actions.row_data(col) {
+                w.invoke_action(a);
+            } else {
+                close_watch_detail(laptop);
+            }
+        }
+        "lib-tabs" => {
             let lib = laptop.global::<Library>();
-            let section = if row == "lib-continue" { "continue" } else { "recent" };
+            match col {
+                0 => {
+                    lib.set_browse_all(false);
+                    lib.invoke_set_media_tab("tv".into());
+                }
+                1 => {
+                    lib.set_browse_all(false);
+                    lib.invoke_set_media_tab("movies".into());
+                }
+                2 => lib.set_browse_all(!lib.get_browse_all()),
+                _ => {}
+            }
+            sync(laptop);
+        }
+        "lib-letters" => {
+            if let Some(&letter) = BROWSE_LETTERS.get(col) {
+                laptop.global::<Library>().invoke_set_browse_letter(letter.into());
+                sync(laptop);
+            }
+        }
+        "lib-continue" | "lib-recent" | "lib-week" | "lib-again" | "lib-browse" => {
+            let lib = laptop.global::<Library>();
+            let section = match row {
+                "lib-continue" => "continue",
+                "lib-recent" => "recent",
+                "lib-week" => "added-week",
+                "lib-again" => "watch-again",
+                _ => "browse",
+            };
             lib.invoke_select(section.into(), col as i32);
-            lib.invoke_play_detail(false);
+            let show_key = lib.get_detail().show_key;
+            if !show_key.is_empty() {
+                lib.invoke_close_detail();
+                lib.invoke_open_show(show_key);
+            } else {
+                lib.invoke_play_detail(false);
+            }
+        }
+        "lib-finish" => {
+            let lib = laptop.global::<Library>();
+            if let Some(item) = lib.get_finish_season().row_data(col) {
+                lib.invoke_open_show(item.rating_key);
+            }
+        }
+        "show-actions" => {
+            let sp = laptop.global::<ShowPageState>();
+            match col {
+                0 => {
+                    let key = sp.get_up_next_key();
+                    if !key.is_empty() {
+                        sp.invoke_play_episode(key, sp.get_can_resume());
+                    }
+                }
+                1 => sp.invoke_shuffle(),
+                2 => {
+                    sp.invoke_close();
+                    sync(laptop);
+                }
+                _ => {}
+            }
+        }
+        "show-seasons" => {
+            let sp = laptop.global::<ShowPageState>();
+            if let Some(s) = sp.get_seasons().row_data(col) {
+                sp.invoke_select_season(s.rating_key);
+            }
+        }
+        "show-episodes" => {
+            let sp = laptop.global::<ShowPageState>();
+            if let Some(ep) = sp.get_episodes().row_data(col) {
+                sp.invoke_play_episode(ep.rating_key, ep.progress > 0.0);
+            }
         }
         "set-layout" => {
             let layout = if col == 1 { Layout::Tv } else { Layout::Dual };
@@ -618,6 +950,18 @@ mod tests {
         assert!(matches!(next_cmd(&rx), Command::Seek(-10)));
         press(&l, Key::RightArrow);
         assert!(matches!(next_cmd(&rx), Command::Seek(30)));
+        assert!(key(&l, &SharedString::from("a")));
+        assert!(matches!(next_cmd(&rx), Command::CycleAudio));
+        assert!(key(&l, &SharedString::from("s")));
+        assert!(matches!(next_cmd(&rx), Command::CycleSub));
+        assert!(key(&l, &SharedString::from("-")));
+        assert!(matches!(next_cmd(&rx), Command::VolumeDelta(-5)));
+        assert!(key(&l, &SharedString::from("+")));
+        assert!(matches!(next_cmd(&rx), Command::VolumeDelta(5)));
+        assert!(key(&l, &SharedString::from("p")));
+        assert!(matches!(next_cmd(&rx), Command::PreviousEpisode));
+        assert!(key(&l, &SharedString::from("n")));
+        assert!(matches!(next_cmd(&rx), Command::NextEpisode));
         // Back: Home over the still-playing video, focus on the card.
         press(&l, Key::Escape);
         assert!(!ui.get_video_full() && ui.get_video_on());
@@ -661,5 +1005,119 @@ mod tests {
         assert!(press(&l, Key::Return));
         assert!(!ui.get_ambient());
         assert!(rx.try_recv().is_err(), "waking doesn't press the button");
+    }
+
+    #[test]
+    fn search_keyboard_results_and_detail() {
+        use tvdash_core::models::{WatchHit, WatchTier};
+        let (l, rx) = setup();
+        let ui = l.global::<TvUi>();
+        let w = l.global::<Watch>();
+        show(&l, "search");
+        assert_eq!((ui.get_focus().as_str(), ui.get_col()), ("search-kbd", 0));
+
+        // On-screen keyboard: 'A', then Right to 'B', then Down to 'H'.
+        press(&l, Key::Return);
+        press(&l, Key::RightArrow);
+        press(&l, Key::Return);
+        assert_eq!(w.get_query(), "ab");
+
+        // Physical keyboard typing appends and Backspace deletes.
+        assert!(key(&l, &SharedString::from("c")));
+        assert_eq!(w.get_query(), "abc");
+        assert!(press(&l, Key::Backspace));
+        assert_eq!(w.get_query(), "ab");
+
+        // Down to search-actions, col 4 ("Go") submits immediately.
+        for _ in 0..6 {
+            press(&l, Key::DownArrow);
+        }
+        assert_eq!(ui.get_focus(), "search-actions");
+        ui.set_col(4);
+        press(&l, Key::Return);
+        assert!(matches!(next_cmd(&rx), Command::WhereToWatch(q) if q == "ab"));
+
+        // Results arrive: Right from keyboard/actions jumps to results, OK opens detail, Back closes it.
+        let hit = WatchHit {
+            tmdb_id: 603,
+            is_tv: false,
+            title: "The Matrix".into(),
+            year: Some(1999),
+            overview: "Wake up, Neo.".into(),
+            tier: WatchTier::Included,
+            services: vec![(0, "Netflix".into())],
+            elsewhere: vec![],
+            library: None,
+            link: None,
+        };
+        crate::watch_ui::on_results(&l, "ab".into(), vec![hit], None);
+        press(&l, Key::DownArrow);
+        assert_eq!(ui.get_focus(), "watch-inc");
+        press(&l, Key::Return);
+        assert!(w.get_detail_open());
+        assert_eq!(ui.get_focus(), "watch-detail");
+        press(&l, Key::Escape);
+        assert!(!w.get_detail_open());
+        assert_eq!(ui.get_focus(), "watch-inc");
+    }
+
+    #[test]
+    fn library_tabs_and_show_detail() {
+        let (l, rx) = setup();
+        let ui = l.global::<TvUi>();
+        let lib = l.global::<Library>();
+        show(&l, "library");
+        assert_eq!((ui.get_focus().as_str(), ui.get_col()), ("lib-tabs", 0));
+        assert!(matches!(next_cmd(&rx), Command::LoadLibraryShelves { is_tv: true, .. }));
+
+        // Switch to Movies tab.
+        press(&l, Key::RightArrow);
+        press(&l, Key::Return);
+        assert_eq!(lib.get_media_tab(), "movies");
+        assert!(matches!(next_cmd(&rx), Command::LoadLibraryShelves { is_tv: false, .. }));
+
+        // Toggle Browse All and pick a letter from the A-Z filter bar.
+        press(&l, Key::RightArrow);
+        press(&l, Key::Return);
+        assert!(lib.get_browse_all());
+        press(&l, Key::DownArrow);
+        assert_eq!(ui.get_focus(), "lib-letters");
+        press(&l, Key::RightArrow);
+        press(&l, Key::RightArrow);
+        press(&l, Key::Return);
+        assert_eq!(lib.get_browse_letter(), "A");
+
+        // Open a Show detail overlay and navigate seasons / close.
+        let t = crate::TvWindow::new().unwrap();
+        let mut show_item = item("show-1");
+        show_item.kind = MediaKind::Series;
+        bridge::apply_for_test(&l, &t, AppEvent::ContinueWatching(SourceKind::Plex, vec![show_item]));
+        lib.set_browse_all(false);
+        sync(&l);
+        l.global::<ShowPageState>().set_open(true);
+        sync(&l);
+        assert_eq!(ui.get_focus(), "show-actions");
+        press(&l, Key::Escape);
+        assert!(!l.global::<ShowPageState>().get_open());
+        assert_eq!(ui.get_focus(), "lib-tabs");
+    }
+
+    #[test]
+    fn night_mode_forces_dark_on_tv() {
+        let (l, _rx) = setup();
+        bridge::set_theme(&l, ThemeMode::Mist);
+        assert_eq!(l.global::<crate::Theme>().get_mode(), UiTheme::Mist);
+
+        // Enable 24-hour night window (00:00..23:59) on TV layout -> forces Dark.
+        let mut disp = tvdash_core::config::DisplayConfig::default();
+        disp.night_mode = true;
+        disp.night_start = "00:00".into();
+        disp.night_end = "23:59".into();
+        bridge::set_night_config(&l, disp);
+        assert_eq!(l.global::<crate::Theme>().get_mode(), UiTheme::Dark);
+
+        // Switching back to Dual layout restores Mist.
+        set_layout(&l, Layout::Dual);
+        assert_eq!(l.global::<crate::Theme>().get_mode(), UiTheme::Mist);
     }
 }

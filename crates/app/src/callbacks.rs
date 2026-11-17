@@ -102,6 +102,12 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
             "play-pause" if paused => Command::Resume,
             "play-pause" => Command::Pause,
             "stop" => Command::Stop,
+            "audio" => Command::CycleAudio,
+            "sub" => Command::CycleSub,
+            "vol-down" => Command::VolumeDelta(-5),
+            "vol-up" => Command::VolumeDelta(5),
+            "prev-ep" => Command::PreviousEpisode,
+            "next-ep" => Command::NextEpisode,
             other => {
                 warn!(action = other, "unknown transport action");
                 return;
@@ -573,6 +579,7 @@ fn wire_watch(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     w.on_close_detail(move || {
         if let Some(l) = weak.upgrade() {
             l.global::<Watch>().set_detail_open(false);
+            crate::tv_nav::sync(&l);
         }
     });
 
@@ -584,10 +591,28 @@ fn wire_watch(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
             "play" => {
                 if let Some(item) = hit.library {
                     send(Command::Play(item));
+                    l.global::<Watch>().set_detail_open(false);
+                    if l.global::<crate::TvUi>().get_layout_tv() {
+                        l.global::<crate::TvUi>().set_screen("home".into());
+                        crate::tv_nav::sync(&l);
+                    }
                     l.global::<Nav>().set_page("home".into());
                 }
             }
             "library" => {
+                if l.global::<crate::TvUi>().get_layout_tv() {
+                    if let Some(item) = hit.library.filter(|i| i.kind == tvdash_core::models::MediaKind::Series) {
+                        l.global::<ShowPageState>().set_loading(true);
+                        send(Command::OpenShow(item.id));
+                        l.global::<crate::TvUi>().set_screen("library".into());
+                        l.global::<Watch>().set_detail_open(false);
+                        crate::tv_nav::sync(&l);
+                        return;
+                    }
+                    l.global::<crate::TvUi>().set_screen("library".into());
+                    l.global::<Watch>().set_detail_open(false);
+                    crate::tv_nav::sync(&l);
+                }
                 let lib = l.global::<Library>();
                 lib.set_query(hit.title.as_str().into());
                 if bridge::start_search(&l, &hit.title) {

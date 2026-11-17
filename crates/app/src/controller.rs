@@ -87,6 +87,27 @@ impl Player {
         }
     }
 
+    async fn cycle_audio(&mut self) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.cycle_audio().await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.cycle_audio().map_err(|e| e.to_string()),
+        }
+    }
+
+    async fn cycle_sub(&mut self) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.cycle_sub().await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.cycle_sub().map_err(|e| e.to_string()),
+        }
+    }
+
+    async fn add_volume(&mut self, delta: i64) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.add_volume(delta).await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.add_volume(delta).map_err(|e| e.to_string()),
+        }
+    }
+
     async fn show_text(&mut self, text: &str, duration_ms: Option<u32>) -> Result<(), String> {
         match self {
             Self::Window(m) => m.show_text(text, duration_ms).await.map_err(|e| e.to_string()),
@@ -446,6 +467,44 @@ impl Controller {
                     && let Err(e) = p.player.seek(secs).await
                 {
                     warn!(error = %e, "mpv seek failed");
+                }
+            }
+            Command::CycleAudio => {
+                if let Some(p) = self.playback.as_mut()
+                    && let Err(e) = p.player.cycle_audio().await
+                {
+                    warn!(error = %e, "mpv cycle audio failed");
+                }
+            }
+            Command::CycleSub => {
+                if let Some(p) = self.playback.as_mut()
+                    && let Err(e) = p.player.cycle_sub().await
+                {
+                    warn!(error = %e, "mpv cycle sub failed");
+                }
+            }
+            Command::VolumeDelta(delta) => {
+                if let Some(p) = self.playback.as_mut()
+                    && let Err(e) = p.player.add_volume(delta).await
+                {
+                    warn!(error = %e, "mpv volume failed");
+                }
+            }
+            Command::PreviousEpisode | Command::NextEpisode => {
+                let next = matches!(cmd, Command::NextEpisode);
+                if let Some(item) = self.playback.as_ref().map(|p| p.status.item.clone())
+                    && item.kind == tvdash_core::models::MediaKind::Episode
+                    && item.source == SourceKind::Plex
+                    && let Some(plex) = &self.plex
+                {
+                    match plex.adjacent_episode(&item.id, next).await {
+                        Ok(Some(mut ep)) => {
+                            ep.resume_ms = None;
+                            self.play(ep).await;
+                        }
+                        Ok(None) => self.emit(AppEvent::Toast(if next { "No next episode." } else { "No previous episode." }.into())),
+                        Err(e) => warn!(error = %e, "adjacent episode lookup failed"),
+                    }
                 }
             }
             Command::Stop => self.clear_tv().await,

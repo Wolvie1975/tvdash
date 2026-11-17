@@ -53,6 +53,43 @@ pub struct DisplayConfig {
     pub layout: LayoutSetting,
     /// Switch layout automatically while running when screens turn on/off (only used when `layout = "auto"`).
     pub switch_while_running: bool,
+    /// Force Dark theme on the TV during night-mode hours.
+    #[serde(default)]
+    pub night_mode: bool,
+    /// Start of night-mode hours in `HH:MM` 24-hour format (default `"22:00"`).
+    #[serde(default = "default_night_start")]
+    pub night_start: String,
+    /// End of night-mode hours in `HH:MM` 24-hour format (default `"07:00"`).
+    #[serde(default = "default_night_end")]
+    pub night_end: String,
+}
+
+fn default_night_start() -> String {
+    "22:00".into()
+}
+
+fn default_night_end() -> String {
+    "07:00".into()
+}
+
+impl DisplayConfig {
+    /// True when `night_mode` is enabled and `now` falls inside `[night_start, night_end)`.
+    pub fn is_night_now(&self, now: chrono::NaiveTime) -> bool {
+        if !self.night_mode {
+            return false;
+        }
+        let Ok(start) = chrono::NaiveTime::parse_from_str(&self.night_start, "%H:%M") else {
+            return false;
+        };
+        let Ok(end) = chrono::NaiveTime::parse_from_str(&self.night_end, "%H:%M") else {
+            return false;
+        };
+        if start <= end {
+            now >= start && now < end
+        } else {
+            now >= start || now < end
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -286,6 +323,9 @@ impl Default for DisplayConfig {
             laptop_output: "eDP-1".into(),
             layout: LayoutSetting::Auto,
             switch_while_running: true,
+            night_mode: false,
+            night_start: default_night_start(),
+            night_end: default_night_end(),
         }
     }
 }
@@ -553,5 +593,23 @@ mod tests {
         let p = expand_home("~/.local/share/tvdash/browser");
         assert!(!p.starts_with("~"));
         assert_eq!(expand_home("/abs/path"), PathBuf::from("/abs/path"));
+    }
+
+    #[test]
+    fn night_mode_window() {
+        let mut d = DisplayConfig::default();
+        let t = |h, m| chrono::NaiveTime::from_hms_opt(h, m, 0).unwrap();
+        assert!(!d.is_night_now(t(23, 0)), "disabled by default");
+        d.night_mode = true;
+        // Overnight window: 22:00..07:00
+        assert!(d.is_night_now(t(22, 0)));
+        assert!(d.is_night_now(t(2, 30)));
+        assert!(!d.is_night_now(t(7, 0)));
+        assert!(!d.is_night_now(t(15, 0)));
+        // Same-day window: 01:00..05:00
+        d.night_start = "01:00".into();
+        d.night_end = "05:00".into();
+        assert!(d.is_night_now(t(3, 0)));
+        assert!(!d.is_night_now(t(23, 0)));
     }
 }

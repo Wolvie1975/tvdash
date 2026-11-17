@@ -12,6 +12,7 @@ mod tint;
 mod tv_nav;
 mod video;
 mod watch;
+mod remote;
 mod watch_ui;
 
 use std::{sync::Arc, time::Duration};
@@ -215,6 +216,7 @@ fn main() -> anyhow::Result<()> {
             sites: config.streaming.clone(),
         },
     );
+    bridge::set_night_config(&laptop, config.display.clone());
 
     // Background → UI events.
     let (event_tx, event_rx) = mpsc::unbounded_channel::<AppEvent>();
@@ -270,6 +272,7 @@ fn main() -> anyhow::Result<()> {
         if let Err(e) = listening {
             warn!(error = %e, "no instance socket; tvdash --home won't work");
         }
+        remote::serve(remote::DEFAULT_PORT, cmd_tx.clone(), laptop.as_weak());
     }
 
     // M1 done-check: keyring round-trip, reported in the laptop footer.
