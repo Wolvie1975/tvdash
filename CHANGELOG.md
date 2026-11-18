@@ -1,5 +1,8 @@
 # tvdash Changelog
 
+## v0.1.11 — 2026-11-17
+- Added a scannable Phone Remote QR code and LAN URL to Settings › Display in both TV-only and two-screen layouts.
+
 ## v0.1.10 — 2026-11-17
 - Reactivated Jellyfin integration (Quick Connect, username/password, Continue Watching, Recently Added, Search, Playback, and Setup step).
 - Fixed TV-only Settings › Accounts to show the live Plex/Jellyfin sign-in code and instructions, plus inline TMDB / Tautulli API key entry.

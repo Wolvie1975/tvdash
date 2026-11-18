@@ -409,6 +409,43 @@ component DisplayTab inherits VerticalLayout {
             }
         }
     }
+
+    if Dash.remote-url != "": Card {
+        VerticalLayout {
+            padding: 28px;
+            spacing: 16px;
+            SectionLabel { text: "PHONE REMOTE"; }
+            HorizontalLayout {
+                spacing: 24px;
+                if Dash.remote-has-qr: Rectangle {
+                    width: 140px;
+                    height: 140px;
+                    border-radius: 12px;
+                    background: #FFFFFF;
+                    Image {
+                        x: 6px;
+                        y: 6px;
+                        width: parent.width - 12px;
+                        height: parent.height - 12px;
+                        source: Dash.remote-qr;
+                        image-rendering: pixelated;
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 6px;
+                    horizontal-stretch: 1;
+                    Text { text: Dash.remote-url; font-size: Theme.body-size; font-weight: 600; color: Theme.text-primary; }
+                    Text {
+                        text: "Scan with your phone camera on the same Wi-Fi to open the remote (D-pad, playback, Stop, Search).";
+                        font-size: 18px;
+                        color: Theme.text-secondary;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+    }
 }
 
 component HealthLine inherits HorizontalLayout {

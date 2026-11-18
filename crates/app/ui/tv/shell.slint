@@ -1409,6 +1409,35 @@ component SettingsScreen inherits VerticalLayout {
                     Chip { text: "24-hour"; on: !Display.h12; focused: f("set-clock", 0); clicked => { TvUi.click("set-clock", 0); } }
                     Chip { text: "12-hour"; on: Display.h12; focused: f("set-clock", 1); clicked => { TvUi.click("set-clock", 1); } }
                 }
+                if Dash.remote-url != "": SettingRow {
+                    label: "Phone remote";
+                    if Dash.remote-has-qr: Rectangle {
+                        width: 168px;
+                        height: 168px;
+                        border-radius: 14px;
+                        background: #FFFFFF;
+                        Image {
+                            x: 6px;
+                            y: 6px;
+                            width: parent.width - 12px;
+                            height: parent.height - 12px;
+                            source: Dash.remote-qr;
+                            image-rendering: pixelated;
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 6px;
+                        horizontal-stretch: 1;
+                        Text { text: Dash.remote-url; font-size: 26px; font-weight: 600; color: Theme.text-primary; overflow: elide; }
+                        Text {
+                            text: "Scan with your phone camera on the same Wi-Fi to open the remote.";
+                            font-size: 22px;
+                            color: Theme.text-muted;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
                 SettingRow {
                     label: "";
                     Chip { text: "Quit tvdash"; focused: f("set-quit", 0); clicked => { TvUi.click("set-quit", 0); } }

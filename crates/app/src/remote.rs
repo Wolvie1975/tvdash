@@ -17,6 +17,45 @@ use crate::{Dash, LaptopWindow, Nav, TvUi, Watch, tv_nav};
 
 pub const DEFAULT_PORT: u16 = 8765;
 
+/// Best-effort LAN URL for the phone remote (e.g. `http://192.168.1.42:8765/`).
+pub fn lan_url() -> Option<String> {
+    let sock = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    sock.connect("1.1.1.1:80").ok()?;
+    let ip = sock.local_addr().ok()?.ip();
+    (!ip.is_loopback()).then(|| format!("http://{ip}:{DEFAULT_PORT}/"))
+}
+
+/// Render `url` as a crisp black-on-white QR code `slint::Image` with a 2-module quiet zone.
+pub fn qr_image(url: &str) -> Option<slint::Image> {
+    let code = qrcode::QrCode::new(url.as_bytes()).ok()?;
+    let n = code.width();
+    let pad = 2usize;
+    let scale = 6usize;
+    let total = n + pad * 2;
+    let px = (total * scale) as u32;
+    let mut buf = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(px, px);
+    let slice = buf.make_mut_slice();
+    let dark = slint::Rgba8Pixel { r: 11, g: 13, b: 16, a: 255 };
+    let light = slint::Rgba8Pixel { r: 255, g: 255, b: 255, a: 255 };
+    for y in 0..total {
+        for x in 0..total {
+            let is_dark = x >= pad
+                && y >= pad
+                && x < n + pad
+                && y < n + pad
+                && code[(x - pad, y - pad)] == qrcode::Color::Dark;
+            let color = if is_dark { dark } else { light };
+            for dy in 0..scale {
+                for dx in 0..scale {
+                    let idx = (y * scale + dy) * (px as usize) + (x * scale + dx);
+                    slice[idx] = color;
+                }
+            }
+        }
+    }
+    Some(slint::Image::from_rgba8(buf))
+}
+
 #[derive(Debug, Clone, PartialEq)]
 enum RemoteAction {
     Key(Key),

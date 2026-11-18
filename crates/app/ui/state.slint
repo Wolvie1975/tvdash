@@ -119,6 +119,9 @@ export global Dash {
     in property <string> toast;
     in property <string> version;
     in property <[ChangelogEntry]> changelog;
+    in property <string> remote-url;
+    in property <image> remote-qr;
+    in property <bool> remote-has-qr: false;
 
     // Next episode prompt when an episode finishes naturally.
     in-out property <bool> next-ep-open: false;
