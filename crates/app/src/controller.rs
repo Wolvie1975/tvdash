@@ -340,8 +340,8 @@ impl Controller {
         self.watch.init(&self.config.streaming).await;
         self.init_tautulli().await;
         self.watch.refresh_library(self.sources(), true);
-        if let Some(j) = &self.jellyfin {
-            self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(j.base_url().to_owned())));
+        if !self.config.jellyfin.server_url.is_empty() {
+            self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(self.config.jellyfin.server_url.clone())));
         }
         if self.plex.is_some() {
             self.emit(AppEvent::Server(SourceKind::Plex, Some(self.config.plex.server_url.clone())));
@@ -657,7 +657,12 @@ impl Controller {
                 let url = url.trim().trim_end_matches('/').to_owned();
                 if !url.is_empty() && url != self.config.jellyfin.server_url {
                     info!(%url, "Jellyfin server address changed");
-                    self.update_config(|c| c.jellyfin.server_url = url);
+                    self.update_config(|c| c.jellyfin.server_url = url.clone());
+                    self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(url)));
+                    if self.jellyfin.is_some() {
+                        self.init_jellyfin().await;
+                        self.refresh();
+                    }
                 }
             }
             Command::JellyfinPassword { username, password } => self.jellyfin_password(username, password),

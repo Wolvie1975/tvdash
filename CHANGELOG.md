@@ -1,5 +1,8 @@
 # tvdash Changelog
 
+## v0.1.12 — 2026-11-17
+- Added Jellyfin Server URL editing in Settings › Accounts (both two-screen and TV-only) and unmasked URL inputs for Jellyfin and Tautulli.
+
 ## v0.1.11 — 2026-11-17
 - Added a scannable Phone Remote QR code and LAN URL to Settings › Display in both TV-only and two-screen layouts.
 

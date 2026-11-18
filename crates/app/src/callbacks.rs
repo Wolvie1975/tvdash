@@ -527,6 +527,16 @@ fn wire_accounts(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static
     acc.on_submit(move |id, value| {
         if id == "tmdb" && !value.trim().is_empty() {
             s(Command::SetTmdbToken(value.to_string()));
+        } else if id == "jellyfin" {
+            let url = value.trim().trim_end_matches('/').to_string();
+            if url.starts_with("http://") || url.starts_with("https://") {
+                s(Command::JellyfinServer(url));
+                if let Some(l) = weak.upgrade() {
+                    l.global::<Accounts>().set_editing("".into());
+                }
+            } else if let Some(l) = weak.upgrade() {
+                l.global::<Accounts>().set_edit_error("Enter a URL starting with http:// or https://".into());
+            }
         } else if id == "tautulli" {
             let trimmed = value.trim();
             if let Some((url, key)) = trimmed.split_once('|').or_else(|| trimmed.split_once(' ')) {

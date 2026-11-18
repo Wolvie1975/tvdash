@@ -63,7 +63,7 @@ component AccountLine inherits VerticalLayout {
             spacing: 12px;
             field := TextField {
                 placeholder: root.account.input-hint;
-                password: true;
+                password: root.account.id == "tmdb";
                 accepted(v) => { Accounts.submit(root.account.id, v); }
             }
             ActionButton { text: "Save"; primary: true; clicked => { Accounts.submit(root.account.id, field.text); } }

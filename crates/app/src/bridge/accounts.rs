@@ -146,35 +146,40 @@ fn tmdb_row(s: &UiState) -> AccountRow {
 fn media_account_row(s: &UiState, kind: SourceKind) -> AccountRow {
     let server = s.servers.get(&kind).cloned().unwrap_or_default();
     let sign_out = ("Sign out", "sign-out");
-    let row = |status: String, detail: String, state, primary, secondary| Row {
-        id: source_id(kind),
-        name: kind.label(),
-        status,
-        detail,
-        state,
-        primary,
-        secondary,
+    let edit_url = if kind == SourceKind::Jellyfin { ("Server URL", "edit") } else { NONE };
+    let input_hint = if kind == SourceKind::Jellyfin { "http://host:8096".into() } else { String::new() };
+    let row = |status: String, detail: String, state, primary, secondary| AccountRow {
+        input_hint: input_hint.clone().into(),
+        ..Row {
+            id: source_id(kind),
+            name: kind.label(),
+            status,
+            detail,
+            state,
+            primary,
+            secondary,
+        }
+        .into()
     };
     match (s.sign_in.get(&kind), s.accounts.get(&kind)) {
         (Some(SignInState::Starting), _) => {
-            row("Contacting the server…".into(), String::new(), "busy", ("Cancel", "cancel"), NONE)
+            row("Contacting the server…".into(), server, "busy", ("Cancel", "cancel"), NONE)
         }
         (Some(SignInState::Code(code)), _) => {
             row(format!("Code {code}"), code_instructions(kind).into(), "busy", ("Cancel", "cancel"), NONE)
         }
         (Some(SignInState::Failed(e)), _) => {
-            row(format!("Sign-in failed: {e}"), String::new(), "warn", ("Try again", "sign-in"), NONE)
+            row(format!("Sign-in failed: {e}"), server, "warn", ("Try again", "sign-in"), edit_url)
         }
-        (_, Some(AccountStatus::Connected)) => row("Connected".into(), server, "ok", NONE, sign_out),
+        (_, Some(AccountStatus::Connected)) => row("Connected".into(), server, "ok", edit_url, sign_out),
         (_, Some(AccountStatus::Expired)) => {
             row("Sign-in expired".into(), server, "warn", ("Reconnect", "sign-in"), sign_out)
         }
         (_, Some(AccountStatus::Unreachable(e))) => {
             row("Can't reach the server".into(), e.clone(), "warn", ("Retry", "retry"), sign_out)
         }
-        _ => row("Not connected".into(), String::new(), "off", ("Sign in", "sign-in"), NONE),
+        _ => row("Not connected".into(), server, "off", ("Sign in", "sign-in"), edit_url),
     }
-    .into()
 }
 
 fn site_status(opened: Option<&DateTime<Utc>>) -> String {

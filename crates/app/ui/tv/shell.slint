@@ -1474,6 +1474,10 @@ component SettingsScreen inherits VerticalLayout {
                         background: Theme.surface-raised;
                         border-width: 1px;
                         border-color: Theme.border;
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { TvUi.click("set-accounts", i); }
+                        }
                         HorizontalLayout {
                             padding-left: 24px;
                             padding-right: 24px;
@@ -1497,7 +1501,18 @@ component SettingsScreen inherits VerticalLayout {
                                 Text { text: a.name + " · " + a.status; font-size: 26px; font-weight: 600; color: Theme.text-primary; overflow: elide; }
                                 if a.detail != "": Text { text: a.detail; font-size: 20px; color: Theme.text-secondary; overflow: elide; }
                             }
-                            if a.primary != "" || a.secondary != "": VerticalLayout {
+                            if a.secondary-id == "edit": VerticalLayout {
+                                alignment: center;
+                                TenButton {
+                                    compact: true;
+                                    text: a.secondary;
+                                    clicked => {
+                                        Accounts.edit-error = "";
+                                        Accounts.editing = a.id;
+                                    }
+                                }
+                            }
+                            if a.primary != "" || (a.secondary != "" && a.secondary-id != "edit"): VerticalLayout {
                                 alignment: center;
                                 Text {
                                     text: a.primary != "" ? a.primary : a.secondary;
@@ -1506,10 +1521,6 @@ component SettingsScreen inherits VerticalLayout {
                                     color: Theme.accent;
                                 }
                             }
-                        }
-                        TouchArea {
-                            mouse-cursor: pointer;
-                            clicked => { TvUi.click("set-accounts", i); }
                         }
                         Ring { on: f("set-accounts", i); corner: 16px; height: parent.height + 16px; width: parent.width + 16px; x: -8px; y: -8px; }
                     }
@@ -1540,7 +1551,7 @@ component SettingsScreen inherits VerticalLayout {
                                         font-size: 24px;
                                         color: Theme.text-primary;
                                         vertical-alignment: center;
-                                        input-type: password;
+                                        input-type: a.id == "tmdb" ? InputType.password : InputType.text;
                                         accepted => { Accounts.submit(a.id, self.text); }
                                         key-pressed(ev) => {
                                             if ev.text == Key.Escape {
