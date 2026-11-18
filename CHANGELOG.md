@@ -1,5 +1,9 @@
 # tvdash Changelog
 
+## v0.1.24 — 2026-11-18
+- Replaced minimized in-tile video on Home with the static poster + play button overlay (pausing playback on Home and skipping minimized FBO renders).
+- Added the Up Next modal popup (`Play Next` / `Back to Dashboard`) when a TV episode finishes in TV-only mode.
+
 ## v0.1.23 — 2026-11-18
 - Paused in-window video when returning to the Home dashboard and overlaid a play icon over the paused frame in the Hero tile (resumes when returning to full screen).
 

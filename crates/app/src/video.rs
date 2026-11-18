@@ -112,14 +112,13 @@ impl Video {
             }
         }
         let Some((_, ctx)) = &self.ctx else { return };
+        if !ui.get_video_full() {
+            return;
+        }
 
-        // Full window size when full-screen; cap to 960x540 when minimized in the Hero tile.
+        // Full window size when full-screen.
         let size = laptop.window().size();
-        let (w, h) = if ui.get_video_full() {
-            (size.width.max(1) as i32, size.height.max(1) as i32)
-        } else {
-            ((size.width.min(960)).max(1) as i32, (size.height.min(540)).max(1) as i32)
-        };
+        let (w, h) = (size.width.max(1) as i32, size.height.max(1) as i32);
         let resized = self.target.as_ref().is_none_or(|t| (t.w, t.h) != (w, h));
         if resized {
             drop_target(gl, &mut self.target);

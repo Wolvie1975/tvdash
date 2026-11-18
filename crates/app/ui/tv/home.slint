@@ -98,14 +98,14 @@ export component TvHome inherits Rectangle {
         }
     }
 
-    // 1: Big On-the-TV Hero tile (728 x 590, top progress bar; shows paused video frame + play overlay)
+    // 1: Big On-the-TV Hero tile (728 x 590, top progress bar; shows poster + play overlay when paused on Home)
     MediaTile {
         x: 322px * TvUi.u;
         y: 136px * TvUi.u;
         base-width: 728px * TvUi.u;
         base-height: 590px * TvUi.u;
-        art: TvUi.video-on ? TvUi.video : Dash.tv.poster;
-        has-art: TvUi.video-on || Dash.tv.has-poster;
+        art: Dash.tv.poster;
+        has-art: Dash.tv.has-poster;
         title: Dash.tv.title;
         subtitle: TvUi.video-on ? "Paused · Click or press OK to resume" : Dash.tv.subtitle;
         progress: Dash.tv.progress;

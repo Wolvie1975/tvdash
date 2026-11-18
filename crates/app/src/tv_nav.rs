@@ -853,6 +853,36 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
         return true;
     }
 
+    let dash = laptop.global::<Dash>();
+    if dash.get_next_ep_open() {
+        if is_back(text) {
+            dash.invoke_dismiss_next_ep();
+            sync(laptop);
+            return true;
+        }
+        match decode_dir(text) {
+            Some(Dir::Left) => {
+                tv.set_focused_tile(0);
+                return true;
+            }
+            Some(Dir::Right) => {
+                tv.set_focused_tile(1);
+                return true;
+            }
+            _ => {}
+        }
+        if is_ok(text) {
+            if tv.get_focused_tile() == 1 {
+                dash.invoke_dismiss_next_ep();
+            } else {
+                dash.invoke_play_next_ep();
+            }
+            sync(laptop);
+            return true;
+        }
+        return true;
+    }
+
     if tv.get_video_on() && tv.get_video_full() {
         if is_back(text) {
             if tv.get_hud_open() {

@@ -541,6 +541,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
                 dash.set_next_ep_has_poster(poster.is_some());
                 dash.set_next_ep_poster(poster.cloned().unwrap_or_default());
                 dash.set_next_ep_open(true);
+                laptop.global::<crate::TvUi>().set_focused_tile(0);
             } else {
                 dash.set_next_ep_open(false);
             }

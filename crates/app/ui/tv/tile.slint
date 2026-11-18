@@ -28,8 +28,8 @@ export component Tile inherits Rectangle {
         border-radius: 6px;
         background: root.fill;
         clip: true;
-        drop-shadow-blur: (root.focused && !(TvUi.video-on && !TvUi.video-full)) ? 60px : 0px;
-        drop-shadow-offset-y: (root.focused && !(TvUi.video-on && !TvUi.video-full)) ? 20px : 0px;
+        drop-shadow-blur: root.focused ? 60px : 0px;
+        drop-shadow-offset-y: root.focused ? 20px : 0px;
         drop-shadow-color: #00000099;
 
         animate width, height, x, y, drop-shadow-blur, drop-shadow-offset-y {
