@@ -1,173 +1,348 @@
 import { Theme } from "../theme.slint";
 import { Library, TvUi } from "../state.slint";
 import { SubTabs } from "tabs.slint";
-import { MediaTile } from "tile.slint";
+import { MediaTile, Tile } from "tile.slint";
 
 export component TvLibrary inherits Rectangle {
-    width: 1920px;
-    height: 1080px;
+    width: 1920px * TvUi.u;
+    height: 1080px * TvUi.u;
     background: transparent;
+
+    property <[string]> letters: [
+        "All", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+        "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "#"
+    ];
 
     property <int> cw-n: min(Library.continue-watching.length, 4);
     property <int> rec-n: min(Library.recently-added.length, 8);
+    property <int> fin-n: Library.media-tab == "tv" ? min(Library.finish-season.length, 4) : 0;
+    property <int> col-n: Library.media-tab == "movies" ? min(Library.collections.length, 6) : 0;
     property <int> pop-n: min(Library.popular.length, 8);
     property <int> wag-n: min(Library.watch-again.length, 8);
-    property <int> col-n: min(Library.collections.length, 6);
+
+    // Vertical shelf offsets (design px, multiplied by TvUi.u at use)
+    property <float> rec-y: cw-n > 0 ? 304.0 : 0.0;
+    property <float> fin-y: rec-y + (rec-n > 0 ? 324.0 : 0.0);
+    property <float> col-y: fin-y + (fin-n > 0 ? 196.0 : 0.0);
+    property <float> pop-y: col-y + (col-n > 0 ? 314.0 : 0.0);
+    property <float> wag-y: pop-y + (pop-n > 0 ? 324.0 : 0.0);
 
     SubTabs {
-        x: 96px;
-        y: 122px;
+        x: 96px * TvUi.u;
+        y: 122px * TvUi.u;
         labels: ["TV Series", "Movies"];
         active: Library.media-tab == "movies" ? 1 : 0;
-        selected(i) => { Library.set-media-tab(i == 1 ? "movies" : "tv"); }
+        focused: !TvUi.bar-focused && (TvUi.focused-tile == 0 || TvUi.focused-tile == 1);
+        focused-index: (!TvUi.bar-focused && (TvUi.focused-tile == 0 || TvUi.focused-tile == 1))
+            ? TvUi.focused-tile : -1;
+        selected(i) => { TvUi.tile-activated(i); }
     }
 
+    // 2: Browse All toggle pill
     Rectangle {
-        x: 0px;
-        y: 184px;
-        width: 1920px;
-        height: 820px;
+        x: 416px * TvUi.u;
+        y: 122px * TvUi.u;
+        width: browse-lbl.preferred-width + 28px * TvUi.u;
+        height: 44px * TvUi.u;
+        border-radius: 22px * TvUi.u;
+        background: Library.browse-all ? Theme.accent : Theme.surface;
+        border-width: (!TvUi.bar-focused && TvUi.focused-tile == 2) ? 3px : 1px;
+        border-color: (!TvUi.bar-focused && TvUi.focused-tile == 2) ? Theme.text-primary : Theme.border;
+
+        browse-lbl := Text {
+            text: Library.browse-all ? "Browse All · On" : "Browse All";
+            font-size: 22px * TvUi.u;
+            font-weight: 500;
+            color: Library.browse-all ? #0B0D10 : Theme.text-primary;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { TvUi.tile-activated(2); }
+        }
+    }
+
+    // ── Browse All (A–Z filter + 8-column vertical grid) ─────────────────────
+    if Library.browse-all: Rectangle {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: transparent;
+
+        // 3..30: A–Z letter bar
+        for ltr[i] in root.letters: Rectangle {
+            property <bool> is-on: (ltr == "All" && Library.browse-letter == "")
+                || (ltr != "All" && Library.browse-letter == ltr);
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 3 + i;
+
+            x: (96px + i * 62px) * TvUi.u;
+            y: 184px * TvUi.u;
+            width: 58px * TvUi.u;
+            height: 44px * TvUi.u;
+            border-radius: 6px;
+            background: self.is-on ? Theme.accent : Theme.surface;
+            border-width: self.is-foc ? 3px : 1px;
+            border-color: self.is-foc ? Theme.text-primary : Theme.border;
+
+            Text {
+                text: ltr;
+                font-size: 20px * TvUi.u;
+                font-weight: parent.is-on ? 600 : 400;
+                color: parent.is-on ? #0B0D10 : Theme.text-primary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { TvUi.tile-activated(3 + i); }
+            }
+        }
+
+        if Library.browse-items.length == 0: Text {
+            x: 96px * TvUi.u;
+            y: 264px * TvUi.u;
+            text: Library.browse-letter == ""
+                ? "No items in this library."
+                : "No items starting with “" + Library.browse-letter + "”.";
+            font-size: 26px * TvUi.u;
+            color: Theme.text-secondary;
+        }
+
+        if Library.browse-items.length > 0: Rectangle {
+            x: 0;
+            y: 244px * TvUi.u;
+            width: 1920px * TvUi.u;
+            height: 760px * TvUi.u;
+            clip: true;
+            background: transparent;
+
+            TouchArea {
+                scroll-event(event) => {
+                    TvUi.scroll-panorama(event.delta-y);
+                    accept
+                }
+            }
+
+            Rectangle {
+                x: 0;
+                y: -TvUi.lib-scroll * TvUi.u;
+                width: 1920px * TvUi.u;
+                height: (Math.ceil(Library.browse-items.length / 8) * 276px + 40px) * TvUi.u;
+                background: transparent;
+                animate y { duration: 180ms; easing: ease-out; }
+
+                for item[i] in Library.browse-items: MediaTile {
+                    x: (96px + Math.mod(i, 8) * 218px) * TvUi.u;
+                    y: (8px + Math.floor(i / 8) * 276px) * TvUi.u;
+                    base-width: 198px * TvUi.u;
+                    base-height: 256px * TvUi.u;
+                    art: item.poster;
+                    has-art: item.has-poster;
+                    title: item.title;
+                    subtitle: item.subtitle;
+                    progress: item.progress;
+                    focused: !TvUi.bar-focused && TvUi.focused-tile == 31 + i;
+                    activated => { TvUi.tile-activated(31 + i); }
+                    hovered => { TvUi.tile-hovered(31 + i); }
+                }
+            }
+        }
+    }
+
+    // ── Smart Shelves (vertical scrolling, zero horizontal scroll) ───────────
+    if !Library.browse-all: Rectangle {
+        x: 0;
+        y: 184px * TvUi.u;
+        width: 1920px * TvUi.u;
+        height: 820px * TvUi.u;
         clip: true;
         background: transparent;
 
         TouchArea {
             scroll-event(event) => {
-                TvUi.scroll-panorama(event.delta-x != 0px ? event.delta-x : event.delta-y);
+                TvUi.scroll-panorama(event.delta-y);
                 accept
             }
         }
 
         Rectangle {
-            x: -TvUi.lib-scroll;
-            y: 0px;
-            width: 4600px;
-            height: parent.height;
+            x: 0;
+            y: -TvUi.lib-scroll * TvUi.u;
+            width: 1920px * TvUi.u;
+            height: (root.wag-y + (root.wag-n > 0 ? 340.0 : 40.0)) * 1px * TvUi.u;
             background: transparent;
-            animate x { duration: 200ms; easing: ease-out; }
+            animate y { duration: 180ms; easing: ease-out; }
 
-            // Group 0: Watching now (2x2 wide tiles, x: 96)
-            Text {
-                x: 96px;
-                y: 0px;
+            // Watching now (up to 4 wide tiles)
+            if root.cw-n > 0: Text {
+                x: 96px * TvUi.u;
+                y: 0;
                 text: "WATCHING NOW";
-                font-size: 22px;
+                font-size: 20px * TvUi.u;
                 font-weight: 500;
                 letter-spacing: 1.2px;
                 color: Theme.text-secondary;
             }
             for item[i] in Library.continue-watching: MediaTile {
                 visible: i < 4;
-                x: 96px + Math.mod(i, 2) * 400px;
-                y: 40px + Math.floor(i / 2) * 256px;
-                base-width: 384px;
-                base-height: 240px;
+                x: (96px + i * 432px) * TvUi.u;
+                y: 36px * TvUi.u;
+                base-width: 416px * TvUi.u;
+                base-height: 240px * TvUi.u;
                 art: item.poster;
                 has-art: item.has-poster;
                 title: item.title;
                 subtitle: item.subtitle;
                 progress: item.progress;
-                focused: !TvUi.bar-focused && TvUi.focused-tile == i;
-                activated => { TvUi.tile-activated(i); }
-                hovered => { TvUi.tile-hovered(i); }
+                focused: !TvUi.bar-focused && TvUi.focused-tile == 3 + i;
+                activated => { TvUi.tile-activated(3 + i); }
+                hovered => { TvUi.tile-hovered(3 + i); }
             }
 
-            // Group 1: Recently added (4x2 poster tiles, x: 944)
-            Text {
-                x: 944px;
-                y: 0px;
+            // Recently added (up to 8 poster tiles)
+            if root.rec-n > 0: Text {
+                x: 96px * TvUi.u;
+                y: root.rec-y * 1px * TvUi.u;
                 text: "RECENTLY ADDED";
-                font-size: 22px;
+                font-size: 20px * TvUi.u;
                 font-weight: 500;
                 letter-spacing: 1.2px;
                 color: Theme.text-secondary;
             }
             for item[i] in Library.recently-added: MediaTile {
                 visible: i < 8;
-                x: 944px + Math.mod(i, 4) * 194px;
-                y: 40px + Math.floor(i / 4) * 256px;
-                base-width: 178px;
-                base-height: 240px;
+                x: (96px + i * 218px) * TvUi.u;
+                y: (root.rec-y + 36.0) * 1px * TvUi.u;
+                base-width: 198px * TvUi.u;
+                base-height: 260px * TvUi.u;
                 art: item.poster;
                 has-art: item.has-poster;
                 title: item.title;
                 subtitle: item.subtitle;
                 progress: item.progress;
-                focused: !TvUi.bar-focused && TvUi.focused-tile == root.cw-n + i;
-                activated => { TvUi.tile-activated(root.cw-n + i); }
-                hovered => { TvUi.tile-hovered(root.cw-n + i); }
+                focused: !TvUi.bar-focused && TvUi.focused-tile == 3 + root.cw-n + i;
+                activated => { TvUi.tile-activated(3 + root.cw-n + i); }
+                hovered => { TvUi.tile-hovered(3 + root.cw-n + i); }
             }
 
-            // Group 2: Popular (4x2 poster tiles with rank chip, x: 1768)
-            Text {
-                x: 1768px;
-                y: 0px;
+            // Finish the season (TV Series only, up to 4 cards)
+            if root.fin-n > 0: Text {
+                x: 96px * TvUi.u;
+                y: root.fin-y * 1px * TvUi.u;
+                text: "FINISH THE SEASON";
+                font-size: 20px * TvUi.u;
+                font-weight: 500;
+                letter-spacing: 1.2px;
+                color: Theme.text-secondary;
+            }
+            for f[i] in Library.finish-season: Tile {
+                visible: Library.media-tab == "tv" && i < 4;
+                x: (96px + i * 432px) * TvUi.u;
+                y: (root.fin-y + 36.0) * 1px * TvUi.u;
+                base-width: 416px * TvUi.u;
+                base-height: 132px * TvUi.u;
+                fill: Theme.surface;
+                focused: !TvUi.bar-focused && TvUi.focused-tile == 3 + root.cw-n + root.rec-n + i;
+                activated => { TvUi.tile-activated(3 + root.cw-n + root.rec-n + i); }
+                hovered => { TvUi.tile-hovered(3 + root.cw-n + root.rec-n + i); }
+
+                VerticalLayout {
+                    padding: 20px * TvUi.u;
+                    alignment: center;
+                    spacing: 6px * TvUi.u;
+
+                    Text {
+                        text: f.title;
+                        font-size: 24px * TvUi.u;
+                        font-weight: 500;
+                        color: Theme.text-primary;
+                        overflow: elide;
+                    }
+
+                    Text {
+                        text: f.season + " · " + f.watched + "/" + f.total;
+                        font-size: 20px * TvUi.u;
+                        color: Theme.text-secondary;
+                        overflow: elide;
+                    }
+                }
+            }
+
+            // Collections (Movies only, up to 6 tiles)
+            if root.col-n > 0: Text {
+                x: 96px * TvUi.u;
+                y: root.col-y * 1px * TvUi.u;
+                text: "COLLECTIONS";
+                font-size: 20px * TvUi.u;
+                font-weight: 500;
+                letter-spacing: 1.2px;
+                color: Theme.text-secondary;
+            }
+            for col[i] in Library.collections: MediaTile {
+                visible: Library.media-tab == "movies" && i < 6;
+                x: (96px + i * 290px) * TvUi.u;
+                y: (root.col-y + 36.0) * 1px * TvUi.u;
+                base-width: 272px * TvUi.u;
+                base-height: 250px * TvUi.u;
+                title: col.title;
+                subtitle: col.detail;
+                progress: col.progress;
+                focused: !TvUi.bar-focused && TvUi.focused-tile == 3 + root.cw-n + root.rec-n + root.fin-n + i;
+                activated => { TvUi.tile-activated(3 + root.cw-n + root.rec-n + root.fin-n + i); }
+                hovered => { TvUi.tile-hovered(3 + root.cw-n + root.rec-n + root.fin-n + i); }
+            }
+
+            // Popular (up to 8 poster tiles)
+            if root.pop-n > 0: Text {
+                x: 96px * TvUi.u;
+                y: root.pop-y * 1px * TvUi.u;
                 text: "POPULAR";
-                font-size: 22px;
+                font-size: 20px * TvUi.u;
                 font-weight: 500;
                 letter-spacing: 1.2px;
                 color: Theme.text-secondary;
             }
             for item[i] in Library.popular: MediaTile {
                 visible: i < 8;
-                x: 1768px + Math.mod(i, 4) * 194px;
-                y: 40px + Math.floor(i / 4) * 256px;
-                base-width: 178px;
-                base-height: 240px;
+                x: (96px + i * 218px) * TvUi.u;
+                y: (root.pop-y + 36.0) * 1px * TvUi.u;
+                base-width: 198px * TvUi.u;
+                base-height: 260px * TvUi.u;
                 title: item.title;
                 subtitle: item.plays;
                 badge: "#" + item.rank;
-                focused: !TvUi.bar-focused && TvUi.focused-tile == root.cw-n + root.rec-n + i;
-                activated => { TvUi.tile-activated(root.cw-n + root.rec-n + i); }
-                hovered => { TvUi.tile-hovered(root.cw-n + root.rec-n + i); }
+                focused: !TvUi.bar-focused && TvUi.focused-tile == 3 + root.cw-n + root.rec-n + root.fin-n + root.col-n + i;
+                activated => { TvUi.tile-activated(3 + root.cw-n + root.rec-n + root.fin-n + root.col-n + i); }
+                hovered => { TvUi.tile-hovered(3 + root.cw-n + root.rec-n + root.fin-n + root.col-n + i); }
             }
 
-            // Group 3: Watch again (4x2 poster tiles, x: 2592)
-            Text {
-                x: 2592px;
-                y: 0px;
+            // Watch again (up to 8 poster tiles)
+            if root.wag-n > 0: Text {
+                x: 96px * TvUi.u;
+                y: root.wag-y * 1px * TvUi.u;
                 text: "WATCH AGAIN";
-                font-size: 22px;
+                font-size: 20px * TvUi.u;
                 font-weight: 500;
                 letter-spacing: 1.2px;
                 color: Theme.text-secondary;
             }
             for item[i] in Library.watch-again: MediaTile {
                 visible: i < 8;
-                x: 2592px + Math.mod(i, 4) * 194px;
-                y: 40px + Math.floor(i / 4) * 256px;
-                base-width: 178px;
-                base-height: 240px;
+                x: (96px + i * 218px) * TvUi.u;
+                y: (root.wag-y + 36.0) * 1px * TvUi.u;
+                base-width: 198px * TvUi.u;
+                base-height: 260px * TvUi.u;
                 art: item.poster;
                 has-art: item.has-poster;
                 title: item.title;
                 subtitle: item.subtitle;
-                focused: !TvUi.bar-focused && TvUi.focused-tile == root.cw-n + root.rec-n + root.pop-n + i;
-                activated => { TvUi.tile-activated(root.cw-n + root.rec-n + root.pop-n + i); }
-                hovered => { TvUi.tile-hovered(root.cw-n + root.rec-n + root.pop-n + i); }
-            }
-
-            // Group 4: Collections (3x2 square tiles, x: 3416)
-            Text {
-                x: 3416px;
-                y: 0px;
-                text: "COLLECTIONS";
-                font-size: 22px;
-                font-weight: 500;
-                letter-spacing: 1.2px;
-                color: Theme.text-secondary;
-            }
-            for col[i] in Library.collections: MediaTile {
-                visible: i < 6;
-                x: 3416px + Math.mod(i, 3) * 256px;
-                y: 40px + Math.floor(i / 3) * 256px;
-                base-width: 240px;
-                base-height: 240px;
-                title: col.title;
-                subtitle: col.detail;
-                progress: col.progress;
-                focused: !TvUi.bar-focused && TvUi.focused-tile == root.cw-n + root.rec-n + root.pop-n + root.wag-n + i;
-                activated => { TvUi.tile-activated(root.cw-n + root.rec-n + root.pop-n + root.wag-n + i); }
-                hovered => { TvUi.tile-hovered(root.cw-n + root.rec-n + root.pop-n + root.wag-n + i); }
+                focused: !TvUi.bar-focused && TvUi.focused-tile == 3 + root.cw-n + root.rec-n + root.fin-n + root.col-n + root.pop-n + i;
+                activated => { TvUi.tile-activated(3 + root.cw-n + root.rec-n + root.fin-n + root.col-n + root.pop-n + i); }
+                hovered => { TvUi.tile-hovered(3 + root.cw-n + root.rec-n + root.fin-n + root.col-n + root.pop-n + i); }
             }
         }
     }

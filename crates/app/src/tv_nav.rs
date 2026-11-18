@@ -169,7 +169,16 @@ pub fn sync(laptop: &LaptopWindow) {
         if let Some(&r) = rects.get(s.shell.focused_tile) {
             match s.shell.current() {
                 Page::Library => {
-                    s.lib_scroll = focus::panorama_scroll(r, s.lib_scroll, 1920.0, 96.0);
+                    let lib = laptop.global::<Library>();
+                    let browse = lib.get_browse_all();
+                    let min_scroll_idx = if browse { 31 } else { 3 };
+                    if s.shell.focused_tile >= min_scroll_idx {
+                        let (vp_y, vp_h) = if browse { (244.0, 760.0) } else { (184.0, 820.0) };
+                        let vert = Rect { x: r.y - vp_y, y: 0.0, w: r.h, h: r.w };
+                        s.lib_scroll = focus::panorama_scroll(vert, s.lib_scroll, vp_h, 16.0);
+                    } else {
+                        s.lib_scroll = 0.0;
+                    }
                 }
                 Page::Show(_) if s.shell.focused_tile >= 3 => {
                     let local = Rect { x: r.x - 660.0, ..r };
@@ -259,51 +268,63 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
         }
         Page::Library => {
             let lib = laptop.global::<Library>();
-            let mut rects = Vec::new();
-            let cw_n = lib.get_continue_watching().row_count().min(4);
-            for i in 0..cw_n {
-                rects.push(Rect {
-                    x: 96.0 + (i % 2) as f32 * 400.0,
-                    y: 224.0 + (i / 2) as f32 * 256.0,
-                    w: 384.0,
-                    h: 240.0,
-                });
-            }
-            let rec_n = lib.get_recently_added().row_count().min(8);
-            for i in 0..rec_n {
-                rects.push(Rect {
-                    x: 944.0 + (i % 4) as f32 * 194.0,
-                    y: 224.0 + (i / 4) as f32 * 256.0,
-                    w: 178.0,
-                    h: 240.0,
-                });
-            }
-            let pop_n = lib.get_popular().row_count().min(8);
-            for i in 0..pop_n {
-                rects.push(Rect {
-                    x: 1768.0 + (i % 4) as f32 * 194.0,
-                    y: 224.0 + (i / 4) as f32 * 256.0,
-                    w: 178.0,
-                    h: 240.0,
-                });
-            }
-            let wag_n = lib.get_watch_again().row_count().min(8);
-            for i in 0..wag_n {
-                rects.push(Rect {
-                    x: 2592.0 + (i % 4) as f32 * 194.0,
-                    y: 224.0 + (i / 4) as f32 * 256.0,
-                    w: 178.0,
-                    h: 240.0,
-                });
-            }
-            let col_n = lib.get_collections().row_count().min(6);
-            for i in 0..col_n {
-                rects.push(Rect {
-                    x: 3416.0 + (i % 3) as f32 * 256.0,
-                    y: 224.0 + (i / 3) as f32 * 256.0,
-                    w: 240.0,
-                    h: 240.0,
-                });
+            // 0..=2: TV Series, Movies, Browse All
+            let mut rects = vec![
+                Rect { x: 96.0, y: 122.0, w: 140.0, h: 44.0 },
+                Rect { x: 268.0, y: 122.0, w: 112.0, h: 44.0 },
+                Rect { x: 416.0, y: 122.0, w: 180.0, h: 44.0 },
+            ];
+            if lib.get_browse_all() {
+                for i in 0..28 {
+                    rects.push(Rect {
+                        x: 96.0 + i as f32 * 62.0,
+                        y: 184.0,
+                        w: 58.0,
+                        h: 44.0,
+                    });
+                }
+                let n = lib.get_browse_items().row_count();
+                for i in 0..n {
+                    rects.push(Rect {
+                        x: 96.0 + (i % 8) as f32 * 218.0,
+                        y: 252.0 + (i / 8) as f32 * 276.0,
+                        w: 198.0,
+                        h: 256.0,
+                    });
+                }
+            } else {
+                let is_tv = lib.get_media_tab() == "tv";
+                let cw_n = lib.get_continue_watching().row_count().min(4);
+                let rec_n = lib.get_recently_added().row_count().min(8);
+                let fin_n = if is_tv { lib.get_finish_season().row_count().min(4) } else { 0 };
+                let col_n = if !is_tv { lib.get_collections().row_count().min(6) } else { 0 };
+                let pop_n = lib.get_popular().row_count().min(8);
+                let wag_n = lib.get_watch_again().row_count().min(8);
+
+                let rec_y = if cw_n > 0 { 304.0 } else { 0.0 };
+                let fin_y = rec_y + if rec_n > 0 { 324.0 } else { 0.0 };
+                let col_y = fin_y + if fin_n > 0 { 196.0 } else { 0.0 };
+                let pop_y = col_y + if col_n > 0 { 314.0 } else { 0.0 };
+                let wag_y = pop_y + if pop_n > 0 { 324.0 } else { 0.0 };
+
+                for i in 0..cw_n {
+                    rects.push(Rect { x: 96.0 + i as f32 * 432.0, y: 184.0 + 36.0, w: 416.0, h: 240.0 });
+                }
+                for i in 0..rec_n {
+                    rects.push(Rect { x: 96.0 + i as f32 * 218.0, y: 184.0 + rec_y + 36.0, w: 198.0, h: 260.0 });
+                }
+                for i in 0..fin_n {
+                    rects.push(Rect { x: 96.0 + i as f32 * 432.0, y: 184.0 + fin_y + 36.0, w: 416.0, h: 132.0 });
+                }
+                for i in 0..col_n {
+                    rects.push(Rect { x: 96.0 + i as f32 * 290.0, y: 184.0 + col_y + 36.0, w: 272.0, h: 250.0 });
+                }
+                for i in 0..pop_n {
+                    rects.push(Rect { x: 96.0 + i as f32 * 218.0, y: 184.0 + pop_y + 36.0, w: 198.0, h: 260.0 });
+                }
+                for i in 0..wag_n {
+                    rects.push(Rect { x: 96.0 + i as f32 * 218.0, y: 184.0 + wag_y + 36.0, w: 198.0, h: 260.0 });
+                }
             }
             rects
         }
@@ -447,7 +468,7 @@ fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
                 tv.set_cw_scroll(s.cw_scroll);
             }
             Page::Library => {
-                s.lib_scroll = (s.lib_scroll + step).clamp(0.0, 2600.0);
+                s.lib_scroll = (s.lib_scroll + step).clamp(0.0, 4000.0);
                 tv.set_lib_scroll(s.lib_scroll);
             }
             Page::Show(_) => {
@@ -535,26 +556,73 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
         }
         Page::Library => {
             let lib = laptop.global::<Library>();
+            if idx < 3 {
+                STATE.with_borrow_mut(|s| s.lib_scroll = 0.0);
+                tv.set_lib_scroll(0.0);
+                match idx {
+                    0 => lib.invoke_set_media_tab("tv".into()),
+                    1 => lib.invoke_set_media_tab("movies".into()),
+                    _ => lib.set_browse_all(!lib.get_browse_all()),
+                }
+                return;
+            }
+            let is_tv = lib.get_media_tab() == "tv";
+            if lib.get_browse_all() {
+                if idx < 31 {
+                    let li = idx - 3;
+                    let letter = match li {
+                        0 => String::new(),
+                        27 => "#".to_string(),
+                        n => ((b'A' + (n as u8 - 1)) as char).to_string(),
+                    };
+                    STATE.with_borrow_mut(|s| s.lib_scroll = 0.0);
+                    tv.set_lib_scroll(0.0);
+                    lib.invoke_set_browse_letter(letter.into());
+                } else {
+                    lib.invoke_select("browse".into(), (idx - 31) as i32);
+                    if is_tv {
+                        STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
+                        sync(laptop);
+                    }
+                }
+                return;
+            }
+
+            let item_idx = idx - 3;
             let cw_n = lib.get_continue_watching().row_count().min(4);
             let rec_n = lib.get_recently_added().row_count().min(8);
+            let fin_n = if is_tv { lib.get_finish_season().row_count().min(4) } else { 0 };
+            let col_n = if !is_tv { lib.get_collections().row_count().min(6) } else { 0 };
             let pop_n = lib.get_popular().row_count().min(8);
-            let wag_n = lib.get_watch_again().row_count().min(8);
 
-            if idx < cw_n {
-                lib.invoke_select("continue".into(), idx as i32);
-                if lib.get_media_tab() == "tv" {
+            if item_idx < cw_n {
+                lib.invoke_select("continue".into(), item_idx as i32);
+                if is_tv {
                     STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
                     sync(laptop);
                 }
-            } else if idx < cw_n + rec_n {
-                lib.invoke_select("recent".into(), (idx - cw_n) as i32);
-                if lib.get_media_tab() == "tv" {
+            } else if item_idx < cw_n + rec_n {
+                lib.invoke_select("recent".into(), (item_idx - cw_n) as i32);
+                if is_tv {
                     STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
                     sync(laptop);
                 }
-            } else if idx < cw_n + rec_n + pop_n {
-                if let Some(item) = lib.get_popular().row_data(idx - cw_n - rec_n) {
-                    if lib.get_media_tab() == "tv" {
+            } else if item_idx < cw_n + rec_n + fin_n {
+                if let Some(row) = lib.get_finish_season().row_data(item_idx - cw_n - rec_n) {
+                    lib.invoke_open_show(row.rating_key);
+                    STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
+                    sync(laptop);
+                }
+            } else if item_idx < cw_n + rec_n + fin_n + col_n {
+                let c_idx = item_idx - cw_n - rec_n - fin_n;
+                if let Some(col) = lib.get_collections().row_data(c_idx) {
+                    lib.invoke_open_collection(col.rating_key);
+                    STATE.with_borrow_mut(|s| s.shell.push(Page::Collection(String::new())));
+                    sync(laptop);
+                }
+            } else if item_idx < cw_n + rec_n + fin_n + col_n + pop_n {
+                if let Some(item) = lib.get_popular().row_data(item_idx - cw_n - rec_n - fin_n - col_n) {
+                    if is_tv {
                         lib.invoke_open_show(item.rating_key);
                         STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
                         sync(laptop);
@@ -562,17 +630,11 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                         lib.invoke_play_key(item.rating_key, true);
                     }
                 }
-            } else if idx < cw_n + rec_n + pop_n + wag_n {
-                lib.invoke_select("watch-again".into(), (idx - cw_n - rec_n - pop_n) as i32);
-                if lib.get_media_tab() == "tv" {
-                    STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
-                    sync(laptop);
-                }
             } else {
-                let c_idx = idx - cw_n - rec_n - pop_n - wag_n;
-                if let Some(col) = lib.get_collections().row_data(c_idx) {
-                    lib.invoke_open_collection(col.rating_key);
-                    STATE.with_borrow_mut(|s| s.shell.push(Page::Collection(String::new())));
+                let w_idx = item_idx - cw_n - rec_n - fin_n - col_n - pop_n;
+                lib.invoke_select("watch-again".into(), w_idx as i32);
+                if is_tv {
+                    STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
                     sync(laptop);
                 }
             }

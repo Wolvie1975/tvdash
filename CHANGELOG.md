@@ -1,5 +1,8 @@
 # tvdash Changelog
 
+## v0.1.20 — 2026-11-18
+- Rebuilt TV-only Library with vertical-scrolling shelves (zero horizontal scroll), `Finish the Season` (TV Series only), `Collections` (Movies only), `Browse All` with an A–Z filter bar and 8-column vertical poster grid, and `TvUi.u` proportional scaling.
+
 ## v0.1.19 — 2026-11-18
 - Added Weather Location Lookup (city search + selectable results) to TV-only Settings › Display.
 
