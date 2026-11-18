@@ -569,6 +569,7 @@ export struct TvServiceTile {
 export global TvUi {
     // "home" | "search" | "library" | "services" | "settings" | "show" | "collection"
     in-out property <string> screen: "home";
+    in-out property <float> u: 1.0; // UI scale factor from 1920x1080 design units to window size
     in-out property <int> active-tab: 0; // 0 Home, 1 Library, 2 Services, 3 Settings
     in-out property <bool> bar-focused: false;
     in-out property <int> focused-tile: 1;

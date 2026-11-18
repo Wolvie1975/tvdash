@@ -4,76 +4,93 @@ import { Dash, TvUi } from "../state.slint";
 import { IconTile, MediaTile, ServiceTile, Tile } from "tile.slint";
 
 export component TvHome inherits Rectangle {
-    width: 1920px;
-    height: 1080px;
+    width: 1920px * TvUi.u;
+    height: 1080px * TvUi.u;
     background: transparent;
 
     // ── Left/center hub (x: 96..1306, y: 136..972) ─────────────────────────
-    // 0: Tall Clock / Weather / Plex tile (190 x 590)
+    // 0: Tall Clock + Plex Up Next info tile (210 x 590)
     Tile {
-        x: 96px;
-        y: 136px;
-        base-width: 190px;
-        base-height: 590px;
+        x: 96px * TvUi.u;
+        y: 136px * TvUi.u;
+        base-width: 210px * TvUi.u;
+        base-height: 590px * TvUi.u;
         fill: Dash.tint.card;
         focused: !TvUi.bar-focused && TvUi.focused-tile == 0;
         activated => { TvUi.tile-activated(0); }
         hovered => { TvUi.tile-hovered(0); }
 
         VerticalLayout {
-            padding: 18px;
-            spacing: 10px;
+            padding: 18px * TvUi.u;
+            spacing: 10px * TvUi.u;
 
             Text {
                 text: Dash.clock-hh + ":" + Dash.clock-mm;
-                font-size: 42px;
+                font-size: 46px * TvUi.u;
                 font-weight: 300;
                 color: Theme.text-primary;
             }
 
             Text {
                 text: Dash.date-text;
-                font-size: 16px;
+                font-size: 18px * TvUi.u;
                 color: Dash.tint.sec;
                 wrap: word-wrap;
             }
 
-            Rectangle { height: 12px; }
-
-            if Dash.weather-on: HorizontalLayout {
-                spacing: 8px;
-                alignment: start;
-                Icon {
-                    name: Dash.weather-icon;
-                    size: 28px;
-                    tint: Dash.tint.accent;
-                }
-                Text {
-                    text: Dash.weather-temp;
-                    font-size: 26px;
-                    font-weight: 400;
-                    color: Theme.text-primary;
-                    vertical-alignment: center;
-                }
+            Rectangle {
+                height: 1px;
+                background: Dash.tint.sec.with-alpha(0.25);
             }
 
-            Rectangle { vertical-stretch: 1; }
-
             Text {
-                text: Dash.tv.mode == "idle" ? "Plex ready" : "On the TV";
-                font-size: 16px;
-                color: Dash.tint.sec;
+                text: Dash.tv.source != "" ? Dash.tv.source + " · " + Dash.tv.label : Dash.tv.label;
+                font-size: 16px * TvUi.u;
+                font-weight: 600;
+                letter-spacing: 0.8px;
+                color: Dash.tint.accent;
                 overflow: elide;
+            }
+
+            if Dash.tv.subtitle != "": Text {
+                text: Dash.tv.subtitle;
+                font-size: 18px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+            }
+
+            if Dash.tv.at-text != "": Text {
+                text: Dash.tv.at-text;
+                font-size: 16px * TvUi.u;
+                color: Dash.tint.sec;
+                wrap: word-wrap;
+            }
+
+            if Dash.tv.left-text != "": Text {
+                text: Dash.tv.left-text;
+                font-size: 16px * TvUi.u;
+                color: Dash.tint.sec;
+                wrap: word-wrap;
+            }
+
+            if Dash.tv.summary != "": Text {
+                text: Dash.tv.summary;
+                font-size: 15px * TvUi.u;
+                color: Theme.text-secondary;
+                wrap: word-wrap;
+                overflow: elide;
+                vertical-stretch: 1;
             }
         }
     }
 
-    // 1: Big On-the-TV Hero tile (748 x 590, top progress bar)
+    // 1: Big On-the-TV Hero tile (728 x 590, top progress bar)
     MediaTile {
-        x: 302px;
-        y: 136px;
-        base-width: 748px;
-        base-height: 590px;
+        x: 322px * TvUi.u;
+        y: 136px * TvUi.u;
+        base-width: 728px * TvUi.u;
+        base-height: 590px * TvUi.u;
         art: Dash.tv.poster;
         has-art: Dash.tv.has-poster;
         title: Dash.tv.title;
@@ -88,10 +105,10 @@ export component TvHome inherits Rectangle {
 
     // 2..4: Utility column (Search, Library, Screensaver)
     IconTile {
-        x: 1066px;
-        y: 136px;
-        base-width: 240px;
-        base-height: 186px;
+        x: 1066px * TvUi.u;
+        y: 136px * TvUi.u;
+        base-width: 240px * TvUi.u;
+        base-height: 186px * TvUi.u;
         fill: Dash.tint.poster;
         icon: "search";
         label: "Search";
@@ -101,10 +118,10 @@ export component TvHome inherits Rectangle {
     }
 
     IconTile {
-        x: 1066px;
-        y: 338px;
-        base-width: 240px;
-        base-height: 186px;
+        x: 1066px * TvUi.u;
+        y: 338px * TvUi.u;
+        base-width: 240px * TvUi.u;
+        base-height: 186px * TvUi.u;
         fill: Dash.tint.poster;
         icon: "library";
         label: "Library";
@@ -114,10 +131,10 @@ export component TvHome inherits Rectangle {
     }
 
     IconTile {
-        x: 1066px;
-        y: 540px;
-        base-width: 240px;
-        base-height: 186px;
+        x: 1066px * TvUi.u;
+        y: 540px * TvUi.u;
+        base-width: 240px * TvUi.u;
+        base-height: 186px * TvUi.u;
         fill: Dash.tint.poster;
         icon: "moon";
         label: "Screensaver";
@@ -128,10 +145,10 @@ export component TvHome inherits Rectangle {
 
     // 5..7: 3 recent services + 8: All 10 services
     for svc[i] in TvUi.home-services: ServiceTile {
-        x: 96px + i * 242px;
-        y: 742px;
-        base-width: 226px;
-        base-height: 230px;
+        x: (96px + i * 242px) * TvUi.u;
+        y: 742px * TvUi.u;
+        base-width: 226px * TvUi.u;
+        base-height: 230px * TvUi.u;
         brand: svc.brand;
         is-recent: svc.is-recent;
         focused: !TvUi.bar-focused && TvUi.focused-tile == 5 + i;
@@ -140,10 +157,10 @@ export component TvHome inherits Rectangle {
     }
 
     IconTile {
-        x: 822px;
-        y: 742px;
-        base-width: 228px;
-        base-height: 230px;
+        x: 822px * TvUi.u;
+        y: 742px * TvUi.u;
+        base-width: 228px * TvUi.u;
+        base-height: 230px * TvUi.u;
         fill: Dash.tint.poster;
         icon: "tv";
         label: "All " + TvUi.services.length + " services";
@@ -152,55 +169,85 @@ export component TvHome inherits Rectangle {
         hovered => { TvUi.tile-hovered(8); }
     }
 
-    // ── Continue watching column panorama (x: 1338..1920) ───────────────────
+    // 9: Dedicated Weather tile (below Screensaver)
+    Tile {
+        x: 1066px * TvUi.u;
+        y: 742px * TvUi.u;
+        base-width: 240px * TvUi.u;
+        base-height: 230px * TvUi.u;
+        fill: Dash.tint.card;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 9;
+        activated => { TvUi.tile-activated(9); }
+        hovered => { TvUi.tile-hovered(9); }
+
+        VerticalLayout {
+            padding: 18px * TvUi.u;
+            spacing: 8px * TvUi.u;
+
+            HorizontalLayout {
+                spacing: 12px * TvUi.u;
+                alignment: start;
+
+                Icon {
+                    name: Dash.weather-icon;
+                    size: 40px * TvUi.u;
+                    tint: Dash.tint.accent;
+                }
+
+                Text {
+                    text: Dash.weather-on ? Dash.weather-temp : "—";
+                    font-size: 40px * TvUi.u;
+                    font-weight: 300;
+                    color: Theme.text-primary;
+                    vertical-alignment: center;
+                }
+            }
+
+            Rectangle { vertical-stretch: 1; }
+
+            Text {
+                text: Dash.weather-on ? Dash.weather-condition : "Weather";
+                font-size: 20px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+                overflow: elide;
+            }
+
+            Text {
+                text: Dash.weather-on ? (Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail) : "Set location in Settings";
+                font-size: 16px * TvUi.u;
+                color: Dash.tint.sec;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+        }
+    }
+
+    // ── Continue watching 2x3 grid (no scrolling, all 6 items visible) ──────
     Text {
-        x: 1338px;
-        y: 136px;
+        x: 1338px * TvUi.u;
+        y: 136px * TvUi.u;
         text: "CONTINUE WATCHING";
-        font-size: 22px;
+        font-size: 22px * TvUi.u;
         font-weight: 500;
         letter-spacing: 1.2px;
         color: Theme.text-secondary;
     }
 
-    Rectangle {
-        x: 1338px;
-        y: 176px;
-        width: 582px;
-        height: 800px;
-        clip: true;
-        background: transparent;
-
-        TouchArea {
-            scroll-event(event) => {
-                TvUi.scroll-panorama(event.delta-x != 0px ? event.delta-x : event.delta-y);
-                accept
-            }
-        }
-
-        Rectangle {
-            x: -TvUi.cw-scroll;
-            y: 0;
-            width: 3000px;
-            height: parent.height;
-            background: transparent;
-            animate x { duration: 200ms; easing: ease-out; }
-
-            for item[i] in Dash.continue-watching: MediaTile {
-                x: Math.floor(i / 2) * 400px;
-                y: Math.mod(i, 2) * 400px;
-                base-width: 384px;
-                base-height: 384px;
-                art: item.poster;
-                has-art: item.has-poster;
-                title: item.title;
-                subtitle: item.subtitle;
-                progress: item.progress;
-                progress-top: false;
-                focused: !TvUi.bar-focused && TvUi.focused-tile == 9 + i;
-                activated => { TvUi.tile-activated(9 + i); }
-                hovered => { TvUi.tile-hovered(9 + i); }
-            }
-        }
+    for item[i] in Dash.continue-watching: MediaTile {
+        visible: i < 6;
+        x: (1338px + Math.mod(i, 2) * 296px) * TvUi.u;
+        y: (176px + Math.floor(i / 2) * 270px) * TvUi.u;
+        base-width: 280px * TvUi.u;
+        base-height: 254px * TvUi.u;
+        art: item.poster;
+        has-art: item.has-poster;
+        title: item.title;
+        subtitle: item.subtitle;
+        progress: item.progress;
+        progress-top: false;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;
+        activated => { TvUi.tile-activated(10 + i); }
+        hovered => { TvUi.tile-hovered(10 + i); }
     }
 }

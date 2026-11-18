@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.15 — 2026-11-18
+- Scaled TV-only hub proportionally to fill 1080p/1440p/4K screens edge-to-edge with aligned TabBar and HintBar.
+- Changed TV-only Home Continue Watching to a 2×3 grid (6 items, no scrolling), added a dedicated Weather tile below Screensaver, and added Plex Up Next details to the left Clock tile.
+- Scaled ServiceTile SVG logos proportionally (with white Disney+ SVG contrast fix and bold wordmark fallback).
+
 ## v0.1.14 — 2026-11-18
 - Expanded TV-only Home and Services tiles to fill the full 1080p/1440p vertical canvas and added monitor fallback for 1440p/4K scaling.
 - Made TV-only navigation mouse-friendly: pointer cursors, clickable Back pill on detail/Search pages, mouse wheel scrolling on panoramas, and mouse-move wake for Player HUD.

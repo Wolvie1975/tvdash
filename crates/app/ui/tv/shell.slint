@@ -19,6 +19,10 @@ export component TvShell inherits Rectangle {
     height: 100%;
     background: Theme.bg;
 
+    property <float> scale: max(0.5, min(root.width / 1920px, root.height / 1080px));
+    changed scale => { TvUi.u = self.scale; }
+    init => { TvUi.u = self.scale; }
+
     property <int> focus-ticket: TvUi.focus-ticket;
     changed focus-ticket => { keys.focus(); }
 
@@ -69,24 +73,26 @@ export component TvShell inherits Rectangle {
 
     // ── Tile Hub UI (hidden while full-screen video is active) ───────────────
     if !(TvUi.video-on && TvUi.video-full): Rectangle {
-        width: 100%;
-        height: 100%;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 1920px * TvUi.u;
+        height: 1080px * TvUi.u;
         background: Theme.bg;
 
         // Top chrome: optional Back pill + TabBar left, compact clock + weather top-right
         if TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search": Rectangle {
-            x: 96px;
-            y: 52px;
-            width: back-lbl.preferred-width + 32px;
-            height: 46px;
-            border-radius: 23px;
+            x: 96px * TvUi.u;
+            y: 52px * TvUi.u;
+            width: back-lbl.preferred-width + 32px * TvUi.u;
+            height: 46px * TvUi.u;
+            border-radius: 23px * TvUi.u;
             background: back-ta.has-hover ? Theme.surface-raised : Theme.surface;
             border-width: 1px;
             border-color: Theme.border;
 
             back-lbl := Text {
                 text: "← Back";
-                font-size: 22px;
+                font-size: 22px * TvUi.u;
                 color: Theme.text-primary;
                 horizontal-alignment: center;
                 vertical-alignment: center;
@@ -99,29 +105,29 @@ export component TvShell inherits Rectangle {
         }
 
         TabBar {
-            x: (TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search") ? 240px : 96px;
-            y: 44px;
+            x: ((TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search") ? 240px : 96px) * TvUi.u;
+            y: 44px * TvUi.u;
             active: TvUi.active-tab;
             bar-focused: TvUi.bar-focused;
             tab-clicked(i) => { TvUi.tab-clicked(i); }
         }
 
         HorizontalLayout {
-            x: 1920px - 96px - self.preferred-width;
-            y: 54px;
-            spacing: 20px;
+            x: 1920px * TvUi.u - 96px * TvUi.u - self.preferred-width;
+            y: 54px * TvUi.u;
+            spacing: 20px * TvUi.u;
             alignment: end;
 
             if Dash.weather-on: HorizontalLayout {
-                spacing: 8px;
+                spacing: 8px * TvUi.u;
                 Icon {
                     name: Dash.weather-icon;
-                    size: 28px;
+                    size: 28px * TvUi.u;
                     tint: Theme.text-secondary;
                 }
                 Text {
                     text: Dash.weather-temp;
-                    font-size: 28px;
+                    font-size: 28px * TvUi.u;
                     font-weight: 300;
                     color: Theme.text-secondary;
                     vertical-alignment: center;
@@ -130,7 +136,7 @@ export component TvShell inherits Rectangle {
 
             Text {
                 text: Dash.clock-hh + ":" + Dash.clock-mm;
-                font-size: 28px;
+                font-size: 28px * TvUi.u;
                 font-weight: 400;
                 color: Theme.text-primary;
                 vertical-alignment: center;
@@ -148,18 +154,18 @@ export component TvShell inherits Rectangle {
 
         // Bottom-left toast
         if Dash.toast != "": Rectangle {
-            x: 96px;
-            y: 1080px - 44px - self.height;
-            width: toast-lbl.preferred-width + 40px;
-            height: 48px;
-            border-radius: 24px;
+            x: 96px * TvUi.u;
+            y: 1080px * TvUi.u - 44px * TvUi.u - self.height;
+            width: toast-lbl.preferred-width + 40px * TvUi.u;
+            height: 48px * TvUi.u;
+            border-radius: 24px * TvUi.u;
             background: #0B0D10E6;
             border-width: 1px;
             border-color: Theme.border;
 
             toast-lbl := Text {
                 text: Dash.toast;
-                font-size: 22px;
+                font-size: 22px * TvUi.u;
                 color: Theme.text-primary;
                 horizontal-alignment: center;
                 vertical-alignment: center;
@@ -168,8 +174,8 @@ export component TvShell inherits Rectangle {
 
         // Bottom-right HintBar
         if TvUi.hint-text != "": HintBar {
-            x: 1920px - 96px - self.width;
-            y: 1080px - 44px - self.height;
+            x: 1920px * TvUi.u - 96px * TvUi.u - self.width;
+            y: 1080px * TvUi.u - 44px * TvUi.u - self.height;
             text: TvUi.hint-text;
         }
     }

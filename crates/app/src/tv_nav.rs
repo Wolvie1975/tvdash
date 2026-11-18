@@ -167,10 +167,6 @@ pub fn sync(laptop: &LaptopWindow) {
         }
         if let Some(&r) = rects.get(s.shell.focused_tile) {
             match s.shell.current() {
-                Page::Home if s.shell.focused_tile >= 9 => {
-                    let local = Rect { x: r.x - 1338.0, ..r };
-                    s.cw_scroll = focus::panorama_scroll(local, s.cw_scroll, 582.0, 96.0);
-                }
                 Page::Library => {
                     s.lib_scroll = focus::panorama_scroll(r, s.lib_scroll, 1920.0, 96.0);
                 }
@@ -185,9 +181,7 @@ pub fn sync(laptop: &LaptopWindow) {
                 _ => {}
             }
         }
-        if s.shell.current() != &Page::Home {
-            s.cw_scroll = 0.0;
-        }
+        s.cw_scroll = 0.0;
         if s.shell.current() != &Page::Library {
             s.lib_scroll = 0.0;
         }
@@ -214,10 +208,10 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
     let dash = laptop.global::<Dash>();
     match page {
         Page::Home => {
-            // Indices 0..=8 match home.slint fixed tiles; 9.. are Continue Watching.
+            // Indices 0..=9 match home.slint fixed tiles; 10..16 are Continue Watching (2x3).
             let mut rects = vec![
-                Rect { x: 96.0, y: 136.0, w: 190.0, h: 590.0 },   // 0: Clock
-                Rect { x: 302.0, y: 136.0, w: 748.0, h: 590.0 },  // 1: Hero
+                Rect { x: 96.0, y: 136.0, w: 210.0, h: 590.0 },   // 0: Clock + Plex info
+                Rect { x: 322.0, y: 136.0, w: 728.0, h: 590.0 },  // 1: Hero
                 Rect { x: 1066.0, y: 136.0, w: 240.0, h: 186.0 }, // 2: Search
                 Rect { x: 1066.0, y: 338.0, w: 240.0, h: 186.0 }, // 3: Library
                 Rect { x: 1066.0, y: 540.0, w: 240.0, h: 186.0 }, // 4: Screensaver
@@ -227,22 +221,22 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 if i < home_svcs {
                     rects.push(Rect { x: 96.0 + i as f32 * 242.0, y: 742.0, w: 226.0, h: 230.0 });
                 } else {
-                    // Placeholder zero-area off-screen if < 3 services configured
                     rects.push(Rect { x: -9999.0, y: -9999.0, w: 0.0, h: 0.0 });
                 }
             }
-            // 8: All services
+            // 8: All services, 9: Weather
             rects.push(Rect { x: 822.0, y: 742.0, w: 228.0, h: 230.0 });
+            rects.push(Rect { x: 1066.0, y: 742.0, w: 240.0, h: 230.0 });
 
-            let cw_count = dash.get_continue_watching().row_count();
+            let cw_count = dash.get_continue_watching().row_count().min(6);
             for i in 0..cw_count {
-                let col = (i / 2) as f32;
-                let row = (i % 2) as f32;
+                let col = (i % 2) as f32;
+                let row = (i / 2) as f32;
                 rects.push(Rect {
-                    x: 1338.0 + col * 400.0,
-                    y: 176.0 + row * 400.0,
-                    w: 384.0,
-                    h: 384.0,
+                    x: 1338.0 + col * 296.0,
+                    y: 176.0 + row * 270.0,
+                    w: 280.0,
+                    h: 254.0,
                 });
             }
             rects
@@ -484,8 +478,9 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 STATE.with_borrow_mut(|s| s.shell.switch_tab(Tab::Services));
                 sync(laptop);
             }
-            i if i >= 9 => {
-                let cw_idx = i - 9;
+            9 => {} // Weather tile
+            i if i >= 10 => {
+                let cw_idx = i - 10;
                 if cw_idx < dash.get_continue_watching().row_count() {
                     dash.invoke_play_item(cw_idx as i32);
                 }
