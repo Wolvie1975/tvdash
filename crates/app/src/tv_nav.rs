@@ -9,7 +9,8 @@ use slint::{ComponentHandle, Model, SharedString, platform::Key};
 use tvdash_core::config::Layout;
 
 use crate::{
-    CollectionPageState, Dash, Display, LaptopWindow, Library, Nav, ShowPageState, TvUi, UiTheme, Watch,
+    Accounts, CollectionPageState, Dash, Display, LaptopWindow, Library, Nav, Server, ShowPageState, TvUi,
+    UiTheme, Watch,
     focus::{self, Dir, Rect},
     shell_tv::{Page, ShellState, Tab},
 };
@@ -373,14 +374,44 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             }
             rects
         }
-        Page::Settings => vec![
-            Rect { x: 96.0, y: 184.0, w: 416.0, h: 220.0 },
-            Rect { x: 528.0, y: 184.0, w: 416.0, h: 220.0 },
-            Rect { x: 960.0, y: 184.0, w: 416.0, h: 220.0 },
-            Rect { x: 1392.0, y: 184.0, w: 416.0, h: 220.0 },
-            Rect { x: 96.0, y: 420.0, w: 416.0, h: 220.0 },
-            Rect { x: 528.0, y: 420.0, w: 416.0, h: 220.0 },
-        ],
+        Page::Settings => {
+            // 0..=3: SubTabs (Display, Accounts, Server, What's new)
+            let mut rects = vec![
+                Rect { x: 96.0, y: 122.0, w: 100.0, h: 44.0 },
+                Rect { x: 232.0, y: 122.0, w: 128.0, h: 44.0 },
+                Rect { x: 396.0, y: 122.0, w: 92.0, h: 44.0 },
+                Rect { x: 524.0, y: 122.0, w: 156.0, h: 44.0 },
+            ];
+            match tv.get_settings_tab().as_str() {
+                "accounts" => {
+                    let list_y = if dash.get_cw_state() == "code" { 316.0 } else { 184.0 };
+                    let n = laptop.global::<Accounts>().get_accounts().row_count();
+                    for i in 0..n {
+                        rects.push(Rect {
+                            x: 96.0 + (i % 2) as f32 * 872.0,
+                            y: list_y + (i / 2) as f32 * 152.0,
+                            w: 856.0,
+                            h: 136.0,
+                        });
+                    }
+                }
+                "server" => {
+                    rects.push(Rect { x: 1604.0, y: 180.0, w: 220.0, h: 52.0 });
+                }
+                "changelog" => {}
+                _ => {
+                    rects.extend([
+                        Rect { x: 96.0, y: 184.0, w: 416.0, h: 220.0 },
+                        Rect { x: 528.0, y: 184.0, w: 416.0, h: 220.0 },
+                        Rect { x: 960.0, y: 184.0, w: 416.0, h: 220.0 },
+                        Rect { x: 1392.0, y: 184.0, w: 416.0, h: 220.0 },
+                        Rect { x: 96.0, y: 420.0, w: 416.0, h: 220.0 },
+                        Rect { x: 528.0, y: 420.0, w: 416.0, h: 220.0 },
+                    ]);
+                }
+            }
+            rects
+        }
     }
 }
 
@@ -610,45 +641,90 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             }
         }
         Page::Settings => {
-            let disp = laptop.global::<Display>();
-            if idx != 5 {
+            if idx < 4 {
+                let next_tab = match idx {
+                    1 => "accounts",
+                    2 => "server",
+                    3 => "changelog",
+                    _ => "display",
+                };
                 tv.set_confirm_quit(false);
+                tv.set_settings_tab(next_tab.into());
+                if next_tab != "accounts" {
+                    laptop.global::<Accounts>().set_editing("".into());
+                }
+                if next_tab == "server" {
+                    laptop.global::<Server>().invoke_open();
+                }
+                return;
             }
-            match idx {
-                0 => {
-                    let next = match disp.get_layout_setting().as_str() {
-                        "auto" => "tv",
-                        "tv" => "dual",
-                        _ => "auto",
-                    };
-                    disp.set_layout_setting(next.into());
-                    disp.invoke_set_layout_setting(next.into());
-                }
-                1 => {
-                    let next = match laptop.global::<crate::Theme>().get_mode() {
-                        UiTheme::Dark => UiTheme::Stone,
-                        UiTheme::Stone => UiTheme::Mist,
-                        UiTheme::Mist => UiTheme::Dark,
-                    };
-                    dash.invoke_set_theme(next);
-                }
-                2 => {
-                    disp.set_celsius(!disp.get_celsius());
-                    disp.invoke_changed();
-                }
-                3 => {
-                    disp.set_h12(!disp.get_h12());
-                    disp.invoke_changed();
-                }
-                4 => tv.invoke_clear_recent(),
-                5 => {
-                    if tv.get_confirm_quit() {
-                        dash.invoke_quit();
-                    } else {
-                        tv.set_confirm_quit(true);
+            let sub = tv.get_settings_tab();
+            match sub.as_str() {
+                "accounts" => {
+                    let acc = laptop.global::<Accounts>();
+                    if let Some(a) = acc.get_accounts().row_data(idx - 4) {
+                        let action = if !a.primary_id.is_empty() {
+                            a.primary_id
+                        } else {
+                            a.secondary_id
+                        };
+                        if action == "edit" {
+                            acc.set_edit_error("".into());
+                            acc.set_editing(a.id);
+                        } else if !action.is_empty() {
+                            acc.invoke_action(a.id, action);
+                        }
                     }
                 }
-                _ => {}
+                "server" => {
+                    if idx == 4 {
+                        laptop.global::<Server>().invoke_scan_all();
+                    }
+                }
+                "changelog" => {}
+                _ => {
+                    let disp = laptop.global::<Display>();
+                    let item = idx - 4;
+                    if item != 5 {
+                        tv.set_confirm_quit(false);
+                    }
+                    match item {
+                        0 => {
+                            let next = match disp.get_layout_setting().as_str() {
+                                "auto" => "tv",
+                                "tv" => "dual",
+                                _ => "auto",
+                            };
+                            disp.set_layout_setting(next.into());
+                            disp.invoke_set_layout_setting(next.into());
+                        }
+                        1 => {
+                            let next = match laptop.global::<crate::Theme>().get_mode() {
+                                UiTheme::Dark => UiTheme::Stone,
+                                UiTheme::Stone => UiTheme::Mist,
+                                UiTheme::Mist => UiTheme::Dark,
+                            };
+                            dash.invoke_set_theme(next);
+                        }
+                        2 => {
+                            disp.set_celsius(!disp.get_celsius());
+                            disp.invoke_changed();
+                        }
+                        3 => {
+                            disp.set_h12(!disp.get_h12());
+                            disp.invoke_changed();
+                        }
+                        4 => tv.invoke_clear_recent(),
+                        5 => {
+                            if tv.get_confirm_quit() {
+                                dash.invoke_quit();
+                            } else {
+                                tv.set_confirm_quit(true);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
             }
         }
     }
@@ -904,14 +980,18 @@ mod tests {
         assert!(key(&l, &SharedString::from(Key::Escape)));
         assert_eq!(tv.get_screen(), "home");
 
-        // Switch to Settings via TabBar and toggle Celsius (tile 2)
+        // Switch to Settings via TabBar and toggle Celsius (tile 6; 0..=3 are SubTabs)
         assert!(key(&l, &SharedString::from(Key::UpArrow)));
         for _ in 0..3 {
             assert!(key(&l, &SharedString::from(Key::RightArrow)));
         }
         assert_eq!(tv.get_screen(), "settings");
-        activate_tile(&l, 2);
+        activate_tile(&l, 6);
         assert!(l.global::<Display>().get_celsius());
+        activate_tile(&l, 1);
+        assert_eq!(tv.get_settings_tab(), "accounts");
+        activate_tile(&l, 0);
+        assert_eq!(tv.get_settings_tab(), "display");
 
         // Full-screen video HUD: OK opens HUD (emits Overlay), Right -> +30s, OK dispatches Seek(30)
         tv.set_video_on(true);

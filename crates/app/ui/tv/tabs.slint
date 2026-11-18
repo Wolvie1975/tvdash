@@ -45,6 +45,7 @@ export component SubTabs inherits HorizontalLayout {
     in property <[string]> labels;
     in property <int> active: 0;
     in property <bool> focused: false;
+    in property <int> focused-index: -1;
     callback selected(int);
 
     spacing: 36px * TvUi.u;
@@ -60,8 +61,8 @@ export component SubTabs inherits HorizontalLayout {
             y: 0;
             text: lbl;
             font-size: 30px * TvUi.u;
-            font-weight: i == root.active ? 500 : 300;
-            color: i == root.active ? Theme.text-primary : Theme.text-muted;
+            font-weight: (i == root.active || (root.focused && i == root.focused-index)) ? 500 : 300;
+            color: (i == root.active || (root.focused && i == root.focused-index)) ? Theme.text-primary : Theme.text-muted;
         }
 
         Rectangle {
@@ -69,8 +70,8 @@ export component SubTabs inherits HorizontalLayout {
             y: sub-txt.height + 4px * TvUi.u;
             width: parent.width;
             height: 3px * TvUi.u;
-            visible: i == root.active;
-            background: root.focused ? Theme.text-primary : Theme.text-secondary;
+            visible: i == root.active || (root.focused && i == root.focused-index);
+            background: (root.focused && (root.focused-index < 0 || i == root.focused-index)) ? Theme.text-primary : Theme.text-secondary;
         }
 
         TouchArea {

@@ -222,22 +222,22 @@ export component ValueTile inherits Tile {
     in property <string> value;
 
     Text {
-        x: 20px;
-        y: 18px;
-        width: parent.width - 40px;
+        x: 20px * TvUi.u;
+        y: 18px * TvUi.u;
+        width: parent.width - 40px * TvUi.u;
         text: root.label;
-        font-size: 20px;
+        font-size: 20px * TvUi.u;
         font-weight: 400;
         color: Theme.text-secondary;
         overflow: elide;
     }
 
     Text {
-        x: 20px;
-        y: parent.height - self.preferred-height - 18px;
-        width: parent.width - 40px;
+        x: 20px * TvUi.u;
+        y: parent.height - self.preferred-height - 18px * TvUi.u;
+        width: parent.width - 40px * TvUi.u;
         text: root.value;
-        font-size: 40px;
+        font-size: 40px * TvUi.u;
         font-weight: 300;
         color: Theme.text-primary;
         overflow: elide;

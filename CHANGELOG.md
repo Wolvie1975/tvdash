@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.18 — 2026-11-18
+- Restored TV-only Settings sub-tabs (**Display**, **Accounts**, **Server**, **What's new**) in the v2 Tile Hub look and feel.
+- Brought back the Phone Remote QR card in Settings › Display, account sign-in/token editing in Accounts, live server metrics/graphs/activity in Server, and scrollable changelog cards in What's new.
+- Scaled Settings `ValueTile` and sub-tab elements proportionally with `TvUi.u`.
+
 ## v0.1.17 — 2026-11-18
 - Smoothed minimized in-tile video playback by capping the FBO to 960×540 and disabling focus drop-shadow blur while minimized video is playing.
 - Added Subtitles and Audio track toggles back to the TV-only Player HUD.
