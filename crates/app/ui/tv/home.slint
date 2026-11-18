@@ -22,7 +22,8 @@ export component TvHome inherits Rectangle {
 
         VerticalLayout {
             padding: 18px * TvUi.u;
-            spacing: 10px * TvUi.u;
+            spacing: 8px * TvUi.u;
+            alignment: start;
 
             Text {
                 text: Dash.clock-hh + ":" + Dash.clock-mm;
@@ -80,21 +81,20 @@ export component TvHome inherits Rectangle {
                 color: Theme.text-secondary;
                 wrap: word-wrap;
                 overflow: elide;
-                vertical-stretch: 1;
             }
         }
     }
 
-    // 1: Big On-the-TV Hero tile (728 x 590, top progress bar)
+    // 1: Big On-the-TV Hero tile (728 x 590, top progress bar; shows live video when playing)
     MediaTile {
         x: 322px * TvUi.u;
         y: 136px * TvUi.u;
         base-width: 728px * TvUi.u;
         base-height: 590px * TvUi.u;
-        art: Dash.tv.poster;
-        has-art: Dash.tv.has-poster;
+        art: TvUi.video-on ? TvUi.video : Dash.tv.poster;
+        has-art: TvUi.video-on || Dash.tv.has-poster;
         title: Dash.tv.title;
-        subtitle: Dash.tv.subtitle;
+        subtitle: TvUi.video-on ? "Click or press OK for full screen" : Dash.tv.subtitle;
         progress: Dash.tv.progress;
         progress-top: true;
         badge: Dash.tv.label;
@@ -163,7 +163,7 @@ export component TvHome inherits Rectangle {
         base-height: 230px * TvUi.u;
         fill: Dash.tint.poster;
         icon: "tv";
-        label: "All " + TvUi.services.length + " services";
+        label: "View all services";
         focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
         activated => { TvUi.tile-activated(8); }
         hovered => { TvUi.tile-hovered(8); }

@@ -90,8 +90,9 @@ impl Video {
                         Ok(ctx) => {
                             info!("video drawing in the window");
                             self.ctx = Some((id, ctx));
+                            let on_home = ui.get_screen() == "home";
                             ui.set_video_on(true);
-                            ui.set_video_full(true);
+                            ui.set_video_full(!on_home);
                             crate::tv_nav::sync(laptop);
                         }
                         Err(e) => {

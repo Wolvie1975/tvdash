@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.16 — 2026-11-18
+- Capped focus tile expansion so the Hero tile no longer overlaps adjacent columns/rows when focused.
+- Tightened spacing in the left Clock + Plex info tile, and renamed "All 10 services" to "View all services".
+- Added live in-tile video playback in the Home Hero tile when starting from Continue Watching (click Hero for full screen).
+
 ## v0.1.15 — 2026-11-18
 - Scaled TV-only hub proportionally to fill 1080p/1440p/4K screens edge-to-edge with aligned TabBar and HintBar.
 - Changed TV-only Home Continue Watching to a 2×3 grid (6 items, no scrolling), added a dedicated Weather tile below Screensaver, and added Plex Up Next details to the left Clock tile.

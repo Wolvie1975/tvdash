@@ -17,8 +17,9 @@ export component Tile inherits Rectangle {
     background: transparent;
 
     body := Rectangle {
-        property <length> grow-w: root.focused ? root.base-width * 0.04 : 0px;
-        property <length> grow-h: root.focused ? root.base-height * 0.04 : 0px;
+        // Cap focus expansion so large tiles (e.g. Hero) stay inside the 16 px gap and never overlap neighbors.
+        property <length> grow-w: root.focused ? min(root.base-width * 0.04, 10px * TvUi.u) : 0px;
+        property <length> grow-h: root.focused ? min(root.base-height * 0.04, 10px * TvUi.u) : 0px;
 
         x: -self.grow-w / 2;
         y: -self.grow-h / 2;
