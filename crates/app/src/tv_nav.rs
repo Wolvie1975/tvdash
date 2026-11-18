@@ -408,6 +408,15 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                         Rect { x: 96.0, y: 420.0, w: 416.0, h: 220.0 },
                         Rect { x: 528.0, y: 420.0, w: 416.0, h: 220.0 },
                     ]);
+                    let places_n = laptop.global::<Display>().get_places().row_count().min(4);
+                    for i in 0..places_n {
+                        rects.push(Rect {
+                            x: 960.0,
+                            y: 656.0 + i as f32 * 64.0,
+                            w: 848.0,
+                            h: 54.0,
+                        });
+                    }
                 }
             }
             rects
@@ -722,6 +731,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                                 tv.set_confirm_quit(true);
                             }
                         }
+                        6..=9 => disp.invoke_pick_place((item - 6) as i32),
                         _ => {}
                     }
                 }

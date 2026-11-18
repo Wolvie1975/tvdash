@@ -232,6 +232,134 @@ export component TvSettings inherits Rectangle {
             }
         }
 
+        // Weather location lookup card
+        Rectangle {
+            x: 96px * TvUi.u;
+            y: 656px * TvUi.u;
+            width: 848px * TvUi.u;
+            height: 248px * TvUi.u;
+            border-radius: 6px;
+            background: Theme.surface;
+
+            VerticalLayout {
+                padding: 22px * TvUi.u;
+                spacing: 12px * TvUi.u;
+
+                Text {
+                    text: "WEATHER LOCATION";
+                    font-size: 18px * TvUi.u;
+                    font-weight: 500;
+                    letter-spacing: 1.2px;
+                    color: Theme.text-secondary;
+                }
+
+                Text {
+                    text: Display.location-name != "" ? Display.location-name : "Not set — search for a city to enable weather & time zone";
+                    font-size: 24px * TvUi.u;
+                    font-weight: 400;
+                    color: Display.location-name != "" ? Theme.text-primary : Theme.text-muted;
+                    overflow: elide;
+                }
+
+                HorizontalLayout {
+                    spacing: 12px * TvUi.u;
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 52px * TvUi.u;
+                        border-radius: 6px;
+                        background: Theme.bg;
+                        border-width: 1px;
+                        border-color: place-input.has-focus ? Theme.accent : Theme.border;
+
+                        if place-input.text == "": Text {
+                            x: 16px * TvUi.u;
+                            y: 0;
+                            width: parent.width - 32px * TvUi.u;
+                            height: parent.height;
+                            text: "Search for a city…";
+                            font-size: 22px * TvUi.u;
+                            color: Theme.text-muted;
+                            vertical-alignment: center;
+                        }
+
+                        place-input := TextInput {
+                            x: 16px * TvUi.u;
+                            y: 0;
+                            width: parent.width - 32px * TvUi.u;
+                            height: parent.height;
+                            text <=> Display.place-query;
+                            font-size: 22px * TvUi.u;
+                            color: Theme.text-primary;
+                            vertical-alignment: center;
+                            accepted => { Display.find-place(self.text); }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 132px * TvUi.u;
+                        height: 52px * TvUi.u;
+                        border-radius: 6px;
+                        background: search-ta.has-hover ? Theme.accent : Theme.surface-raised;
+                        border-width: 1px;
+                        border-color: Theme.border;
+
+                        Text {
+                            text: "Search";
+                            font-size: 22px * TvUi.u;
+                            font-weight: 500;
+                            color: search-ta.has-hover ? #0B0D10 : Theme.text-primary;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        search-ta := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Display.find-place(place-input.text); }
+                        }
+                    }
+                }
+
+                if Display.place-searching: Text {
+                    text: "Looking it up…";
+                    font-size: 18px * TvUi.u;
+                    color: Theme.accent;
+                }
+
+                if !Display.place-searching && Display.place-message != "": Text {
+                    text: Display.place-message;
+                    font-size: 18px * TvUi.u;
+                    color: Theme.warn;
+                    overflow: elide;
+                }
+            }
+        }
+
+        // Location search results (up to 4)
+        for p[i] in Display.places: Tile {
+            visible: i < 4;
+            x: 960px * TvUi.u;
+            y: (656px + i * 64px) * TvUi.u;
+            base-width: 848px * TvUi.u;
+            base-height: 54px * TvUi.u;
+            fill: Theme.surface;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;
+            activated => { TvUi.tile-activated(10 + i); }
+            hovered => { TvUi.tile-hovered(10 + i); }
+
+            Text {
+                x: 20px * TvUi.u;
+                y: 0;
+                width: parent.width - 40px * TvUi.u;
+                height: parent.height;
+                text: p;
+                font-size: 22px * TvUi.u;
+                color: Theme.text-primary;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
         Text {
             x: 96px * TvUi.u;
             y: 940px * TvUi.u;

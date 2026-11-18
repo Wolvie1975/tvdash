@@ -1,5 +1,8 @@
 # tvdash Changelog
 
+## v0.1.19 — 2026-11-18
+- Added Weather Location Lookup (city search + selectable results) to TV-only Settings › Display.
+
 ## v0.1.18 — 2026-11-18
 - Restored TV-only Settings sub-tabs (**Display**, **Accounts**, **Server**, **What's new**) in the v2 Tile Hub look and feel.
 - Brought back the Phone Remote QR card in Settings › Display, account sign-in/token editing in Accounts, live server metrics/graphs/activity in Server, and scrollable changelog cards in What's new.
