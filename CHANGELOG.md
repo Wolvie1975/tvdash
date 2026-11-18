@@ -1,5 +1,9 @@
 # tvdash Changelog
 
+## v0.1.21 — 2026-11-18
+- Fixed TV Library tile clicks so TV shows load `ShowPageState` (seasons & episodes) and movies/episodes play immediately instead of opening the hidden two-screen detail modal.
+- Scaled TV Show detail page (`TvShow`) proportionally with `TvUi.u`.
+
 ## v0.1.20 — 2026-11-18
 - Rebuilt TV-only Library with vertical-scrolling shelves (zero horizontal scroll), `Finish the Season` (TV Series only), `Collections` (Movies only), `Browse All` with an A–Z filter bar and 8-column vertical poster grid, and `TvUi.u` proportional scaling.
 

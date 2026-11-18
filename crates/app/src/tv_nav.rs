@@ -500,6 +500,19 @@ fn go_back(laptop: &LaptopWindow) -> bool {
     changed
 }
 
+fn activate_library_selection(laptop: &LaptopWindow, lib: &Library, section: &str, idx: usize) {
+    lib.invoke_select(section.into(), idx as i32);
+    let show_key = lib.get_detail().show_key;
+    if !show_key.is_empty() {
+        lib.invoke_close_detail();
+        lib.invoke_open_show(show_key);
+        STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
+        sync(laptop);
+    } else {
+        lib.invoke_play_detail(false);
+    }
+}
+
 fn activate_tile(laptop: &LaptopWindow, idx: usize) {
     let page = STATE.with_borrow_mut(|s| {
         s.shell.bar_focused = false;
@@ -579,11 +592,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                     tv.set_lib_scroll(0.0);
                     lib.invoke_set_browse_letter(letter.into());
                 } else {
-                    lib.invoke_select("browse".into(), (idx - 31) as i32);
-                    if is_tv {
-                        STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
-                        sync(laptop);
-                    }
+                    activate_library_selection(laptop, &lib, "browse", idx - 31);
                 }
                 return;
             }
@@ -596,17 +605,9 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             let pop_n = lib.get_popular().row_count().min(8);
 
             if item_idx < cw_n {
-                lib.invoke_select("continue".into(), item_idx as i32);
-                if is_tv {
-                    STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
-                    sync(laptop);
-                }
+                activate_library_selection(laptop, &lib, "continue", item_idx);
             } else if item_idx < cw_n + rec_n {
-                lib.invoke_select("recent".into(), (item_idx - cw_n) as i32);
-                if is_tv {
-                    STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
-                    sync(laptop);
-                }
+                activate_library_selection(laptop, &lib, "recent", item_idx - cw_n);
             } else if item_idx < cw_n + rec_n + fin_n {
                 if let Some(row) = lib.get_finish_season().row_data(item_idx - cw_n - rec_n) {
                     lib.invoke_open_show(row.rating_key);
@@ -632,11 +633,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 }
             } else {
                 let w_idx = item_idx - cw_n - rec_n - fin_n - col_n - pop_n;
-                lib.invoke_select("watch-again".into(), w_idx as i32);
-                if is_tv {
-                    STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
-                    sync(laptop);
-                }
+                activate_library_selection(laptop, &lib, "watch-again", w_idx);
             }
         }
         Page::Show(_) => {
