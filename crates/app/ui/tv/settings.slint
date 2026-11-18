@@ -1,0 +1,111 @@
+import { Theme, UiTheme } from "../theme.slint";
+import { Dash, Display, TvUi } from "../state.slint";
+import { ValueTile } from "tile.slint";
+
+export component TvSettings inherits Rectangle {
+    width: 1920px;
+    height: 1080px;
+    background: transparent;
+
+    Text {
+        x: 96px;
+        y: 136px;
+        text: "SETTINGS · OK TO CHANGE";
+        font-size: 22px;
+        font-weight: 500;
+        letter-spacing: 1.2px;
+        color: Theme.text-secondary;
+    }
+
+    // 0: Layout
+    ValueTile {
+        x: 96px;
+        y: 184px;
+        base-width: 416px;
+        base-height: 220px;
+        fill: Theme.surface;
+        label: "Display layout";
+        value: Display.layout-setting == "tv" ? "TV only" : Display.layout-setting == "dual" ? "Two screens" : "Auto";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 0;
+        activated => { TvUi.tile-activated(0); }
+        hovered => { TvUi.tile-hovered(0); }
+    }
+
+    // 1: Theme
+    ValueTile {
+        x: 528px;
+        y: 184px;
+        base-width: 416px;
+        base-height: 220px;
+        fill: Theme.surface;
+        label: "Theme";
+        value: Theme.mode == UiTheme.dark ? "Dark" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 1;
+        activated => { TvUi.tile-activated(1); }
+        hovered => { TvUi.tile-hovered(1); }
+    }
+
+    // 2: Temperature units
+    ValueTile {
+        x: 960px;
+        y: 184px;
+        base-width: 416px;
+        base-height: 220px;
+        fill: Theme.surface;
+        label: "Temperature";
+        value: Display.celsius ? "Celsius (°C)" : "Fahrenheit (°F)";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 2;
+        activated => { TvUi.tile-activated(2); }
+        hovered => { TvUi.tile-hovered(2); }
+    }
+
+    // 3: Clock format
+    ValueTile {
+        x: 1392px;
+        y: 184px;
+        base-width: 416px;
+        base-height: 220px;
+        fill: Theme.surface;
+        label: "Clock";
+        value: Display.h12 ? "12-hour" : "24-hour";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 3;
+        activated => { TvUi.tile-activated(3); }
+        hovered => { TvUi.tile-hovered(3); }
+    }
+
+    // 4: Recent services
+    ValueTile {
+        x: 96px;
+        y: 420px;
+        base-width: 416px;
+        base-height: 220px;
+        fill: Theme.surface;
+        label: "Recent services";
+        value: "Clear list";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 4;
+        activated => { TvUi.tile-activated(4); }
+        hovered => { TvUi.tile-hovered(4); }
+    }
+
+    // 5: Quit
+    ValueTile {
+        x: 528px;
+        y: 420px;
+        base-width: 416px;
+        base-height: 220px;
+        fill: TvUi.confirm-quit ? #5C1E1E : Theme.surface;
+        label: "Application";
+        value: TvUi.confirm-quit ? "Confirm quit?" : "Quit tvdash";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 5;
+        activated => { TvUi.tile-activated(5); }
+        hovered => { TvUi.tile-hovered(5); }
+    }
+
+    Text {
+        x: 96px;
+        y: 680px;
+        text: "tvdash " + Dash.version;
+        font-size: 22px;
+        color: Theme.text-muted;
+    }
+}

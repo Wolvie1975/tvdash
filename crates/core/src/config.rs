@@ -37,6 +37,7 @@ pub struct Config {
     pub tautulli: TautulliConfig,
     pub browser: BrowserConfig,
     pub player: PlayerConfig,
+    pub tv: TvConfig,
     /// Kept last: TOML arrays of tables must follow plain tables.
     pub streaming: Vec<StreamingSite>,
 }
@@ -251,6 +252,21 @@ pub struct PlayerConfig {
     pub mpv: String,
 }
 
+/// TV-only hub state persisted in `config.toml` (`[tv]`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TvConfig {
+    /// Last 3 distinct streaming services opened, newest first.
+    pub recent: Vec<RecentService>,
+}
+
+/// A recently opened streaming service entry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecentService {
+    pub id: String,
+    pub at: i64,
+}
+
 /// A Watch on TV tile. Array order in the config = tile order.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct StreamingSite {
@@ -335,6 +351,7 @@ impl Default for Config {
             tautulli: TautulliConfig::default(),
             browser: BrowserConfig::default(),
             player: PlayerConfig::default(),
+            tv: TvConfig::default(),
             streaming: default_streaming_sites(),
         }
     }

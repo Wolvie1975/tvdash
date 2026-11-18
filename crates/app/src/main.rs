@@ -1,13 +1,18 @@
 //! tvdash: laptop control dashboard + TV playback window, one process.
 
+mod brand;
 mod bridge;
 mod callbacks;
 mod clock;
 mod controller;
 mod displays;
+mod focus;
 mod format;
+mod home_cmd;
 mod instance;
 mod portal;
+mod recent;
+mod shell_tv;
 mod tint;
 mod tv_nav;
 mod video;
@@ -166,12 +171,9 @@ fn main() -> anyhow::Result<()> {
         .select()
         .context("selecting the Slint winit backend")?;
 
-    let tv = TvWindow::new()?;
-    let laptop = LaptopWindow::new()?;
-
-    let startup_outputs = runtime.block_on(displays::active_outputs_dbus());
-    let decision = match &startup_outputs {
-        Some(outputs) => {
+    let startup_state = runtime.block_on(displays::startup_display_state_dbus());
+    let decision = match &startup_state {
+        Some((outputs, _)) => {
             info!(?outputs, "active outputs at startup");
             tvdash_core::layout::decide(
                 config.display.layout,
@@ -192,6 +194,25 @@ fn main() -> anyhow::Result<()> {
         }
     };
     let layout = args.layout.unwrap_or(decision.layout);
+
+    // Design units for TV-only are 1920x1080; scale 1440p/4K proportionally.
+    if layout == tvdash_core::Layout::Tv && !args.windowed && std::env::var_os("SLINT_SCALE_FACTOR").is_none() {
+        if let Some((_, heights)) = &startup_state {
+            if let Some(&h) = heights.get(&config.display.tv_output) {
+                if h > 0 {
+                    let scale = h as f32 / 1080.0;
+                    if (scale - 1.0).abs() > 0.01 {
+                        info!(height = h, scale, "setting SLINT_SCALE_FACTOR for TV-only 1080p design units");
+                        // SAFETY: called on the main thread before Slint creates any windows.
+                        unsafe { std::env::set_var("SLINT_SCALE_FACTOR", format!("{scale:.3}")) };
+                    }
+                }
+            }
+        }
+    }
+
+    let tv = TvWindow::new()?;
+    let laptop = LaptopWindow::new()?;
 
     bridge::init(
         &laptop,
@@ -217,6 +238,7 @@ fn main() -> anyhow::Result<()> {
         },
     );
     bridge::set_night_config(&laptop, config.display.clone());
+    bridge::set_recent_services(&laptop, config.tv.recent.clone());
     laptop.global::<Setup>().set_jellyfin_url(config.jellyfin.server_url.as_str().into());
 
     // Background → UI events.
@@ -267,12 +289,14 @@ fn main() -> anyhow::Result<()> {
                 if let Some(l) = weak.upgrade() {
                     l.global::<Nav>().set_page("home".into());
                     tv_nav::go_home(&l);
+                    let _ = l.window().show();
                 }
             });
         });
         if let Err(e) = listening {
             warn!(error = %e, "no instance socket; tvdash --home won't work");
         }
+        home_cmd::serve_pill(home_cmd::PILL_PORT, cmd_tx.clone(), laptop.as_weak());
         remote::serve(remote::DEFAULT_PORT, cmd_tx.clone(), laptop.as_weak());
     }
 
@@ -320,7 +344,7 @@ fn main() -> anyhow::Result<()> {
             displays::place_tv_only(&laptop, &config.display, !args.windowed, cmd_tx);
         }
     }
-    if startup_outputs.is_none() {
+    if startup_state.is_none() {
         displays::on_displays_changed(&laptop);
     }
 

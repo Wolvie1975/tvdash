@@ -562,7 +562,10 @@ impl Controller {
                 if !self.playback.as_ref().is_some_and(|p| p.player.in_window()) {
                     self.stop_playback().await;
                 }
-                self.close_browser().await;
+                if let Some(site) = self.browser.as_ref().map(|b| b.site.clone()) {
+                    self.close_browser().await;
+                    self.toast(format!("Closed {site} · back on Home"));
+                }
             }
             Command::Overlay => self.show_overlay(Some(5000)).await,
             Command::VideoFailed(reason) => self.video_failed(reason).await,
@@ -596,6 +599,11 @@ impl Controller {
             }
             Command::Refresh => self.refresh(),
             Command::OpenSite(i) => self.open_site(i).await,
+            Command::ClearRecentServices => {
+                self.update_config(|c| c.tv.recent.clear());
+                self.emit(AppEvent::RecentServices(Vec::new()));
+                self.toast("Recent services cleared");
+            }
             Command::SaveSite { index, site } => self.save_site(index, site),
             Command::RemoveSite { index, clear_cookies } => self.remove_site(index, clear_cookies).await,
             Command::MoveSite { from, to } => {
@@ -1780,6 +1788,10 @@ impl Controller {
         if !self.launch_browser(&site.name, &site.url).await {
             return;
         }
+        let service_id = crate::brand::service_id(&site.name);
+        let now = chrono::Utc::now().timestamp();
+        self.update_config(|c| crate::recent::push_recent(&mut c.tv.recent, &service_id, now));
+        self.emit(AppEvent::RecentServices(self.config.tv.recent.clone()));
         let opts = self.browser_options();
 
         if self.state.mark_opened(&site.name, chrono::Utc::now()) {

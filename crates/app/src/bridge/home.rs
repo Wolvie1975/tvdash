@@ -168,6 +168,39 @@ pub(super) fn refresh_tiles(s: &UiState, laptop: &LaptopWindow) {
         })
         .collect();
     laptop.global::<Dash>().set_streaming_sites(ModelRc::new(VecModel::from(tiles)));
+
+    let now = chrono::Utc::now().timestamp();
+    let visible: Vec<(usize, String, &tvdash_core::config::StreamingSite)> = s
+        .sites
+        .iter()
+        .enumerate()
+        .filter(|(_, site)| !site.hidden)
+        .map(|(i, site)| (i, crate::brand::service_id(&site.name), site))
+        .collect();
+
+    let tv_services: Vec<crate::TvServiceTile> = visible
+        .iter()
+        .map(|(i, id, site)| {
+            let recent_entry = s.recent.iter().find(|r| r.id == *id);
+            crate::TvServiceTile {
+                index: *i as i32,
+                brand: crate::brand::brand_for(id, &site.name),
+                is_recent: recent_entry.is_some(),
+                ago_text: recent_entry.map(|r| crate::recent::ago(r.at, now)).unwrap_or_default().into(),
+            }
+        })
+        .collect();
+
+    let fixed_ids: Vec<String> = visible.iter().map(|(_, id, _)| id.clone()).collect();
+    let home_ids = crate::recent::home_three(&s.recent, &fixed_ids);
+    let home_services: Vec<crate::TvServiceTile> = home_ids
+        .into_iter()
+        .filter_map(|id| tv_services.iter().find(|t| t.brand.id.as_str() == id).cloned())
+        .collect();
+
+    let tv_ui = laptop.global::<crate::TvUi>();
+    tv_ui.set_services(ModelRc::new(VecModel::from(tv_services)));
+    tv_ui.set_home_services(ModelRc::new(VecModel::from(home_services)));
 }
 
 // ── On the TV ───────────────────────────────────────────────────────

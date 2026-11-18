@@ -1,5 +1,11 @@
 # tvdash Changelog
 
+## v0.1.13 — 2026-11-18
+- Overhauled TV-only layout to the v2 Tile Hub (top TabBar, spatial focus across mixed-size tiles, 1080p design scaling for 1440p/4K).
+- Added brand-colored ServiceTiles with bundled SVG logos and last-3 recent service tracking on Home and Services.
+- Added the Back-to-tvdash Brave extension (`extras/back-pill`) and `POST http://127.0.0.1:47800/home` endpoint.
+- Rebuilt TV-only Library, Show, Collection, Search (6×6 keyboard), Settings, Player HUD, and Ambient screens.
+
 ## v0.1.12 — 2026-11-17
 - Added Jellyfin Server URL editing in Settings › Accounts (both two-screen and TV-only) and unmasked URL inputs for Jellyfin and Tautulli.
 

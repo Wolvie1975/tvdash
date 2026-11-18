@@ -557,9 +557,28 @@ export global Diagnostics {
 
 // TV-only layout ([display] layout = "tv"). Rust owns navigation (tv_nav.rs);
 // these say what's showing and what has focus.
+import { Brand } from "shared/brand.slint";
+
+export struct TvServiceTile {
+    index: int,
+    brand: Brand,
+    is-recent: bool,
+    ago-text: string,
+}
+
 export global TvUi {
-    // "home" | "search" | "library" | "services" | "settings"
+    // "home" | "search" | "library" | "services" | "settings" | "show" | "collection"
     in-out property <string> screen: "home";
+    in-out property <int> active-tab: 0; // 0 Home, 1 Library, 2 Services, 3 Settings
+    in-out property <bool> bar-focused: false;
+    in-out property <int> focused-tile: 1;
+    in-out property <length> cw-scroll: 0px;
+    in-out property <length> lib-scroll: 0px;
+    in-out property <length> show-scroll: 0px;
+    in-out property <length> col-scroll: 0px;
+    in property <string> hint-text: "OK Select · Back Home";
+    in property <[TvServiceTile]> services;
+    in property <[TvServiceTile]> home-services;
     in-out property <string> settings-tab: "display"; // "display" | "accounts" | "server" | "changelog"
     in property <bool> rail-open;
     // What has focus: "rail" | "hero" | "prompts" | "continue" | "services" | "lib-continue"
@@ -570,6 +589,8 @@ export global TvUi {
     in property <int> col;
     // Full-bleed art + clock after a few idle minutes; any key returns.
     in property <bool> ambient;
+    in-out property <bool> hud-open: false;
+    in-out property <bool> confirm-quit: false;
     // Settings › Layout shows the saved choice.
     in property <bool> layout-tv: true;
     in property <int> focus-ticket;
@@ -584,6 +605,11 @@ export global TvUi {
     callback key(string) -> bool;
     // Mouse/touch click on a focusable item (row, col).
     callback click(string, int);
+    // Mouse/touch on v2 tile index or tab index.
+    callback tile-activated(int);
+    callback tile-hovered(int);
+    callback tab-clicked(int);
+    callback clear-recent();
     // Show the playback overlay (title, progress, end time) on the video.
     callback overlay();
 }

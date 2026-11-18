@@ -1,0 +1,173 @@
+import { Theme } from "../theme.slint";
+import { ShowPageState, TvUi } from "../state.slint";
+import { SubTabs } from "tabs.slint";
+import { IconTile, MediaTile, Tile } from "tile.slint";
+
+export component TvShow inherits Rectangle {
+    width: 1920px;
+    height: 1080px;
+    background: transparent;
+
+    // Show hero info block
+    Rectangle {
+        x: 96px;
+        y: 136px;
+        width: 520px;
+        height: 320px;
+        border-radius: 6px;
+        background: ShowPageState.tint.card;
+
+        VerticalLayout {
+            padding: 24px;
+            spacing: 12px;
+
+            Text {
+                text: ShowPageState.title;
+                font-size: 38px;
+                font-weight: 500;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+            }
+
+            Text {
+                text: ShowPageState.meta;
+                font-size: 20px;
+                color: ShowPageState.tint.sec;
+                overflow: elide;
+            }
+
+            Text {
+                text: ShowPageState.summary;
+                font-size: 18px;
+                color: Theme.text-secondary;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+        }
+    }
+
+    // 0: Resume / Play next (2-wide, tint)
+    Tile {
+        x: 96px;
+        y: 472px;
+        base-width: 520px;
+        base-height: 140px;
+        fill: ShowPageState.tint.poster;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 0;
+        activated => { TvUi.tile-activated(0); }
+        hovered => { TvUi.tile-hovered(0); }
+
+        VerticalLayout {
+            padding: 20px;
+            spacing: 6px;
+            alignment: center;
+
+            Text {
+                text: ShowPageState.can-resume ? "Resume" : "Play up next";
+                font-size: 28px;
+                font-weight: 500;
+                color: Theme.text-primary;
+            }
+            Text {
+                text: ShowPageState.up-next;
+                font-size: 20px;
+                color: ShowPageState.tint.sec;
+                overflow: elide;
+            }
+        }
+    }
+
+    // 1: From S1 · E1
+    IconTile {
+        x: 96px;
+        y: 628px;
+        base-width: 252px;
+        base-height: 140px;
+        fill: ShowPageState.tint.card;
+        icon: "play";
+        label: "From S1 · E1";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 1;
+        activated => { TvUi.tile-activated(1); }
+        hovered => { TvUi.tile-hovered(1); }
+    }
+
+    // 2: Shuffle
+    IconTile {
+        x: 364px;
+        y: 628px;
+        base-width: 252px;
+        base-height: 140px;
+        fill: ShowPageState.tint.card;
+        icon: "forward";
+        label: "Shuffle";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 2;
+        activated => { TvUi.tile-activated(2); }
+        hovered => { TvUi.tile-hovered(2); }
+    }
+
+    // Season sub-tabs
+    HorizontalLayout {
+        x: 660px;
+        y: 136px;
+        spacing: 28px;
+
+        for s[i] in ShowPageState.seasons: Rectangle {
+            width: stxt.preferred-width;
+            height: stxt.preferred-height + 8px;
+            background: transparent;
+
+            stxt := Text {
+                text: s.title;
+                font-size: 28px;
+                font-weight: s.rating-key == ShowPageState.selected-season ? 500 : 300;
+                color: s.rating-key == ShowPageState.selected-season ? Theme.text-primary : Theme.text-muted;
+            }
+
+            Rectangle {
+                y: stxt.height + 4px;
+                width: parent.width;
+                height: 3px;
+                visible: s.rating-key == ShowPageState.selected-season;
+                background: Theme.text-primary;
+            }
+
+            TouchArea {
+                clicked => { ShowPageState.select-season(s.rating-key); }
+            }
+        }
+    }
+
+    // 3-row episode panorama (384 x 240)
+    Rectangle {
+        x: 660px;
+        y: 196px;
+        width: 1260px;
+        height: 760px;
+        clip: true;
+        background: transparent;
+
+        Rectangle {
+            x: -TvUi.show-scroll;
+            y: 0px;
+            width: 5000px;
+            height: parent.height;
+            background: transparent;
+            animate x { duration: 200ms; easing: ease-out; }
+
+            for ep[i] in ShowPageState.episodes: MediaTile {
+                x: Math.floor(i / 3) * 400px;
+                y: Math.mod(i, 3) * 256px;
+                base-width: 384px;
+                base-height: 240px;
+                art: ep.thumb;
+                has-art: ep.has-thumb;
+                title: ep.num + " · " + ep.title;
+                subtitle: ep.meta;
+                progress: ep.progress;
+                focused: !TvUi.bar-focused && TvUi.focused-tile == 3 + i;
+                activated => { TvUi.tile-activated(3 + i); }
+                hovered => { TvUi.tile-hovered(3 + i); }
+            }
+        }
+    }
+}

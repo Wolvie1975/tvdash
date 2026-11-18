@@ -1,0 +1,135 @@
+import { Theme } from "../theme.slint";
+import { Dash, TvUi } from "../state.slint";
+import { IconTile } from "tile.slint";
+
+export component TvPlayerHud inherits Rectangle {
+    width: 1920px;
+    height: 1080px;
+    background: transparent;
+
+    // Auto-hide after 3.5 s
+    Timer {
+        interval: 3.5s;
+        running: TvUi.hud-open;
+        triggered => { TvUi.hud-open = false; }
+    }
+
+    // Bottom scrim panel
+    Rectangle {
+        x: 96px;
+        y: 1080px - 320px;
+        width: 1728px;
+        height: 266px;
+        border-radius: 6px;
+        background: #0B0D10E0;
+        border-width: 1px;
+        border-color: Theme.border;
+
+        // Title & ends-at
+        Text {
+            x: 32px;
+            y: 24px;
+            width: 1100px;
+            text: Dash.tv.title;
+            font-size: 36px;
+            font-weight: 500;
+            color: #E8EAED;
+            overflow: elide;
+        }
+
+        Text {
+            x: 32px;
+            y: 72px;
+            width: 1100px;
+            text: Dash.tv.subtitle + (Dash.tv-ends-at != "" ? " · Ends at " + Dash.tv-ends-at : "");
+            font-size: 22px;
+            color: #A0A6AF;
+            overflow: elide;
+        }
+
+        // Progress bar
+        Rectangle {
+            x: 32px;
+            y: 114px;
+            width: 1664px;
+            height: 6px;
+            border-radius: 3px;
+            background: #FFFFFF26;
+
+            Rectangle {
+                x: 0px;
+                y: 0px;
+                width: parent.width * clamp(Dash.tv.progress, 0.0, 1.0);
+                height: 100%;
+                border-radius: 3px;
+                background: #E8EAED;
+            }
+        }
+
+        // 5 square control tiles (0..4)
+        IconTile {
+            x: 32px;
+            y: 136px;
+            base-width: 120px;
+            base-height: 108px;
+            fill: Theme.surface-raised;
+            icon: "back";
+            label: "-10s";
+            focused: TvUi.focused-tile == 0;
+            activated => { Dash.transport("back"); }
+            hovered => { TvUi.focused-tile = 0; }
+        }
+
+        IconTile {
+            x: 168px;
+            y: 136px;
+            base-width: 140px;
+            base-height: 108px;
+            fill: Theme.surface-raised;
+            icon: Dash.tv.mode == "paused" ? "play" : "pause";
+            label: Dash.tv.mode == "paused" ? "Play" : "Pause";
+            focused: TvUi.focused-tile == 1;
+            activated => { Dash.transport("play-pause"); }
+            hovered => { TvUi.focused-tile = 1; }
+        }
+
+        IconTile {
+            x: 324px;
+            y: 136px;
+            base-width: 120px;
+            base-height: 108px;
+            fill: Theme.surface-raised;
+            icon: "forward";
+            label: "+30s";
+            focused: TvUi.focused-tile == 2;
+            activated => { Dash.transport("forward"); }
+            hovered => { TvUi.focused-tile = 2; }
+        }
+
+        IconTile {
+            x: 460px;
+            y: 136px;
+            base-width: 120px;
+            base-height: 108px;
+            fill: Theme.surface-raised;
+            icon: "stop";
+            label: "Stop";
+            focused: TvUi.focused-tile == 3;
+            activated => { Dash.transport("stop"); TvUi.hud-open = false; TvUi.video-full = false; }
+            hovered => { TvUi.focused-tile = 3; }
+        }
+
+        IconTile {
+            x: 596px;
+            y: 136px;
+            base-width: 140px;
+            base-height: 108px;
+            fill: Theme.surface-raised;
+            icon: "tv";
+            label: "Home";
+            focused: TvUi.focused-tile == 4;
+            activated => { TvUi.hud-open = false; TvUi.video-full = false; }
+            hovered => { TvUi.focused-tile = 4; }
+        }
+    }
+}

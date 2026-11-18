@@ -1,0 +1,267 @@
+import { Theme } from "../theme.slint";
+import { Brand } from "../shared/brand.slint";
+import { Icon } from "../icons.slint";
+
+// Base tile with 6 px corners, 1.04x focus scale, deep shadow, and 4 px focus outline.
+export component Tile inherits Rectangle {
+    in property <bool> focused: false;
+    in property <brush> fill: Theme.surface;
+    in property <length> base-width: 240px;
+    in property <length> base-height: 240px;
+    callback activated();
+    callback hovered();
+
+    width: root.base-width;
+    height: root.base-height;
+    background: transparent;
+
+    body := Rectangle {
+        property <length> grow-w: root.focused ? root.base-width * 0.04 : 0px;
+        property <length> grow-h: root.focused ? root.base-height * 0.04 : 0px;
+
+        x: -self.grow-w / 2;
+        y: -self.grow-h / 2;
+        width: root.base-width + self.grow-w;
+        height: root.base-height + self.grow-h;
+        border-radius: 6px;
+        background: root.fill;
+        clip: true;
+        drop-shadow-blur: root.focused ? 60px : 0px;
+        drop-shadow-offset-y: root.focused ? 20px : 0px;
+        drop-shadow-color: #00000099;
+
+        animate width, height, x, y, drop-shadow-blur, drop-shadow-offset-y {
+            duration: 120ms;
+            easing: ease-out;
+        }
+
+        @children
+    }
+
+    // 4 px focus outline, drawn just outside the scaled tile.
+    Rectangle {
+        x: body.x - 4px;
+        y: body.y - 4px;
+        width: body.width + 8px;
+        height: body.height + 8px;
+        border-radius: 9px;
+        border-width: root.focused ? 4px : 0px;
+        border-color: Theme.text-primary;
+    }
+
+    ta := TouchArea {
+        clicked => { root.activated(); }
+        changed has-hover => {
+            if self.has-hover {
+                root.hovered();
+            }
+        }
+    }
+}
+
+export component MediaTile inherits Tile {
+    in property <image> art;
+    in property <bool> has-art: false;
+    in property <string> title;
+    in property <string> subtitle;
+    in property <float> progress: 0.0;
+    in property <bool> progress-top: false;
+    in property <string> badge;
+
+    fill: Theme.surface;
+
+    if root.has-art: Image {
+        source: root.art;
+        width: 100%;
+        height: 100%;
+        image-fit: cover;
+    }
+
+    // Dark bottom scrim so text on art always passes contrast.
+    Rectangle {
+        y: parent.height * 0.45;
+        width: 100%;
+        height: parent.height * 0.55;
+        background: @linear-gradient(180deg, #0B0D1000 0%, #0B0D10D9 100%);
+    }
+
+    // Optional progress bar (top for Home hero, bottom for posters/episodes).
+    if root.progress > 0.0: Rectangle {
+        x: 0;
+        y: root.progress-top ? 0 : parent.height - 5px;
+        width: 100%;
+        height: 5px;
+        background: #FFFFFF33;
+
+        Rectangle {
+            x: 0;
+            y: 0;
+            width: parent.width * clamp(root.progress, 0.0, 1.0);
+            height: 100%;
+            background: #E8EAED;
+        }
+    }
+
+    if root.badge != "": Rectangle {
+        x: parent.width - self.width - 14px;
+        y: 14px;
+        width: badge-txt.preferred-width + 18px;
+        height: 30px;
+        border-radius: 4px;
+        background: Theme.scrim;
+
+        badge-txt := Text {
+            text: root.badge;
+            font-size: 16px;
+            font-weight: 600;
+            color: #E8EAED;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    VerticalLayout {
+        x: 20px;
+        y: parent.height - self.preferred-height - 16px;
+        width: parent.width - 40px;
+        spacing: 4px;
+
+        Text {
+            text: root.title;
+            font-size: 24px;
+            font-weight: 500;
+            color: #E8EAED;
+            overflow: elide;
+        }
+
+        if root.subtitle != "": Text {
+            text: root.subtitle;
+            font-size: 18px;
+            font-weight: 400;
+            color: #A0A6AF;
+            overflow: elide;
+        }
+    }
+}
+
+export component ServiceTile inherits Tile {
+    in property <Brand> brand;
+    in property <bool> is-recent: false;
+
+    fill: @linear-gradient(135deg, root.brand.fill 0%, root.brand.fill-end 100%);
+
+    // Centered SVG logo when available, otherwise bold wordmark.
+    if root.brand.has-logo: Image {
+        source: root.brand.logo;
+        width: 96px;
+        height: 56px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2 - 10px;
+        image-fit: contain;
+    }
+
+    if !root.brand.has-logo: HorizontalLayout {
+        x: 20px;
+        y: (parent.height - self.preferred-height) / 2 - 10px;
+        width: parent.width - 40px;
+        alignment: center;
+        spacing: 8px;
+
+        Text {
+            text: root.brand.wordmark;
+            font-size: 28px;
+            font-weight: 800;
+            color: root.brand.ink;
+        }
+
+        if root.brand.sub != "": Text {
+            text: root.brand.sub;
+            font-size: 22px;
+            font-weight: 600;
+            color: root.brand.sub-ink;
+            vertical-alignment: center;
+        }
+    }
+
+    if root.is-recent: Rectangle {
+        x: parent.width - self.width - 14px;
+        y: 14px;
+        width: recent-txt.preferred-width + 16px;
+        height: 26px;
+        border-radius: 4px;
+        background: #0B0D10B0;
+
+        recent-txt := Text {
+            text: "RECENT";
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            color: #E8EAED;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    Text {
+        x: 18px;
+        y: parent.height - self.preferred-height - 14px;
+        width: parent.width - 36px;
+        text: root.brand.name;
+        font-size: 20px;
+        font-weight: 500;
+        color: root.brand.ink;
+        overflow: elide;
+    }
+}
+
+export component ValueTile inherits Tile {
+    in property <string> label;
+    in property <string> value;
+
+    Text {
+        x: 20px;
+        y: 18px;
+        width: parent.width - 40px;
+        text: root.label;
+        font-size: 20px;
+        font-weight: 400;
+        color: Theme.text-secondary;
+        overflow: elide;
+    }
+
+    Text {
+        x: 20px;
+        y: parent.height - self.preferred-height - 18px;
+        width: parent.width - 40px;
+        text: root.value;
+        font-size: 40px;
+        font-weight: 300;
+        color: Theme.text-primary;
+        overflow: elide;
+    }
+}
+
+export component IconTile inherits Tile {
+    in property <string> icon;
+    in property <string> label;
+    in property <color> ink: Theme.text-primary;
+
+    Icon {
+        x: 20px;
+        y: 20px;
+        size: 48px;
+        name: root.icon;
+        tint: root.ink;
+    }
+
+    Text {
+        x: 20px;
+        y: parent.height - self.preferred-height - 18px;
+        width: parent.width - 40px;
+        text: root.label;
+        font-size: 22px;
+        font-weight: 400;
+        color: root.ink;
+        overflow: elide;
+    }
+}

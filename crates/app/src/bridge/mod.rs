@@ -97,6 +97,7 @@ pub struct UiState {
     server_summary: Option<ServerSummary>,
     sign_in: HashMap<SourceKind, SignInState>,
     streaming: BTreeMap<String, DateTime<Utc>>,
+    recent: Vec<tvdash_core::config::RecentService>,
     // Library
     search: Option<(String, Vec<MediaItem>)>,
     lib_continue: Vec<MediaItem>,
@@ -153,6 +154,14 @@ pub fn set_night_config(laptop: &LaptopWindow, display: tvdash_core::config::Dis
         s.night_display = display;
         s.night_active = s.night_display.is_night_now(now_time(s.tz));
         apply_theme(s, laptop, s.theme);
+    });
+}
+
+/// Set the initial list of last-3 recent streaming services for TV-only v2.
+pub fn set_recent_services(laptop: &LaptopWindow, recent: Vec<tvdash_core::config::RecentService>) {
+    STATE.with_borrow_mut(|s| {
+        s.recent = recent;
+        home::refresh_tiles(s, laptop);
     });
 }
 
@@ -546,6 +555,10 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::Streaming(map) => {
             s.streaming = map;
             accounts::refresh(s, laptop);
+        }
+        AppEvent::RecentServices(recent) => {
+            s.recent = recent;
+            home::refresh_tiles(s, laptop);
         }
         AppEvent::ShowSetup => {
             laptop.global::<Setup>().set_step(0);

@@ -120,6 +120,8 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
 
     let s = send.clone();
     laptop.global::<crate::TvUi>().on_overlay(move || s(Command::Overlay));
+    let s = send.clone();
+    laptop.global::<crate::TvUi>().on_clear_recent(move || s(Command::ClearRecentServices));
 
     let (weak, s) = (laptop.as_weak(), send.clone());
     dash.on_transport(move |action| {

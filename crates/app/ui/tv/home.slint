@@ -1,0 +1,199 @@
+import { Theme } from "../theme.slint";
+import { Icon } from "../icons.slint";
+import { Dash, TvUi } from "../state.slint";
+import { IconTile, MediaTile, ServiceTile, Tile } from "tile.slint";
+
+export component TvHome inherits Rectangle {
+    width: 1920px;
+    height: 1080px;
+    background: transparent;
+
+    // ── Left/center hub (x: 96..1306, y: 136..808) ─────────────────────────
+    // 0: Tall Clock / Weather / Plex tile (178 x 496)
+    Tile {
+        x: 96px;
+        y: 136px;
+        base-width: 178px;
+        base-height: 496px;
+        fill: Dash.tint.card;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 0;
+        activated => { TvUi.tile-activated(0); }
+        hovered => { TvUi.tile-hovered(0); }
+
+        VerticalLayout {
+            padding: 18px;
+            spacing: 10px;
+
+            Text {
+                text: Dash.clock-hh + ":" + Dash.clock-mm;
+                font-size: 42px;
+                font-weight: 300;
+                color: Theme.text-primary;
+            }
+
+            Text {
+                text: Dash.date-text;
+                font-size: 16px;
+                color: Dash.tint.sec;
+                wrap: word-wrap;
+            }
+
+            Rectangle { height: 12px; }
+
+            if Dash.weather-on: HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                Icon {
+                    name: Dash.weather-icon;
+                    size: 28px;
+                    tint: Dash.tint.accent;
+                }
+                Text {
+                    text: Dash.weather-temp;
+                    font-size: 26px;
+                    font-weight: 400;
+                    color: Theme.text-primary;
+                    vertical-alignment: center;
+                }
+            }
+
+            Rectangle { vertical-stretch: 1; }
+
+            Text {
+                text: Dash.tv.mode == "idle" ? "Plex ready" : "On the TV";
+                font-size: 16px;
+                color: Dash.tint.sec;
+                overflow: elide;
+            }
+        }
+    }
+
+    // 1: Big On-the-TV Hero tile (760 x 496, top progress bar)
+    MediaTile {
+        x: 290px;
+        y: 136px;
+        base-width: 760px;
+        base-height: 496px;
+        art: Dash.tv.poster;
+        has-art: Dash.tv.has-poster;
+        title: Dash.tv.title;
+        subtitle: Dash.tv.subtitle;
+        progress: Dash.tv.progress;
+        progress-top: true;
+        badge: Dash.tv.label;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 1;
+        activated => { TvUi.tile-activated(1); }
+        hovered => { TvUi.tile-hovered(1); }
+    }
+
+    // 2..4: Utility column (Search, Library, Screensaver)
+    IconTile {
+        x: 1066px;
+        y: 136px;
+        base-width: 240px;
+        base-height: 154px;
+        fill: Dash.tint.poster;
+        icon: "search";
+        label: "Search";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 2;
+        activated => { TvUi.tile-activated(2); }
+        hovered => { TvUi.tile-hovered(2); }
+    }
+
+    IconTile {
+        x: 1066px;
+        y: 306px;
+        base-width: 240px;
+        base-height: 154px;
+        fill: Dash.tint.poster;
+        icon: "library";
+        label: "Library";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 3;
+        activated => { TvUi.tile-activated(3); }
+        hovered => { TvUi.tile-hovered(3); }
+    }
+
+    IconTile {
+        x: 1066px;
+        y: 476px;
+        base-width: 240px;
+        base-height: 156px;
+        fill: Dash.tint.poster;
+        icon: "moon";
+        label: "Screensaver";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 4;
+        activated => { TvUi.tile-activated(4); }
+        hovered => { TvUi.tile-hovered(4); }
+    }
+
+    // 5..7: 3 recent services + 8: All 10 services
+    for svc[i] in TvUi.home-services: ServiceTile {
+        x: 96px + i * 242px;
+        y: 648px;
+        base-width: 226px;
+        base-height: 160px;
+        brand: svc.brand;
+        is-recent: svc.is-recent;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 5 + i;
+        activated => { TvUi.tile-activated(5 + i); }
+        hovered => { TvUi.tile-hovered(5 + i); }
+    }
+
+    IconTile {
+        x: 822px;
+        y: 648px;
+        base-width: 228px;
+        base-height: 160px;
+        fill: Dash.tint.poster;
+        icon: "tv";
+        label: "All " + TvUi.services.length + " services";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
+        activated => { TvUi.tile-activated(8); }
+        hovered => { TvUi.tile-hovered(8); }
+    }
+
+    // ── Continue watching column panorama (x: 1338..1920) ───────────────────
+    Text {
+        x: 1338px;
+        y: 136px;
+        text: "CONTINUE WATCHING";
+        font-size: 22px;
+        font-weight: 500;
+        letter-spacing: 1.2px;
+        color: Theme.text-secondary;
+    }
+
+    Rectangle {
+        x: 1338px;
+        y: 176px;
+        width: 582px;
+        height: 640px;
+        clip: true;
+        background: transparent;
+
+        Rectangle {
+            x: -TvUi.cw-scroll;
+            y: 0;
+            width: 3000px;
+            height: parent.height;
+            background: transparent;
+            animate x { duration: 200ms; easing: ease-out; }
+
+            for item[i] in Dash.continue-watching: MediaTile {
+                x: Math.floor(i / 2) * 400px;
+                y: Math.mod(i, 2) * 256px;
+                base-width: 384px;
+                base-height: 240px;
+                art: item.poster;
+                has-art: item.has-poster;
+                title: item.title;
+                subtitle: item.subtitle;
+                progress: item.progress;
+                progress-top: false;
+                focused: !TvUi.bar-focused && TvUi.focused-tile == 9 + i;
+                activated => { TvUi.tile-activated(9 + i); }
+                hovered => { TvUi.tile-hovered(9 + i); }
+            }
+        }
+    }
+}

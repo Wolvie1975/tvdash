@@ -45,6 +45,9 @@ assets = [
     { source = "target/release/tvdash", dest = "/usr/bin/tvdash", mode = "755" },
     { source = "../../packaging/tvdash.desktop", dest = "/usr/share/applications/tvdash.desktop", mode = "644" },
     { source = "../../packaging/tvdash.svg", dest = "/usr/share/icons/hicolor/scalable/apps/tvdash.svg", mode = "644" },
+    { source = "../../extras/back-pill/manifest.json", dest = "/usr/share/tvdash/back-pill/manifest.json", mode = "644" },
+    { source = "../../extras/back-pill/pill.js", dest = "/usr/share/tvdash/back-pill/pill.js", mode = "644" },
+    { source = "../../extras/back-pill/worker.js", dest = "/usr/share/tvdash/back-pill/worker.js", mode = "644" },
 ]
 post_install_script = """
 update-desktop-database /usr/share/applications >/dev/null 2>&1 || true

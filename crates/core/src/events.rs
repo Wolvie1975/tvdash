@@ -94,6 +94,8 @@ pub enum AppEvent {
     Server(SourceKind, Option<String>),
     /// Site name → last opened, for the setup and Accounts screens.
     Streaming(BTreeMap<String, DateTime<Utc>>),
+    /// Last 3 recently opened streaming services (TV-only v2).
+    RecentServices(Vec<crate::config::RecentService>),
     /// Show the first-run setup (nothing is connected yet).
     ShowSetup,
     /// Places matching a search (Settings › Display › Location).
@@ -191,6 +193,8 @@ pub enum Command {
     NextEpisode,
     /// Open `config.streaming[index]` on the TV.
     OpenSite(usize),
+    /// Clear the last-3 recent streaming services list.
+    ClearRecentServices,
     /// Add (`index: None`) or replace a streaming site. Already validated.
     SaveSite {
         index: Option<usize>,

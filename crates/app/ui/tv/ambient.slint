@@ -1,0 +1,37 @@
+import { Theme } from "../theme.slint";
+import { Dash, TvUi } from "../state.slint";
+
+export component TvAmbient inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: Theme.bg-night;
+
+    VerticalLayout {
+        x: Dash.screensaver-dx * 1px;
+        y: Dash.screensaver-dy * 1px;
+        width: 100%;
+        height: 100%;
+        alignment: center;
+        spacing: 20px;
+
+        Text {
+            text: Dash.clock-hh + ":" + Dash.clock-mm;
+            font-size: 160px;
+            font-weight: 300;
+            color: Theme.text-primary.with-alpha(0.7);
+            horizontal-alignment: center;
+        }
+
+        Text {
+            text: Dash.date-text;
+            font-size: 36px;
+            font-weight: 300;
+            color: Theme.text-secondary.with-alpha(0.6);
+            horizontal-alignment: center;
+        }
+    }
+
+    TouchArea {
+        clicked => { TvUi.key("Escape"); }
+    }
+}
