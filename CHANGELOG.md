@@ -1,5 +1,9 @@
 # tvdash Changelog
 
+## v0.1.14 — 2026-11-18
+- Expanded TV-only Home and Services tiles to fill the full 1080p/1440p vertical canvas and added monitor fallback for 1440p/4K scaling.
+- Made TV-only navigation mouse-friendly: pointer cursors, clickable Back pill on detail/Search pages, mouse wheel scrolling on panoramas, and mouse-move wake for Player HUD.
+
 ## v0.1.13 — 2026-11-18
 - Overhauled TV-only layout to the v2 Tile Hub (top TabBar, spatial focus across mixed-size tiles, 1080p design scaling for 1440p/4K).
 - Added brand-colored ServiceTiles with bundled SVG logos and last-3 recent service tracking on Home and Services.

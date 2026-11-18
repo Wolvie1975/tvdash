@@ -30,6 +30,13 @@ export component TvLibrary inherits Rectangle {
         clip: true;
         background: transparent;
 
+        TouchArea {
+            scroll-event(event) => {
+                TvUi.scroll-panorama(event.delta-x != 0px ? event.delta-x : event.delta-y);
+                accept
+            }
+        }
+
         Rectangle {
             x: -TvUi.lib-scroll;
             y: 0px;

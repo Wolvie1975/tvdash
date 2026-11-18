@@ -94,6 +94,20 @@ pub fn init(laptop: &LaptopWindow, layout: Layout) {
         }
     });
 
+    let weak = laptop.as_weak();
+    laptop.global::<TvUi>().on_back_clicked(move || {
+        if let Some(l) = weak.upgrade() {
+            go_back(&l);
+        }
+    });
+
+    let weak = laptop.as_weak();
+    laptop.global::<TvUi>().on_scroll_panorama(move |delta| {
+        if let Some(l) = weak.upgrade() {
+            scroll_panorama(&l, delta);
+        }
+    });
+
     sync(laptop);
 }
 
@@ -202,23 +216,23 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
         Page::Home => {
             // Indices 0..=8 match home.slint fixed tiles; 9.. are Continue Watching.
             let mut rects = vec![
-                Rect { x: 96.0, y: 136.0, w: 178.0, h: 496.0 },   // 0: Clock
-                Rect { x: 290.0, y: 136.0, w: 760.0, h: 496.0 },  // 1: Hero
-                Rect { x: 1066.0, y: 136.0, w: 240.0, h: 154.0 }, // 2: Search
-                Rect { x: 1066.0, y: 306.0, w: 240.0, h: 154.0 }, // 3: Library
-                Rect { x: 1066.0, y: 476.0, w: 240.0, h: 156.0 }, // 4: Screensaver
+                Rect { x: 96.0, y: 136.0, w: 190.0, h: 590.0 },   // 0: Clock
+                Rect { x: 302.0, y: 136.0, w: 748.0, h: 590.0 },  // 1: Hero
+                Rect { x: 1066.0, y: 136.0, w: 240.0, h: 186.0 }, // 2: Search
+                Rect { x: 1066.0, y: 338.0, w: 240.0, h: 186.0 }, // 3: Library
+                Rect { x: 1066.0, y: 540.0, w: 240.0, h: 186.0 }, // 4: Screensaver
             ];
             let home_svcs = tv.get_home_services().row_count().min(3);
             for i in 0..3 {
                 if i < home_svcs {
-                    rects.push(Rect { x: 96.0 + i as f32 * 242.0, y: 648.0, w: 226.0, h: 160.0 });
+                    rects.push(Rect { x: 96.0 + i as f32 * 242.0, y: 742.0, w: 226.0, h: 230.0 });
                 } else {
                     // Placeholder zero-area off-screen if < 3 services configured
                     rects.push(Rect { x: -9999.0, y: -9999.0, w: 0.0, h: 0.0 });
                 }
             }
             // 8: All services
-            rects.push(Rect { x: 822.0, y: 648.0, w: 228.0, h: 160.0 });
+            rects.push(Rect { x: 822.0, y: 742.0, w: 228.0, h: 230.0 });
 
             let cw_count = dash.get_continue_watching().row_count();
             for i in 0..cw_count {
@@ -226,9 +240,9 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 let row = (i % 2) as f32;
                 rects.push(Rect {
                     x: 1338.0 + col * 400.0,
-                    y: 176.0 + row * 256.0,
+                    y: 176.0 + row * 400.0,
                     w: 384.0,
-                    h: 240.0,
+                    h: 384.0,
                 });
             }
             rects
@@ -241,9 +255,9 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                     let row = (i / 5) as f32;
                     Rect {
                         x: 96.0 + col * 348.0,
-                        y: 180.0 + row * 256.0,
+                        y: 180.0 + row * 376.0,
                         w: 332.0,
-                        h: 240.0,
+                        h: 360.0,
                     }
                 })
                 .collect()
@@ -382,7 +396,53 @@ fn hover_tile(laptop: &LaptopWindow, idx: usize) {
         s.shell.focused_tile = idx;
         s.last_key = Instant::now();
     });
-    sync(laptop);
+    // Update focus ring without jumping panorama scroll out from under the cursor.
+    let tv = laptop.global::<TvUi>();
+    tv.set_bar_focused(false);
+    tv.set_focused_tile(idx as i32);
+}
+
+fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
+    let tv = laptop.global::<TvUi>();
+    let step = -delta * 2.0;
+    STATE.with_borrow_mut(|s| {
+        s.last_key = Instant::now();
+        match s.shell.current() {
+            Page::Home => {
+                s.cw_scroll = (s.cw_scroll + step).clamp(0.0, 2400.0);
+                tv.set_cw_scroll(s.cw_scroll);
+            }
+            Page::Library => {
+                s.lib_scroll = (s.lib_scroll + step).clamp(0.0, 2600.0);
+                tv.set_lib_scroll(s.lib_scroll);
+            }
+            Page::Show(_) => {
+                s.show_scroll = (s.show_scroll + step).clamp(0.0, 3600.0);
+                tv.set_show_scroll(s.show_scroll);
+            }
+            Page::Collection(_) => {
+                s.col_scroll = (s.col_scroll + step).clamp(0.0, 3600.0);
+                tv.set_col_scroll(s.col_scroll);
+            }
+            _ => {}
+        }
+    });
+}
+
+fn go_back(laptop: &LaptopWindow) -> bool {
+    let was_show = STATE.with_borrow(|s| matches!(s.shell.current(), Page::Show(_)));
+    let was_col = STATE.with_borrow(|s| matches!(s.shell.current(), Page::Collection(_)));
+    let changed = STATE.with_borrow_mut(|s| s.shell.back());
+    if changed {
+        if was_show {
+            laptop.global::<ShowPageState>().invoke_close();
+        }
+        if was_col {
+            laptop.global::<CollectionPageState>().invoke_close();
+        }
+        sync(laptop);
+    }
+    changed
 }
 
 fn activate_tile(laptop: &LaptopWindow, idx: usize) {
@@ -688,19 +748,7 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
     }
 
     if is_back(text) {
-        let was_show = STATE.with_borrow(|s| matches!(s.shell.current(), Page::Show(_)));
-        let was_col = STATE.with_borrow(|s| matches!(s.shell.current(), Page::Collection(_)));
-        let changed = STATE.with_borrow_mut(|s| s.shell.back());
-        if changed {
-            if was_show {
-                laptop.global::<ShowPageState>().invoke_close();
-            }
-            if was_col {
-                laptop.global::<CollectionPageState>().invoke_close();
-            }
-            sync(laptop);
-        }
-        return changed;
+        return go_back(laptop);
     }
 
     let bar_focused = STATE.with_borrow(|s| s.shell.bar_focused);

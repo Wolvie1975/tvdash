@@ -34,6 +34,7 @@ export component TabBar inherits HorizontalLayout {
         }
 
         TouchArea {
+            mouse-cursor: pointer;
             clicked => { root.tab-clicked(i); }
         }
     }
@@ -72,6 +73,7 @@ export component SubTabs inherits HorizontalLayout {
         }
 
         TouchArea {
+            mouse-cursor: pointer;
             clicked => { root.selected(i); }
         }
     }

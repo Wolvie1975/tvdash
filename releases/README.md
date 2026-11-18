@@ -2,10 +2,10 @@
 
 ## 1. Install the RPM
 
-Download `tvdash-0.1.13-1.x86_64.rpm` from this folder, then install it on Fedora (`x86_64`, GNOME Wayland):
+Download `tvdash-0.1.14-1.x86_64.rpm` from this folder, then install it on Fedora (`x86_64`, GNOME Wayland):
 
 ```bash
-sudo dnf install ./tvdash-0.1.13-1.x86_64.rpm
+sudo dnf install ./tvdash-0.1.14-1.x86_64.rpm
 ```
 
 This installs `/usr/bin/tvdash`, the app-menu entry, and pulls in `mpv` and `mpv-libs` automatically.

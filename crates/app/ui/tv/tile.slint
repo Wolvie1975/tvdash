@@ -50,6 +50,7 @@ export component Tile inherits Rectangle {
     }
 
     ta := TouchArea {
+        mouse-cursor: pointer;
         clicked => { root.activated(); }
         changed has-hover => {
             if self.has-hover {

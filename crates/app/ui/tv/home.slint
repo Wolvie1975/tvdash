@@ -8,13 +8,13 @@ export component TvHome inherits Rectangle {
     height: 1080px;
     background: transparent;
 
-    // ── Left/center hub (x: 96..1306, y: 136..808) ─────────────────────────
-    // 0: Tall Clock / Weather / Plex tile (178 x 496)
+    // ── Left/center hub (x: 96..1306, y: 136..972) ─────────────────────────
+    // 0: Tall Clock / Weather / Plex tile (190 x 590)
     Tile {
         x: 96px;
         y: 136px;
-        base-width: 178px;
-        base-height: 496px;
+        base-width: 190px;
+        base-height: 590px;
         fill: Dash.tint.card;
         focused: !TvUi.bar-focused && TvUi.focused-tile == 0;
         activated => { TvUi.tile-activated(0); }
@@ -68,12 +68,12 @@ export component TvHome inherits Rectangle {
         }
     }
 
-    // 1: Big On-the-TV Hero tile (760 x 496, top progress bar)
+    // 1: Big On-the-TV Hero tile (748 x 590, top progress bar)
     MediaTile {
-        x: 290px;
+        x: 302px;
         y: 136px;
-        base-width: 760px;
-        base-height: 496px;
+        base-width: 748px;
+        base-height: 590px;
         art: Dash.tv.poster;
         has-art: Dash.tv.has-poster;
         title: Dash.tv.title;
@@ -91,7 +91,7 @@ export component TvHome inherits Rectangle {
         x: 1066px;
         y: 136px;
         base-width: 240px;
-        base-height: 154px;
+        base-height: 186px;
         fill: Dash.tint.poster;
         icon: "search";
         label: "Search";
@@ -102,9 +102,9 @@ export component TvHome inherits Rectangle {
 
     IconTile {
         x: 1066px;
-        y: 306px;
+        y: 338px;
         base-width: 240px;
-        base-height: 154px;
+        base-height: 186px;
         fill: Dash.tint.poster;
         icon: "library";
         label: "Library";
@@ -115,9 +115,9 @@ export component TvHome inherits Rectangle {
 
     IconTile {
         x: 1066px;
-        y: 476px;
+        y: 540px;
         base-width: 240px;
-        base-height: 156px;
+        base-height: 186px;
         fill: Dash.tint.poster;
         icon: "moon";
         label: "Screensaver";
@@ -129,9 +129,9 @@ export component TvHome inherits Rectangle {
     // 5..7: 3 recent services + 8: All 10 services
     for svc[i] in TvUi.home-services: ServiceTile {
         x: 96px + i * 242px;
-        y: 648px;
+        y: 742px;
         base-width: 226px;
-        base-height: 160px;
+        base-height: 230px;
         brand: svc.brand;
         is-recent: svc.is-recent;
         focused: !TvUi.bar-focused && TvUi.focused-tile == 5 + i;
@@ -141,9 +141,9 @@ export component TvHome inherits Rectangle {
 
     IconTile {
         x: 822px;
-        y: 648px;
+        y: 742px;
         base-width: 228px;
-        base-height: 160px;
+        base-height: 230px;
         fill: Dash.tint.poster;
         icon: "tv";
         label: "All " + TvUi.services.length + " services";
@@ -167,9 +167,16 @@ export component TvHome inherits Rectangle {
         x: 1338px;
         y: 176px;
         width: 582px;
-        height: 640px;
+        height: 800px;
         clip: true;
         background: transparent;
+
+        TouchArea {
+            scroll-event(event) => {
+                TvUi.scroll-panorama(event.delta-x != 0px ? event.delta-x : event.delta-y);
+                accept
+            }
+        }
 
         Rectangle {
             x: -TvUi.cw-scroll;
@@ -181,9 +188,9 @@ export component TvHome inherits Rectangle {
 
             for item[i] in Dash.continue-watching: MediaTile {
                 x: Math.floor(i / 2) * 400px;
-                y: Math.mod(i, 2) * 256px;
+                y: Math.mod(i, 2) * 400px;
                 base-width: 384px;
-                base-height: 240px;
+                base-height: 384px;
                 art: item.poster;
                 has-art: item.has-poster;
                 title: item.title;

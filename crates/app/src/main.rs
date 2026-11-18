@@ -198,7 +198,17 @@ fn main() -> anyhow::Result<()> {
     // Design units for TV-only are 1920x1080; scale 1440p/4K proportionally.
     if layout == tvdash_core::Layout::Tv && !args.windowed && std::env::var_os("SLINT_SCALE_FACTOR").is_none() {
         if let Some((_, heights)) = &startup_state {
-            if let Some(&h) = heights.get(&config.display.tv_output) {
+            let h = heights
+                .get(&config.display.tv_output)
+                .copied()
+                .or_else(|| {
+                    heights
+                        .iter()
+                        .find(|(name, _)| *name != &config.display.laptop_output)
+                        .map(|(_, &h)| h)
+                })
+                .or_else(|| heights.values().copied().max());
+            if let Some(h) = h {
                 if h > 0 {
                     let scale = h as f32 / 1080.0;
                     if (scale - 1.0).abs() > 0.01 {

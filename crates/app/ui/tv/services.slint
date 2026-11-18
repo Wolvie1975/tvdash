@@ -17,12 +17,12 @@ export component TvServices inherits Rectangle {
         color: Theme.text-secondary;
     }
 
-    // 5 x 2 grid of 332 x 240 ServiceTiles with 16 px gaps
+    // 5 x 2 grid of 332 x 360 ServiceTiles with 16 px gaps
     for svc[i] in TvUi.services: ServiceTile {
         x: 96px + Math.mod(i, 5) * 348px;
-        y: 180px + Math.floor(i / 5) * 256px;
+        y: 180px + Math.floor(i / 5) * 376px;
         base-width: 332px;
-        base-height: 240px;
+        base-height: 360px;
         brand: svc.brand;
         is-recent: svc.is-recent;
         focused: !TvUi.bar-focused && TvUi.focused-tile == i;
@@ -32,7 +32,7 @@ export component TvServices inherits Rectangle {
 
     Text {
         x: 96px;
-        y: 720px;
+        y: 944px;
         text: "Coming back: press F12 or move the mouse for the Back to tvdash pill.";
         font-size: 24px;
         font-weight: 400;
