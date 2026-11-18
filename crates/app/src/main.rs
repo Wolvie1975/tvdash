@@ -217,6 +217,7 @@ fn main() -> anyhow::Result<()> {
         },
     );
     bridge::set_night_config(&laptop, config.display.clone());
+    laptop.global::<Setup>().set_jellyfin_url(config.jellyfin.server_url.as_str().into());
 
     // Background → UI events.
     let (event_tx, event_rx) = mpsc::unbounded_channel::<AppEvent>();

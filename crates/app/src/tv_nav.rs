@@ -877,8 +877,11 @@ fn activate(laptop: &LaptopWindow, row: &str, col: usize) {
         "set-accounts" => {
             if let Some(a) = laptop.global::<Accounts>().get_accounts().row_data(col) {
                 let action = if !a.primary_id.is_empty() { a.primary_id } else { a.secondary_id };
-                // Token entry needs typing; that stays on the laptop layout for now.
-                if !action.is_empty() && action != "edit" {
+                if action == "edit" {
+                    let acc = laptop.global::<Accounts>();
+                    acc.set_edit_error("".into());
+                    acc.set_editing(a.id);
+                } else if !action.is_empty() {
                     laptop.global::<Accounts>().invoke_action(a.id, action);
                 }
             }

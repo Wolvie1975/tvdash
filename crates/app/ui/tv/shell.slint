@@ -1415,23 +1415,145 @@ component SettingsScreen inherits VerticalLayout {
                 }
             }
             if TvUi.settings-tab == "accounts": VerticalLayout {
-                spacing: 16px;
+                spacing: 18px;
                 RowLabel { text: "ACCOUNTS"; }
-                Rectangle {
-                    property <length> col-w: (self.width - 16px) / 2;
-                    height: Math.ceil(Accounts.accounts.length / 2) * 86px;
-                    for a[i] in Accounts.accounts: Chip {
-                        x: Math.mod(i, 2) * (parent.col-w + 16px);
-                        y: Math.floor(i / 2) * 86px;
-                        width: parent.col-w;
-                        text: a.name + " · " + (a.primary != "" ? a.primary : a.secondary != "" ? a.secondary : a.status);
-                        focused: f("set-accounts", i);
-                        clicked => { TvUi.click("set-accounts", i); }
+                if Dash.cw-state == "code": Rectangle {
+                    border-radius: 16px;
+                    background: Theme.surface-raised;
+                    border-width: 1px;
+                    border-color: Theme.accent;
+                    height: code-row.preferred-height + 36px;
+                    code-row := HorizontalLayout {
+                        x: 28px;
+                        y: 18px;
+                        width: parent.width - 56px;
+                        spacing: 32px;
+                        Text { text: Dash.signin-code; font-size: 72px; font-weight: 600; letter-spacing: 14px; color: Theme.text-primary; vertical-alignment: center; }
+                        Text { text: Dash.cw-message; font-size: 26px; color: Theme.text-secondary; wrap: word-wrap; vertical-alignment: center; horizontal-stretch: 1; }
+                    }
+                }
+                if Dash.cw-state == "busy": Text {
+                    text: "Connecting…";
+                    font-size: 26px;
+                    color: Theme.accent;
+                }
+                for a[i] in Accounts.accounts: VerticalLayout {
+                    spacing: 12px;
+                    Rectangle {
+                        height: 84px;
+                        border-radius: 16px;
+                        background: Theme.surface-raised;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        HorizontalLayout {
+                            padding-left: 24px;
+                            padding-right: 24px;
+                            spacing: 18px;
+                            VerticalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    width: 14px;
+                                    height: 14px;
+                                    border-radius: 7px;
+                                    background: a.state == "ok" ? Theme.ok
+                                        : a.state == "warn" ? Theme.warn
+                                        : a.state == "busy" ? Theme.accent
+                                        : Theme.border;
+                                }
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 4px;
+                                horizontal-stretch: 1;
+                                Text { text: a.name + " · " + a.status; font-size: 26px; font-weight: 600; color: Theme.text-primary; overflow: elide; }
+                                if a.detail != "": Text { text: a.detail; font-size: 20px; color: Theme.text-secondary; overflow: elide; }
+                            }
+                            if a.primary != "" || a.secondary != "": VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: a.primary != "" ? a.primary : a.secondary;
+                                    font-size: 24px;
+                                    font-weight: 600;
+                                    color: Theme.accent;
+                                }
+                            }
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { TvUi.click("set-accounts", i); }
+                        }
+                        Ring { on: f("set-accounts", i); corner: 16px; height: parent.height + 16px; width: parent.width + 16px; x: -8px; y: -8px; }
+                    }
+                    if Accounts.editing == a.id: Rectangle {
+                        border-radius: 16px;
+                        background: Theme.surface;
+                        border-width: 1px;
+                        border-color: Theme.accent;
+                        height: edit-col.preferred-height + 32px;
+                        edit-col := VerticalLayout {
+                            x: 24px;
+                            y: 16px;
+                            width: parent.width - 48px;
+                            spacing: 12px;
+                            HorizontalLayout {
+                                spacing: 14px;
+                                Rectangle {
+                                    horizontal-stretch: 1;
+                                    height: 56px;
+                                    border-radius: 12px;
+                                    background: Theme.surface-raised;
+                                    border-width: 1px;
+                                    border-color: Theme.border;
+                                    token-input := TextInput {
+                                        x: 16px;
+                                        width: parent.width - 32px;
+                                        height: parent.height;
+                                        font-size: 24px;
+                                        color: Theme.text-primary;
+                                        vertical-alignment: center;
+                                        input-type: password;
+                                        accepted => { Accounts.submit(a.id, self.text); }
+                                        key-pressed(ev) => {
+                                            if ev.text == Key.Escape {
+                                                Accounts.editing = "";
+                                                return accept;
+                                            }
+                                            reject
+                                        }
+                                        init => { self.focus(); }
+                                    }
+                                    if token-input.text == "": Text {
+                                        x: 16px;
+                                        text: a.input-hint;
+                                        font-size: 22px;
+                                        color: Theme.text-muted;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                TenButton {
+                                    compact: true;
+                                    primary: true;
+                                    text: "Save";
+                                    clicked => { Accounts.submit(a.id, token-input.text); }
+                                }
+                                TenButton {
+                                    compact: true;
+                                    text: "Cancel";
+                                    clicked => { Accounts.editing = ""; }
+                                }
+                            }
+                            if Accounts.edit-error != "": Text {
+                                text: Accounts.edit-error;
+                                font-size: 20px;
+                                color: Theme.warn;
+                                wrap: word-wrap;
+                            }
+                        }
                     }
                 }
                 Text {
-                    text: "Streaming sites, the TMDB token and diagnostics are on the laptop layout for now.";
-                    font-size: 24px;
+                    text: "Streaming sites, Jellyfin URL/password setup, and diagnostics are on the laptop layout.";
+                    font-size: 22px;
                     color: Theme.text-muted;
                     wrap: word-wrap;
                 }
@@ -1793,4 +1915,6 @@ export component TvShell inherits Rectangle {
     // Rust bumps focus-ticket (e.g. after Home) so the shell gets keys again.
     property <int> ticket: TvUi.focus-ticket;
     changed ticket => { fs.focus(); }
+    property <string> editing-account: Accounts.editing;
+    changed editing-account => { if self.editing-account == "" { fs.focus(); } }
 }

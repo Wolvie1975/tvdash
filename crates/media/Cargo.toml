@@ -1,6 +1,6 @@
 [package]
 name = "tvdash-media"
-description = "Plex client behind the MediaSource trait"
+description = "Plex and Jellyfin clients behind the MediaSource trait"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

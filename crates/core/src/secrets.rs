@@ -24,6 +24,8 @@ pub type Result<T> = std::result::Result<T, SecretError>;
 pub enum SecretKey {
     /// Plex auth token from the PIN flow.
     PlexToken,
+    /// Jellyfin access token.
+    JellyfinToken,
     /// TMDB v4 read access token (Where to watch, service logos).
     TmdbToken,
     /// Tautulli API key (Popular on Republic City).
@@ -31,7 +33,7 @@ pub enum SecretKey {
 }
 
 impl SecretKey {
-    pub const ALL: [SecretKey; 3] = [Self::PlexToken, Self::TmdbToken, Self::TautulliApiKey];
+    pub const ALL: [SecretKey; 4] = [Self::PlexToken, Self::JellyfinToken, Self::TmdbToken, Self::TautulliApiKey];
 
     /// Inverse of [`Self::as_str`].
     pub fn parse(name: &str) -> Option<Self> {
@@ -41,6 +43,7 @@ impl SecretKey {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::PlexToken => "plex_token",
+            Self::JellyfinToken => "jellyfin_token",
             Self::TmdbToken => "tmdb_api_key",
             Self::TautulliApiKey => "tautulli_api_key",
         }
@@ -101,8 +104,8 @@ pub fn presence() -> Result<Vec<(SecretKey, bool)>> {
     SecretKey::ALL.into_iter().map(|k| get(k).map(|v| (k, v.is_some()))).collect()
 }
 
-/// Entries from features that were removed (calendar, homelab, jellyfin).
-const RETIRED: [&str; 4] = ["calendar_ics_url", "portainer_api_key", "uptime_kuma_api_key", "jellyfin_token"];
+/// Entries from features that were removed (calendar, homelab).
+const RETIRED: [&str; 3] = ["calendar_ics_url", "portainer_api_key", "uptime_kuma_api_key"];
 
 /// Delete entries left behind by removed features. Missing ones are skipped.
 pub fn purge_retired() -> Result<()> {

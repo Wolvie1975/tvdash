@@ -374,15 +374,20 @@ export global Accounts {
 }
 
 export global Setup {
-    // 0 Plex · 1 Streaming
+    // 0 Plex · 1 Jellyfin · 2 Streaming
     in-out property <int> step: 0;
     // Per sign-in: "idle" | "busy" | "code" | "done" | "error"
     in property <string> plex-state: "idle";
     in property <string> plex-code;
     in property <string> plex-message;
+    in property <string> jellyfin-state: "idle";
+    in property <string> jellyfin-code;
+    in property <string> jellyfin-message;
+    in-out property <string> jellyfin-url;
 
-    callback sign-in(string);       // "plex"
+    callback sign-in(string);       // "plex" | "jellyfin" (uses jellyfin-url)
     callback cancel(string);
+    callback jellyfin-password(string, string);
     callback finish();
 }
 

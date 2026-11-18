@@ -13,6 +13,7 @@ use tvdash_core::config::StreamingSite;
 
 fn parse_source(s: &str) -> Option<SourceKind> {
     match s {
+        "jellyfin" => Some(SourceKind::Jellyfin),
         "plex" => Some(SourceKind::Plex),
         _ => None,
     }
@@ -562,11 +563,15 @@ fn wire_accounts(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static
 fn wire_setup(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     let setup = laptop.global::<Setup>();
 
-    let s = send.clone();
+    let (weak, s) = (laptop.as_weak(), send.clone());
     setup.on_sign_in(move |source| {
-        if let Some(kind) = parse_source(&source) {
-            s(Command::SignIn(kind));
+        let Some(kind) = parse_source(&source) else { return };
+        if kind == SourceKind::Jellyfin
+            && let Some(l) = weak.upgrade()
+        {
+            s(Command::JellyfinServer(l.global::<Setup>().get_jellyfin_url().to_string()));
         }
+        s(Command::SignIn(kind));
     });
 
     let s = send.clone();
@@ -574,6 +579,14 @@ fn wire_setup(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         if let Some(kind) = parse_source(&source) {
             s(Command::CancelSignIn(kind));
         }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    setup.on_jellyfin_password(move |username, password| {
+        if let Some(l) = weak.upgrade() {
+            s(Command::JellyfinServer(l.global::<Setup>().get_jellyfin_url().to_string()));
+        }
+        s(Command::JellyfinPassword { username: username.to_string(), password: password.to_string() });
     });
 
     let weak = laptop.as_weak();

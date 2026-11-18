@@ -25,6 +25,7 @@ pub struct PlayerStatus {
 /// Things Settings › Diagnostics reports on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Service {
+    Jellyfin,
     Plex,
     Tmdb,
     Weather,
@@ -34,11 +35,12 @@ pub enum Service {
 }
 
 impl Service {
-    pub const ALL: [Service; 6] =
-        [Self::Plex, Self::Tmdb, Self::Weather, Self::Keyring, Self::Player, Self::Browser];
+    pub const ALL: [Service; 7] =
+        [Self::Jellyfin, Self::Plex, Self::Tmdb, Self::Weather, Self::Keyring, Self::Player, Self::Browser];
 
     pub fn label(self) -> &'static str {
         match self {
+            Self::Jellyfin => "Jellyfin",
             Self::Plex => "Plex",
             Self::Tmdb => "TMDB",
             Self::Weather => "Weather (Open-Meteo)",
@@ -52,6 +54,7 @@ impl Service {
 impl From<crate::models::SourceKind> for Service {
     fn from(k: crate::models::SourceKind) -> Self {
         match k {
+            crate::models::SourceKind::Jellyfin => Self::Jellyfin,
             crate::models::SourceKind::Plex => Self::Plex,
         }
     }
@@ -256,6 +259,13 @@ pub enum Command {
     TvOutput(String),
     /// Forget a media server's sign-in (keyring token + config).
     SignOut(SourceKind),
+    /// Use this Jellyfin server address (setup lets you change it before signing in).
+    JellyfinServer(String),
+    /// Username/password fallback for servers without Quick Connect.
+    JellyfinPassword {
+        username: String,
+        password: String,
+    },
     /// Close the browser, delete its profile (all streaming sign-ins) and history.
     ClearBrowserProfile,
     SetupFinished,

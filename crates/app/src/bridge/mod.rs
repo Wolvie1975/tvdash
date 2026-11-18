@@ -47,7 +47,7 @@ use crate::{
 };
 
 /// Display order for sources everywhere (rows, prompts, sessions).
-const SOURCES: [SourceKind; 1] = [SourceKind::Plex];
+const SOURCES: [SourceKind; 2] = [SourceKind::Plex, SourceKind::Jellyfin];
 
 const TOAST_FOR: Duration = Duration::from_secs(5);
 const LONG_TOAST_FOR: Duration = Duration::from_secs(30);
@@ -370,6 +370,11 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             home::update_cw_state(s, laptop);
         }
         AppEvent::Server(kind, url) => {
+            if kind == SourceKind::Jellyfin
+                && let Some(u) = &url
+            {
+                laptop.global::<Setup>().set_jellyfin_url(u.as_str().into());
+            }
             match url {
                 Some(u) => s.servers.insert(kind, u),
                 None => s.servers.remove(&kind),

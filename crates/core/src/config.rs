@@ -33,6 +33,7 @@ pub struct Config {
     pub display: DisplayConfig,
     pub general: GeneralConfig,
     pub plex: PlexConfig,
+    pub jellyfin: JellyfinConfig,
     pub tautulli: TautulliConfig,
     pub browser: BrowserConfig,
     pub player: PlayerConfig,
@@ -193,6 +194,28 @@ fn is_default_plex_account_url(url: &String) -> bool {
     url == DEFAULT_PLEX_ACCOUNT_URL
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct JellyfinConfig {
+    pub enabled: bool,
+    pub server_url: String,
+    /// Filled after sign-in.
+    pub user_id: String,
+    /// Generated UUID, sent as `DeviceId` in the Authorization header.
+    pub device_id: String,
+}
+
+impl Default for JellyfinConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            server_url: "http://republic-city:8096".into(),
+            user_id: String::new(),
+            device_id: String::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TautulliConfig {
@@ -308,6 +331,7 @@ impl Default for Config {
             display: DisplayConfig::default(),
             general: GeneralConfig::default(),
             plex: PlexConfig::default(),
+            jellyfin: JellyfinConfig::default(),
             tautulli: TautulliConfig::default(),
             browser: BrowserConfig::default(),
             player: PlayerConfig::default(),
@@ -443,14 +467,17 @@ impl Config {
         Ok(LoadedConfig { config, path: path.to_owned(), created })
     }
 
-    /// Generate the Plex client ID if missing.
+    /// Generate the Plex client ID and Jellyfin device ID if missing.
     /// Returns true if anything changed.
     pub fn ensure_ids(&mut self) -> bool {
-        if self.plex.client_id.trim().is_empty() {
-            self.plex.client_id = uuid::Uuid::new_v4().to_string();
-            return true;
+        let mut changed = false;
+        for id in [&mut self.plex.client_id, &mut self.jellyfin.device_id] {
+            if id.trim().is_empty() {
+                *id = uuid::Uuid::new_v4().to_string();
+                changed = true;
+            }
         }
-        false
+        changed
     }
 
     /// Re-read the config at `path`, apply `change`, and save it. Re-reading
