@@ -98,7 +98,7 @@ export component TvHome inherits Rectangle {
         }
     }
 
-    // 1: Big On-the-TV Hero tile (728 x 590, top progress bar; shows live video when playing)
+    // 1: Big On-the-TV Hero tile (728 x 590, top progress bar; shows paused video frame + play overlay)
     MediaTile {
         x: 322px * TvUi.u;
         y: 136px * TvUi.u;
@@ -107,13 +107,32 @@ export component TvHome inherits Rectangle {
         art: TvUi.video-on ? TvUi.video : Dash.tv.poster;
         has-art: TvUi.video-on || Dash.tv.has-poster;
         title: Dash.tv.title;
-        subtitle: TvUi.video-on ? "Click or press OK for full screen" : Dash.tv.subtitle;
+        subtitle: TvUi.video-on ? "Paused · Click or press OK to resume" : Dash.tv.subtitle;
         progress: Dash.tv.progress;
         progress-top: true;
         badge: Dash.tv.label;
         focused: !TvUi.bar-focused && TvUi.focused-tile == 1;
         activated => { TvUi.tile-activated(1); }
         hovered => { TvUi.tile-hovered(1); }
+
+        if TvUi.video-on: Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 88px * TvUi.u;
+            height: 88px * TvUi.u;
+            border-radius: 44px * TvUi.u;
+            background: #0B0D10B8;
+            border-width: 2px;
+            border-color: #FFFFFF55;
+
+            Icon {
+                x: (parent.width - self.width) / 2 + 3px * TvUi.u;
+                y: (parent.height - self.height) / 2;
+                size: 40px * TvUi.u;
+                name: "play";
+                tint: #FFFFFF;
+            }
+        }
     }
 
     // 2..4: Utility column (Search, Library, Screensaver)

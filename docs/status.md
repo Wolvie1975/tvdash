@@ -1,16 +1,16 @@
 # tvdash: where things stand
 
-Last updated 2026-11-18 (v0.1.22). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-18 (v0.1.23). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-1. **Build & install v0.1.22 RPM on the TV machine:**
+1. **Build & install v0.1.23 RPM on the TV machine:**
    ```bash
    cargo build --release -j 2
    ./packaging/rpm.sh
-   cp dist/tvdash-0.1.22-1.x86_64.rpm releases/
-   sudo dnf upgrade ./releases/tvdash-0.1.22-1.x86_64.rpm
+   cp dist/tvdash-0.1.23-1.x86_64.rpm releases/
+   sudo dnf upgrade ./releases/tvdash-0.1.23-1.x86_64.rpm
    ```
    Then Settings › Quit tvdash and start it again from the app menu.
 2. **Check in-window video on the real TV** (TV-only layout). See

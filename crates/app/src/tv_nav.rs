@@ -532,6 +532,9 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             1 => {
                 if tv.get_video_on() {
                     tv.set_video_full(true);
+                    if dash.get_tv().paused {
+                        dash.invoke_transport("play-pause".into());
+                    }
                 } else if dash.get_continue_watching().row_count() > 0 {
                     dash.invoke_play_item(0);
                 }
@@ -828,6 +831,16 @@ fn is_back(text: &str) -> bool {
     is_key(text, Key::Escape) || is_key(text, Key::Backspace) || is_key(text, Key::Back)
 }
 
+fn minimize_to_home(laptop: &LaptopWindow) {
+    let tv = laptop.global::<TvUi>();
+    let dash = laptop.global::<Dash>();
+    tv.set_hud_open(false);
+    tv.set_video_full(false);
+    if !dash.get_tv().paused {
+        dash.invoke_transport("play-pause".into());
+    }
+}
+
 pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
     if current(laptop) != Layout::Tv {
         return false;
@@ -845,7 +858,7 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
             if tv.get_hud_open() {
                 tv.set_hud_open(false);
             } else {
-                tv.set_video_full(false);
+                minimize_to_home(laptop);
             }
             return true;
         }
@@ -873,10 +886,7 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
                         tv.set_hud_open(false);
                         tv.set_video_full(false);
                     }
-                    4 => {
-                        tv.set_hud_open(false);
-                        tv.set_video_full(false);
-                    }
+                    4 => minimize_to_home(laptop),
                     5 => dash.invoke_transport("sub".into()),
                     6 => dash.invoke_transport("audio".into()),
                     _ => {}

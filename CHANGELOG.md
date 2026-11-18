@@ -1,5 +1,8 @@
 # tvdash Changelog
 
+## v0.1.23 — 2026-11-18
+- Paused in-window video when returning to the Home dashboard and overlaid a play icon over the paused frame in the Hero tile (resumes when returning to full screen).
+
 ## v0.1.22 — 2026-11-18
 - Fixed Home & Library Continue Watching to include both movies and TV shows via `/hubs/continueWatching/items`, refresh shortly after playback starts, and cap to the 6 most recent items.
 - Switched TV Show season episodes to a 3-column vertical-scrolling grid.
