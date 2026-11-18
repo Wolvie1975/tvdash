@@ -157,12 +157,12 @@ export component Banner inherits Rectangle {
 
 | Page | Banner (height) | Below the banner | Data |
 |---|---|---|---|
-| **Home** | On the TV (600): kicker, title, episode · rating · runtime, description, progress, **−10 · Pause · +30 · Stop · Full screen**. Nothing playing → "Up next" + Resume on TV | Continue watching (TV / Series · Movies switch, 5 posters, tap → Confirm playback) · **Recent services** (3 tiles + "2 h ago") · **All 10 apps** tile → apps blade | mpv IPC, `/hubs/continueWatching`, weather, `recent.rs` |
-| **Library** | Finish the season item (470): segment bar, **Play S2 · E6 on TV**, Show page, ‹ › to page through; top row "Library" + TV / Movies + Browse all | Watching now (2 rows, live dot) · Added this week · Popular on Republic City (7 / 30 days, rank chips, plays) | `tvdash-laptop-current.md` §4 |
-| **Show page** | Series (560): details, summary, Up next line, **Resume S2 · E7 on TV** · From S1 · E1 · Shuffle | Season selector (tabs ≤ 6, pills ≤ 14, picker beyond) · episode stills 280 × 158 with progress, ‹ › | §5 there |
-| **Collection** | Collection (540): count · years · runtime, watched bar, Up next, **Resume / Play next on TV** · Shuffle an unwatched one | Collection order · Release date · A–Z, Hide watched, posters with #n / status | §6 there |
+| **Home** | On the TV (600): kicker, title, episode · rating · runtime, description, progress, **−10 · Pause · +30 · Stop · Full screen**. Nothing playing → "Up next" + Resume on TV | Continue watching (most recent **6** items across both movies & TV, or optional TV / Movies filter, tap → Confirm playback) · **Recent services** (3 tiles + "2 h ago") · **All 10 apps** tile → apps blade | mpv IPC, `/hubs/continueWatching/items` (with `/library/onDeck` fallback, refreshes on start + stop), weather, `recent.rs` |
+| **Library** | Finish the season item (470, **TV Series only**): segment bar, **Play S2 · E6 on TV**, Show page, ‹ › to page through; top row "Library" + TV / Movies + **Browse All** toggle | **Smart shelves** (vertical-scrolling, minimal horizontal scroll): Watching now (up to 6) · Recently added · Finish the season (TV only) · Collections (**Movies only**) · Popular (7 / 30 days) · Watch again. **Browse All mode:** single-row `All` / `A`–`Z` / `#` filter + vertical-scrolling poster grid. *Note: clicking any TV Series card must call `Library.open-show(show_key)` so `ShowPageState` loads; Movies/Episodes go to Confirm Playback / play.* | `tvdash-laptop-current.md` §4 |
+| **Show page** | Series (560): details, summary, Up next line, **Resume S2 · E7 on TV** · From S1 · E1 · Shuffle | Season selector (tabs ≤ 6, pills ≤ 14, picker beyond) · **vertical-scrolling** episode grid (`280 × 158` stills with progress) | §5 there |
+| **Collection** | Collection (540, **Movies only**): count · years · runtime, watched bar, Up next, **Resume / Play next on TV** · Shuffle an unwatched one | Collection order · Release date · A–Z, Hide watched, posters with #n / status | §6 there |
 | **Apps** | Selected app (470) in its brand colours, "Recent · last opened 2 h ago", **Open on TV** | 5 × 2 grid of all ten, RECENT chips; tap a tile selects it (banner updates), **Open on TV** or a second tap launches | `[[streaming]]`, `recent` |
-| **Settings** | none | Tabs Accounts · Streaming · Display · Server · Diagnostics · What's new; Display: Layout, Theme, Follow system, Temperature, Clock; right column: Recent services (Clear), Back to tvdash key, Screensaver, **Quit tvdash** | `config.toml` |
+| **Settings** | none | Tabs Accounts (live sign-in code + inline token/URL edit) · Streaming · Display · Server · Diagnostics · What's new; Display: Layout, Theme (**Dark / Stone / Mist** — no Follow system), **Weather Location Lookup** (city search + pickable results), **Phone Remote QR**, Temperature, Clock; right column: Recent services (Clear), Back to tvdash key, Screensaver, **Quit tvdash** | `config.toml` |
 
 - Home with **nothing playing** uses the same banner with the top Continue watching item and a single **Resume on TV**.
 - Every poster and button has a pressed state (scale 0.97, darken 15%); nothing needs hover.
@@ -175,7 +175,7 @@ export component Banner inherits Rectangle {
 |---|---|
 | **Where to watch** | Opens from the Home/Library search button. Slides in from the right over the panel (992 px wide, 250 ms, opacity + 48 px); the rest of the panel dims to `#0B0D1073`. Empty until you type (72 px field, focused). Groups: **In your library** (Resume / Play on TV, filled) · **On your apps** (Open on TV) · **Costs extra** (no action). Footer: "Streaming availability in the US from JustWatch, via TMDB". ✕ closes and clears |
 | **Confirm playback** | Over `scrim`: poster 140 × 210, title, episode, progress + "14 min left", **Resume on TV** (76 px, full width) · Play from start · Cancel. Tap outside = Cancel |
-| **Up next** | When an episode ends naturally: "Episode finished · <show>", next still 300 × 169, title, runtime + end time, **10 s countdown** bar, **Play next** · Cancel. Countdown ends → plays |
+| **Up next** | Driven by `Dash.next-ep-open` (`AppEvent::NextEpisodePrompt` on natural episode EOF): "Episode finished · <show>", next still 300 × 169, title, runtime + end time, **10 s countdown** bar, **Play next** (`Dash.play-next-ep()`) · **Back to Dashboard / Cancel** (`Dash.dismiss-next-ep()`). Countdown ends → plays |
 
 ---
 
@@ -212,6 +212,8 @@ export component Banner inherits Rectangle {
 - [ ] Every control is ≥ 56 px (transport 76 px) and has a pressed state.
 - [ ] Home shows the last 3 services with "… ago"; All 10 apps opens the apps blade.
 - [ ] Launching any of the ten services opens Brave full screen on the TV; Close on TV, the pill and F12 all bring tvdash back.
-- [ ] Library, Show and Collection behave as in `tvdash-laptop-current.md` §9 with the new layout.
-- [ ] Where to watch, Confirm playback and Up next work by touch alone.
+- [ ] Continue Watching includes both movies and TV episodes (via `/hubs/continueWatching/items`), capped at the 6 most recent items, and refreshes after playback starts and stops.
+- [ ] Library, Show and Collection behave as in `tvdash-laptop-current.md` §9 with vertical-scrolling Browse All (A–Z) and Show episodes, TV-only `Finish the season`, Movies-only `Collections`, and TV Series cards calling `Library.open-show`.
+- [ ] Settings › Display includes Weather Location Lookup and Phone Remote QR, with explicit Dark / Stone / Mist themes (no Follow system).
+- [ ] Where to watch, Confirm playback and Up next (`Dash.next-ep-open`) work by touch alone.
 - [ ] Dark, Stone and Mist all pass the existing contrast test; banner text stays readable on every poster.
