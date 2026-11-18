@@ -5,16 +5,14 @@ next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-1. **Build & install v0.1.24 RPM on the TV machine:**
-   ```bash
-   cargo build --release -j 2
-   ./packaging/rpm.sh
-   cp dist/tvdash-0.1.24-1.x86_64.rpm releases/
-   sudo dnf upgrade ./releases/tvdash-0.1.24-1.x86_64.rpm
-   ```
-   Then Settings › Quit tvdash and start it again from the app menu.
-2. **Check in-window video on the real TV** (TV-only layout). See
-   [Things to check](#things-to-check-on-the-tv-machine).
+- **TV-only v2 Tile Hub (`v0.1.24`)** is complete and verified on the TV machine on branch `tv-tile-hub-v2` (ready to push/merge whenever you want).
+- Reference to build/upgrade an RPM on the TV machine:
+  ```bash
+  cargo build --release -j 2
+  ./packaging/rpm.sh
+  cp dist/tvdash-0.1.24-1.x86_64.rpm releases/
+  sudo dnf upgrade ./releases/tvdash-0.1.24-1.x86_64.rpm
+  ```
 
 ## Done
 
@@ -29,13 +27,14 @@ next, and the practical details that aren't obvious from the code.
 | Library v0.1.3 | Built: smart shelves, full-width Browse All with A–Z filter, shelf caching |
 | TV-only step 3 (v0.1.4–v0.1.5) | Built: 10-foot Search (6×6 keyboard + physical typing + detail), Library parity (smart shelves, 8-col A–Z Browse All ignoring leading articles + Show detail), scrollable Settings + version number, Audio/Subs/Vol/Prev-Next Episode controls (also Prev/Next Ep on dashboard), Night mode forcing Dark on TV, local HTTP Phone Remote (`:8765`) |
 | Cleanup | `bridge.rs` split into `bridge/` (home, library, accounts, status); repeated controller code folded |
-| TV-only v2 Tile Hub (v0.1.13–v0.1.17) | Built on branch `tv-tile-hub-v2`: top TabBar, spatial focus (`focus.rs`), page stack (`shell_tv.rs`), proportional 1080p→1440p/4K scaling (`TvUi.u`), Home 2×3 Continue Watching + Weather tile + Plex Up Next left tile + live in-tile video (`960×540` FBO, no shadow blur during minimized video), Services 5×2 brand tiles with scaled SVGs + last-3 recent tracking (`recent.rs`), Back-to-tvdash Brave extension (`extras/back-pill`, `:47800/home`), Library/Show/Collection panoramas, Search 6×6 keyboard, Settings ValueTiles, Player HUD with Subtitles & Audio toggles, Ambient idle |
+| TV-only v2 Tile Hub (v0.1.13–v0.1.24) | Complete on branch `tv-tile-hub-v2`: top TabBar, spatial focus (`focus.rs`), page stack (`shell_tv.rs`), proportional 1080p→1440p/4K scaling (`TvUi.u`), Home 2×3 Continue Watching (movies + TV via `/hubs/continueWatching/items`, capped at 6) + Weather tile + Clock/Plex Up Next left tile + Hero poster with play overlay when paused (`v0.1.24`), Services 5×2 brand tiles with scaled SVGs + last-3 recent tracking (`recent.rs`), Back-to-tvdash Brave extension (`extras/back-pill`, `:47800/home`), vertical Library shelves (Finish the Season on TV, Collections on Movies, Browse All A–Z 8-col grid), 3-col vertical Show episodes + Collection panorama, Search 6×6 keyboard, Settings sub-tabs (Display + Phone Remote QR + Weather Location lookup, Accounts, Server, What's new), Player HUD with Subtitles & Audio toggles, Up Next modal (`Play Next` / `Back to Dashboard`), Ambient idle |
 
 Decisions made along the way:
 - **Themes:** no "Follow system" option. Keep the three explicit themes (Dark / Stone / Mist).
 - **Favicon fallback for tile logos:** skipped. Without a logo, tiles show the name.
 - **Calendar and homelab:** removed from scope for good (2026-11-11).
 - **Two-screen layout:** keeps using mpv's own window. In-window video is TV-only.
+- **Home Hero when returning from video:** pauses playback and shows the still poster with a play-icon overlay instead of rendering minimized live video (`v0.1.24`).
 
 ## Next
 
