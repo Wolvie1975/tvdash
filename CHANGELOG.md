@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.17 — 2026-11-18
+- Smoothed minimized in-tile video playback by capping the FBO to 960×540 and disabling focus drop-shadow blur while minimized video is playing.
+- Added Subtitles and Audio track toggles back to the TV-only Player HUD.
+- Added AM/PM (12-hour mode) and current year to the Home Clock tile.
+
 ## v0.1.16 — 2026-11-18
 - Capped focus tile expansion so the Hero tile no longer overlaps adjacent columns/rows when focused.
 - Tightened spacing in the left Clock + Plex info tile, and renamed "All 10 services" to "View all services".

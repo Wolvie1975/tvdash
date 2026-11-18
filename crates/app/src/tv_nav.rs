@@ -702,14 +702,14 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
             return true;
         }
         if tv.get_hud_open() {
-            let cur = tv.get_focused_tile().clamp(0, 4);
+            let cur = tv.get_focused_tile().clamp(0, 6);
             match decode_dir(text) {
                 Some(Dir::Left) => {
                     tv.set_focused_tile((cur - 1).max(0));
                     return true;
                 }
                 Some(Dir::Right) => {
-                    tv.set_focused_tile((cur + 1).min(4));
+                    tv.set_focused_tile((cur + 1).min(6));
                     return true;
                 }
                 _ => {}
@@ -729,6 +729,8 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
                         tv.set_hud_open(false);
                         tv.set_video_full(false);
                     }
+                    5 => dash.invoke_transport("sub".into()),
+                    6 => dash.invoke_transport("audio".into()),
                     _ => {}
                 }
                 return true;

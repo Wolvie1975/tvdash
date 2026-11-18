@@ -3,8 +3,8 @@ import { Dash, TvUi } from "../state.slint";
 import { IconTile } from "tile.slint";
 
 export component TvPlayerHud inherits Rectangle {
-    width: 1920px;
-    height: 1080px;
+    width: 100%;
+    height: 100%;
     background: transparent;
 
     // Auto-hide after 3.5 s
@@ -14,12 +14,12 @@ export component TvPlayerHud inherits Rectangle {
         triggered => { TvUi.hud-open = false; }
     }
 
-    // Bottom scrim panel
+    // Bottom scrim panel (centered 1920 x 1080 design units)
     Rectangle {
-        x: 96px;
-        y: 1080px - 320px;
-        width: 1728px;
-        height: 266px;
+        x: (parent.width - 1728px * TvUi.u) / 2;
+        y: parent.height - 320px * TvUi.u;
+        width: 1728px * TvUi.u;
+        height: 266px * TvUi.u;
         border-radius: 6px;
         background: #0B0D10E0;
         border-width: 1px;
@@ -27,32 +27,32 @@ export component TvPlayerHud inherits Rectangle {
 
         // Title & ends-at
         Text {
-            x: 32px;
-            y: 24px;
-            width: 1100px;
+            x: 32px * TvUi.u;
+            y: 24px * TvUi.u;
+            width: 1100px * TvUi.u;
             text: Dash.tv.title;
-            font-size: 36px;
+            font-size: 36px * TvUi.u;
             font-weight: 500;
             color: #E8EAED;
             overflow: elide;
         }
 
         Text {
-            x: 32px;
-            y: 72px;
-            width: 1100px;
+            x: 32px * TvUi.u;
+            y: 72px * TvUi.u;
+            width: 1100px * TvUi.u;
             text: Dash.tv.subtitle + (Dash.tv-ends-at != "" ? " · Ends at " + Dash.tv-ends-at : "");
-            font-size: 22px;
+            font-size: 22px * TvUi.u;
             color: #A0A6AF;
             overflow: elide;
         }
 
         // Progress bar
         Rectangle {
-            x: 32px;
-            y: 114px;
-            width: 1664px;
-            height: 6px;
+            x: 32px * TvUi.u;
+            y: 114px * TvUi.u;
+            width: 1664px * TvUi.u;
+            height: 6px * TvUi.u;
             border-radius: 3px;
             background: #FFFFFF26;
 
@@ -66,12 +66,12 @@ export component TvPlayerHud inherits Rectangle {
             }
         }
 
-        // 5 square control tiles (0..4)
+        // 7 control tiles (0..6): -10s, Play/Pause, +30s, Stop, Home, Subtitles, Audio
         IconTile {
-            x: 32px;
-            y: 136px;
-            base-width: 120px;
-            base-height: 108px;
+            x: 32px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 120px * TvUi.u;
+            base-height: 108px * TvUi.u;
             fill: Theme.surface-raised;
             icon: "back";
             label: "-10s";
@@ -81,10 +81,10 @@ export component TvPlayerHud inherits Rectangle {
         }
 
         IconTile {
-            x: 168px;
-            y: 136px;
-            base-width: 140px;
-            base-height: 108px;
+            x: 168px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 140px * TvUi.u;
+            base-height: 108px * TvUi.u;
             fill: Theme.surface-raised;
             icon: Dash.tv.mode == "paused" ? "play" : "pause";
             label: Dash.tv.mode == "paused" ? "Play" : "Pause";
@@ -94,10 +94,10 @@ export component TvPlayerHud inherits Rectangle {
         }
 
         IconTile {
-            x: 324px;
-            y: 136px;
-            base-width: 120px;
-            base-height: 108px;
+            x: 324px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 120px * TvUi.u;
+            base-height: 108px * TvUi.u;
             fill: Theme.surface-raised;
             icon: "forward";
             label: "+30s";
@@ -107,10 +107,10 @@ export component TvPlayerHud inherits Rectangle {
         }
 
         IconTile {
-            x: 460px;
-            y: 136px;
-            base-width: 120px;
-            base-height: 108px;
+            x: 460px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 120px * TvUi.u;
+            base-height: 108px * TvUi.u;
             fill: Theme.surface-raised;
             icon: "stop";
             label: "Stop";
@@ -120,16 +120,42 @@ export component TvPlayerHud inherits Rectangle {
         }
 
         IconTile {
-            x: 596px;
-            y: 136px;
-            base-width: 140px;
-            base-height: 108px;
+            x: 596px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 140px * TvUi.u;
+            base-height: 108px * TvUi.u;
             fill: Theme.surface-raised;
             icon: "tv";
             label: "Home";
             focused: TvUi.focused-tile == 4;
             activated => { TvUi.hud-open = false; TvUi.video-full = false; }
             hovered => { TvUi.focused-tile = 4; }
+        }
+
+        IconTile {
+            x: 752px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 156px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "sub";
+            label: "Subtitles";
+            focused: TvUi.focused-tile == 5;
+            activated => { Dash.transport("sub"); }
+            hovered => { TvUi.focused-tile = 5; }
+        }
+
+        IconTile {
+            x: 924px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 140px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "audio";
+            label: "Audio";
+            focused: TvUi.focused-tile == 6;
+            activated => { Dash.transport("audio"); }
+            hovered => { TvUi.focused-tile = 6; }
         }
     }
 }

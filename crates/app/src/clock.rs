@@ -13,6 +13,8 @@ pub struct ClockText {
     pub hh: String,
     pub mm: String,
     pub ss: String,
+    pub ampm: String,
+    pub year: String,
     /// "Wednesday, November 11" (TV).
     pub date: String,
     /// "Wednesday" and "November 11" (laptop header, two lines).
@@ -25,10 +27,16 @@ pub fn clock_text(now: NaiveDateTime, format: ClockFormat) -> ClockText {
         ClockFormat::H24 => now.format("%H"),
         ClockFormat::H12 => now.format("%-I"),
     };
+    let ampm = match format {
+        ClockFormat::H12 => now.format("%p").to_string(),
+        ClockFormat::H24 => String::new(),
+    };
     ClockText {
         hh: hh.to_string(),
         mm: now.format("%M").to_string(),
         ss: now.format("%S").to_string(),
+        ampm,
+        year: now.format("%Y").to_string(),
         date: now.format("%A, %B %-d").to_string(),
         weekday: now.format("%A").to_string(),
         month_day: now.format("%B %-d").to_string(),
@@ -80,6 +88,8 @@ pub fn start(laptop: &LaptopWindow, tv: &TvWindow, general: &GeneralConfig) -> T
             dash.set_show_seconds(seconds);
             dash.set_clock_hh(text.hh.as_str().into());
             dash.set_clock_mm(text.mm.as_str().into());
+            dash.set_clock_ampm(text.ampm.as_str().into());
+            dash.set_clock_year(text.year.as_str().into());
             dash.set_weekday(text.weekday.as_str().into());
             dash.set_date_text(text.month_day.as_str().into());
         }

@@ -25,15 +25,28 @@ export component TvHome inherits Rectangle {
             spacing: 8px * TvUi.u;
             alignment: start;
 
-            Text {
-                text: Dash.clock-hh + ":" + Dash.clock-mm;
-                font-size: 46px * TvUi.u;
-                font-weight: 300;
-                color: Theme.text-primary;
+            HorizontalLayout {
+                spacing: 6px * TvUi.u;
+                alignment: start;
+
+                Text {
+                    text: Dash.clock-hh + ":" + Dash.clock-mm;
+                    font-size: 42px * TvUi.u;
+                    font-weight: 300;
+                    color: Theme.text-primary;
+                }
+
+                if Dash.clock-ampm != "": Text {
+                    text: Dash.clock-ampm;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 400;
+                    color: Dash.tint.sec;
+                    vertical-alignment: bottom;
+                }
             }
 
             Text {
-                text: Dash.date-text;
+                text: Dash.clock-year != "" ? Dash.date-text + ", " + Dash.clock-year : Dash.date-text;
                 font-size: 18px * TvUi.u;
                 color: Dash.tint.sec;
                 wrap: word-wrap;
