@@ -81,6 +81,7 @@ pub(super) fn rebuild(s: &mut UiState, laptop: &LaptopWindow) {
     s.lib_continue = filter_items(in_order(&s.continue_watching), &filter)
         .into_iter()
         .filter(|i| if movies { i.kind == MediaKind::Movie } else { i.kind != MediaKind::Movie })
+        .take(6)
         .collect();
     s.lib_recent = filter_items(in_order(&s.recently_added), &filter)
         .into_iter()

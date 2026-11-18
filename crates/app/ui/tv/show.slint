@@ -137,35 +137,35 @@ export component TvShow inherits Rectangle {
         }
     }
 
-    // 3-row episode panorama (384 x 240)
+    // 3-column vertical-scrolling episode grid (372 x 236)
     Rectangle {
         x: 660px * TvUi.u;
         y: 196px * TvUi.u;
-        width: 1260px * TvUi.u;
-        height: 760px * TvUi.u;
+        width: 1180px * TvUi.u;
+        height: 808px * TvUi.u;
         clip: true;
         background: transparent;
 
         TouchArea {
             scroll-event(event) => {
-                TvUi.scroll-panorama(event.delta-x != 0px ? event.delta-x : event.delta-y);
+                TvUi.scroll-panorama(event.delta-y);
                 accept
             }
         }
 
         Rectangle {
-            x: -TvUi.show-scroll * TvUi.u;
-            y: 0px;
-            width: 5000px * TvUi.u;
-            height: parent.height;
+            x: 0px;
+            y: -TvUi.show-scroll * TvUi.u;
+            width: parent.width;
+            height: (Math.ceil(ShowPageState.episodes.length / 3) * 252px + 40px) * TvUi.u;
             background: transparent;
-            animate x { duration: 200ms; easing: ease-out; }
+            animate y { duration: 180ms; easing: ease-out; }
 
             for ep[i] in ShowPageState.episodes: MediaTile {
-                x: Math.floor(i / 3) * 400px * TvUi.u;
-                y: Math.mod(i, 3) * 256px * TvUi.u;
-                base-width: 384px * TvUi.u;
-                base-height: 240px * TvUi.u;
+                x: Math.mod(i, 3) * 388px * TvUi.u;
+                y: (8px + Math.floor(i / 3) * 252px) * TvUi.u;
+                base-width: 372px * TvUi.u;
+                base-height: 236px * TvUi.u;
                 art: ep.thumb;
                 has-art: ep.has-thumb;
                 title: ep.num + " · " + ep.title;

@@ -144,6 +144,7 @@ fn now_time(tz: Option<chrono_tz::Tz>) -> chrono::NaiveTime {
 pub fn set_tv_layout(laptop: &LaptopWindow, is_tv: bool) {
     STATE.with_borrow_mut(|s| {
         s.tv_layout = is_tv;
+        home::rebuild_rows(s);
         s.night_active = s.night_display.is_night_now(now_time(s.tz));
         apply_theme(s, laptop, s.theme);
     });

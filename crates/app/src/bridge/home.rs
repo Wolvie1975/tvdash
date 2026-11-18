@@ -69,11 +69,16 @@ pub(super) fn cards_for(s: &UiState, items: &[MediaItem]) -> Vec<PosterCardData>
 
 pub(super) fn rebuild_rows(s: &mut UiState) {
     let all = in_order(&s.continue_watching);
-    let movies = s.cw_filter == "movies";
-    s.rows = all
-        .into_iter()
-        .filter(|i| if movies { i.kind == MediaKind::Movie } else { i.kind != MediaKind::Movie })
-        .collect();
+    if s.tv_layout || s.cw_filter == "all" {
+        s.rows = all.into_iter().take(6).collect();
+    } else {
+        let movies = s.cw_filter == "movies";
+        s.rows = all
+            .into_iter()
+            .filter(|i| if movies { i.kind == MediaKind::Movie } else { i.kind != MediaKind::Movie })
+            .take(6)
+            .collect();
+    }
     s.cards.set_vec(cards_for(s, &s.rows));
 }
 

@@ -1,5 +1,9 @@
 # tvdash Changelog
 
+## v0.1.22 — 2026-11-18
+- Fixed Home & Library Continue Watching to include both movies and TV shows via `/hubs/continueWatching/items`, refresh shortly after playback starts, and cap to the 6 most recent items.
+- Switched TV Show season episodes to a 3-column vertical-scrolling grid.
+
 ## v0.1.21 — 2026-11-18
 - Fixed TV Library tile clicks so TV shows load `ShowPageState` (seasons & episodes) and movies/episodes play immediately instead of opening the hidden two-screen detail modal.
 - Scaled TV Show detail page (`TvShow`) proportionally with `TvUi.u`.

@@ -1653,6 +1653,11 @@ impl Controller {
             Some(Playback { status, player, reporter, last_emitted_sec: None, decode_hint_shown: false, ended_eof: false });
         self.save_runtime_state();
         self.update_inhibit().await;
+        let internal = self.internal.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            let _ = internal.send(Internal::Refresh);
+        });
     }
 
     // ── Streaming browser ───────────────────────────────────────────
