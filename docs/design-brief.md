@@ -64,7 +64,7 @@ Designed for **touch and pointer** on a laptop/tablet sitting on a coffee table 
 - **Show Detail Page:** Two-column layout — left poster/summary/actions (`Play` / `Play from start` / `Shuffle`); right season tabs + scrollable episode rows with progress bars.
 - **Collection Detail Page:** Header with `Up next`, `Shuffle`, sort toggles (`Collection` / `Release` / `Alpha`), `Hide watched`, and movie list.
 - **Where to Watch (Slide-Over Panel):** Slides in over the right column for TMDB search + streaming provider availability.
-- **Settings Page:** Top tab bar (`Accounts`, `Streaming`, `Display`, `Server`, `Diagnostics`, `What's new`) + `Quit tvdash` button.
+- **Settings Page:** Top tab bar (`Accounts` for Plex / Jellyfin / TMDB / Tautulli, `Streaming`, `Display` including Phone Remote QR code + URL, `Server`, `Diagnostics`, `What's new`) + `Quit tvdash` button.
 - **Up Next Modal:** Appears when an episode finishes naturally (`Play Next` / `Cancel`).
 
 ---
@@ -93,9 +93,9 @@ Designed for **1920×1080** viewed from 10 feet away using a **D-pad / TV remote
   - *Overlays:* Full-screen `Show Detail` (actions + season chips + episode list) and `Collection Detail` (Up next, Shuffle, Sort cycle, Hide watched, movie list).
 - **Services:** 5-column grid of `190px`-tall streaming service tiles.
 - **Settings:**
-  - Header with version (`v0.1.9`) and 4 focusable tabs (`Display`, `Accounts`, `Server`, `What's new`):
-    - **Display:** `Layout` (`Two screens` / `TV only`), `Theme`, `Temperature` (`°F`/`°C`), `Clock` (`24h`/`12h`), `Quit tvdash`.
-    - **Accounts:** 2-column account status tiles.
+  - Header with version (`v0.1.11`) and 4 focusable tabs (`Display`, `Accounts`, `Server`, `What's new`):
+    - **Display:** `Layout` (`Two screens` / `TV only`), `Theme`, `Temperature` (`°F`/`°C`), `Clock` (`24h`/`12h`), **Phone remote** (scannable QR code + LAN URL), `Quit tvdash`.
+    - **Accounts:** Full account rows (status dot, name, status, detail/URL, action label) for Plex, Jellyfin, TMDB, and Tautulli, with live PIN / Quick Connect sign-in code banner and inline TMDB / Tautulli API key entry.
     - **Server:** Live streams, transcodes, CPU/RAM/Bandwidth sparkline graphs, activity list, `Scan all`.
     - **What's new:** Scrollable release changelog cards.
 
