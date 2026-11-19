@@ -133,6 +133,7 @@ mod tests {
                 resume_ms: None,
                 poster: None,
                 summary: None,
+                extra: Default::default(),
             },
             state,
             position_ms: 754_000,

@@ -79,6 +79,15 @@ export component TvShell inherits Rectangle {
         height: 1080px * TvUi.u;
         background: Theme.bg;
 
+        // Pages (rendered before top chrome so backdrops never cover TabBar / Back pill)
+        if TvUi.screen == "home": TvHome { }
+        if TvUi.screen == "collections": TvCollections { }
+        if TvUi.screen == "library": TvLibrary { }
+        if TvUi.screen == "show": TvShow { }
+        if TvUi.screen == "collection": TvCollection { }
+        if TvUi.screen == "search": TvSearch { }
+        if TvUi.screen == "settings": TvSettings { }
+
         // Top chrome: optional Back pill + TabBar left, compact clock + weather top-right
         if TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search": Rectangle {
             x: 96px * TvUi.u;
@@ -142,15 +151,6 @@ export component TvShell inherits Rectangle {
                 vertical-alignment: center;
             }
         }
-
-        // Pages
-        if TvUi.screen == "home": TvHome { }
-        if TvUi.screen == "collections": TvCollections { }
-        if TvUi.screen == "library": TvLibrary { }
-        if TvUi.screen == "show": TvShow { }
-        if TvUi.screen == "collection": TvCollection { }
-        if TvUi.screen == "search": TvSearch { }
-        if TvUi.screen == "settings": TvSettings { }
 
         // Bottom-left toast
         if Dash.toast != "": Rectangle {

@@ -169,6 +169,7 @@ pub struct Controller {
     state: AppState,
     state_path: Option<PathBuf>,
     posters_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
+    backdrops_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
     server_sections: Arc<Mutex<Vec<ServerLibrary>>>,
     /// Where to watch (TMDB) and service logos.
     pub(crate) watch: Watch,
@@ -226,6 +227,7 @@ impl Controller {
             state: AppState::default(),
             state_path,
             posters_requested: Arc::default(),
+            backdrops_requested: Arc::default(),
             server_sections: Arc::default(),
             general_tx: None,
             video: None,
@@ -409,6 +411,7 @@ impl Controller {
                         resume_ms: None,
                         poster: None,
                         summary: None,
+                        extra: Default::default(),
                     });
                     let (reporter, _) = match self.source_for(item.source) {
                         Some(src) => (spawn_reporter(src, item.clone()), true),
@@ -656,6 +659,12 @@ impl Controller {
             Command::ServerScan { index } => self.server_scan(index).await,
             Command::ServerRefresh { refresh_libraries } => self.poll_server_summary(refresh_libraries),
             Command::ServerRefreshActivities => self.poll_server_activities(),
+            Command::RefreshSessions => self.poll_sessions(),
+            Command::PrefetchBackdrop(item) => {
+                if let Some(source) = self.source_for(item.source) {
+                    fetch_backdrops(source, vec![item], self.backdrops_requested.clone(), self.events.clone());
+                }
+            }
             Command::ServerCancelActivity(uuid) => self.server_cancel_activity(&uuid).await,
             Command::ServerTerminate { session_id, reason } => self.server_terminate(&session_id, &reason).await,
             Command::RefreshMetadata(item) => self.refresh_metadata(item).await,
@@ -850,10 +859,11 @@ impl Controller {
         let cache = self.tautulli_cache.clone();
         let events = self.events.clone();
         let requested = self.posters_requested.clone();
+        let backdrops_req = self.backdrops_requested.clone();
         let days = if popular_days == 7 { 7 } else { 30 };
 
         tokio::spawn(async move {
-            let shelves_key = format!("plex:shelves:v2:{is_tv}:{}:{days}", sort.plex_sort());
+            let shelves_key = format!("plex:shelves:v3:{is_tv}:{}:{days}", sort.plex_sort());
             if let Some(cached_shelves) =
                 cache.as_ref().and_then(|c| c.get::<tvdash_core::models::LibraryShelves>(&shelves_key, Duration::from_secs(1800)))
             {
@@ -862,7 +872,17 @@ impl Controller {
                 fetch_posters(source.clone(), cached_shelves.watch_again.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), collection_poster_items(&cached_shelves.collections), requested.clone(), events.clone());
                 let browse_sample: Vec<_> = cached_shelves.browse_items.iter().take(48).cloned().collect();
-                fetch_posters(source, browse_sample, requested, events.clone());
+                fetch_posters(source.clone(), browse_sample, requested.clone(), events.clone());
+                fetch_posters(source.clone(), crate::bridge::start_watching(&cached_shelves.browse_items), requested, events.clone());
+                let bd_items: Vec<_> = cached_shelves
+                    .finish_season
+                    .iter()
+                    .map(|f| f.item.clone())
+                    .chain(cached_shelves.continue_watching.iter().cloned())
+                    .chain(cached_shelves.added_this_week.iter().cloned())
+                    .take(12)
+                    .collect();
+                fetch_backdrops(source, bd_items, backdrops_req, events.clone());
                 let _ = events.send(AppEvent::LibraryShelves(cached_shelves));
                 return;
             }
@@ -886,6 +906,7 @@ impl Controller {
 
                 if is_tv {
                     shelves.genres = plex.section_genres(&sec.key).await.unwrap_or_default();
+                    shelves.added_this_week = plex.added_since(&sec.key, since_epoch, sort, 6).await.unwrap_or_default();
                 } else {
                     for m_sec in &movie_sections {
                         match plex.collections(&m_sec.key).await {
@@ -893,8 +914,11 @@ impl Controller {
                             Err(e) => warn!(section = %m_sec.key, error = %e, "collections fetch failed"),
                         }
                     }
+                    shelves.added_this_week = plex
+                        .section_items(&sec.key, tvdash_core::models::LibrarySort::RecentlyAdded, None, 6)
+                        .await
+                        .unwrap_or_default();
                 }
-                shelves.added_this_week = plex.added_since(&sec.key, since_epoch, sort, 6).await.unwrap_or_default();
                 shelves.watch_again = plex.watch_again(&sec.key, is_tv, sort, 6).await.unwrap_or_default();
                 shelves.browse_items = plex.section_items(&sec.key, sort, None, 1000).await.unwrap_or_default();
                 let source: Arc<dyn MediaSource> = plex;
@@ -902,7 +926,17 @@ impl Controller {
                 fetch_posters(source.clone(), shelves.watch_again.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), collection_poster_items(&shelves.collections), requested.clone(), events.clone());
                 let browse_sample: Vec<_> = shelves.browse_items.iter().take(48).cloned().collect();
-                fetch_posters(source, browse_sample, requested, events.clone());
+                fetch_posters(source.clone(), browse_sample, requested.clone(), events.clone());
+                fetch_posters(source.clone(), crate::bridge::start_watching(&shelves.browse_items), requested, events.clone());
+                let bd_items: Vec<_> = shelves
+                    .finish_season
+                    .iter()
+                    .map(|f| f.item.clone())
+                    .chain(shelves.continue_watching.iter().cloned())
+                    .chain(shelves.added_this_week.iter().cloned())
+                    .take(12)
+                    .collect();
+                fetch_backdrops(source, bd_items, backdrops_req, events.clone());
             }
 
             let stat_id = if is_tv { "top_tv" } else { "top_movies" };
@@ -932,6 +966,7 @@ impl Controller {
         let Some(plex) = self.plex.clone() else { return };
         let events = self.events.clone();
         let requested = self.posters_requested.clone();
+        let backdrops_req = self.backdrops_requested.clone();
         tokio::spawn(async move {
             let res = async {
                 let item = plex
@@ -955,6 +990,29 @@ impl Controller {
             }
             .await;
             let initial_season = res.as_ref().ok().and_then(|d| d.up_next_season_key.clone());
+            if let Ok(detail) = &res {
+                let source: Arc<dyn MediaSource> = plex.clone();
+                fetch_backdrops(source.clone(), vec![detail.item.clone()], backdrops_req, events.clone());
+                let season_items: Vec<MediaItem> = detail
+                    .seasons
+                    .iter()
+                    .filter(|s| s.thumb.is_some())
+                    .map(|s| MediaItem {
+                        source: SourceKind::Plex,
+                        id: s.rating_key.clone(),
+                        kind: tvdash_core::models::MediaKind::Other,
+                        title: s.title.clone(),
+                        subtitle: None,
+                        episode_label: None,
+                        duration_ms: None,
+                        resume_ms: None,
+                        poster: s.thumb.clone(),
+                        summary: None,
+                        extra: Default::default(),
+                    })
+                    .collect();
+                fetch_posters(source, season_items, requested.clone(), events.clone());
+            }
             let _ = events.send(AppEvent::ShowDetail(res));
             if let Some(season_key) = initial_season {
                 fetch_season_episodes(plex, season_key, requested, events).await;
@@ -2368,6 +2426,7 @@ async fn fetch_season_episodes(
                 resume_ms: ep.view_offset_ms,
                 poster: ep.thumb.clone(),
                 summary: None,
+                extra: Default::default(),
             })
             .collect();
         fetch_posters(plex, thumb_items, requested, events.clone());
@@ -2390,6 +2449,7 @@ fn collection_poster_items(collections: &[tvdash_core::models::CollectionInfo]) 
             resume_ms: None,
             poster: c.thumb.clone(),
             summary: None,
+            extra: Default::default(),
         })
         .collect()
 }
@@ -2428,6 +2488,52 @@ fn fetch_posters(
             }
         });
     }
+}
+
+fn fetch_backdrops(
+    source: Arc<dyn MediaSource>,
+    items: Vec<MediaItem>,
+    requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
+    events: UnboundedSender<AppEvent>,
+) {
+    static BD_SEM: std::sync::LazyLock<tokio::sync::Semaphore> =
+        std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(4));
+
+    for item in items {
+        if item.extra.art.is_none() && item.poster.is_none() {
+            continue;
+        }
+        let key = (item.source, item.id.clone());
+        if !requested.lock().unwrap().insert(key.clone()) {
+            continue;
+        }
+        let (source, requested, events) = (source.clone(), requested.clone(), events.clone());
+        tokio::spawn(async move {
+            let Ok(_permit) = BD_SEM.acquire().await else { return };
+            let decoded = match source.backdrop(&item, 1300, 660).await {
+                Ok(bytes) => tokio::task::spawn_blocking(move || decode(&bytes)).await.ok().flatten(),
+                Err(_) => match source.poster(&item, 450).await {
+                    Ok(bytes) => tokio::task::spawn_blocking(move || decode_blurred(&bytes)).await.ok().flatten(),
+                    Err(_) => None,
+                },
+            };
+            match decoded {
+                Some(image) => {
+                    let _ = events.send(AppEvent::Backdrop { source: item.source, item_id: item.id, image });
+                }
+                None => {
+                    requested.lock().unwrap().remove(&key);
+                }
+            }
+        });
+    }
+}
+
+pub(crate) fn decode_blurred(bytes: &[u8]) -> Option<RgbaImage> {
+    let img = image::load_from_memory(bytes).ok()?;
+    let small = img.thumbnail(320, 320);
+    let blurred = image::imageops::blur(&small, 16.0);
+    Some(RgbaImage { width: blurred.width(), height: blurred.height(), pixels: blurred.into_raw() })
 }
 
 pub(crate) fn decode(bytes: &[u8]) -> Option<RgbaImage> {

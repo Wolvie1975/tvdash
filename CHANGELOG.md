@@ -1,5 +1,29 @@
 # tvdash Changelog
 
+## v0.1.38 — 2026-11-19
+- Fixed a re-entrant `RefCell` panic when opening the TV `Library` page by moving `tv_nav::sync` outside `bridge::STATE.with_borrow_mut` and guarding `ensure_library_loaded` with `try_borrow_mut`.
+
+## v0.1.37 — 2026-11-19
+- Triggered `LoadLibraryShelves` automatically on first entry to the TV `Library` tab so `Start watching` (top 6) and `Finish the season` load without needing to switch to `Movies` first.
+
+## v0.1.36 — 2026-11-19
+- Added a top-edge scrim to `FocusBackdrop` so the top `TabBar` stays legible over bright backdrops.
+- Fetched posters for all 6 weekly `Start watching` picks on Library load so tiles beyond the first 48 alphabetical items populate immediately.
+
+## v0.1.35 — 2026-11-19
+- Fixed `TvAmbient` screensaver clock/date/weather `VerticalLayout` sizing so `AM/PM`, current date, and weather display cleanly at the bottom left.
+- Added explicit preferred height to the `TvShow` season/episode metadata `VerticalLayout`s.
+
+## v0.1.34 — 2026-11-19
+- Fixed `TvLibrary` / `TvShow` backdrops painting over the top `TabBar` and clock/weather chrome in `TvShell`.
+- Fixed `TvLibrary` `FocusInfo` layout stretching below the hero area into the numbered row.
+- Added a `CONTINUE WATCHING` fallback in `TvLibrary` TV Series Shelf 1 when no active show is within 3 episodes of a season finale.
+
+## v0.1.33 — 2026-11-19
+- Redesigned TV Library landing (`TvLibrary` Option C): cross-fading `FocusBackdrop` + `FocusInfo`, live `Watching now` pill & overlay, 16:9 `Finish the season` / `Continue watching` Shelf 1, and weekly seeded-shuffle `Start watching` / `Recently added` Shelf 2 with bundled outlined rank numerals.
+- Redesigned TV Show page (`TvShow`) with vertical scrolling: show backdrop + scrims, `Resume` / `From S1 · E1` / `Shuffle` action row, season selector, sticky `260×390` season column (with `SEASON N` / `SPECIALS` fallback and focused-episode details when scrolled), `468×263` 3-column episode grid with `UP NEXT` chip, watched tick, progress bar, dashed `Continue to ... ›` last slot, and `1728×76` sticky bar.
+- Redesigned TV Screensaver (`TvAmbient`) with a `tiny-skia` pre-rendered 96-poster wall (`-10°` rotation, 0.42 opacity, seamless upward drift), vignettes, 260 px clock + date/weather, 3-state `Up next` block, library count footer, and ±8 px burn-in walk.
+
 ## v0.1.32 — 2026-11-19
 - Switched the Collection detail page (`TvCollection`) to a 3-column vertical-scrolling grid scaled with `TvUi.u`.
 

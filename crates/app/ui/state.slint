@@ -199,6 +199,19 @@ export struct SeasonTabData {
     fraction: float,
 }
 
+export struct SeasonColumnData {
+    rating-key: string,
+    name: string,
+    meta: string,
+    summary: string,
+    progress: float,
+    progress-label: string,
+    poster: image,
+    has-poster: bool,
+    poster-is-fallback: bool,
+    fallback-label: string,
+}
+
 export struct EpisodeRowData {
     rating-key: string,
     num: string,
@@ -268,6 +281,72 @@ export global Library {
     callback close-detail();
 }
 
+export struct FocusInfoData {
+    kicker: string,
+    title: string,
+    meta: string,
+    summary: string,
+    tint-accent: color,
+    tint-poster: color,
+    tint-card: color,
+}
+
+export struct Shelf1TileData {
+    rating-key: string,
+    title: string,
+    right-label: string,
+    art: image,
+    has-art: bool,
+    progress: float,
+    segments: int,
+    watched-segments: int,
+}
+
+export struct RankedTileData {
+    rating-key: string,
+    rank: int,
+    title: string,
+    poster: image,
+    has-poster: bool,
+}
+
+export struct WatchingNowRowData {
+    rating-key: string,
+    is-tv: bool,
+    title: string,
+    subtitle: string,
+    player-line: string,
+    stream-badge: string,
+    is-this-tv: bool,
+    state-text: string,
+    time-left: string,
+    progress: float,
+    poster: image,
+    has-poster: bool,
+}
+
+export global LibraryLanding {
+    in-out property <FocusInfoData> focus;
+    in property <image> backdrop-a;
+    in property <image> backdrop-b;
+    in property <bool> backdrop-show-b: false;
+    in property <bool> has-backdrop: false;
+    in property <int> watching-now-count: 0;
+    in-out property <bool> watching-now-open: false;
+    in property <[WatchingNowRowData]> watching-now-rows;
+    in property <string> shelf1-title;
+    in property <string> shelf1-count;
+    in property <[Shelf1TileData]> shelf1;
+    in property <string> shelf2-title;
+    in property <string> shelf2-count;
+    in property <[RankedTileData]> shelf2;
+
+    callback focus-changed(int);
+    callback open-watching-now();
+    callback close-watching-now();
+    callback select-watching-now(int);
+}
+
 export global ShowPageState {
     in-out property <bool> open: false;
     in property <bool> loading: false;
@@ -278,9 +357,18 @@ export global ShowPageState {
     in property <string> up-next;
     in property <string> up-next-key;
     in property <bool> can-resume;
+    in property <float> up-next-progress: 0.0;
+    in property <image> backdrop;
+    in property <bool> has-backdrop: false;
     in property <[SeasonTabData]> seasons;
     in-out property <string> selected-season;
+    in property <SeasonColumnData> season;
+    in property <string> season-summary-line;
+    in property <string> next-season-key;
+    in property <string> next-season-label;
     in property <[EpisodeRowData]> episodes;
+    in-out property <bool> scrolled: false;
+    in-out property <EpisodeRowData> focused-episode;
     in property <Tint> tint: {
         card: #121F30, poster: #1C2E45, accent: #8FC1FF, sec: #AFC3DA,
         track: #1E3048, btn: #172840, edge: #24395A, on-accent: #0B0D10,
@@ -627,4 +715,19 @@ export global TvUi {
     callback play-last-played();
     // Show the playback overlay (title, progress, end time) on the video.
     callback overlay();
+}
+
+export global AmbientState {
+    in property <image> wall;
+    in property <bool> has-wall: false;
+    in property <length> repeat-height: 1280px;
+    in property <string> up-next-label;
+    in property <string> up-next-title;
+    in property <string> up-next-line;
+    in property <float> up-next-progress: 0.0;
+    in property <bool> up-next-has-bar: false;
+    in property <image> up-next-poster;
+    in property <bool> up-next-has-poster: false;
+    in property <color> up-next-accent: #8FC1FF;
+    in property <string> footer-line;
 }

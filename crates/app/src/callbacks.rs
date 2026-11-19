@@ -125,6 +125,46 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
 
     let s = send.clone();
     laptop.global::<crate::TvUi>().on_overlay(move || s(Command::Overlay));
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    let ll = laptop.global::<crate::LibraryLanding>();
+    ll.on_focus_changed(move |idx| {
+        if let Some(l) = weak.upgrade() {
+            let s2 = s.clone();
+            bridge::on_library_focus_changed(&l, idx, move |item| s2(Command::PrefetchBackdrop(item)));
+        }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    ll.on_open_watching_now(move || {
+        if let Some(l) = weak.upgrade() {
+            l.global::<crate::LibraryLanding>().set_watching_now_open(true);
+            l.global::<crate::TvUi>().set_focused_tile(0);
+        }
+        s(Command::RefreshSessions);
+    });
+
+    let weak = laptop.as_weak();
+    ll.on_close_watching_now(move || {
+        if let Some(l) = weak.upgrade() {
+            l.global::<crate::LibraryLanding>().set_watching_now_open(false);
+            l.global::<crate::TvUi>().set_focused_tile(3);
+        }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    ll.on_select_watching_now(move |idx| {
+        if let Some(item) = bridge::watching_now_item(idx as usize) {
+            if let Some(l) = weak.upgrade() {
+                l.global::<crate::LibraryLanding>().set_watching_now_open(false);
+            }
+            if item.kind == tvdash_core::models::MediaKind::Movie {
+                s(Command::Play(item));
+            } else if let Some(l) = weak.upgrade() {
+                l.global::<Library>().invoke_open_show(item.id.into());
+            }
+        }
+    });
+
     let s = send.clone();
     laptop.global::<crate::TvUi>().on_clear_recent(move || s(Command::ClearRecentServices));
 
@@ -315,6 +355,7 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
                 sp.set_episodes(slint::ModelRc::default());
             }
             sp.set_selected_season(key.clone());
+            crate::bridge::on_season_selected(&l, key.as_str());
         }
         s(Command::LoadSeasonEpisodes(key.to_string()));
     });

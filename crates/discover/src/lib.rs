@@ -416,6 +416,7 @@ mod tests {
             resume_ms: None,
             poster: None,
             summary: None,
+            extra: Default::default(),
         };
         let library = HashMap::from([((false, 2), item)]);
         let mut all = vec![

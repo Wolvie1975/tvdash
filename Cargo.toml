@@ -4,7 +4,7 @@ members = ["crates/*"]
 
 [workspace.package]
 edition = "2024"
-version = "0.1.32"
+version = "0.1.38"
 license = "MIT"
 publish = false
 
@@ -36,3 +36,6 @@ slint = "1.18"
 slint-build = "1.18"
 zbus = "5"
 futures-util = "0.3"
+rand = "0.8"
+rand_chacha = "0.3"
+tiny-skia = "0.11"

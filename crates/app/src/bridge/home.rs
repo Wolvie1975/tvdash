@@ -110,6 +110,17 @@ pub(super) fn on_poster(
             }
         }
     }
+    let ll = laptop.global::<crate::LibraryLanding>();
+    let shelf2 = ll.get_shelf2();
+    for i in 0..shelf2.row_count() {
+        if let Some(mut row) = shelf2.row_data(i)
+            && row.rating_key.as_str() == key.1
+        {
+            row.has_poster = true;
+            row.poster = img.clone();
+            shelf2.set_row_data(i, row);
+        }
+    }
     if source == SourceKind::Plex {
         let cols = laptop.global::<Library>().get_collections();
         for i in 0..cols.row_count() {
@@ -144,6 +155,9 @@ pub(super) fn on_poster(
                 row.thumb = img.clone();
                 eps.set_row_data(i, row);
             }
+        }
+        if key.1 == sp.get_rating_key().as_str() || key.1 == sp.get_season().rating_key.as_str() {
+            super::library::refresh_show_season_poster(s, laptop);
         }
     }
     if laptop.global::<CollectionPageState>().get_open()

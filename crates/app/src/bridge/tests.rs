@@ -47,6 +47,7 @@ fn item(source: SourceKind, id: &str, title: &str) -> MediaItem {
         resume_ms: Some(3_600_000),
         poster: Some("p".into()),
         summary: None,
+        extra: Default::default(),
     }
 }
 

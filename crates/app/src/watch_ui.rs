@@ -257,6 +257,7 @@ mod tests {
             resume_ms: Some(5),
             poster: None,
             summary: None,
+            extra: Default::default(),
         });
         assert_eq!(line(&lib), "In Plex");
         let a = actions(&lib);

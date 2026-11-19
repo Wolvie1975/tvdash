@@ -388,6 +388,7 @@ impl BaseItemDto {
             resume_ms,
             poster,
             summary: None,
+            extra: Default::default(),
         }
     }
 }

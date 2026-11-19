@@ -289,6 +289,8 @@ impl PlexClient {
                 leaf_count: m.leaf_count.unwrap_or(0),
                 viewed_leaf_count: m.viewed_leaf_count.unwrap_or(0),
                 thumb: m.thumb,
+                summary: m.summary.filter(|s| !s.is_empty()),
+                year: m.year,
             })
             .collect();
         // Put Specials (index 0) last per spec §5.
@@ -708,6 +710,18 @@ impl MediaSource for PlexClient {
         Ok(send(rb, "poster").await?.bytes().await?.to_vec())
     }
 
+    async fn backdrop(&self, item: &MediaItem, w: u32, h: u32) -> Result<Vec<u8>> {
+        let art = item.extra.art.as_deref().ok_or(MediaError::NotFound)?;
+        let rb = self.request(Method::GET, "/photo/:/transcode").query(&[
+            ("url", art.to_owned()),
+            ("width", w.to_string()),
+            ("height", h.to_string()),
+            ("minSize", "1".into()),
+            ("upscale", "1".into()),
+        ]);
+        Ok(send(rb, "backdrop").await?.bytes().await?.to_vec())
+    }
+
     async fn stream_url(&self, item: &MediaItem) -> Result<String> {
         // Rows don't carry part keys; look the item up for its first file.
         let meta = self.metadata(&format!("/library/metadata/{}", item.id), &[], "item").await?;
@@ -1042,6 +1056,11 @@ struct Metadata {
     view_offset: Option<u64>,
     thumb: Option<String>,
     grandparent_thumb: Option<String>,
+    art: Option<String>,
+    grandparent_art: Option<String>,
+    content_rating: Option<String>,
+    added_at: Option<i64>,
+    originally_available_at: Option<String>,
     summary: Option<String>,
     leaf_count: Option<u32>,
     viewed_leaf_count: Option<u32>,
@@ -1058,6 +1077,16 @@ struct Metadata {
     session_key: Option<String>,
     #[serde(rename = "Guid")]
     guid: Vec<Guid>,
+    #[serde(rename = "Genre")]
+    genre: Vec<Tag>,
+    #[serde(rename = "Role")]
+    role: Vec<Tag>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct Tag {
+    tag: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -1091,6 +1120,7 @@ fn to_episode(m: Metadata) -> EpisodeInfo {
         view_offset_ms: m.view_offset,
         view_count: m.view_count.unwrap_or(0),
         thumb: m.thumb,
+        originally_available_at: m.originally_available_at.filter(|s| !s.is_empty()),
     }
 }
 
@@ -1206,6 +1236,21 @@ impl Metadata {
             }
             _ => (self.title, self.year.map(|y| y.to_string()), None, self.thumb),
         };
+        let art = match kind {
+            MediaKind::Episode => self.grandparent_art.or(self.art),
+            _ => self.art,
+        };
+        let extra = tvdash_core::models::MediaExtra {
+            art,
+            year: self.year,
+            genres: self.genre.into_iter().map(|g| g.tag).filter(|s| !s.is_empty()).take(3).collect(),
+            cast: self.role.into_iter().map(|r| r.tag).filter(|s| !s.is_empty()).take(2).collect(),
+            content_rating: self.content_rating.filter(|s| !s.is_empty()),
+            added_at: self.added_at,
+            leaf_count: self.leaf_count,
+            viewed_leaf_count: self.viewed_leaf_count,
+            child_count: self.child_count,
+        };
         Some(MediaItem {
             source: SourceKind::Plex,
             id: self.rating_key,
@@ -1217,6 +1262,7 @@ impl Metadata {
             resume_ms: self.view_offset.filter(|&v| v > 0),
             poster,
             summary: self.summary.filter(|s| !s.is_empty()),
+            extra,
         })
     }
 

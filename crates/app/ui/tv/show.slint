@@ -1,179 +1,763 @@
 import { Theme } from "../theme.slint";
 import { ShowPageState, TvUi } from "../state.slint";
-import { IconTile, MediaTile, Tile } from "tile.slint";
+import { Tile } from "tile.slint";
 
 export component TvShow inherits Rectangle {
     width: 1920px * TvUi.u;
     height: 1080px * TvUi.u;
     background: transparent;
+    clip: true;
 
-    // Show hero info block
+    property <int> season-count: ShowPageState.seasons.length;
+    property <int> ep-count: ShowPageState.episodes.length;
+    property <bool> has-next-season: ShowPageState.next-season-label != "";
+    property <int> grid-base: 3 + root.season-count;
+    property <length> content-top: (700px - TvUi.show-scroll) * TvUi.u;
+    property <length> season-col-y: ShowPageState.scrolled ? 244px * TvUi.u : root.content-top;
+
+    // Faint tint glow top right when scrolled
     Rectangle {
-        x: 96px * TvUi.u;
-        y: 136px * TvUi.u;
-        width: 520px * TvUi.u;
-        height: 320px * TvUi.u;
-        border-radius: 6px;
-        background: ShowPageState.tint.card;
+        x: 960px * TvUi.u;
+        y: 0px;
+        width: 960px * TvUi.u;
+        height: 420px * TvUi.u;
+        opacity: ShowPageState.scrolled ? 0.18 : 0.0;
+        background: @radial-gradient(circle, ShowPageState.tint.accent 0%, transparent 70%);
+        animate opacity { duration: 250ms; easing: ease-out; }
+    }
 
-        VerticalLayout {
-            padding: 24px * TvUi.u;
-            spacing: 12px * TvUi.u;
+    // Backdrop (fades out when scrolled)
+    Rectangle {
+        x: 560px * TvUi.u;
+        y: 0px;
+        width: 1360px * TvUi.u;
+        height: 720px * TvUi.u;
+        clip: true;
+        opacity: ShowPageState.scrolled ? 0.0 : 1.0;
+        animate opacity { duration: 250ms; easing: ease-out; }
 
-            Text {
-                text: ShowPageState.title;
-                font-size: 38px * TvUi.u;
-                font-weight: 500;
-                color: Theme.text-primary;
-                wrap: word-wrap;
+        if ShowPageState.has-backdrop: Image {
+            width: parent.width;
+            height: parent.height;
+            source: ShowPageState.backdrop;
+            image-fit: cover;
+        }
+
+        if !ShowPageState.has-backdrop: Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: @radial-gradient(circle, ShowPageState.tint.poster 0%, Theme.bg 78%);
+        }
+
+        // Left scrim: bg -> bg @ 82% at 25% -> transparent at 62%
+        Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: @linear-gradient(90deg, Theme.bg 0%, Theme.bg.with-alpha(0.82) 25%, transparent 62%);
+        }
+
+        // Bottom scrim from y = 380
+        Rectangle {
+            x: 0px;
+            y: 380px * TvUi.u;
+            width: parent.width;
+            height: 340px * TvUi.u;
+            background: @linear-gradient(180deg, transparent 0%, Theme.bg 100%);
+        }
+    }
+
+    // Episode grid (behind sticky header/top block, clips cleanly below y: 120 when scrolled)
+    Rectangle {
+        x: 0px;
+        y: ShowPageState.scrolled ? 224px * TvUi.u : 0px;
+        width: parent.width;
+        height: parent.height - self.y;
+        clip: true;
+
+        for ep[i] in ShowPageState.episodes: Tile {
+            property <int> grid-col: Math.mod(i, 3);
+            property <int> grid-row: Math.floor(i / 3);
+            property <bool> is-up-next: ep.rating-key == ShowPageState.up-next-key;
+            x: (388 + grid-col * 484) * 1px * TvUi.u;
+            y: (700 + grid-row * 380) * 1px * TvUi.u - TvUi.show-scroll * TvUi.u - parent.y;
+            base-width: 468px * TvUi.u;
+            base-height: 344px * TvUi.u;
+            focused: TvUi.focused-tile == root.grid-base + i;
+            fill: transparent;
+            activated => {
+                TvUi.focused-tile = root.grid-base + i;
+                ShowPageState.play-episode(ep.rating-key, true);
             }
 
-            Text {
-                text: ShowPageState.meta;
-                font-size: 20px * TvUi.u;
-                color: ShowPageState.tint.sec;
-                overflow: elide;
+            // 16:9 thumbnail box
+            Rectangle {
+                x: 0px;
+                y: 0px;
+                width: 468px * TvUi.u;
+                height: 263px * TvUi.u;
+                border-radius: 6px * TvUi.u;
+                clip: true;
+                background: ShowPageState.tint.card;
+                border-width: (is-up-next && !(TvUi.focused-tile == root.grid-base + i)) ? 2px * TvUi.u : 0px;
+                border-color: ShowPageState.tint.accent;
+
+                if ep.has-thumb: Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: ep.thumb;
+                    image-fit: cover;
+                }
+
+                if !ep.has-thumb: Text {
+                    text: ep.num;
+                    font-size: 40px * TvUi.u;
+                    font-weight: 500;
+                    color: ShowPageState.tint.sec;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    width: parent.width;
+                    height: parent.height;
+                }
+
+                // UP NEXT chip (top left)
+                if is-up-next: Rectangle {
+                    x: 12px * TvUi.u;
+                    y: 12px * TvUi.u;
+                    width: 96px * TvUi.u;
+                    height: 28px * TvUi.u;
+                    border-radius: 4px * TvUi.u;
+                    background: ShowPageState.tint.accent;
+
+                    Text {
+                        text: "UP NEXT";
+                        font-size: 13px * TvUi.u;
+                        font-weight: 700;
+                        letter-spacing: 0.8px * TvUi.u;
+                        color: ShowPageState.tint.on-accent;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        width: parent.width;
+                        height: parent.height;
+                    }
+                }
+
+                // Watched green tick in 34px dark circle (top right)
+                if ep.watched: Rectangle {
+                    x: parent.width - 46px * TvUi.u;
+                    y: 12px * TvUi.u;
+                    width: 34px * TvUi.u;
+                    height: 34px * TvUi.u;
+                    border-radius: 17px * TvUi.u;
+                    background: #0B0D10D8;
+
+                    Text {
+                        text: "✓";
+                        font-size: 18px * TvUi.u;
+                        font-weight: 700;
+                        color: Theme.ok;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        width: parent.width;
+                        height: parent.height;
+                    }
+                }
+
+                // 5px progress bar along bottom
+                if ep.progress > 0: Rectangle {
+                    x: 0px;
+                    y: parent.height - 5px * TvUi.u;
+                    width: parent.width;
+                    height: 5px * TvUi.u;
+                    background: #0B0D10AA;
+
+                    Rectangle {
+                        x: 0px;
+                        y: 0px;
+                        width: parent.width * ep.progress;
+                        height: parent.height;
+                        background: ShowPageState.tint.accent;
+                    }
+                }
             }
 
+            // Line 1: Number (22px text-muted) + title (24px)
+            HorizontalLayout {
+                x: 2px * TvUi.u;
+                y: 274px * TvUi.u;
+                width: parent.width - 4px * TvUi.u;
+                height: 30px * TvUi.u;
+                spacing: 10px * TvUi.u;
+
+                Text {
+                    text: ep.num;
+                    font-size: 22px * TvUi.u;
+                    font-weight: 500;
+                    color: Theme.text-muted;
+                    vertical-alignment: center;
+                }
+
+                Text {
+                    text: ep.title;
+                    font-size: 24px * TvUi.u;
+                    font-weight: 500;
+                    color: Theme.text-primary;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                }
+            }
+
+            // Line 2: duration / left / watched / season finale (18px)
             Text {
-                text: ShowPageState.summary;
+                x: 2px * TvUi.u;
+                y: 308px * TvUi.u;
+                width: parent.width - 4px * TvUi.u;
+                text: ep.meta;
                 font-size: 18px * TvUi.u;
-                color: Theme.text-secondary;
-                wrap: word-wrap;
+                color: ep.can-resume ? ShowPageState.tint.accent : Theme.text-secondary;
                 overflow: elide;
             }
         }
-    }
 
-    // 0: Resume / Play next (2-wide, tint)
-    Tile {
-        x: 96px * TvUi.u;
-        y: 472px * TvUi.u;
-        base-width: 520px * TvUi.u;
-        base-height: 140px * TvUi.u;
-        fill: ShowPageState.tint.poster;
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 0;
-        activated => { TvUi.tile-activated(0); }
-        hovered => { TvUi.tile-hovered(0); }
-
-        VerticalLayout {
-            padding: 20px * TvUi.u;
-            spacing: 6px * TvUi.u;
-            alignment: center;
-
-            Text {
-                text: ShowPageState.can-resume ? "Resume" : "Play up next";
-                font-size: 28px * TvUi.u;
-                font-weight: 500;
-                color: Theme.text-primary;
-            }
-            Text {
-                text: ShowPageState.up-next;
-                font-size: 20px * TvUi.u;
-                color: ShowPageState.tint.sec;
-                overflow: elide;
-            }
-        }
-    }
-
-    // 1: From S1 · E1
-    IconTile {
-        x: 96px * TvUi.u;
-        y: 628px * TvUi.u;
-        base-width: 252px * TvUi.u;
-        base-height: 140px * TvUi.u;
-        fill: ShowPageState.tint.card;
-        icon: "play";
-        label: "From S1 · E1";
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 1;
-        activated => { TvUi.tile-activated(1); }
-        hovered => { TvUi.tile-hovered(1); }
-    }
-
-    // 2: Shuffle
-    IconTile {
-        x: 364px * TvUi.u;
-        y: 628px * TvUi.u;
-        base-width: 252px * TvUi.u;
-        base-height: 140px * TvUi.u;
-        fill: ShowPageState.tint.card;
-        icon: "forward";
-        label: "Shuffle";
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 2;
-        activated => { TvUi.tile-activated(2); }
-        hovered => { TvUi.tile-hovered(2); }
-    }
-
-    // Season sub-tabs
-    HorizontalLayout {
-        x: 660px * TvUi.u;
-        y: 136px * TvUi.u;
-        spacing: 28px * TvUi.u;
-
-        for s[i] in ShowPageState.seasons: Rectangle {
-            width: stxt.preferred-width;
-            height: stxt.preferred-height + 8px * TvUi.u;
-            background: transparent;
-
-            stxt := Text {
-                text: s.title;
-                font-size: 28px * TvUi.u;
-                font-weight: s.rating-key == ShowPageState.selected-season ? 500 : 300;
-                color: s.rating-key == ShowPageState.selected-season ? Theme.text-primary : Theme.text-muted;
+        // Last slot: Continue to Season N ›
+        if root.has-next-season: Tile {
+            property <int> idx: root.ep-count;
+            property <int> grid-col: Math.mod(idx, 3);
+            property <int> grid-row: Math.floor(idx / 3);
+            x: (388 + grid-col * 484) * 1px * TvUi.u;
+            y: (700 + grid-row * 380) * 1px * TvUi.u - TvUi.show-scroll * TvUi.u - parent.y;
+            base-width: 468px * TvUi.u;
+            base-height: 263px * TvUi.u;
+            focused: TvUi.focused-tile == root.grid-base + root.ep-count;
+            fill: Theme.surface.with-alpha(0.5);
+            activated => {
+                TvUi.focused-tile = root.grid-base + root.ep-count;
+                ShowPageState.select-season(ShowPageState.next-season-key);
             }
 
             Rectangle {
-                y: stxt.height + 4px * TvUi.u;
                 width: parent.width;
-                height: 3px * TvUi.u;
-                visible: s.rating-key == ShowPageState.selected-season;
-                background: Theme.text-primary;
-            }
+                height: parent.height;
+                border-radius: 6px * TvUi.u;
+                border-width: 2px * TvUi.u;
+                border-color: Theme.border;
+                background: transparent;
 
-            TouchArea {
-                mouse-cursor: pointer;
-                clicked => { ShowPageState.select-season(s.rating-key); }
+                Text {
+                    text: ShowPageState.next-season-label;
+                    font-size: 24px * TvUi.u;
+                    font-weight: 500;
+                    color: ShowPageState.tint.accent;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    width: parent.width - 32px * TvUi.u;
+                    x: 16px * TvUi.u;
+                    height: parent.height;
+                    wrap: word-wrap;
+                }
             }
         }
     }
 
-    // 3-column vertical-scrolling episode grid (372 x 236)
+    // Top info block + action row + season tabs (fades out when scrolled)
     Rectangle {
-        x: 660px * TvUi.u;
-        y: 196px * TvUi.u;
-        width: 1180px * TvUi.u;
-        height: 808px * TvUi.u;
-        clip: true;
-        background: transparent;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: 690px * TvUi.u;
+        opacity: ShowPageState.scrolled ? 0.0 : 1.0;
+        animate opacity { duration: 250ms; easing: ease-out; }
 
-        TouchArea {
-            scroll-event(event) => {
-                TvUi.scroll-panorama(event.delta-y);
-                accept
+        // Kicker: y = 160
+        Text {
+            x: 96px * TvUi.u;
+            y: 160px * TvUi.u;
+            text: "TV series · Plex";
+            font-size: 20px * TvUi.u;
+            font-weight: 500;
+            color: ShowPageState.tint.accent;
+        }
+
+        // Title: 88px, weight 400, -1.5px tracking
+        Text {
+            x: 96px * TvUi.u;
+            y: 192px * TvUi.u;
+            width: 1120px * TvUi.u;
+            text: ShowPageState.title;
+            font-size: 88px * TvUi.u;
+            font-weight: 400;
+            letter-spacing: -1.5px * TvUi.u;
+            color: Theme.text-primary;
+            overflow: elide;
+        }
+
+        // Meta: 24px
+        Text {
+            x: 96px * TvUi.u;
+            y: 298px * TvUi.u;
+            width: 960px * TvUi.u;
+            text: ShowPageState.meta;
+            font-size: 24px * TvUi.u;
+            color: ShowPageState.tint.sec;
+            overflow: elide;
+        }
+
+        // Summary: 22px / 1.45, max 780 wide, 3 lines
+        Text {
+            x: 96px * TvUi.u;
+            y: 338px * TvUi.u;
+            width: 780px * TvUi.u;
+            height: 98px * TvUi.u;
+            text: ShowPageState.summary;
+            font-size: 22px * TvUi.u;
+            color: Theme.text-secondary;
+            wrap: word-wrap;
+            overflow: elide;
+        }
+
+        // Action row: y = 452, height 120
+        // 0: Resume (440)
+        Tile {
+            x: 96px * TvUi.u;
+            y: 452px * TvUi.u;
+            base-width: 440px * TvUi.u;
+            base-height: 120px * TvUi.u;
+            focused: TvUi.focused-tile == 0;
+            fill: ShowPageState.tint.card;
+            activated => {
+                TvUi.focused-tile = 0;
+                if ShowPageState.up-next-key != "" {
+                    ShowPageState.play-episode(ShowPageState.up-next-key, true);
+                }
+            }
+
+            Text {
+                x: 24px * TvUi.u;
+                y: 20px * TvUi.u;
+                text: ShowPageState.can-resume ? "Resume" : "Play next";
+                font-size: 26px * TvUi.u;
+                font-weight: 600;
+                color: Theme.text-primary;
+            }
+
+            Text {
+                x: 24px * TvUi.u;
+                y: 58px * TvUi.u;
+                width: parent.width - 48px * TvUi.u;
+                text: ShowPageState.up-next != "" ? ShowPageState.up-next : "Start watching";
+                font-size: 20px * TvUi.u;
+                color: ShowPageState.tint.sec;
+                overflow: elide;
+            }
+
+            if ShowPageState.up-next-progress > 0: Rectangle {
+                x: 0px;
+                y: parent.height - 5px * TvUi.u;
+                width: parent.width;
+                height: 5px * TvUi.u;
+                background: ShowPageState.tint.track;
+
+                Rectangle {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width * ShowPageState.up-next-progress;
+                    height: parent.height;
+                    background: ShowPageState.tint.accent;
+                }
             }
         }
 
+        // 1: From S1 · E1 (260)
+        Tile {
+            x: 552px * TvUi.u;
+            y: 452px * TvUi.u;
+            base-width: 260px * TvUi.u;
+            base-height: 120px * TvUi.u;
+            focused: TvUi.focused-tile == 1;
+            fill: Theme.surface;
+            activated => {
+                TvUi.focused-tile = 1;
+                ShowPageState.play-from-start();
+            }
+
+            Text {
+                x: 24px * TvUi.u;
+                y: 26px * TvUi.u;
+                text: "From S1 · E1";
+                font-size: 24px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+            }
+
+            Text {
+                x: 24px * TvUi.u;
+                y: 62px * TvUi.u;
+                text: "Start at the beginning";
+                font-size: 17px * TvUi.u;
+                color: Theme.text-muted;
+            }
+        }
+
+        // 2: Shuffle (220)
+        Tile {
+            x: 828px * TvUi.u;
+            y: 452px * TvUi.u;
+            base-width: 220px * TvUi.u;
+            base-height: 120px * TvUi.u;
+            focused: TvUi.focused-tile == 2;
+            fill: Theme.surface;
+            activated => {
+                TvUi.focused-tile = 2;
+                ShowPageState.shuffle();
+            }
+
+            Text {
+                x: 24px * TvUi.u;
+                y: 26px * TvUi.u;
+                text: "Shuffle";
+                font-size: 24px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+            }
+
+            Text {
+                x: 24px * TvUi.u;
+                y: 62px * TvUi.u;
+                text: "Random episode";
+                font-size: 17px * TvUi.u;
+                color: Theme.text-muted;
+            }
+        }
+
+        // Season tabs: y = 620, 26px
+        HorizontalLayout {
+            x: 96px * TvUi.u;
+            y: 616px * TvUi.u;
+            width: 1300px * TvUi.u;
+            height: 48px * TvUi.u;
+            spacing: root.season-count <= 6 ? 28px * TvUi.u : 12px * TvUi.u;
+
+            for tab[i] in ShowPageState.seasons: Tile {
+                property <bool> is-selected: tab.rating-key == ShowPageState.selected-season;
+                property <bool> is-focused: TvUi.focused-tile == 3 + i;
+                base-width: root.season-count <= 6 ? 170px * TvUi.u : (root.season-count <= 14 ? 116px * TvUi.u : 84px * TvUi.u);
+                base-height: 48px * TvUi.u;
+                focused: is-focused;
+                fill: root.season-count <= 6 ? transparent : (is-selected ? ShowPageState.tint.card : Theme.surface);
+                activated => {
+                    TvUi.focused-tile = 3 + i;
+                    ShowPageState.select-season(tab.rating-key);
+                }
+
+                Text {
+                    width: parent.width;
+                    height: parent.height - 6px * TvUi.u;
+                    text: root.season-count <= 6 ? tab.title : (tab.index == 0 ? "Sp" : "S" + tab.index);
+                    font-size: root.season-count <= 6 ? 26px * TvUi.u : 20px * TvUi.u;
+                    font-weight: is-selected ? 600 : 400;
+                    color: is-selected ? Theme.text-primary : Theme.text-muted;
+                    horizontal-alignment: root.season-count <= 6 ? left : center;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                if root.season-count <= 6 && is-selected: Rectangle {
+                    x: 0px;
+                    y: parent.height - 3px * TvUi.u;
+                    width: parent.width * 0.72;
+                    height: 3px * TvUi.u;
+                    background: ShowPageState.tint.accent;
+                }
+            }
+        }
+
+        // Right-side summary: 10 episodes · 7 h 52 m
+        Text {
+            x: 1400px * TvUi.u;
+            y: 622px * TvUi.u;
+            width: 424px * TvUi.u;
+            text: ShowPageState.season-summary-line;
+            font-size: 22px * TvUi.u;
+            color: Theme.text-muted;
+            horizontal-alignment: right;
+        }
+    }
+
+    // Season column (x = 96, width = 260; sticks at y = 244 when scrolled)
+    Rectangle {
+        x: 96px * TvUi.u;
+        y: root.season-col-y;
+        width: 260px * TvUi.u;
+        height: 820px * TvUi.u;
+        background: transparent;
+
+        // Season poster: 260 x 390, radius 6, shadow 0 16 40 #0008
         Rectangle {
             x: 0px;
-            y: -TvUi.show-scroll * TvUi.u;
-            width: parent.width;
-            height: (Math.ceil(ShowPageState.episodes.length / 3) * 252px + 40px) * TvUi.u;
-            background: transparent;
-            animate y { duration: 180ms; easing: ease-out; }
+            y: 0px;
+            width: 260px * TvUi.u;
+            height: 390px * TvUi.u;
+            border-radius: 6px * TvUi.u;
+            background: ShowPageState.tint.poster;
+            drop-shadow-blur: 40px * TvUi.u;
+            drop-shadow-offset-y: 16px * TvUi.u;
+            drop-shadow-color: #00000088;
+            clip: true;
 
-            for ep[i] in ShowPageState.episodes: MediaTile {
-                x: Math.mod(i, 3) * 388px * TvUi.u;
-                y: (8px + Math.floor(i / 3) * 252px) * TvUi.u;
-                base-width: 372px * TvUi.u;
-                base-height: 236px * TvUi.u;
-                art: ep.thumb;
-                has-art: ep.has-thumb;
-                title: ep.num + " · " + ep.title;
-                subtitle: ep.meta;
-                progress: ep.progress;
-                focused: !TvUi.bar-focused && TvUi.focused-tile == 3 + i;
-                activated => { TvUi.tile-activated(3 + i); }
-                hovered => { TvUi.tile-hovered(3 + i); }
+            if ShowPageState.season.has-poster: Image {
+                width: parent.width;
+                height: parent.height;
+                source: ShowPageState.season.poster;
+                image-fit: cover;
+            }
+
+            if !ShowPageState.season.has-poster: Text {
+                text: ShowPageState.season.name;
+                font-size: 28px * TvUi.u;
+                font-weight: 500;
+                color: ShowPageState.tint.sec;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                width: parent.width - 24px * TvUi.u;
+                x: 12px * TvUi.u;
+                height: parent.height;
+                wrap: word-wrap;
+            }
+
+            // Fallback label over bottom scrim when season thumb == show thumb or missing
+            if ShowPageState.season.poster-is-fallback: Rectangle {
+                x: 0px;
+                y: parent.height - 96px * TvUi.u;
+                width: parent.width;
+                height: 96px * TvUi.u;
+                background: @linear-gradient(180deg, transparent 0%, #0B0D10E0 100%);
+
+                Text {
+                    x: 16px * TvUi.u;
+                    y: 44px * TvUi.u;
+                    width: parent.width - 32px * TvUi.u;
+                    text: ShowPageState.season.fallback-label;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 700;
+                    letter-spacing: 1.5px * TvUi.u;
+                    color: Theme.on-scrim;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        // Unscrolled: Season metadata
+        if !ShowPageState.scrolled: VerticalLayout {
+            x: 0px;
+            y: 410px * TvUi.u;
+            width: 260px * TvUi.u;
+            height: self.preferred-height;
+            alignment: start;
+            spacing: 10px * TvUi.u;
+
+            Text {
+                text: ShowPageState.season.name;
+                font-size: 28px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+            }
+
+            if ShowPageState.season.meta != "": Text {
+                text: ShowPageState.season.meta;
+                font-size: 18px * TvUi.u;
+                color: ShowPageState.tint.sec;
+                wrap: word-wrap;
+            }
+
+            HorizontalLayout {
+                spacing: 12px * TvUi.u;
+                height: 22px * TvUi.u;
+
+                Rectangle {
+                    width: 140px * TvUi.u;
+                    height: 5px * TvUi.u;
+                    y: 8px * TvUi.u;
+                    border-radius: 3px * TvUi.u;
+                    background: ShowPageState.tint.track;
+
+                    Rectangle {
+                        x: 0px;
+                        y: 0px;
+                        width: parent.width * ShowPageState.season.progress;
+                        height: parent.height;
+                        border-radius: 3px * TvUi.u;
+                        background: ShowPageState.tint.accent;
+                    }
+                }
+
+                Text {
+                    text: ShowPageState.season.progress-label;
+                    font-size: 17px * TvUi.u;
+                    color: Theme.text-muted;
+                    vertical-alignment: center;
+                }
+            }
+
+            if ShowPageState.season.summary != "": Text {
+                text: ShowPageState.season.summary;
+                font-size: 18px * TvUi.u;
+                color: Theme.text-muted;
+                wrap: word-wrap;
+                max-height: 112px * TvUi.u;
+                overflow: elide;
+            }
+        }
+
+        // Scrolled: Focused episode info under the season poster
+        if ShowPageState.scrolled: VerticalLayout {
+            x: 0px;
+            y: 410px * TvUi.u;
+            width: 260px * TvUi.u;
+            height: self.preferred-height;
+            alignment: start;
+            spacing: 8px * TvUi.u;
+
+            Text {
+                text: "Episode " + ShowPageState.focused-episode.num;
+                font-size: 18px * TvUi.u;
+                font-weight: 600;
+                color: ShowPageState.tint.accent;
+            }
+
+            Text {
+                text: ShowPageState.focused-episode.title;
+                font-size: 26px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+            }
+
+            if ShowPageState.focused-episode.meta != "": Text {
+                text: ShowPageState.focused-episode.meta;
+                font-size: 18px * TvUi.u;
+                color: ShowPageState.tint.sec;
+                wrap: word-wrap;
+            }
+
+            if ShowPageState.focused-episode.summary != "": Text {
+                text: ShowPageState.focused-episode.summary;
+                font-size: 18px * TvUi.u;
+                color: Theme.text-muted;
+                wrap: word-wrap;
+                max-height: 140px * TvUi.u;
+                overflow: elide;
+            }
+        }
+    }
+
+    // Sticky bar when scrolled (y = 132, 1728 x 76)
+    if ShowPageState.scrolled: Rectangle {
+        x: 96px * TvUi.u;
+        y: 132px * TvUi.u;
+        width: 1728px * TvUi.u;
+        height: 76px * TvUi.u;
+        border-radius: 6px * TvUi.u;
+        background: Theme.surface.with-alpha(0.95);
+        border-width: 1px;
+        border-color: Theme.border;
+
+        HorizontalLayout {
+            padding-left: 20px * TvUi.u;
+            padding-right: 16px * TvUi.u;
+            spacing: 20px * TvUi.u;
+
+            Text {
+                text: ShowPageState.title;
+                font-size: 28px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+                vertical-alignment: center;
+                max-width: 460px * TvUi.u;
+                overflow: elide;
+            }
+
+            // Divider
+            Rectangle {
+                width: 1px;
+                height: 36px * TvUi.u;
+                y: 20px * TvUi.u;
+                background: Theme.border;
+            }
+
+            // Mini season poster: 36 x 54
+            Rectangle {
+                width: 36px * TvUi.u;
+                height: 54px * TvUi.u;
+                y: 11px * TvUi.u;
+                border-radius: 4px * TvUi.u;
+                background: ShowPageState.tint.poster;
+                clip: true;
+
+                if ShowPageState.season.has-poster: Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: ShowPageState.season.poster;
+                    image-fit: cover;
+                }
+            }
+
+            // Compact season tabs: 22px
+            HorizontalLayout {
+                spacing: 18px * TvUi.u;
+                horizontal-stretch: 1;
+
+                for tab[i] in ShowPageState.seasons: TouchArea {
+                    width: root.season-count <= 6 ? 120px * TvUi.u : 64px * TvUi.u;
+                    height: 76px * TvUi.u;
+                    clicked => {
+                        TvUi.focused-tile = 3 + i;
+                        ShowPageState.scrolled = false;
+                        TvUi.show-scroll = 0;
+                        ShowPageState.select-season(tab.rating-key);
+                    }
+
+                    Text {
+                        width: parent.width;
+                        height: parent.height;
+                        text: root.season-count <= 6 ? tab.title : (tab.index == 0 ? "Sp" : "S" + tab.index);
+                        font-size: 22px * TvUi.u;
+                        font-weight: tab.rating-key == ShowPageState.selected-season ? 600 : 400;
+                        color: tab.rating-key == ShowPageState.selected-season ? Theme.text-primary : Theme.text-muted;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+            }
+
+            // Resume button right (tint, 52 tall)
+            TouchArea {
+                width: 240px * TvUi.u;
+                height: 52px * TvUi.u;
+                y: 12px * TvUi.u;
+                clicked => {
+                    if ShowPageState.up-next-key != "" {
+                        ShowPageState.play-episode(ShowPageState.up-next-key, true);
+                    }
+                }
+
+                Rectangle {
+                    width: parent.width;
+                    height: parent.height;
+                    border-radius: 6px * TvUi.u;
+                    background: ShowPageState.tint.accent;
+
+                    Text {
+                        text: ShowPageState.can-resume ? "Resume" : "Play next";
+                        font-size: 20px * TvUi.u;
+                        font-weight: 600;
+                        color: ShowPageState.tint.on-accent;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        width: parent.width;
+                        height: parent.height;
+                    }
+                }
             }
         }
     }

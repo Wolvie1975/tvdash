@@ -32,6 +32,20 @@ pub enum PlayState {
     Stopped,
 }
 
+/// Extended metadata for Library Option C (backdrop, genres, cast, counts).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MediaExtra {
+    pub art: Option<String>,
+    pub year: Option<u32>,
+    pub genres: Vec<String>,
+    pub cast: Vec<String>,
+    pub content_rating: Option<String>,
+    pub added_at: Option<i64>,
+    pub leaf_count: Option<u32>,
+    pub viewed_leaf_count: Option<u32>,
+    pub child_count: Option<u32>,
+}
+
 /// One playable (or browsable) item from a media server.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MediaItem {
@@ -51,6 +65,9 @@ pub struct MediaItem {
     /// Plot / episode description from the media server.
     #[serde(default)]
     pub summary: Option<String>,
+    /// Extended metadata (backdrop, genres, cast, rating, counts).
+    #[serde(default)]
+    pub extra: MediaExtra,
 }
 
 impl MediaItem {
@@ -288,6 +305,10 @@ pub struct SeasonInfo {
     pub leaf_count: u32,
     pub viewed_leaf_count: u32,
     pub thumb: Option<String>,
+    #[serde(default)]
+    pub summary: Option<String>,
+    #[serde(default)]
+    pub year: Option<u32>,
 }
 
 /// An episode row on a TV Show page.
@@ -302,6 +323,8 @@ pub struct EpisodeInfo {
     pub view_offset_ms: Option<u64>,
     pub view_count: u32,
     pub thumb: Option<String>,
+    #[serde(default)]
+    pub originally_available_at: Option<String>,
 }
 
 /// Full data for the Show page.

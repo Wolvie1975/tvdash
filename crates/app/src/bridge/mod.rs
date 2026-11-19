@@ -10,8 +10,11 @@
 //! - [`status`]: weather, location, Settings › Diagnostics
 
 mod accounts;
+mod ambient;
+pub use ambient::start_ambient;
 mod home;
 mod library;
+pub use library::{ensure_library_loaded, on_season_selected, start_watching};
 mod status;
 #[cfg(test)]
 mod tests;
@@ -36,8 +39,8 @@ use tvdash_core::{
 pub use accounts::sync_setup;
 pub use home::{row, set_cw_filter, up_next};
 pub use library::{
-    clear_search, close_detail, reorder_collection, select, selected, set_browse_letter, set_filter, set_media_tab,
-    start_search,
+    clear_search, close_detail, on_library_focus_changed, reorder_collection, select, selected, set_browse_letter,
+    set_filter, set_media_tab, start_search, watching_now_item,
 };
 
 use crate::{
@@ -80,6 +83,8 @@ pub struct UiState {
     tautulli_configured: bool,
     tautulli_url: String,
     collection_detail: Option<tvdash_core::models::CollectionDetail>,
+    show_detail: Option<tvdash_core::models::ShowDetail>,
+    ambient_starts: usize,
     next_ep: Option<MediaItem>,
     last_played: Option<LastPlayed>,
     /// Last weather and when it arrived; the last fetch error, if the latest fetch failed.
@@ -108,6 +113,14 @@ pub struct UiState {
     lib_watch_again: Vec<MediaItem>,
     lib_browse_all: Vec<MediaItem>,
     lib_browse: Vec<MediaItem>,
+    lib_finish_season: Vec<tvdash_core::models::FinishSeasonItem>,
+    lib_shelf1_items: Vec<MediaItem>,
+    lib_shelf2_items: Vec<MediaItem>,
+    lib_focused_key: Option<(SourceKind, String)>,
+    lib_shelves_loading: bool,
+    backdrops: HashMap<(SourceKind, String), Image>,
+    backdrop_hues: HashMap<(SourceKind, String), Hue>,
+    raw_sessions: Vec<tvdash_core::models::Session>,
     selected: Option<MediaItem>,
     // Models
     cards: Rc<VecModel<PosterCardData>>,
@@ -394,6 +407,7 @@ pub async fn forward(mut rx: UnboundedReceiver<AppEvent>, laptop: Weak<LaptopWin
         let delivered = slint::invoke_from_event_loop(move || {
             if let (Some(laptop), Some(tv)) = (laptop.upgrade(), tv.upgrade()) {
                 STATE.with_borrow_mut(|s| apply(s, &laptop, &tv, event));
+                crate::tv_nav::sync(&laptop);
             }
         });
         if delivered.is_err() {
@@ -405,6 +419,7 @@ pub async fn forward(mut rx: UnboundedReceiver<AppEvent>, laptop: Weak<LaptopWin
 #[cfg(test)]
 pub fn apply_for_test(laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent) {
     STATE.with_borrow_mut(|s| apply(s, laptop, tv, event));
+    crate::tv_nav::sync(laptop);
 }
 
 fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent) {
@@ -442,9 +457,13 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         }
         AppEvent::SearchResults { query, items } => library::on_results(s, laptop, query, items),
         AppEvent::Poster { source, item_id, image } => home::on_poster(s, laptop, source, item_id, &image),
+        AppEvent::Backdrop { source, item_id, image } => library::on_backdrop(s, laptop, source, item_id, &image),
         AppEvent::Player(status) => home::on_player(s, laptop, tv, status),
         AppEvent::Browser(site) => home::on_browser(s, laptop, tv, site),
-        AppEvent::NowPlaying(sessions) => home::on_sessions(s, sessions),
+        AppEvent::NowPlaying(sessions) => {
+            library::on_sessions(s, laptop, &sessions);
+            home::on_sessions(s, sessions);
+        }
         AppEvent::Weather(weather) => status::on_weather(s, laptop, weather),
         AppEvent::Places { query, result } => status::on_places(s, laptop, &query, result),
         AppEvent::Location { name, timezone } => status::on_location(s, laptop, name, &timezone),
@@ -599,7 +618,6 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::Toast(msg) => show_toast(s, laptop, msg, TOAST_FOR),
         AppEvent::LongToast(msg) => show_toast(s, laptop, msg, LONG_TOAST_FOR),
     }
-    crate::tv_nav::sync(laptop);
     if on_setup(laptop) {
         accounts::refresh_setup(s, laptop);
     }

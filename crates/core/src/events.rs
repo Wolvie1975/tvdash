@@ -76,6 +76,12 @@ pub enum AppEvent {
         item_id: String,
         image: RgbaImage,
     },
+    /// 16:9 backdrop (or blurred poster fallback) for Library Option C.
+    Backdrop {
+        source: SourceKind,
+        item_id: String,
+        image: RgbaImage,
+    },
     /// `None`: no location configured.
     Weather(Option<Weather>),
     /// Local playback changed; `None` means the TV is back to idle.
@@ -226,6 +232,8 @@ pub enum Command {
         refresh_libraries: bool,
     },
     ServerRefreshActivities,
+    RefreshSessions,
+    PrefetchBackdrop(MediaItem),
     ServerCancelActivity(String),
     ServerTerminate {
         session_id: String,
