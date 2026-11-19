@@ -132,6 +132,7 @@ mod tests {
                 duration_ms: Some(2_700_000),
                 resume_ms: None,
                 poster: None,
+                summary: None,
             },
             state,
             position_ms: 754_000,

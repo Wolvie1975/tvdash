@@ -61,6 +61,11 @@ fn bundled_svg(id: &str) -> Option<&'static [u8]> {
 
 /// Brand styling for a service ID or display name. Falls back to neutral surface for custom sites.
 pub fn brand_for(id_or_name: &str, display_name: &str) -> Brand {
+    brand_for_with_logo(id_or_name, display_name, None)
+}
+
+/// Brand styling with an optional downloaded TMDB logo overriding the bundled SVG fallback.
+pub fn brand_for_with_logo(id_or_name: &str, display_name: &str, tmdb_logo: Option<Image>) -> Brand {
     let id = service_id(id_or_name);
     let (fill, fill_end, ink, wordmark, sub, sub_ink): (Color, Color, Color, &str, &str, Color) =
         match id.as_str() {
@@ -76,7 +81,7 @@ pub fn brand_for(id_or_name: &str, display_name: &str) -> Brand {
             "tubi" => (rgb(0x7408FF), rgb(0x7408FF), rgb(0xFFF200), "tubi", "", rgb(0xFFF200)),
             _ => (rgb(0x1B1F26), rgb(0x1B1F26), rgb(0xE8EAED), display_name, "", rgb(0xE8EAED)),
         };
-    let logo = bundled_svg(&id).and_then(|bytes| Image::load_from_svg_data(bytes).ok());
+    let logo = tmdb_logo.or_else(|| bundled_svg(&id).and_then(|bytes| Image::load_from_svg_data(bytes).ok()));
     let has_logo = logo.is_some();
 
     Brand {

@@ -479,23 +479,73 @@ export component TvSettings inherits Rectangle {
                     }
                 }
 
-                if (a.primary != "" || a.secondary != ""): VerticalLayout {
+                if (a.primary != "" || a.secondary != ""): HorizontalLayout {
+                    spacing: 10px * TvUi.u;
                     alignment: center;
-                    Rectangle {
-                        width: act-lbl.preferred-width + 28px * TvUi.u;
-                        height: 44px * TvUi.u;
-                        border-radius: 6px;
-                        background: Theme.surface-raised;
-                        border-width: 1px;
-                        border-color: Theme.border;
 
-                        act-lbl := Text {
-                            text: a.primary != "" ? a.primary : a.secondary;
-                            font-size: 20px * TvUi.u;
-                            font-weight: 500;
-                            color: Theme.text-primary;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
+                    if a.primary != "": VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: pri-lbl.preferred-width + 24px * TvUi.u;
+                            height: 44px * TvUi.u;
+                            border-radius: 6px;
+                            background: pri-ta.has-hover ? Theme.accent : Theme.surface-raised;
+                            border-width: 1px;
+                            border-color: Theme.border;
+
+                            pri-lbl := Text {
+                                text: a.primary;
+                                font-size: 18px * TvUi.u;
+                                font-weight: 500;
+                                color: pri-ta.has-hover ? #0B0D10 : Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            pri-ta := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    if a.primary-id == "edit" {
+                                        Accounts.edit-error = "";
+                                        Accounts.editing = a.id;
+                                    } else {
+                                        Accounts.action(a.id, a.primary-id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if a.secondary != "": VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: sec-lbl.preferred-width + 24px * TvUi.u;
+                            height: 44px * TvUi.u;
+                            border-radius: 6px;
+                            background: sec-ta.has-hover ? Theme.accent : Theme.surface-raised;
+                            border-width: 1px;
+                            border-color: Theme.border;
+
+                            sec-lbl := Text {
+                                text: a.secondary;
+                                font-size: 18px * TvUi.u;
+                                font-weight: 500;
+                                color: sec-ta.has-hover ? #0B0D10 : Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            sec-ta := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    if a.secondary-id == "edit" {
+                                        Accounts.edit-error = "";
+                                        Accounts.editing = a.id;
+                                    } else {
+                                        Accounts.action(a.id, a.secondary-id);
+                                    }
+                                }
+                            }
                         }
                     }
                 }

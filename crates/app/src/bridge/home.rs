@@ -192,7 +192,7 @@ pub(super) fn refresh_tiles(s: &UiState, laptop: &LaptopWindow) {
             let recent_entry = s.recent.iter().find(|r| r.id == *id);
             crate::TvServiceTile {
                 index: *i as i32,
-                brand: crate::brand::brand_for(id, &site.name),
+                brand: crate::brand::brand_for_with_logo(id, &site.name, s.logos.get(&site.name).cloned()),
                 is_recent: recent_entry.is_some(),
                 ago_text: recent_entry.map(|r| crate::recent::ago(r.at, now)).unwrap_or_default().into(),
             }
@@ -238,7 +238,7 @@ pub(super) fn refresh_last_played(s: &UiState, laptop: &LaptopWindow) {
         Some(super::LastPlayed::Site(idx)) => {
             if let Some(site) = s.sites.get(idx) {
                 let id = crate::brand::service_id(&site.name);
-                let brand = crate::brand::brand_for(&id, &site.name);
+                let brand = crate::brand::brand_for_with_logo(&id, &site.name, s.logos.get(&site.name).cloned());
                 tv.set_last_played_kind("site".into());
                 tv.set_last_played_title(site.name.as_str().into());
                 tv.set_last_played_subtitle("Click or press OK to launch".into());
@@ -315,6 +315,7 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
             source: st.item.source.label().into(),
             title: st.item.title.as_str().into(),
             subtitle: format::item_detail(&st.item).into(),
+            summary: st.item.summary.as_deref().unwrap_or_default().into(),
             at_text: at.into(),
             left_text: left.into(),
             progress: format::fraction(st),
@@ -347,6 +348,7 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
             note: "Nothing on the TV. Pick up where you left off:".into(),
             title: item.title.as_str().into(),
             subtitle: format::item_detail(item).into(),
+            summary: item.summary.as_deref().unwrap_or_default().into(),
             at_text: item.resume_ms.map(|p| format!("Stopped at {}", format::duration(p))).unwrap_or_default().into(),
             left_text: format::time_left(item).unwrap_or_default().into(),
             progress: item.progress().unwrap_or(0.0),

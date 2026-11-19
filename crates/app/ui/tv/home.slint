@@ -59,11 +59,11 @@ export component TvHome inherits Rectangle {
 
             Text {
                 text: Dash.tv.source != "" ? Dash.tv.source + " · " + Dash.tv.label : Dash.tv.label;
-                font-size: 16px * TvUi.u;
+                font-size: 14px * TvUi.u;
                 font-weight: 600;
-                letter-spacing: 0.8px;
+                letter-spacing: 0.4px;
                 color: Dash.tint.accent;
-                overflow: elide;
+                wrap: word-wrap;
             }
 
             if Dash.tv.subtitle != "": Text {
@@ -90,10 +90,11 @@ export component TvHome inherits Rectangle {
 
             if Dash.tv.summary != "": Text {
                 text: Dash.tv.summary;
-                font-size: 15px * TvUi.u;
+                font-size: 14px * TvUi.u;
                 color: Theme.text-secondary;
                 wrap: word-wrap;
                 overflow: elide;
+                vertical-stretch: 1;
             }
         }
     }

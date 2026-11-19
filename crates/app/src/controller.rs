@@ -408,6 +408,7 @@ impl Controller {
                         duration_ms: None,
                         resume_ms: None,
                         poster: None,
+                        summary: None,
                     });
                     let (reporter, _) = match self.source_for(item.source) {
                         Some(src) => (spawn_reporter(src, item.clone()), true),
@@ -2362,6 +2363,7 @@ async fn fetch_season_episodes(
                 duration_ms: ep.duration_ms,
                 resume_ms: ep.view_offset_ms,
                 poster: ep.thumb.clone(),
+                summary: None,
             })
             .collect();
         fetch_posters(plex, thumb_items, requested, events.clone());

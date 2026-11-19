@@ -48,6 +48,9 @@ pub struct MediaItem {
     pub resume_ms: Option<u64>,
     /// Server-relative poster path / tag; resolved by the source.
     pub poster: Option<String>,
+    /// Plot / episode description from the media server.
+    #[serde(default)]
+    pub summary: Option<String>,
 }
 
 impl MediaItem {

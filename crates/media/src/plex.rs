@@ -1216,6 +1216,7 @@ impl Metadata {
             duration_ms: self.duration,
             resume_ms: self.view_offset.filter(|&v| v > 0),
             poster,
+            summary: self.summary.filter(|s| !s.is_empty()),
         })
     }
 

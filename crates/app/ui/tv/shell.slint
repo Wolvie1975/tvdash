@@ -3,7 +3,7 @@
 import { Theme } from "../theme.slint";
 import { Icon } from "../icons.slint";
 import { Dash, TvUi } from "../state.slint";
-import { HintBar, TabBar } from "tabs.slint";
+import { TabBar } from "tabs.slint";
 import { TvHome } from "home.slint";
 import { TvCollections } from "collections.slint";
 import { TvLibrary } from "library.slint";
@@ -172,12 +172,6 @@ export component TvShell inherits Rectangle {
             }
         }
 
-        // Bottom-right HintBar
-        if TvUi.hint-text != "": HintBar {
-            x: 1920px * TvUi.u - 96px * TvUi.u - self.width;
-            y: 1080px * TvUi.u - 44px * TvUi.u - self.height;
-            text: TvUi.hint-text;
-        }
     }
 
     // ── Up Next modal when a TV episode finishes ─────────────────────────────

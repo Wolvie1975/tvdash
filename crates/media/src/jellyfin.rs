@@ -387,6 +387,7 @@ impl BaseItemDto {
             duration_ms: self.run_time_ticks.map(ticks_to_ms),
             resume_ms,
             poster,
+            summary: None,
         }
     }
 }

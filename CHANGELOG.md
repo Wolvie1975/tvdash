@@ -1,5 +1,13 @@
 # tvdash Changelog
 
+## v0.1.29 — 2026-11-18
+- Added Jellyfin `Server URL` editing button in TV Settings › Accounts.
+- Used downloaded TMDB service logos on Streaming Service tiles and fixed low-contrast fallback SVGs (Crunchyroll, Prime Video, Fandango at Home, Tubi, YouTube).
+- Populated movie and episode descriptions (`summary`) in the left Home info tile and wrapped `Plex · CURRENTLY PLAYING` cleanly.
+
+## v0.1.28 — 2026-11-18
+- Removed the bottom-right `HintBar` overlay from the TV-only shell.
+
 ## v0.1.27 — 2026-11-18
 - Reorganized the Home bottom row: moved Weather underneath the left Clock column, compacted `Last Played` beside `Settings`, and added a `Theme` quick-cycle tile under Screensaver.
 - Relabeled the Home `UP NEXT` card badge/header to `CURRENTLY PLAYING`.
