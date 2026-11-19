@@ -87,7 +87,7 @@ fn tv_card_follows_playback_browser_and_theme() {
     // Something to resume: the card offers it, tinted from its poster.
     send(&l, &t, AppEvent::ContinueWatching(SourceKind::Plex, vec![item(SourceKind::Plex, "p1", "Plex Film")]));
     let tv = dash.get_tv();
-    assert_eq!((tv.mode.as_str(), tv.label.as_str(), tv.source.as_str()), ("next", "UP NEXT", "Plex"));
+    assert_eq!((tv.mode.as_str(), tv.label.as_str(), tv.source.as_str()), ("next", "CURRENTLY PLAYING", "Plex"));
     assert_eq!((tv.at_text.as_str(), tv.left_text.as_str()), ("Stopped at 1:00:00", "1 h left"));
     let before = dash.get_tint().card;
     let red = RgbaImage { width: 2, height: 2, pixels: [200, 30, 30, 255].repeat(4) };

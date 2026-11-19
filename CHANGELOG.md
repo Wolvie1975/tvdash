@@ -1,5 +1,9 @@
 # tvdash Changelog
 
+## v0.1.27 — 2026-11-18
+- Reorganized the Home bottom row: moved Weather underneath the left Clock column, compacted `Last Played` beside `Settings`, and added a `Theme` quick-cycle tile under Screensaver.
+- Relabeled the Home `UP NEXT` card badge/header to `CURRENTLY PLAYING`.
+
 ## v0.1.26 — 2026-11-18
 - Replaced the Home Continue Watching grid with a 2×5 grid of all 10 Streaming Services (no scrolling).
 - Added a wide `Last Played` tile (tracks last movie, TV series/episode, or streaming service) and a `Settings` quick-jump tile on Home.

@@ -342,7 +342,7 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
         let (poster, hue) = poster_of(item);
         let card = TvCard {
             mode: "next".into(),
-            label: "UP NEXT".into(),
+            label: "CURRENTLY PLAYING".into(),
             source: item.source.label().into(),
             note: "Nothing on the TV. Pick up where you left off:".into(),
             title: item.title.as_str().into(),

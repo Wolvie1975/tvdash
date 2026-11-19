@@ -1,7 +1,7 @@
-import { Theme } from "../theme.slint";
+import { Theme, UiTheme } from "../theme.slint";
 import { Icon } from "../icons.slint";
 import { Dash, TvUi } from "../state.slint";
-import { IconTile, MediaTile, ServiceTile, Tile } from "tile.slint";
+import { IconTile, MediaTile, ServiceTile, Tile, ValueTile } from "tile.slint";
 
 export component TvHome inherits Rectangle {
     width: 1920px * TvUi.u;
@@ -175,18 +175,72 @@ export component TvHome inherits Rectangle {
         hovered => { TvUi.tile-hovered(4); }
     }
 
-    // 5: Wide Last Played tile (710 x 230) — last streaming app, movie, or TV series
+    // 5: Weather tile underneath the left Clock column (210 x 230)
     Tile {
         x: 96px * TvUi.u;
         y: 742px * TvUi.u;
-        base-width: 710px * TvUi.u;
+        base-width: 210px * TvUi.u;
+        base-height: 230px * TvUi.u;
+        fill: Dash.tint.card;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 5;
+        activated => { TvUi.tile-activated(5); }
+        hovered => { TvUi.tile-hovered(5); }
+
+        VerticalLayout {
+            padding: 16px * TvUi.u;
+            spacing: 8px * TvUi.u;
+
+            HorizontalLayout {
+                spacing: 10px * TvUi.u;
+                alignment: start;
+
+                Icon {
+                    name: Dash.weather-icon;
+                    size: 36px * TvUi.u;
+                    tint: Dash.tint.accent;
+                }
+
+                Text {
+                    text: Dash.weather-on ? Dash.weather-temp : "—";
+                    font-size: 36px * TvUi.u;
+                    font-weight: 300;
+                    color: Theme.text-primary;
+                    vertical-alignment: center;
+                }
+            }
+
+            Rectangle { vertical-stretch: 1; }
+
+            Text {
+                text: Dash.weather-on ? Dash.weather-condition : "Weather";
+                font-size: 18px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+                overflow: elide;
+            }
+
+            Text {
+                text: Dash.weather-on ? (Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail) : "Set location in Settings";
+                font-size: 15px * TvUi.u;
+                color: Dash.tint.sec;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+        }
+    }
+
+    // 6: Last Played tile (356 x 230) — last streaming app, movie, or TV series
+    Tile {
+        x: 322px * TvUi.u;
+        y: 742px * TvUi.u;
+        base-width: 356px * TvUi.u;
         base-height: 230px * TvUi.u;
         fill: TvUi.last-played-kind == "site"
             ? @linear-gradient(135deg, TvUi.last-played-brand.fill 0%, TvUi.last-played-brand.fill-end 100%)
             : Dash.tint.card;
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 5;
-        activated => { TvUi.tile-activated(5); }
-        hovered => { TvUi.tile-hovered(5); }
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 6;
+        activated => { TvUi.tile-activated(6); }
+        hovered => { TvUi.tile-hovered(6); }
 
         if TvUi.last-played-kind == "media" && TvUi.last-played-progress > 0.0: Rectangle {
             x: 0;
@@ -205,12 +259,12 @@ export component TvHome inherits Rectangle {
         }
 
         HorizontalLayout {
-            padding: 20px * TvUi.u;
-            spacing: 20px * TvUi.u;
+            padding: 16px * TvUi.u;
+            spacing: 14px * TvUi.u;
 
             if TvUi.last-played-kind == "media" && TvUi.last-played-has-poster: Rectangle {
-                width: 126px * TvUi.u;
-                height: 190px * TvUi.u;
+                width: 96px * TvUi.u;
+                height: 144px * TvUi.u;
                 border-radius: 6px;
                 clip: true;
 
@@ -223,15 +277,15 @@ export component TvHome inherits Rectangle {
             }
 
             if TvUi.last-played-kind == "site" && TvUi.last-played-brand.has-logo: Rectangle {
-                width: 190px * TvUi.u;
-                height: 190px * TvUi.u;
+                width: 104px * TvUi.u;
+                height: 104px * TvUi.u;
                 background: transparent;
 
                 Image {
-                    x: 10px * TvUi.u;
-                    y: 25px * TvUi.u;
-                    width: parent.width - 20px * TvUi.u;
-                    height: parent.height - 50px * TvUi.u;
+                    x: 4px * TvUi.u;
+                    y: 12px * TvUi.u;
+                    width: parent.width - 8px * TvUi.u;
+                    height: parent.height - 24px * TvUi.u;
                     source: TvUi.last-played-brand.logo;
                     image-fit: contain;
                 }
@@ -239,20 +293,20 @@ export component TvHome inherits Rectangle {
 
             VerticalLayout {
                 alignment: center;
-                spacing: 8px * TvUi.u;
+                spacing: 6px * TvUi.u;
                 horizontal-stretch: 1;
 
                 Text {
-                    text: TvUi.last-played-kind == "site" ? "LAST PLAYED · STREAMING" : "LAST PLAYED";
-                    font-size: 16px * TvUi.u;
+                    text: TvUi.last-played-kind == "site" ? "LAST PLAYED · APP" : "LAST PLAYED";
+                    font-size: 14px * TvUi.u;
                     font-weight: 600;
-                    letter-spacing: 1.2px;
+                    letter-spacing: 1.1px;
                     color: TvUi.last-played-kind == "site" ? TvUi.last-played-brand.sub-ink : Dash.tint.sec;
                 }
 
                 Text {
-                    text: TvUi.last-played-title != "" ? TvUi.last-played-title : "Nothing played yet";
-                    font-size: 32px * TvUi.u;
+                    text: TvUi.last-played-title != "" ? TvUi.last-played-title : "Nothing yet";
+                    font-size: 24px * TvUi.u;
                     font-weight: 500;
                     color: TvUi.last-played-kind == "site" ? TvUi.last-played-brand.ink : Theme.text-primary;
                     overflow: elide;
@@ -262,11 +316,11 @@ export component TvHome inherits Rectangle {
                     text: TvUi.last-played-subtitle != ""
                         ? TvUi.last-played-subtitle
                         : (TvUi.last-played-kind == "site"
-                            ? "Click or press OK to launch"
+                            ? "OK to launch"
                             : TvUi.last-played-kind == "media"
-                                ? "Click or press OK to resume"
-                                : "Pick a show, movie, or service to start");
-                    font-size: 20px * TvUi.u;
+                                ? "OK to resume"
+                                : "Pick something to play");
+                    font-size: 16px * TvUi.u;
                     color: TvUi.last-played-kind == "site" ? TvUi.last-played-brand.sub-ink : Theme.text-secondary;
                     overflow: elide;
                 }
@@ -274,72 +328,32 @@ export component TvHome inherits Rectangle {
         }
     }
 
-    // 6: Settings tile (228 x 230)
+    // 7: Settings tile (356 x 230)
     IconTile {
-        x: 822px * TvUi.u;
+        x: 694px * TvUi.u;
         y: 742px * TvUi.u;
-        base-width: 228px * TvUi.u;
+        base-width: 356px * TvUi.u;
         base-height: 230px * TvUi.u;
         fill: Dash.tint.poster;
         icon: "gear";
         label: "Settings";
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 6;
-        activated => { TvUi.tile-activated(6); }
-        hovered => { TvUi.tile-hovered(6); }
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
+        activated => { TvUi.tile-activated(7); }
+        hovered => { TvUi.tile-hovered(7); }
     }
 
-    // 7: Dedicated Weather tile (below Screensaver)
-    Tile {
+    // 8: Theme tile (240 x 230, below Screensaver)
+    ValueTile {
         x: 1066px * TvUi.u;
         y: 742px * TvUi.u;
         base-width: 240px * TvUi.u;
         base-height: 230px * TvUi.u;
         fill: Dash.tint.card;
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
-        activated => { TvUi.tile-activated(7); }
-        hovered => { TvUi.tile-hovered(7); }
-
-        VerticalLayout {
-            padding: 18px * TvUi.u;
-            spacing: 8px * TvUi.u;
-
-            HorizontalLayout {
-                spacing: 12px * TvUi.u;
-                alignment: start;
-
-                Icon {
-                    name: Dash.weather-icon;
-                    size: 40px * TvUi.u;
-                    tint: Dash.tint.accent;
-                }
-
-                Text {
-                    text: Dash.weather-on ? Dash.weather-temp : "—";
-                    font-size: 40px * TvUi.u;
-                    font-weight: 300;
-                    color: Theme.text-primary;
-                    vertical-alignment: center;
-                }
-            }
-
-            Rectangle { vertical-stretch: 1; }
-
-            Text {
-                text: Dash.weather-on ? Dash.weather-condition : "Weather";
-                font-size: 20px * TvUi.u;
-                font-weight: 500;
-                color: Theme.text-primary;
-                overflow: elide;
-            }
-
-            Text {
-                text: Dash.weather-on ? (Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail) : "Set location in Settings";
-                font-size: 16px * TvUi.u;
-                color: Dash.tint.sec;
-                wrap: word-wrap;
-                overflow: elide;
-            }
-        }
+        label: "Theme";
+        value: Theme.mode == UiTheme.dark ? "Dark" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
+        activated => { TvUi.tile-activated(8); }
+        hovered => { TvUi.tile-hovered(8); }
     }
 
     // ── Streaming Services 2x5 grid (all 10 visible, no scrolling) ───────────
@@ -361,8 +375,8 @@ export component TvHome inherits Rectangle {
         base-height: 146px * TvUi.u;
         brand: svc.brand;
         is-recent: svc.is-recent;
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 8 + i;
-        activated => { TvUi.tile-activated(8 + i); }
-        hovered => { TvUi.tile-hovered(8 + i); }
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 9 + i;
+        activated => { TvUi.tile-activated(9 + i); }
+        hovered => { TvUi.tile-hovered(9 + i); }
     }
 }

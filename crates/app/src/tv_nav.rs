@@ -232,17 +232,18 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
     match page {
         Page::Home => {
             // 0..=4: Clock, Hero, Search, Library, Screensaver
-            // 5: Last Played (710 x 230), 6: Settings (228 x 230), 7: Weather (240 x 230)
-            // 8..18: 2x5 Streaming Services grid (235 x 146)
+            // 5: Weather (210 x 230), 6: Last Played (356 x 230), 7: Settings (356 x 230), 8: Theme (240 x 230)
+            // 9..19: 2x5 Streaming Services grid (235 x 146)
             let mut rects = vec![
                 Rect { x: 96.0, y: 136.0, w: 210.0, h: 590.0 },   // 0: Clock + Plex info
                 Rect { x: 322.0, y: 136.0, w: 728.0, h: 590.0 },  // 1: Hero
                 Rect { x: 1066.0, y: 136.0, w: 240.0, h: 186.0 }, // 2: Search
                 Rect { x: 1066.0, y: 338.0, w: 240.0, h: 186.0 }, // 3: Library
                 Rect { x: 1066.0, y: 540.0, w: 240.0, h: 186.0 }, // 4: Screensaver
-                Rect { x: 96.0, y: 742.0, w: 710.0, h: 230.0 },   // 5: Last Played
-                Rect { x: 822.0, y: 742.0, w: 228.0, h: 230.0 },  // 6: Settings
-                Rect { x: 1066.0, y: 742.0, w: 240.0, h: 230.0 }, // 7: Weather
+                Rect { x: 96.0, y: 742.0, w: 210.0, h: 230.0 },   // 5: Weather
+                Rect { x: 322.0, y: 742.0, w: 356.0, h: 230.0 },  // 6: Last Played
+                Rect { x: 694.0, y: 742.0, w: 356.0, h: 230.0 },  // 7: Settings
+                Rect { x: 1066.0, y: 742.0, w: 240.0, h: 230.0 }, // 8: Theme
             ];
             let svcs_n = tv.get_services().row_count().min(10);
             for i in 0..svcs_n {
@@ -546,15 +547,23 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 sync(laptop);
             }
             4 => tv.set_ambient(true),
-            5 => tv.invoke_play_last_played(),
-            6 => {
+            5 => {} // Weather tile
+            6 => tv.invoke_play_last_played(),
+            7 => {
                 STATE.with_borrow_mut(|s| s.shell.switch_tab(Tab::Settings));
                 sync(laptop);
             }
-            7 => {} // Weather tile
-            i if i >= 8 => {
+            8 => {
+                let next = match laptop.global::<crate::Theme>().get_mode() {
+                    UiTheme::Dark => UiTheme::Stone,
+                    UiTheme::Stone => UiTheme::Mist,
+                    UiTheme::Mist => UiTheme::Dark,
+                };
+                dash.invoke_set_theme(next);
+            }
+            i if i >= 9 => {
                 let svcs = tv.get_services();
-                if let Some(svc) = svcs.row_data(i - 8) {
+                if let Some(svc) = svcs.row_data(i - 9) {
                     dash.invoke_open_site(svc.index);
                 }
             }
@@ -1056,10 +1065,10 @@ mod tests {
         assert!(key(&l, &SharedString::from(Key::Escape)));
         assert_eq!(tv.get_screen(), "home");
 
-        // Down from Hero lands on Last Played (tile 5), Right past Weather lands on a service tile (8..18), OK opens it
+        // Down from Hero lands on Last Played (tile 6), service tile (9..19) opens it
         assert!(key(&l, &SharedString::from(Key::DownArrow)));
-        assert_eq!(tv.get_focused_tile(), 5);
-        activate_tile(&l, 8);
+        assert_eq!(tv.get_focused_tile(), 6);
+        activate_tile(&l, 9);
         assert!(matches!(rx.recv_timeout(Duration::from_secs(2)).unwrap(), Command::OpenSite(_)));
     }
 
