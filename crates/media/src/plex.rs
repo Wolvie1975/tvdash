@@ -1046,7 +1046,9 @@ struct Metadata {
     leaf_count: Option<u32>,
     viewed_leaf_count: Option<u32>,
     view_count: Option<u32>,
+    #[serde(default, deserialize_with = "opt_u32_flex")]
     child_count: Option<u32>,
+    #[serde(default, deserialize_with = "opt_bool_flex")]
     smart: Option<bool>,
     #[serde(rename = "Media")]
     media: Vec<Media>,
@@ -1090,6 +1092,48 @@ fn to_episode(m: Metadata) -> EpisodeInfo {
         view_count: m.view_count.unwrap_or(0),
         thumb: m.thumb,
     }
+}
+
+fn opt_u32_flex<'de, D>(deserializer: D) -> std::result::Result<Option<u32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Flex {
+        Num(u64),
+        Str(String),
+    }
+    Option::<Flex>::deserialize(deserializer).map(|opt| {
+        opt.and_then(|v| match v {
+            Flex::Num(n) => u32::try_from(n).ok(),
+            Flex::Str(s) => s.trim().parse::<u32>().ok(),
+        })
+    })
+}
+
+fn opt_bool_flex<'de, D>(deserializer: D) -> std::result::Result<Option<bool>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Flex {
+        Bool(bool),
+        Num(i64),
+        Str(String),
+    }
+    Option::<Flex>::deserialize(deserializer).map(|opt| {
+        opt.and_then(|v| match v {
+            Flex::Bool(b) => Some(b),
+            Flex::Num(n) => Some(n != 0),
+            Flex::Str(s) => match s.trim().to_ascii_lowercase().as_str() {
+                "1" | "true" | "yes" => Some(true),
+                "0" | "false" | "no" => Some(false),
+                _ => None,
+            },
+        })
+    })
 }
 
 fn string_from_number<'de, D>(deserializer: D) -> std::result::Result<Option<String>, D::Error>

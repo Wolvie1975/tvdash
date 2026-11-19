@@ -1,5 +1,8 @@
 # tvdash Changelog
 
+## v0.1.25 — 2026-11-18
+- Fixed Plex Movie Collections deserialization (`smart` / `childCount` flexible parsing), aggregated collections across all movie library sections, logged fetch errors, and bumped the shelves cache key.
+
 ## v0.1.24 — 2026-11-18
 - Replaced minimized in-tile video on Home with the static poster + play button overlay (pausing playback on Home and skipping minimized FBO renders).
 - Added the Up Next modal popup (`Play Next` / `Back to Dashboard`) when a TV episode finishes in TV-only mode.

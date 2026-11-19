@@ -852,7 +852,7 @@ impl Controller {
         let days = if popular_days == 7 { 7 } else { 30 };
 
         tokio::spawn(async move {
-            let shelves_key = format!("plex:shelves:{is_tv}:{}:{days}", sort.plex_sort());
+            let shelves_key = format!("plex:shelves:v2:{is_tv}:{}:{days}", sort.plex_sort());
             if let Some(cached_shelves) =
                 cache.as_ref().and_then(|c| c.get::<tvdash_core::models::LibraryShelves>(&shelves_key, Duration::from_secs(1800)))
             {
@@ -867,6 +867,7 @@ impl Controller {
             let mut shelves = tvdash_core::models::LibraryShelves { is_tv, ..Default::default() };
             let target_type = if is_tv { "show" } else { "movie" };
             let sections = plex.sections().await.unwrap_or_default();
+            let movie_sections: Vec<_> = sections.iter().filter(|s| s.kind == "movie").cloned().collect();
             let section = sections.into_iter().find(|s| s.kind == target_type);
 
             if let Some(sec) = section {
@@ -883,7 +884,12 @@ impl Controller {
                 if is_tv {
                     shelves.genres = plex.section_genres(&sec.key).await.unwrap_or_default();
                 } else {
-                    shelves.collections = plex.collections(&sec.key).await.unwrap_or_default();
+                    for m_sec in &movie_sections {
+                        match plex.collections(&m_sec.key).await {
+                            Ok(cols) => shelves.collections.extend(cols),
+                            Err(e) => warn!(section = %m_sec.key, error = %e, "collections fetch failed"),
+                        }
+                    }
                 }
                 shelves.added_this_week = plex.added_since(&sec.key, since_epoch, sort, 6).await.unwrap_or_default();
                 shelves.watch_again = plex.watch_again(&sec.key, is_tv, sort, 6).await.unwrap_or_default();
