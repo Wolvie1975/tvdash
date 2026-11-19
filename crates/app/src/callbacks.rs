@@ -38,8 +38,13 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
 fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     let dash = laptop.global::<Dash>();
 
-    let s = send.clone();
-    dash.on_open_site(move |i| s(Command::OpenSite(i as usize)));
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    dash.on_open_site(move |i| {
+        if let Some(l) = weak.upgrade() {
+            bridge::set_last_played_site(&l, i as usize);
+        }
+        s(Command::OpenSite(i as usize));
+    });
 
     let s = send.clone();
     dash.on_play_item(move |i| match bridge::row(i as usize) {
@@ -122,6 +127,13 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     laptop.global::<crate::TvUi>().on_overlay(move || s(Command::Overlay));
     let s = send.clone();
     laptop.global::<crate::TvUi>().on_clear_recent(move || s(Command::ClearRecentServices));
+
+    let s = send.clone();
+    laptop.global::<crate::TvUi>().on_play_last_played(move || match bridge::last_played() {
+        Some(bridge::LastPlayed::Media(item)) => s(Command::Play(item)),
+        Some(bridge::LastPlayed::Site(idx)) => s(Command::OpenSite(idx)),
+        None => {}
+    });
 
     let (weak, s) = (laptop.as_weak(), send.clone());
     dash.on_transport(move |action| {

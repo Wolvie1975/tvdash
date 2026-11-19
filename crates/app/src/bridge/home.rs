@@ -110,6 +110,9 @@ pub(super) fn on_poster(
             }
         }
     }
+    if s.last_played.as_ref().is_some_and(|lp| matches!(lp, super::LastPlayed::Media(item) if item.source == source && item.id == key.1)) {
+        refresh_last_played(s, laptop);
+    }
     if s.selected.as_ref().is_some_and(|i| i.source == source && i.id == key.1) {
         let lib = laptop.global::<Library>();
         let mut d = lib.get_detail();
@@ -206,6 +209,52 @@ pub(super) fn refresh_tiles(s: &UiState, laptop: &LaptopWindow) {
     let tv_ui = laptop.global::<crate::TvUi>();
     tv_ui.set_services(ModelRc::new(VecModel::from(tv_services)));
     tv_ui.set_home_services(ModelRc::new(VecModel::from(home_services)));
+    refresh_last_played(s, laptop);
+}
+
+pub(super) fn refresh_last_played(s: &UiState, laptop: &LaptopWindow) {
+    let tv = laptop.global::<crate::TvUi>();
+    let target = s.last_played.clone().or_else(|| {
+        s.rows.first().cloned().map(super::LastPlayed::Media).or_else(|| {
+            s.recent.first().and_then(|r| {
+                s.sites
+                    .iter()
+                    .position(|site| !site.hidden && crate::brand::service_id(&site.name) == r.id)
+                    .map(super::LastPlayed::Site)
+            })
+        })
+    });
+    match target {
+        Some(super::LastPlayed::Media(item)) => {
+            let key = (item.source, item.id.clone());
+            let poster = s.posters.get(&key);
+            tv.set_last_played_kind("media".into());
+            tv.set_last_played_title(item.title.as_str().into());
+            tv.set_last_played_subtitle(crate::format::item_detail(&item).into());
+            tv.set_last_played_has_poster(poster.is_some());
+            tv.set_last_played_poster(poster.cloned().unwrap_or_default());
+            tv.set_last_played_progress(item.progress().unwrap_or(0.0));
+        }
+        Some(super::LastPlayed::Site(idx)) => {
+            if let Some(site) = s.sites.get(idx) {
+                let id = crate::brand::service_id(&site.name);
+                let brand = crate::brand::brand_for(&id, &site.name);
+                tv.set_last_played_kind("site".into());
+                tv.set_last_played_title(site.name.as_str().into());
+                tv.set_last_played_subtitle("Click or press OK to launch".into());
+                tv.set_last_played_has_poster(false);
+                tv.set_last_played_progress(0.0);
+                tv.set_last_played_brand(brand);
+            }
+        }
+        None => {
+            tv.set_last_played_kind("".into());
+            tv.set_last_played_title("".into());
+            tv.set_last_played_subtitle("".into());
+            tv.set_last_played_has_poster(false);
+            tv.set_last_played_progress(0.0);
+        }
+    }
 }
 
 // ── On the TV ───────────────────────────────────────────────────────
@@ -216,11 +265,13 @@ pub(super) fn on_player(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, s
             if s.player.as_ref().is_none_or(|p| p.item.id != st.item.id) {
                 tv.set_message(format!("Starting {}…", st.item.title).into());
             }
+            s.last_played = Some(super::LastPlayed::Media(st.item.clone()));
         }
         None => tv.set_message("".into()),
     }
     s.player = status;
     refresh_tv_card(s, laptop);
+    refresh_last_played(s, laptop);
 }
 
 pub(super) fn on_browser(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, site: Option<String>) {

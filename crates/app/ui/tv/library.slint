@@ -16,15 +16,13 @@ export component TvLibrary inherits Rectangle {
     property <int> cw-n: min(Library.continue-watching.length, 4);
     property <int> rec-n: min(Library.recently-added.length, 8);
     property <int> fin-n: Library.media-tab == "tv" ? min(Library.finish-season.length, 4) : 0;
-    property <int> col-n: Library.media-tab == "movies" ? min(Library.collections.length, 6) : 0;
     property <int> pop-n: min(Library.popular.length, 8);
     property <int> wag-n: min(Library.watch-again.length, 8);
 
     // Vertical shelf offsets (design px, multiplied by TvUi.u at use)
     property <float> rec-y: cw-n > 0 ? 304.0 : 0.0;
     property <float> fin-y: rec-y + (rec-n > 0 ? 324.0 : 0.0);
-    property <float> col-y: fin-y + (fin-n > 0 ? 196.0 : 0.0);
-    property <float> pop-y: col-y + (col-n > 0 ? 314.0 : 0.0);
+    property <float> pop-y: fin-y + (fin-n > 0 ? 196.0 : 0.0);
     property <float> wag-y: pop-y + (pop-n > 0 ? 324.0 : 0.0);
 
     SubTabs {
@@ -272,30 +270,6 @@ export component TvLibrary inherits Rectangle {
                 }
             }
 
-            // Collections (Movies only, up to 6 tiles)
-            if root.col-n > 0: Text {
-                x: 96px * TvUi.u;
-                y: root.col-y * 1px * TvUi.u;
-                text: "COLLECTIONS";
-                font-size: 20px * TvUi.u;
-                font-weight: 500;
-                letter-spacing: 1.2px;
-                color: Theme.text-secondary;
-            }
-            for col[i] in Library.collections: MediaTile {
-                visible: Library.media-tab == "movies" && i < 6;
-                x: (96px + i * 290px) * TvUi.u;
-                y: (root.col-y + 36.0) * 1px * TvUi.u;
-                base-width: 272px * TvUi.u;
-                base-height: 250px * TvUi.u;
-                title: col.title;
-                subtitle: col.detail;
-                progress: col.progress;
-                focused: !TvUi.bar-focused && TvUi.focused-tile == 3 + root.cw-n + root.rec-n + root.fin-n + i;
-                activated => { TvUi.tile-activated(3 + root.cw-n + root.rec-n + root.fin-n + i); }
-                hovered => { TvUi.tile-hovered(3 + root.cw-n + root.rec-n + root.fin-n + i); }
-            }
-
             // Popular (up to 8 poster tiles)
             if root.pop-n > 0: Text {
                 x: 96px * TvUi.u;
@@ -315,9 +289,9 @@ export component TvLibrary inherits Rectangle {
                 title: item.title;
                 subtitle: item.plays;
                 badge: "#" + item.rank;
-                focused: !TvUi.bar-focused && TvUi.focused-tile == 3 + root.cw-n + root.rec-n + root.fin-n + root.col-n + i;
-                activated => { TvUi.tile-activated(3 + root.cw-n + root.rec-n + root.fin-n + root.col-n + i); }
-                hovered => { TvUi.tile-hovered(3 + root.cw-n + root.rec-n + root.fin-n + root.col-n + i); }
+                focused: !TvUi.bar-focused && TvUi.focused-tile == 3 + root.cw-n + root.rec-n + root.fin-n + i;
+                activated => { TvUi.tile-activated(3 + root.cw-n + root.rec-n + root.fin-n + i); }
+                hovered => { TvUi.tile-hovered(3 + root.cw-n + root.rec-n + root.fin-n + i); }
             }
 
             // Watch again (up to 8 poster tiles)
@@ -340,9 +314,9 @@ export component TvLibrary inherits Rectangle {
                 has-art: item.has-poster;
                 title: item.title;
                 subtitle: item.subtitle;
-                focused: !TvUi.bar-focused && TvUi.focused-tile == 3 + root.cw-n + root.rec-n + root.fin-n + root.col-n + root.pop-n + i;
-                activated => { TvUi.tile-activated(3 + root.cw-n + root.rec-n + root.fin-n + root.col-n + root.pop-n + i); }
-                hovered => { TvUi.tile-hovered(3 + root.cw-n + root.rec-n + root.fin-n + root.col-n + root.pop-n + i); }
+                focused: !TvUi.bar-focused && TvUi.focused-tile == 3 + root.cw-n + root.rec-n + root.fin-n + root.pop-n + i;
+                activated => { TvUi.tile-activated(3 + root.cw-n + root.rec-n + root.fin-n + root.pop-n + i); }
+                hovered => { TvUi.tile-hovered(3 + root.cw-n + root.rec-n + root.fin-n + root.pop-n + i); }
             }
         }
     }

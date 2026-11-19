@@ -5,7 +5,7 @@ import { Icon } from "../icons.slint";
 import { Dash, TvUi } from "../state.slint";
 import { HintBar, TabBar } from "tabs.slint";
 import { TvHome } from "home.slint";
-import { TvServices } from "services.slint";
+import { TvCollections } from "collections.slint";
 import { TvLibrary } from "library.slint";
 import { TvShow } from "show.slint";
 import { TvCollection } from "collection.slint";
@@ -145,7 +145,7 @@ export component TvShell inherits Rectangle {
 
         // Pages
         if TvUi.screen == "home": TvHome { }
-        if TvUi.screen == "services": TvServices { }
+        if TvUi.screen == "collections": TvCollections { }
         if TvUi.screen == "library": TvLibrary { }
         if TvUi.screen == "show": TvShow { }
         if TvUi.screen == "collection": TvCollection { }

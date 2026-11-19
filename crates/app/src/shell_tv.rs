@@ -6,7 +6,7 @@ use std::collections::HashMap;
 pub enum Tab {
     Home = 0,
     Library = 1,
-    Services = 2,
+    Collections = 2,
     Settings = 3,
 }
 
@@ -15,7 +15,7 @@ impl Tab {
         match idx {
             0 => Some(Self::Home),
             1 => Some(Self::Library),
-            2 => Some(Self::Services),
+            2 => Some(Self::Collections),
             3 => Some(Self::Settings),
             _ => None,
         }
@@ -24,8 +24,8 @@ impl Tab {
     pub fn next(self) -> Self {
         match self {
             Self::Home => Self::Library,
-            Self::Library => Self::Services,
-            Self::Services => Self::Settings,
+            Self::Library => Self::Collections,
+            Self::Collections => Self::Settings,
             Self::Settings => Self::Settings,
         }
     }
@@ -34,8 +34,8 @@ impl Tab {
         match self {
             Self::Home => Self::Home,
             Self::Library => Self::Home,
-            Self::Services => Self::Library,
-            Self::Settings => Self::Services,
+            Self::Collections => Self::Library,
+            Self::Settings => Self::Collections,
         }
     }
 
@@ -43,7 +43,7 @@ impl Tab {
         match self {
             Self::Home => Page::Home,
             Self::Library => Page::Library,
-            Self::Services => Page::Services,
+            Self::Collections => Page::Collections,
             Self::Settings => Page::Settings,
         }
     }
@@ -55,7 +55,7 @@ pub enum Page {
     Library,
     Show(String),
     Collection(String),
-    Services,
+    Collections,
     Search,
     Settings,
 }

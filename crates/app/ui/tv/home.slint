@@ -175,42 +175,129 @@ export component TvHome inherits Rectangle {
         hovered => { TvUi.tile-hovered(4); }
     }
 
-    // 5..7: 3 recent services + 8: All 10 services
-    for svc[i] in TvUi.home-services: ServiceTile {
-        x: (96px + i * 242px) * TvUi.u;
+    // 5: Wide Last Played tile (710 x 230) — last streaming app, movie, or TV series
+    Tile {
+        x: 96px * TvUi.u;
         y: 742px * TvUi.u;
-        base-width: 226px * TvUi.u;
+        base-width: 710px * TvUi.u;
         base-height: 230px * TvUi.u;
-        brand: svc.brand;
-        is-recent: svc.is-recent;
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 5 + i;
-        activated => { TvUi.tile-activated(5 + i); }
-        hovered => { TvUi.tile-hovered(5 + i); }
+        fill: TvUi.last-played-kind == "site"
+            ? @linear-gradient(135deg, TvUi.last-played-brand.fill 0%, TvUi.last-played-brand.fill-end 100%)
+            : Dash.tint.card;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 5;
+        activated => { TvUi.tile-activated(5); }
+        hovered => { TvUi.tile-hovered(5); }
+
+        if TvUi.last-played-kind == "media" && TvUi.last-played-progress > 0.0: Rectangle {
+            x: 0;
+            y: parent.height - 5px * TvUi.u;
+            width: parent.width;
+            height: 5px * TvUi.u;
+            background: #FFFFFF28;
+
+            Rectangle {
+                x: 0;
+                y: 0;
+                width: parent.width * clamp(TvUi.last-played-progress, 0.0, 1.0);
+                height: 100%;
+                background: #E8EAED;
+            }
+        }
+
+        HorizontalLayout {
+            padding: 20px * TvUi.u;
+            spacing: 20px * TvUi.u;
+
+            if TvUi.last-played-kind == "media" && TvUi.last-played-has-poster: Rectangle {
+                width: 126px * TvUi.u;
+                height: 190px * TvUi.u;
+                border-radius: 6px;
+                clip: true;
+
+                Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: TvUi.last-played-poster;
+                    image-fit: cover;
+                }
+            }
+
+            if TvUi.last-played-kind == "site" && TvUi.last-played-brand.has-logo: Rectangle {
+                width: 190px * TvUi.u;
+                height: 190px * TvUi.u;
+                background: transparent;
+
+                Image {
+                    x: 10px * TvUi.u;
+                    y: 25px * TvUi.u;
+                    width: parent.width - 20px * TvUi.u;
+                    height: parent.height - 50px * TvUi.u;
+                    source: TvUi.last-played-brand.logo;
+                    image-fit: contain;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 8px * TvUi.u;
+                horizontal-stretch: 1;
+
+                Text {
+                    text: TvUi.last-played-kind == "site" ? "LAST PLAYED · STREAMING" : "LAST PLAYED";
+                    font-size: 16px * TvUi.u;
+                    font-weight: 600;
+                    letter-spacing: 1.2px;
+                    color: TvUi.last-played-kind == "site" ? TvUi.last-played-brand.sub-ink : Dash.tint.sec;
+                }
+
+                Text {
+                    text: TvUi.last-played-title != "" ? TvUi.last-played-title : "Nothing played yet";
+                    font-size: 32px * TvUi.u;
+                    font-weight: 500;
+                    color: TvUi.last-played-kind == "site" ? TvUi.last-played-brand.ink : Theme.text-primary;
+                    overflow: elide;
+                }
+
+                Text {
+                    text: TvUi.last-played-subtitle != ""
+                        ? TvUi.last-played-subtitle
+                        : (TvUi.last-played-kind == "site"
+                            ? "Click or press OK to launch"
+                            : TvUi.last-played-kind == "media"
+                                ? "Click or press OK to resume"
+                                : "Pick a show, movie, or service to start");
+                    font-size: 20px * TvUi.u;
+                    color: TvUi.last-played-kind == "site" ? TvUi.last-played-brand.sub-ink : Theme.text-secondary;
+                    overflow: elide;
+                }
+            }
+        }
     }
 
+    // 6: Settings tile (228 x 230)
     IconTile {
         x: 822px * TvUi.u;
         y: 742px * TvUi.u;
         base-width: 228px * TvUi.u;
         base-height: 230px * TvUi.u;
         fill: Dash.tint.poster;
-        icon: "tv";
-        label: "View all services";
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
-        activated => { TvUi.tile-activated(8); }
-        hovered => { TvUi.tile-hovered(8); }
+        icon: "gear";
+        label: "Settings";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 6;
+        activated => { TvUi.tile-activated(6); }
+        hovered => { TvUi.tile-hovered(6); }
     }
 
-    // 9: Dedicated Weather tile (below Screensaver)
+    // 7: Dedicated Weather tile (below Screensaver)
     Tile {
         x: 1066px * TvUi.u;
         y: 742px * TvUi.u;
         base-width: 240px * TvUi.u;
         base-height: 230px * TvUi.u;
         fill: Dash.tint.card;
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 9;
-        activated => { TvUi.tile-activated(9); }
-        hovered => { TvUi.tile-hovered(9); }
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
+        activated => { TvUi.tile-activated(7); }
+        hovered => { TvUi.tile-hovered(7); }
 
         VerticalLayout {
             padding: 18px * TvUi.u;
@@ -255,31 +342,27 @@ export component TvHome inherits Rectangle {
         }
     }
 
-    // ── Continue watching 2x3 grid (no scrolling, all 6 items visible) ──────
+    // ── Streaming Services 2x5 grid (all 10 visible, no scrolling) ───────────
     Text {
         x: 1338px * TvUi.u;
         y: 136px * TvUi.u;
-        text: "CONTINUE WATCHING";
+        text: "STREAMING SERVICES";
         font-size: 22px * TvUi.u;
         font-weight: 500;
         letter-spacing: 1.2px;
         color: Theme.text-secondary;
     }
 
-    for item[i] in Dash.continue-watching: MediaTile {
-        visible: i < 6;
-        x: (1338px + Math.mod(i, 2) * 296px) * TvUi.u;
-        y: (176px + Math.floor(i / 2) * 270px) * TvUi.u;
-        base-width: 280px * TvUi.u;
-        base-height: 254px * TvUi.u;
-        art: item.poster;
-        has-art: item.has-poster;
-        title: item.title;
-        subtitle: item.subtitle;
-        progress: item.progress;
-        progress-top: false;
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;
-        activated => { TvUi.tile-activated(10 + i); }
-        hovered => { TvUi.tile-hovered(10 + i); }
+    for svc[i] in TvUi.services: ServiceTile {
+        visible: i < 10;
+        x: (1338px + Math.mod(i, 2) * 251px) * TvUi.u;
+        y: (176px + Math.floor(i / 2) * 162px) * TvUi.u;
+        base-width: 235px * TvUi.u;
+        base-height: 146px * TvUi.u;
+        brand: svc.brand;
+        is-recent: svc.is-recent;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 8 + i;
+        activated => { TvUi.tile-activated(8 + i); }
+        hovered => { TvUi.tile-hovered(8 + i); }
     }
 }

@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.26 — 2026-11-18
+- Replaced the Home Continue Watching grid with a 2×5 grid of all 10 Streaming Services (no scrolling).
+- Added a wide `Last Played` tile (tracks last movie, TV series/episode, or streaming service) and a `Settings` quick-jump tile on Home.
+- Replaced the `Services` top tab with `Collections` (5-column vertical grid of Movie Collections) and removed Collections from `Library › Movies`.
+
 ## v0.1.25 — 2026-11-18
 - Fixed Plex Movie Collections deserialization (`smart` / `childCount` flexible parsing), aggregated collections across all movie library sections, logged fetch errors, and bumped the shelves cache key.
 

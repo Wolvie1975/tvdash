@@ -46,7 +46,7 @@ fn page_name(page: &Page) -> &'static str {
         Page::Library => "library",
         Page::Show(_) => "show",
         Page::Collection(_) => "collection",
-        Page::Services => "services",
+        Page::Collections => "collections",
         Page::Search => "search",
         Page::Settings => "settings",
     }
@@ -55,7 +55,7 @@ fn page_name(page: &Page) -> &'static str {
 fn hint_for(page: &Page) -> &'static str {
     match page {
         Page::Home => "OK Select · Back Home · F12 Return from service",
-        Page::Services => "OK Launch service · Back Home · F12 Return",
+        Page::Collections => "OK Open collection · Back Home",
         _ => "OK Select · Back Return",
     }
 }
@@ -180,6 +180,10 @@ pub fn sync(laptop: &LaptopWindow) {
                         s.lib_scroll = 0.0;
                     }
                 }
+                Page::Collections => {
+                    let vert = Rect { x: r.y - 180.0, y: 0.0, w: r.h, h: r.w };
+                    s.lib_scroll = focus::panorama_scroll(vert, s.lib_scroll, 824.0, 16.0);
+                }
                 Page::Show(_) if s.shell.focused_tile >= 3 => {
                     let vert = Rect { x: r.y - 196.0, y: 0.0, w: r.h, h: r.w };
                     s.show_scroll = focus::panorama_scroll(vert, s.show_scroll, 808.0, 16.0);
@@ -195,7 +199,7 @@ pub fn sync(laptop: &LaptopWindow) {
             }
         }
         s.cw_scroll = 0.0;
-        if s.shell.current() != &Page::Library {
+        if !matches!(s.shell.current(), Page::Library | Page::Collections) {
             s.lib_scroll = 0.0;
         }
         if !matches!(s.shell.current(), Page::Show(_)) {
@@ -214,6 +218,12 @@ pub fn sync(laptop: &LaptopWindow) {
         tv.set_col_scroll(s.col_scroll);
         tv.set_hint_text(hint_for(s.shell.current()).into());
     });
+    if tv.get_screen() == "collections" {
+        let lib = laptop.global::<Library>();
+        if lib.get_collections().row_count() == 0 && lib.get_media_tab() != "movies" {
+            lib.invoke_set_media_tab("movies".into());
+        }
+    }
 }
 
 fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
@@ -221,50 +231,43 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
     let dash = laptop.global::<Dash>();
     match page {
         Page::Home => {
-            // Indices 0..=9 match home.slint fixed tiles; 10..16 are Continue Watching (2x3).
+            // 0..=4: Clock, Hero, Search, Library, Screensaver
+            // 5: Last Played (710 x 230), 6: Settings (228 x 230), 7: Weather (240 x 230)
+            // 8..18: 2x5 Streaming Services grid (235 x 146)
             let mut rects = vec![
                 Rect { x: 96.0, y: 136.0, w: 210.0, h: 590.0 },   // 0: Clock + Plex info
                 Rect { x: 322.0, y: 136.0, w: 728.0, h: 590.0 },  // 1: Hero
                 Rect { x: 1066.0, y: 136.0, w: 240.0, h: 186.0 }, // 2: Search
                 Rect { x: 1066.0, y: 338.0, w: 240.0, h: 186.0 }, // 3: Library
                 Rect { x: 1066.0, y: 540.0, w: 240.0, h: 186.0 }, // 4: Screensaver
+                Rect { x: 96.0, y: 742.0, w: 710.0, h: 230.0 },   // 5: Last Played
+                Rect { x: 822.0, y: 742.0, w: 228.0, h: 230.0 },  // 6: Settings
+                Rect { x: 1066.0, y: 742.0, w: 240.0, h: 230.0 }, // 7: Weather
             ];
-            let home_svcs = tv.get_home_services().row_count().min(3);
-            for i in 0..3 {
-                if i < home_svcs {
-                    rects.push(Rect { x: 96.0 + i as f32 * 242.0, y: 742.0, w: 226.0, h: 230.0 });
-                } else {
-                    rects.push(Rect { x: -9999.0, y: -9999.0, w: 0.0, h: 0.0 });
-                }
-            }
-            // 8: All services, 9: Weather
-            rects.push(Rect { x: 822.0, y: 742.0, w: 228.0, h: 230.0 });
-            rects.push(Rect { x: 1066.0, y: 742.0, w: 240.0, h: 230.0 });
-
-            let cw_count = dash.get_continue_watching().row_count().min(6);
-            for i in 0..cw_count {
+            let svcs_n = tv.get_services().row_count().min(10);
+            for i in 0..svcs_n {
                 let col = (i % 2) as f32;
                 let row = (i / 2) as f32;
                 rects.push(Rect {
-                    x: 1338.0 + col * 296.0,
-                    y: 176.0 + row * 270.0,
-                    w: 280.0,
-                    h: 254.0,
+                    x: 1338.0 + col * 251.0,
+                    y: 176.0 + row * 162.0,
+                    w: 235.0,
+                    h: 146.0,
                 });
             }
             rects
         }
-        Page::Services => {
-            let n = tv.get_services().row_count();
+        Page::Collections => {
+            let n = laptop.global::<Library>().get_collections().row_count();
             (0..n)
                 .map(|i| {
                     let col = (i % 5) as f32;
                     let row = (i / 5) as f32;
                     Rect {
                         x: 96.0 + col * 348.0,
-                        y: 180.0 + row * 376.0,
+                        y: 188.0 + row * 320.0,
                         w: 332.0,
-                        h: 360.0,
+                        h: 300.0,
                     }
                 })
                 .collect()
@@ -300,14 +303,12 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 let cw_n = lib.get_continue_watching().row_count().min(4);
                 let rec_n = lib.get_recently_added().row_count().min(8);
                 let fin_n = if is_tv { lib.get_finish_season().row_count().min(4) } else { 0 };
-                let col_n = if !is_tv { lib.get_collections().row_count().min(6) } else { 0 };
                 let pop_n = lib.get_popular().row_count().min(8);
                 let wag_n = lib.get_watch_again().row_count().min(8);
 
                 let rec_y = if cw_n > 0 { 304.0 } else { 0.0 };
                 let fin_y = rec_y + if rec_n > 0 { 324.0 } else { 0.0 };
-                let col_y = fin_y + if fin_n > 0 { 196.0 } else { 0.0 };
-                let pop_y = col_y + if col_n > 0 { 314.0 } else { 0.0 };
+                let pop_y = fin_y + if fin_n > 0 { 196.0 } else { 0.0 };
                 let wag_y = pop_y + if pop_n > 0 { 324.0 } else { 0.0 };
 
                 for i in 0..cw_n {
@@ -318,9 +319,6 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 }
                 for i in 0..fin_n {
                     rects.push(Rect { x: 96.0 + i as f32 * 432.0, y: 184.0 + fin_y + 36.0, w: 416.0, h: 132.0 });
-                }
-                for i in 0..col_n {
-                    rects.push(Rect { x: 96.0 + i as f32 * 290.0, y: 184.0 + col_y + 36.0, w: 272.0, h: 250.0 });
                 }
                 for i in 0..pop_n {
                     rects.push(Rect { x: 96.0 + i as f32 * 218.0, y: 184.0 + pop_y + 36.0, w: 198.0, h: 260.0 });
@@ -470,7 +468,7 @@ fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
                 s.cw_scroll = (s.cw_scroll + step).clamp(0.0, 2400.0);
                 tv.set_cw_scroll(s.cw_scroll);
             }
-            Page::Library => {
+            Page::Library | Page::Collections => {
                 s.lib_scroll = (s.lib_scroll + step).clamp(0.0, 4000.0);
                 tv.set_lib_scroll(s.lib_scroll);
             }
@@ -548,29 +546,26 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 sync(laptop);
             }
             4 => tv.set_ambient(true),
-            5..=7 => {
-                let svcs = tv.get_home_services();
-                if let Some(svc) = svcs.row_data(idx - 5) {
-                    dash.invoke_open_site(svc.index);
-                }
-            }
-            8 => {
-                STATE.with_borrow_mut(|s| s.shell.switch_tab(Tab::Services));
+            5 => tv.invoke_play_last_played(),
+            6 => {
+                STATE.with_borrow_mut(|s| s.shell.switch_tab(Tab::Settings));
                 sync(laptop);
             }
-            9 => {} // Weather tile
-            i if i >= 10 => {
-                let cw_idx = i - 10;
-                if cw_idx < dash.get_continue_watching().row_count() {
-                    dash.invoke_play_item(cw_idx as i32);
+            7 => {} // Weather tile
+            i if i >= 8 => {
+                let svcs = tv.get_services();
+                if let Some(svc) = svcs.row_data(i - 8) {
+                    dash.invoke_open_site(svc.index);
                 }
             }
             _ => {}
         },
-        Page::Services => {
-            let svcs = tv.get_services();
-            if let Some(svc) = svcs.row_data(idx) {
-                dash.invoke_open_site(svc.index);
+        Page::Collections => {
+            let lib = laptop.global::<Library>();
+            if let Some(col) = lib.get_collections().row_data(idx) {
+                lib.invoke_open_collection(col.rating_key);
+                STATE.with_borrow_mut(|s| s.shell.push(Page::Collection(String::new())));
+                sync(laptop);
             }
         }
         Page::Library => {
@@ -607,7 +602,6 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             let cw_n = lib.get_continue_watching().row_count().min(4);
             let rec_n = lib.get_recently_added().row_count().min(8);
             let fin_n = if is_tv { lib.get_finish_season().row_count().min(4) } else { 0 };
-            let col_n = if !is_tv { lib.get_collections().row_count().min(6) } else { 0 };
             let pop_n = lib.get_popular().row_count().min(8);
 
             if item_idx < cw_n {
@@ -620,15 +614,8 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                     STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
                     sync(laptop);
                 }
-            } else if item_idx < cw_n + rec_n + fin_n + col_n {
-                let c_idx = item_idx - cw_n - rec_n - fin_n;
-                if let Some(col) = lib.get_collections().row_data(c_idx) {
-                    lib.invoke_open_collection(col.rating_key);
-                    STATE.with_borrow_mut(|s| s.shell.push(Page::Collection(String::new())));
-                    sync(laptop);
-                }
-            } else if item_idx < cw_n + rec_n + fin_n + col_n + pop_n {
-                if let Some(item) = lib.get_popular().row_data(item_idx - cw_n - rec_n - fin_n - col_n) {
+            } else if item_idx < cw_n + rec_n + fin_n + pop_n {
+                if let Some(item) = lib.get_popular().row_data(item_idx - cw_n - rec_n - fin_n) {
                     if is_tv {
                         lib.invoke_open_show(item.rating_key);
                         STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
@@ -638,7 +625,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                     }
                 }
             } else {
-                let w_idx = item_idx - cw_n - rec_n - fin_n - col_n - pop_n;
+                let w_idx = item_idx - cw_n - rec_n - fin_n - pop_n;
                 activate_library_selection(laptop, &lib, "watch-again", w_idx);
             }
         }
@@ -1069,11 +1056,10 @@ mod tests {
         assert!(key(&l, &SharedString::from(Key::Escape)));
         assert_eq!(tv.get_screen(), "home");
 
-        // Down from Hero lands on recent service tile, OK opens it
+        // Down from Hero lands on Last Played (tile 5), Right past Weather lands on a service tile (8..18), OK opens it
         assert!(key(&l, &SharedString::from(Key::DownArrow)));
-        let svc_tile = tv.get_focused_tile();
-        assert!((5..=7).contains(&svc_tile));
-        assert!(key(&l, "\n"));
+        assert_eq!(tv.get_focused_tile(), 5);
+        activate_tile(&l, 8);
         assert!(matches!(rx.recv_timeout(Duration::from_secs(2)).unwrap(), Command::OpenSite(_)));
     }
 

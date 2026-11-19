@@ -187,16 +187,16 @@ export component ServiceTile inherits Tile {
     }
 
     if root.is-recent: Rectangle {
-        x: parent.width - self.width - 14px;
-        y: 14px;
-        width: recent-txt.preferred-width + 16px;
-        height: 26px;
+        x: parent.width - self.width - 10px * TvUi.u;
+        y: 10px * TvUi.u;
+        width: recent-txt.preferred-width + 14px * TvUi.u;
+        height: 22px * TvUi.u;
         border-radius: 4px;
         background: #0B0D10B0;
 
         recent-txt := Text {
             text: "RECENT";
-            font-size: 13px;
+            font-size: 11px * TvUi.u;
             font-weight: 600;
             letter-spacing: 1px;
             color: #E8EAED;
@@ -206,11 +206,11 @@ export component ServiceTile inherits Tile {
     }
 
     Text {
-        x: 18px;
-        y: parent.height - self.preferred-height - 14px;
-        width: parent.width - 36px;
+        x: 14px * TvUi.u;
+        y: parent.height - self.preferred-height - 10px * TvUi.u;
+        width: parent.width - 28px * TvUi.u;
         text: root.brand.name;
-        font-size: 20px;
+        font-size: 16px * TvUi.u;
         font-weight: 500;
         color: root.brand.ink;
         overflow: elide;

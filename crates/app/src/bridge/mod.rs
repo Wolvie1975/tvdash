@@ -81,6 +81,7 @@ pub struct UiState {
     tautulli_url: String,
     collection_detail: Option<tvdash_core::models::CollectionDetail>,
     next_ep: Option<MediaItem>,
+    last_played: Option<LastPlayed>,
     /// Last weather and when it arrived; the last fetch error, if the latest fetch failed.
     weather: Option<(Weather, DateTime<Utc>)>,
     weather_err: Option<String>,
@@ -187,6 +188,34 @@ pub struct UiConfig {
 }
 
 /// Call once on the UI thread before the event loop starts.
+#[derive(Clone)]
+pub enum LastPlayed {
+    Media(MediaItem),
+    Site(usize),
+}
+
+pub fn set_last_played_site(laptop: &LaptopWindow, site_index: usize) {
+    STATE.with_borrow_mut(|s| {
+        s.last_played = Some(LastPlayed::Site(site_index));
+        home::refresh_last_played(s, laptop);
+    });
+}
+
+pub fn last_played() -> Option<LastPlayed> {
+    STATE.with_borrow(|s| {
+        s.last_played.clone().or_else(|| {
+            s.rows.first().cloned().map(LastPlayed::Media).or_else(|| {
+                s.recent.first().and_then(|r| {
+                    s.sites
+                        .iter()
+                        .position(|site| !site.hidden && crate::brand::service_id(&site.name) == r.id)
+                        .map(LastPlayed::Site)
+                })
+            })
+        })
+    })
+}
+
 pub(crate) fn take_next_ep() -> Option<MediaItem> {
     STATE.with_borrow_mut(|s| s.next_ep.take())
 }
@@ -405,6 +434,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             library::rebuild(s, laptop);
             home::update_cw_state(s, laptop);
             home::refresh_tv_card(s, laptop);
+            home::refresh_last_played(s, laptop);
         }
         AppEvent::RecentlyAdded(kind, items) => {
             s.recently_added.insert(kind, items);

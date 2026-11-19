@@ -582,6 +582,13 @@ export global TvUi {
     in property <string> hint-text: "OK Select · Back Home";
     in property <[TvServiceTile]> services;
     in property <[TvServiceTile]> home-services;
+    in property <string> last-played-kind; // "" | "media" | "site"
+    in property <string> last-played-title;
+    in property <string> last-played-subtitle;
+    in property <image> last-played-poster;
+    in property <bool> last-played-has-poster;
+    in property <float> last-played-progress;
+    in property <Brand> last-played-brand;
     in-out property <string> settings-tab: "display"; // "display" | "accounts" | "server" | "changelog"
     in property <bool> rail-open;
     // What has focus: "rail" | "hero" | "prompts" | "continue" | "services" | "lib-continue"
@@ -615,6 +622,7 @@ export global TvUi {
     callback back-clicked();
     callback scroll-panorama(length);
     callback clear-recent();
+    callback play-last-played();
     // Show the playback overlay (title, progress, end time) on the video.
     callback overlay();
 }
