@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.30 — 2026-11-19
+- Cleared `TvUi.video` before deleting OpenGL textures on playback switch/resize and always opened new playback full-screen (`video_full = true`).
+- Capped eager `browse_items` poster fetching to 48 items and bounded `fetch_posters` to 4 concurrent downloads to prevent memory spikes.
+- Enabled `hwdec = auto-safe` in `libmpv` for hardware-accelerated video decoding.
+
 ## v0.1.29 — 2026-11-18
 - Added Jellyfin `Server URL` editing button in TV Settings › Accounts.
 - Used downloaded TMDB service logos on Streaming Service tiles and fixed low-contrast fallback SVGs (Crunchyroll, Prime Video, Fandango at Home, Tubi, YouTube).

@@ -82,6 +82,7 @@ impl Video {
         if self.ctx.as_ref().map(|(id, _)| *id) != current_id {
             let had = self.ctx.take().is_some(); // frees the render context (UI thread, as required)
             if had {
+                ui.set_video(slint::Image::default());
                 drop_target(gl, &mut self.target);
             }
             match current {
@@ -90,9 +91,8 @@ impl Video {
                         Ok(ctx) => {
                             info!("video drawing in the window");
                             self.ctx = Some((id, ctx));
-                            let on_home = ui.get_screen() == "home";
                             ui.set_video_on(true);
-                            ui.set_video_full(!on_home);
+                            ui.set_video_full(true);
                             crate::tv_nav::sync(laptop);
                         }
                         Err(e) => {
@@ -121,6 +121,7 @@ impl Video {
         let (w, h) = (size.width.max(1) as i32, size.height.max(1) as i32);
         let resized = self.target.as_ref().is_none_or(|t| (t.w, t.h) != (w, h));
         if resized {
+            ui.set_video(slint::Image::default());
             drop_target(gl, &mut self.target);
             // SAFETY: GL context current.
             match unsafe { create_target(gl, w, h) } {

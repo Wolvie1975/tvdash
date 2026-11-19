@@ -860,7 +860,8 @@ impl Controller {
                 let source: Arc<dyn MediaSource> = plex;
                 fetch_posters(source.clone(), cached_shelves.added_this_week.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), cached_shelves.watch_again.clone(), requested.clone(), events.clone());
-                fetch_posters(source, cached_shelves.browse_items.clone(), requested, events.clone());
+                let browse_sample: Vec<_> = cached_shelves.browse_items.iter().take(48).cloned().collect();
+                fetch_posters(source, browse_sample, requested, events.clone());
                 let _ = events.send(AppEvent::LibraryShelves(cached_shelves));
                 return;
             }
@@ -898,7 +899,8 @@ impl Controller {
                 let source: Arc<dyn MediaSource> = plex;
                 fetch_posters(source.clone(), shelves.added_this_week.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), shelves.watch_again.clone(), requested.clone(), events.clone());
-                fetch_posters(source, shelves.browse_items.clone(), requested, events.clone());
+                let browse_sample: Vec<_> = shelves.browse_items.iter().take(48).cloned().collect();
+                fetch_posters(source, browse_sample, requested, events.clone());
             }
 
             let stat_id = if is_tv { "top_tv" } else { "top_movies" };
@@ -2377,6 +2379,9 @@ fn fetch_posters(
     requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
     events: UnboundedSender<AppEvent>,
 ) {
+    static POSTER_SEM: std::sync::LazyLock<tokio::sync::Semaphore> =
+        std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(4));
+
     for item in items.into_iter().filter(|i| i.poster.is_some()) {
         let key = (item.source, item.id.clone());
         if !requested.lock().unwrap().insert(key.clone()) {
@@ -2384,6 +2389,7 @@ fn fetch_posters(
         }
         let (source, requested, events) = (source.clone(), requested.clone(), events.clone());
         tokio::spawn(async move {
+            let Ok(_permit) = POSTER_SEM.acquire().await else { return };
             let decoded = match source.poster(&item, POSTER_HEIGHT).await {
                 Ok(bytes) => tokio::task::spawn_blocking(move || decode(&bytes)).await.ok().flatten(),
                 Err(e) => {
