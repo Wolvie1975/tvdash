@@ -1,5 +1,11 @@
 # tvdash Changelog
 
+## v0.1.32 — 2026-11-19
+- Switched the Collection detail page (`TvCollection`) to a 3-column vertical-scrolling grid scaled with `TvUi.u`.
+
+## v0.1.31 — 2026-11-19
+- Added Plex metadata poster artwork to Movie Collection tiles on the Collections tab.
+
 ## v0.1.30 — 2026-11-19
 - Cleared `TvUi.video` before deleting OpenGL textures on playback switch/resize and always opened new playback full-screen (`video_full = true`).
 - Capped eager `browse_items` poster fetching to 48 items and bounded `fetch_posters` to 4 concurrent downloads to prevent memory spikes.

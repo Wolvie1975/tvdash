@@ -252,12 +252,15 @@ pub(super) fn on_shelves(s: &mut UiState, laptop: &LaptopWindow, shelves: Librar
             if c.smart {
                 detail.push_str(" · smart");
             }
+            let poster = s.posters.get(&(SourceKind::Plex, c.rating_key.clone()));
             CollectionCardData {
                 rating_key: c.rating_key.as_str().into(),
                 title: c.title.as_str().into(),
                 detail: detail.into(),
                 progress: frac,
                 smart: c.smart,
+                has_poster: poster.is_some(),
+                poster: poster.cloned().unwrap_or_default(),
             }
         })
         .collect();

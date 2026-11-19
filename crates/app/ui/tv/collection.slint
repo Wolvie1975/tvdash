@@ -3,26 +3,26 @@ import { CollectionPageState, TvUi } from "../state.slint";
 import { IconTile, MediaTile, Tile } from "tile.slint";
 
 export component TvCollection inherits Rectangle {
-    width: 1920px;
-    height: 1080px;
+    width: 1920px * TvUi.u;
+    height: 1080px * TvUi.u;
     background: transparent;
 
     // Collection hero info block
     Rectangle {
-        x: 96px;
-        y: 136px;
-        width: 520px;
-        height: 320px;
+        x: 96px * TvUi.u;
+        y: 136px * TvUi.u;
+        width: 520px * TvUi.u;
+        height: 320px * TvUi.u;
         border-radius: 6px;
         background: CollectionPageState.tint.card;
 
         VerticalLayout {
-            padding: 24px;
-            spacing: 12px;
+            padding: 24px * TvUi.u;
+            spacing: 12px * TvUi.u;
 
             Text {
                 text: CollectionPageState.title;
-                font-size: 38px;
+                font-size: 38px * TvUi.u;
                 font-weight: 500;
                 color: Theme.text-primary;
                 wrap: word-wrap;
@@ -30,14 +30,14 @@ export component TvCollection inherits Rectangle {
 
             Text {
                 text: CollectionPageState.meta + " · " + CollectionPageState.progress-text;
-                font-size: 20px;
+                font-size: 20px * TvUi.u;
                 color: CollectionPageState.tint.sec;
                 overflow: elide;
             }
 
             Text {
                 text: CollectionPageState.summary;
-                font-size: 18px;
+                font-size: 18px * TvUi.u;
                 color: Theme.text-secondary;
                 wrap: word-wrap;
                 overflow: elide;
@@ -47,23 +47,23 @@ export component TvCollection inherits Rectangle {
 
     // 0: Play next
     Tile {
-        x: 96px;
-        y: 472px;
-        base-width: 520px;
-        base-height: 140px;
+        x: 96px * TvUi.u;
+        y: 472px * TvUi.u;
+        base-width: 520px * TvUi.u;
+        base-height: 140px * TvUi.u;
         fill: CollectionPageState.tint.poster;
         focused: !TvUi.bar-focused && TvUi.focused-tile == 0;
         activated => { TvUi.tile-activated(0); }
         hovered => { TvUi.tile-hovered(0); }
 
         VerticalLayout {
-            padding: 20px;
-            spacing: 6px;
+            padding: 20px * TvUi.u;
+            spacing: 6px * TvUi.u;
             alignment: center;
 
             Text {
                 text: CollectionPageState.up-next-label;
-                font-size: 28px;
+                font-size: 28px * TvUi.u;
                 font-weight: 500;
                 color: Theme.text-primary;
             }
@@ -72,10 +72,10 @@ export component TvCollection inherits Rectangle {
 
     // 1: Shuffle
     IconTile {
-        x: 96px;
-        y: 628px;
-        base-width: 520px;
-        base-height: 140px;
+        x: 96px * TvUi.u;
+        y: 628px * TvUi.u;
+        base-width: 520px * TvUi.u;
+        base-height: 140px * TvUi.u;
         fill: CollectionPageState.tint.card;
         icon: "forward";
         label: "Shuffle";
@@ -84,35 +84,35 @@ export component TvCollection inherits Rectangle {
         hovered => { TvUi.tile-hovered(1); }
     }
 
-    // 3-row movie panorama (384 x 240)
+    // 3-column vertical-scrolling movie grid (372 x 236)
     Rectangle {
-        x: 660px;
-        y: 180px;
-        width: 1260px;
-        height: 760px;
+        x: 660px * TvUi.u;
+        y: 180px * TvUi.u;
+        width: 1180px * TvUi.u;
+        height: 824px * TvUi.u;
         clip: true;
         background: transparent;
 
         TouchArea {
             scroll-event(event) => {
-                TvUi.scroll-panorama(event.delta-x != 0px ? event.delta-x : event.delta-y);
+                TvUi.scroll-panorama(event.delta-y);
                 accept
             }
         }
 
         Rectangle {
-            x: -TvUi.col-scroll;
-            y: 0px;
-            width: 5000px;
-            height: parent.height;
+            x: 0px;
+            y: -TvUi.col-scroll * TvUi.u;
+            width: parent.width;
+            height: (Math.ceil(CollectionPageState.items.length / 3) * 252px + 40px) * TvUi.u;
             background: transparent;
-            animate x { duration: 200ms; easing: ease-out; }
+            animate y { duration: 180ms; easing: ease-out; }
 
             for item[i] in CollectionPageState.items: MediaTile {
-                x: Math.floor(i / 3) * 400px;
-                y: Math.mod(i, 3) * 256px;
-                base-width: 384px;
-                base-height: 240px;
+                x: Math.mod(i, 3) * 388px * TvUi.u;
+                y: (8px + Math.floor(i / 3) * 252px) * TvUi.u;
+                base-width: 372px * TvUi.u;
+                base-height: 236px * TvUi.u;
                 art: item.poster;
                 has-art: item.has-poster;
                 title: item.title;

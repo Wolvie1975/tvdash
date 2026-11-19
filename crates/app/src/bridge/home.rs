@@ -110,6 +110,18 @@ pub(super) fn on_poster(
             }
         }
     }
+    if source == SourceKind::Plex {
+        let cols = laptop.global::<Library>().get_collections();
+        for i in 0..cols.row_count() {
+            if let Some(mut row) = cols.row_data(i)
+                && row.rating_key.as_str() == key.1
+            {
+                row.has_poster = true;
+                row.poster = img.clone();
+                cols.set_row_data(i, row);
+            }
+        }
+    }
     if s.last_played.as_ref().is_some_and(|lp| matches!(lp, super::LastPlayed::Media(item) if item.source == source && item.id == key.1)) {
         refresh_last_played(s, laptop);
     }

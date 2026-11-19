@@ -192,8 +192,11 @@ pub fn sync(laptop: &LaptopWindow) {
                     s.show_scroll = 0.0;
                 }
                 Page::Collection(_) if s.shell.focused_tile >= 2 => {
-                    let local = Rect { x: r.x - 660.0, ..r };
-                    s.col_scroll = focus::panorama_scroll(local, s.col_scroll, 1260.0, 96.0);
+                    let vert = Rect { x: r.y - 180.0, y: 0.0, w: r.h, h: r.w };
+                    s.col_scroll = focus::panorama_scroll(vert, s.col_scroll, 824.0, 16.0);
+                }
+                Page::Collection(_) => {
+                    s.col_scroll = 0.0;
                 }
                 _ => {}
             }
@@ -357,10 +360,10 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             let n = col.get_items().row_count();
             for i in 0..n {
                 rects.push(Rect {
-                    x: 660.0 + (i / 3) as f32 * 400.0,
-                    y: 180.0 + (i % 3) as f32 * 256.0,
-                    w: 384.0,
-                    h: 240.0,
+                    x: 660.0 + (i % 3) as f32 * 388.0,
+                    y: 188.0 + (i / 3) as f32 * 252.0,
+                    w: 372.0,
+                    h: 236.0,
                 });
             }
             rects
@@ -478,7 +481,7 @@ fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
                 tv.set_show_scroll(s.show_scroll);
             }
             Page::Collection(_) => {
-                s.col_scroll = (s.col_scroll + step).clamp(0.0, 3600.0);
+                s.col_scroll = (s.col_scroll + step).clamp(0.0, 4000.0);
                 tv.set_col_scroll(s.col_scroll);
             }
             _ => {}

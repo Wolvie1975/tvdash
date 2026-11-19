@@ -860,6 +860,7 @@ impl Controller {
                 let source: Arc<dyn MediaSource> = plex;
                 fetch_posters(source.clone(), cached_shelves.added_this_week.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), cached_shelves.watch_again.clone(), requested.clone(), events.clone());
+                fetch_posters(source.clone(), collection_poster_items(&cached_shelves.collections), requested.clone(), events.clone());
                 let browse_sample: Vec<_> = cached_shelves.browse_items.iter().take(48).cloned().collect();
                 fetch_posters(source, browse_sample, requested, events.clone());
                 let _ = events.send(AppEvent::LibraryShelves(cached_shelves));
@@ -899,6 +900,7 @@ impl Controller {
                 let source: Arc<dyn MediaSource> = plex;
                 fetch_posters(source.clone(), shelves.added_this_week.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), shelves.watch_again.clone(), requested.clone(), events.clone());
+                fetch_posters(source.clone(), collection_poster_items(&shelves.collections), requested.clone(), events.clone());
                 let browse_sample: Vec<_> = shelves.browse_items.iter().take(48).cloned().collect();
                 fetch_posters(source, browse_sample, requested, events.clone());
             }
@@ -2371,6 +2373,25 @@ async fn fetch_season_episodes(
         fetch_posters(plex, thumb_items, requested, events.clone());
     }
     let _ = events.send(AppEvent::SeasonEpisodes { season_key, result });
+}
+
+fn collection_poster_items(collections: &[tvdash_core::models::CollectionInfo]) -> Vec<MediaItem> {
+    collections
+        .iter()
+        .filter(|c| c.thumb.is_some())
+        .map(|c| MediaItem {
+            source: SourceKind::Plex,
+            id: c.rating_key.clone(),
+            kind: tvdash_core::models::MediaKind::Other,
+            title: c.title.clone(),
+            subtitle: None,
+            episode_label: None,
+            duration_ms: None,
+            resume_ms: None,
+            poster: c.thumb.clone(),
+            summary: None,
+        })
+        .collect()
 }
 
 fn fetch_posters(
