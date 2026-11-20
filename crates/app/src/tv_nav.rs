@@ -9,8 +9,8 @@ use slint::{ComponentHandle, Model, SharedString, platform::Key};
 use tvdash_core::config::Layout;
 
 use crate::{
-    Accounts, CollectionPageState, Dash, Display, LaptopWindow, Library, LibraryLanding, Nav, Server,
-    ShowPageState, TvUi, UiTheme, Watch,
+    Accounts, Artwork, CollectionPageState, Dash, Display, LaptopWindow, Library, LibraryLanding, Nav, Server,
+    ShowPageState, SiteEditor, TvUi, UiTheme, Watch,
     focus::{self, Dir, Rect},
     shell_tv::{Page, ShellState, Tab},
 };
@@ -123,11 +123,9 @@ pub fn current(laptop: &LaptopWindow) -> Layout {
 pub fn set_layout(laptop: &LaptopWindow, layout: Layout) {
     let nav = laptop.global::<Nav>();
     nav.set_layout(if layout == Layout::Tv { "tv".into() } else { "dual".into() });
-    if layout == Layout::Tv {
-        let tv = laptop.global::<TvUi>();
-        tv.set_focus_ticket(tv.get_focus_ticket() + 1);
-        sync(laptop);
-    }
+    let tv = laptop.global::<TvUi>();
+    tv.set_focus_ticket(tv.get_focus_ticket() + 1);
+    sync(laptop);
 }
 
 pub fn go_home(laptop: &LaptopWindow) {
@@ -439,12 +437,14 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             rects
         }
         Page::Settings => {
-            // 0..=3: SubTabs (Display, Accounts, Server, What's new)
+            // 0..=5: SubTabs (Display, Accounts, Sites, Server, Diagnostics, What's new)
             let mut rects = vec![
                 Rect { x: 96.0, y: 122.0, w: 100.0, h: 44.0 },
                 Rect { x: 232.0, y: 122.0, w: 128.0, h: 44.0 },
-                Rect { x: 396.0, y: 122.0, w: 92.0, h: 44.0 },
-                Rect { x: 524.0, y: 122.0, w: 156.0, h: 44.0 },
+                Rect { x: 396.0, y: 122.0, w: 72.0, h: 44.0 },
+                Rect { x: 504.0, y: 122.0, w: 92.0, h: 44.0 },
+                Rect { x: 632.0, y: 122.0, w: 152.0, h: 44.0 },
+                Rect { x: 820.0, y: 122.0, w: 156.0, h: 44.0 },
             ];
             match tv.get_settings_tab().as_str() {
                 "accounts" => {
@@ -459,10 +459,22 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                         });
                     }
                 }
+                "sites" => {
+                    rects.push(Rect { x: 1604.0, y: 180.0, w: 220.0, h: 52.0 });
+                    let n = laptop.global::<Accounts>().get_sites().row_count();
+                    for i in 0..n {
+                        rects.push(Rect {
+                            x: 96.0,
+                            y: 252.0 + i as f32 * 96.0,
+                            w: 1728.0,
+                            h: 84.0,
+                        });
+                    }
+                }
                 "server" => {
                     rects.push(Rect { x: 1604.0, y: 180.0, w: 220.0, h: 52.0 });
                 }
-                "changelog" => {}
+                "diagnostics" | "changelog" => {}
                 _ => {
                     rects.extend([
                         Rect { x: 96.0, y: 184.0, w: 416.0, h: 220.0 },
@@ -518,8 +530,14 @@ fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
                 tv.set_lib_scroll(s.lib_scroll);
             }
             Page::Show(_) => {
-                s.show_scroll = (s.show_scroll + step).clamp(0.0, 4000.0);
+                let show = laptop.global::<ShowPageState>();
+                let ep_n = show.get_episodes().row_count() + usize::from(!show.get_next_season_label().is_empty());
+                let rows = ep_n.div_ceil(3);
+                let bottom = 700.0 + rows.saturating_sub(1) as f32 * 380.0 + 344.0;
+                let max_scroll = (bottom - 1056.0).max(0.0);
+                s.show_scroll = (s.show_scroll + step).clamp(0.0, max_scroll);
                 tv.set_show_scroll(s.show_scroll);
+                show.set_scrolled(s.show_scroll > 40.0);
             }
             Page::Collection(_) => {
                 s.col_scroll = (s.col_scroll + step).clamp(0.0, 4000.0);
@@ -817,11 +835,13 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             }
         }
         Page::Settings => {
-            if idx < 4 {
+            if idx < 6 {
                 let next_tab = match idx {
                     1 => "accounts",
-                    2 => "server",
-                    3 => "changelog",
+                    2 => "sites",
+                    3 => "server",
+                    4 => "diagnostics",
+                    5 => "changelog",
                     _ => "display",
                 };
                 tv.set_confirm_quit(false);
@@ -838,7 +858,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             match sub.as_str() {
                 "accounts" => {
                     let acc = laptop.global::<Accounts>();
-                    if let Some(a) = acc.get_accounts().row_data(idx - 4) {
+                    if let Some(a) = acc.get_accounts().row_data(idx - 6) {
                         let action = if !a.primary_id.is_empty() {
                             a.primary_id
                         } else {
@@ -852,15 +872,23 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                         }
                     }
                 }
+                "sites" => {
+                    let ed = laptop.global::<SiteEditor>();
+                    if idx == 6 {
+                        ed.invoke_add();
+                    } else if let Some(s) = laptop.global::<Accounts>().get_sites().row_data(idx - 7) {
+                        ed.invoke_edit(s.index);
+                    }
+                }
                 "server" => {
-                    if idx == 4 {
+                    if idx == 6 {
                         laptop.global::<Server>().invoke_scan_all();
                     }
                 }
-                "changelog" => {}
+                "diagnostics" | "changelog" => {}
                 _ => {
                     let disp = laptop.global::<Display>();
-                    let item = idx - 4;
+                    let item = idx - 6;
                     if item != 5 {
                         tv.set_confirm_quit(false);
                     }
@@ -944,7 +972,7 @@ fn minimize_to_home(laptop: &LaptopWindow) {
 }
 
 pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
-    if current(laptop) != Layout::Tv {
+    if laptop.global::<SiteEditor>().get_open() || laptop.global::<Artwork>().get_open() {
         return false;
     }
     let tv = laptop.global::<TvUi>();
@@ -1238,16 +1266,20 @@ mod tests {
         assert!(key(&l, &SharedString::from(Key::Escape)));
         assert_eq!(tv.get_screen(), "home");
 
-        // Switch to Settings via TabBar and toggle Celsius (tile 6; 0..=3 are SubTabs)
+        // Switch to Settings via TabBar and toggle Celsius (tile 8; 0..=5 are SubTabs)
         assert!(key(&l, &SharedString::from(Key::UpArrow)));
         for _ in 0..3 {
             assert!(key(&l, &SharedString::from(Key::RightArrow)));
         }
         assert_eq!(tv.get_screen(), "settings");
-        activate_tile(&l, 6);
+        activate_tile(&l, 8);
         assert!(l.global::<Display>().get_celsius());
         activate_tile(&l, 1);
         assert_eq!(tv.get_settings_tab(), "accounts");
+        activate_tile(&l, 2);
+        assert_eq!(tv.get_settings_tab(), "sites");
+        activate_tile(&l, 4);
+        assert_eq!(tv.get_settings_tab(), "diagnostics");
         activate_tile(&l, 0);
         assert_eq!(tv.get_settings_tab(), "display");
 

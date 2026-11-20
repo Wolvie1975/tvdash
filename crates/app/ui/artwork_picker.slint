@@ -1,0 +1,79 @@
+import { Theme } from "theme.slint";
+import { ActionButton, Card } from "components.slint";
+import { Artwork } from "state.slint";
+
+export component ArtworkPicker inherits Rectangle {
+    background: #000000AA;
+    VerticalLayout {
+        alignment: center;
+        Card {
+            width: parent.width - 80px;
+            height: parent.height - 80px;
+            VerticalLayout {
+                padding: 28px;
+                spacing: 16px;
+                HorizontalLayout {
+                    Text {
+                        text: Artwork.backdrop ? "Change backdrop" : "Change poster";
+                        font-size: 28px;
+                        font-weight: 600;
+                        color: Theme.text-primary;
+                        horizontal-stretch: 1;
+                    }
+                    ActionButton { text: "Close"; clicked => { Artwork.close(); } }
+                }
+                if Artwork.loading: Text { text: "Loading artwork…"; font-size: 20px; color: Theme.text-secondary; }
+                if Artwork.error != "": Text { text: Artwork.error; font-size: 20px; color: Theme.warn; wrap: word-wrap; }
+                if !Artwork.loading && Artwork.choices.length == 0 && Artwork.error == "": Text {
+                    text: "No artwork choices were returned.";
+                    font-size: 20px;
+                    color: Theme.text-secondary;
+                }
+                Flickable {
+                    vertical-stretch: 1;
+                    content-height: grid.preferred-height;
+                    grid := GridLayout {
+                        spacing: 16px;
+                        for choice[index] in Artwork.choices: Rectangle {
+                            row: index / 4;
+                            col: Math.mod(index, 4);
+                            width: 170px;
+                            height: Artwork.backdrop ? 150px : 300px;
+                            border-radius: 12px;
+                            border-width: choice.selected ? 3px : 1px;
+                            border-color: choice.selected ? Theme.accent : Theme.border;
+                            background: Theme.surface-raised;
+                            VerticalLayout {
+                                spacing: 6px;
+                                Rectangle {
+                                    height: Artwork.backdrop ? 104px : 240px;
+                                    border-radius: 8px;
+                                    clip: true;
+                                    background: Theme.surface;
+                                    if choice.has-image: Image {
+                                        width: parent.width;
+                                        height: parent.height;
+                                        source: choice.image;
+                                        image-fit: cover;
+                                    }
+                                    if choice.selected: Text {
+                                        text: "✓";
+                                        x: parent.width - 34px;
+                                        y: 6px;
+                                        font-size: 24px;
+                                        color: Theme.text-primary;
+                                    }
+                                }
+                                Text { text: choice.provider; font-size: 15px; color: Theme.text-secondary; }
+                            }
+                            TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { Artwork.set(choice.key); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

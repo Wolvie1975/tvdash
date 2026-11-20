@@ -1683,7 +1683,7 @@ impl Controller {
             fullscreen: !self.windowed,
         };
         let in_window = match &self.video {
-            Some(slot) if self.layout == Layout::Tv && !self.video_failed => match Embedded::spawn(&opts, &url) {
+            Some(slot) if !self.video_failed => match Embedded::spawn(&opts, &url) {
                 Ok(e) => {
                     slot.attach(e.handle());
                     Some(Player::InWindow(e))

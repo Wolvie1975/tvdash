@@ -1,5 +1,11 @@
 # tvdash Changelog
 
+## v0.1.39 — 2026-11-19
+- Unified the dashboard UI around `TvShell` for both one-screen (`TV only`) and two-screen (`Two screens`) modes, removing the old dual-only Slint pages.
+- Added **Sites** (`Accounts.sites` + `SiteEditorDialog`) and **Diagnostics** (`Diagnostics.rows` / `Diagnostics.paths`) tabs to `TvSettings`.
+- Enabled embedded `libmpv` playback inside `TvWindow` (`tv.slint`) for two-screen mode, and added a bottom now-playing transport bar to `TvShell` with `-10s`, `Play/Pause`, `+30s`, `Stop`, `Subtitles`, and `Audio` controls.
+- Fixed `TvShow` mouse-wheel scrolling (`TouchArea { scroll-event }` + smooth inner container, `ShowPageState.scrolled` updates, and exact episode-grid scroll clamping).
+
 ## v0.1.38 — 2026-11-19
 - Fixed a re-entrant `RefCell` panic when opening the TV `Library` page by moving `tv_nav::sync` outside `bridge::STATE.with_borrow_mut` and guarding `ensure_library_loaded` with `try_borrow_mut`.
 

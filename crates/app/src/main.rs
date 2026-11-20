@@ -273,9 +273,9 @@ fn main() -> anyhow::Result<()> {
     // Video inside the window (TV-only layout) needs libmpv; without it mpv opens its own window.
     match tvdash_player::libmpv::load() {
         Ok(version) => {
-            info!(version, "libmpv loaded: videos play inside the window in the TV-only layout");
+            info!(version, "libmpv loaded: videos play inside the window");
             let slot = tvdash_player::libmpv::VideoSlot::new();
-            video::install(&laptop, slot.clone(), cmd_tx.clone());
+            video::install(&laptop, Some(&tv), slot.clone(), cmd_tx.clone());
             controller.set_video(slot);
         }
         Err(e) => warn!(error = %e, "videos play in mpv's own window (install mpv-libs for in-window video)"),

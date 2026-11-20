@@ -1,5 +1,5 @@
 import { Theme, UiTheme } from "../theme.slint";
-import { Accounts, Dash, Display, Server, TvUi } from "../state.slint";
+import { Accounts, Dash, Diagnostics, Display, Server, SiteEditor, TvUi } from "../state.slint";
 import { SubTabs } from "tabs.slint";
 import { Tile, ValueTile } from "tile.slint";
 
@@ -54,28 +54,30 @@ export component TvSettings inherits Rectangle {
     background: transparent;
 
     property <int> tab-idx: TvUi.settings-tab == "accounts" ? 1
-        : TvUi.settings-tab == "server" ? 2
-        : TvUi.settings-tab == "changelog" ? 3 : 0;
+        : TvUi.settings-tab == "sites" ? 2
+        : TvUi.settings-tab == "server" ? 3
+        : TvUi.settings-tab == "diagnostics" ? 4
+        : TvUi.settings-tab == "changelog" ? 5 : 0;
 
     Timer {
         interval: 5s;
-        running: root.tab-idx == 2;
+        running: root.tab-idx == 3;
         triggered => { Server.refresh(); }
     }
 
     Timer {
         interval: 2s;
-        running: root.tab-idx == 2;
+        running: root.tab-idx == 3;
         triggered => { Server.refresh-activities(); }
     }
 
     SubTabs {
         x: 96px * TvUi.u;
         y: 122px * TvUi.u;
-        labels: ["Display", "Accounts", "Server", "What's new"];
+        labels: ["Display", "Accounts", "Sites", "Server", "Diagnostics", "What's new"];
         active: root.tab-idx;
-        focused: !TvUi.bar-focused && TvUi.focused-tile >= 0 && TvUi.focused-tile < 4;
-        focused-index: (!TvUi.bar-focused && TvUi.focused-tile >= 0 && TvUi.focused-tile < 4)
+        focused: !TvUi.bar-focused && TvUi.focused-tile >= 0 && TvUi.focused-tile < 6;
+        focused-index: (!TvUi.bar-focused && TvUi.focused-tile >= 0 && TvUi.focused-tile < 6)
             ? TvUi.focused-tile : -1;
         selected(i) => { TvUi.tile-activated(i); }
     }
@@ -88,7 +90,7 @@ export component TvSettings inherits Rectangle {
         height: parent.height;
         background: transparent;
 
-        // 4: Layout
+        // 6: Layout
         ValueTile {
             x: 96px * TvUi.u;
             y: 184px * TvUi.u;
@@ -97,12 +99,12 @@ export component TvSettings inherits Rectangle {
             fill: Theme.surface;
             label: "Display layout";
             value: Display.layout-setting == "tv" ? "TV only" : Display.layout-setting == "dual" ? "Two screens" : "Auto";
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 4;
-            activated => { TvUi.tile-activated(4); }
-            hovered => { TvUi.tile-hovered(4); }
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 6;
+            activated => { TvUi.tile-activated(6); }
+            hovered => { TvUi.tile-hovered(6); }
         }
 
-        // 5: Theme
+        // 7: Theme
         ValueTile {
             x: 528px * TvUi.u;
             y: 184px * TvUi.u;
@@ -111,12 +113,12 @@ export component TvSettings inherits Rectangle {
             fill: Theme.surface;
             label: "Theme";
             value: Theme.mode == UiTheme.dark ? "Dark" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 5;
-            activated => { TvUi.tile-activated(5); }
-            hovered => { TvUi.tile-hovered(5); }
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
+            activated => { TvUi.tile-activated(7); }
+            hovered => { TvUi.tile-hovered(7); }
         }
 
-        // 6: Temperature units
+        // 8: Temperature units
         ValueTile {
             x: 960px * TvUi.u;
             y: 184px * TvUi.u;
@@ -125,12 +127,12 @@ export component TvSettings inherits Rectangle {
             fill: Theme.surface;
             label: "Temperature";
             value: Display.celsius ? "Celsius (°C)" : "Fahrenheit (°F)";
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 6;
-            activated => { TvUi.tile-activated(6); }
-            hovered => { TvUi.tile-hovered(6); }
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
+            activated => { TvUi.tile-activated(8); }
+            hovered => { TvUi.tile-hovered(8); }
         }
 
-        // 7: Clock format
+        // 9: Clock format
         ValueTile {
             x: 1392px * TvUi.u;
             y: 184px * TvUi.u;
@@ -139,12 +141,12 @@ export component TvSettings inherits Rectangle {
             fill: Theme.surface;
             label: "Clock";
             value: Display.h12 ? "12-hour" : "24-hour";
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
-            activated => { TvUi.tile-activated(7); }
-            hovered => { TvUi.tile-hovered(7); }
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 9;
+            activated => { TvUi.tile-activated(9); }
+            hovered => { TvUi.tile-hovered(9); }
         }
 
-        // 8: Recent services
+        // 10: Recent services
         ValueTile {
             x: 96px * TvUi.u;
             y: 420px * TvUi.u;
@@ -153,12 +155,12 @@ export component TvSettings inherits Rectangle {
             fill: Theme.surface;
             label: "Recent services";
             value: "Clear list";
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
-            activated => { TvUi.tile-activated(8); }
-            hovered => { TvUi.tile-hovered(8); }
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 10;
+            activated => { TvUi.tile-activated(10); }
+            hovered => { TvUi.tile-hovered(10); }
         }
 
-        // 9: Quit
+        // 11: Quit
         ValueTile {
             x: 528px * TvUi.u;
             y: 420px * TvUi.u;
@@ -167,9 +169,9 @@ export component TvSettings inherits Rectangle {
             fill: TvUi.confirm-quit ? #5C1E1E : Theme.surface;
             label: "Application";
             value: TvUi.confirm-quit ? "Confirm quit?" : "Quit tvdash";
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 9;
-            activated => { TvUi.tile-activated(9); }
-            hovered => { TvUi.tile-hovered(9); }
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 11;
+            activated => { TvUi.tile-activated(11); }
+            hovered => { TvUi.tile-hovered(11); }
         }
 
         // Phone Remote QR card
@@ -343,9 +345,9 @@ export component TvSettings inherits Rectangle {
             base-width: 848px * TvUi.u;
             base-height: 54px * TvUi.u;
             fill: Theme.surface;
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;
-            activated => { TvUi.tile-activated(10 + i); }
-            hovered => { TvUi.tile-hovered(10 + i); }
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 12 + i;
+            activated => { TvUi.tile-activated(12 + i); }
+            hovered => { TvUi.tile-hovered(12 + i); }
 
             Text {
                 x: 20px * TvUi.u;
@@ -426,9 +428,9 @@ export component TvSettings inherits Rectangle {
             base-width: 856px * TvUi.u;
             base-height: 136px * TvUi.u;
             fill: Theme.surface;
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 4 + i;
-            activated => { TvUi.tile-activated(4 + i); }
-            hovered => { TvUi.tile-hovered(4 + i); }
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 6 + i;
+            activated => { TvUi.tile-activated(6 + i); }
+            hovered => { TvUi.tile-hovered(6 + i); }
 
             HorizontalLayout {
                 padding-left: 24px * TvUi.u;
@@ -641,18 +643,212 @@ export component TvSettings inherits Rectangle {
                 }
             }
         }
+    }
+
+    // ── Tab 2: Sites ─────────────────────────────────────────────────────────
+    if root.tab-idx == 2: Rectangle {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: transparent;
 
         Text {
             x: 96px * TvUi.u;
-            y: 940px * TvUi.u;
-            text: "Streaming sites and diagnostics are available on the two-screen layout.";
-            font-size: 20px * TvUi.u;
-            color: Theme.text-muted;
+            y: 188px * TvUi.u;
+            text: "STREAMING SITES";
+            font-size: 22px * TvUi.u;
+            font-weight: 500;
+            letter-spacing: 1.2px;
+            color: Theme.text-secondary;
+        }
+
+        // 6: Add site
+        Tile {
+            x: 1604px * TvUi.u;
+            y: 180px * TvUi.u;
+            base-width: 220px * TvUi.u;
+            base-height: 52px * TvUi.u;
+            fill: Theme.accent;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 6;
+            activated => { TvUi.tile-activated(6); }
+            hovered => { TvUi.tile-hovered(6); }
+
+            Text {
+                text: "+ Add site";
+                font-size: 22px * TvUi.u;
+                font-weight: 500;
+                color: #FFFFFF;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        Flickable {
+            x: 96px * TvUi.u;
+            y: 252px * TvUi.u;
+            width: 1728px * TvUi.u;
+            height: 732px * TvUi.u;
+            interactive: true;
+            content-height: sites-col.preferred-height + 24px * TvUi.u;
+
+            sites-col := VerticalLayout {
+                width: 1728px * TvUi.u;
+                spacing: 12px * TvUi.u;
+
+                for site[i] in Accounts.sites: Tile {
+                    base-width: 1728px * TvUi.u;
+                    base-height: 84px * TvUi.u;
+                    fill: Theme.surface;
+                    focused: !TvUi.bar-focused && TvUi.focused-tile == 7 + i;
+                    activated => { TvUi.tile-activated(7 + i); }
+                    hovered => { TvUi.tile-hovered(7 + i); }
+
+                    HorizontalLayout {
+                        x: 20px * TvUi.u;
+                        y: 0;
+                        width: parent.width - 40px * TvUi.u;
+                        height: parent.height;
+                        spacing: 16px * TvUi.u;
+
+                        Rectangle {
+                            width: 48px * TvUi.u;
+                            height: 48px * TvUi.u;
+                            border-radius: 8px;
+                            background: site.bg;
+                            Text {
+                                text: site.monogram;
+                                font-size: 20px * TvUi.u;
+                                font-weight: 600;
+                                color: site.fg;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 2px * TvUi.u;
+                            horizontal-stretch: 1;
+
+                            HorizontalLayout {
+                                spacing: 10px * TvUi.u;
+                                Text {
+                                    text: site.name;
+                                    font-size: 24px * TvUi.u;
+                                    font-weight: 500;
+                                    color: site.hidden ? Theme.text-muted : Theme.text-primary;
+                                    overflow: elide;
+                                }
+                                if site.hidden: Text {
+                                    text: "Hidden";
+                                    font-size: 18px * TvUi.u;
+                                    color: Theme.text-muted;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            Text {
+                                text: site.status != "" ? site.url + " · " + site.status : site.url;
+                                font-size: 18px * TvUi.u;
+                                color: Theme.text-secondary;
+                                overflow: elide;
+                            }
+                        }
+
+                        // Edit
+                        Rectangle {
+                            width: 96px * TvUi.u;
+                            height: 44px * TvUi.u;
+                            border-radius: 6px;
+                            background: edit-ta.has-hover ? Theme.surface-raised : Theme.bg;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            Text {
+                                text: "Edit";
+                                font-size: 20px * TvUi.u;
+                                color: Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            edit-ta := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { SiteEditor.edit(site.index); }
+                            }
+                        }
+
+                        // Hide / Show
+                        Rectangle {
+                            width: 112px * TvUi.u;
+                            height: 44px * TvUi.u;
+                            border-radius: 6px;
+                            background: hide-ta.has-hover ? Theme.surface-raised : Theme.bg;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            Text {
+                                text: site.hidden ? "Show" : "Hide";
+                                font-size: 20px * TvUi.u;
+                                color: Theme.text-secondary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            hide-ta := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { SiteEditor.set-hidden(site.index, !site.hidden); }
+                            }
+                        }
+
+                        // Move up
+                        Rectangle {
+                            width: 56px * TvUi.u;
+                            height: 44px * TvUi.u;
+                            border-radius: 6px;
+                            background: up-ta.has-hover && i > 0 ? Theme.surface-raised : Theme.bg;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            opacity: i > 0 ? 1.0 : 0.35;
+                            Text {
+                                text: "↑";
+                                font-size: 22px * TvUi.u;
+                                color: Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            up-ta := TouchArea {
+                                mouse-cursor: i > 0 ? pointer : default;
+                                clicked => { if i > 0 { SiteEditor.move(site.index, site.index - 1); } }
+                            }
+                        }
+
+                        // Move down
+                        Rectangle {
+                            width: 56px * TvUi.u;
+                            height: 44px * TvUi.u;
+                            border-radius: 6px;
+                            background: dn-ta.has-hover && i + 1 < Accounts.sites.length ? Theme.surface-raised : Theme.bg;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            opacity: i + 1 < Accounts.sites.length ? 1.0 : 0.35;
+                            Text {
+                                text: "↓";
+                                font-size: 22px * TvUi.u;
+                                color: Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            dn-ta := TouchArea {
+                                mouse-cursor: i + 1 < Accounts.sites.length ? pointer : default;
+                                clicked => { if i + 1 < Accounts.sites.length { SiteEditor.move(site.index, site.index + 1); } }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
-    // ── Tab 2: Server ────────────────────────────────────────────────────────
-    if root.tab-idx == 2: Rectangle {
+    // ── Tab 3: Server ────────────────────────────────────────────────────────
+    if root.tab-idx == 3: Rectangle {
         x: 0;
         y: 0;
         width: parent.width;
@@ -670,16 +866,16 @@ export component TvSettings inherits Rectangle {
             overflow: elide;
         }
 
-        // 4: Scan all tile
+        // 6: Scan all tile
         Tile {
             x: 1604px * TvUi.u;
             y: 180px * TvUi.u;
             base-width: 220px * TvUi.u;
             base-height: 52px * TvUi.u;
             fill: Theme.surface;
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 4;
-            activated => { TvUi.tile-activated(4); }
-            hovered => { TvUi.tile-hovered(4); }
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 6;
+            activated => { TvUi.tile-activated(6); }
+            hovered => { TvUi.tile-hovered(6); }
 
             Text {
                 text: "Scan all";
@@ -825,8 +1021,112 @@ export component TvSettings inherits Rectangle {
         }
     }
 
-    // ── Tab 3: What's new ────────────────────────────────────────────────────
-    if root.tab-idx == 3: Flickable {
+    // ── Tab 4: Diagnostics ───────────────────────────────────────────────────
+    if root.tab-idx == 4: Flickable {
+        x: 96px * TvUi.u;
+        y: 184px * TvUi.u;
+        width: 1728px * TvUi.u;
+        height: 800px * TvUi.u;
+        interactive: true;
+        content-height: diag-col.preferred-height + 24px * TvUi.u;
+
+        diag-col := VerticalLayout {
+            width: 1728px * TvUi.u;
+            spacing: 20px * TvUi.u;
+
+            Rectangle {
+                border-radius: 6px;
+                background: Theme.surface;
+                height: svc-col.preferred-height + 40px * TvUi.u;
+
+                svc-col := VerticalLayout {
+                    x: 24px * TvUi.u;
+                    y: 20px * TvUi.u;
+                    width: parent.width - 48px * TvUi.u;
+                    spacing: 16px * TvUi.u;
+
+                    Text {
+                        text: "SERVICES";
+                        font-size: 20px * TvUi.u;
+                        font-weight: 500;
+                        letter-spacing: 1.2px;
+                        color: Theme.text-secondary;
+                    }
+
+                    for row[i] in Diagnostics.rows: VerticalLayout {
+                        spacing: 16px * TvUi.u;
+                        if i > 0: Rectangle { height: 1px; background: Theme.border; }
+                        HorizontalLayout {
+                            spacing: 16px * TvUi.u;
+                            Rectangle {
+                                width: 14px * TvUi.u;
+                                height: 14px * TvUi.u;
+                                border-radius: 7px * TvUi.u;
+                                background: row.state == "ok" ? Theme.ok : row.state == "warn" ? Theme.warn : Theme.text-muted;
+                            }
+                            VerticalLayout {
+                                spacing: 4px * TvUi.u;
+                                horizontal-stretch: 1;
+                                HorizontalLayout {
+                                    spacing: 12px * TvUi.u;
+                                    Text {
+                                        text: row.name;
+                                        font-size: 22px * TvUi.u;
+                                        font-weight: 500;
+                                        color: Theme.text-primary;
+                                    }
+                                    if row.last-ok != "": Text {
+                                        text: row.last-ok;
+                                        font-size: 20px * TvUi.u;
+                                        color: Theme.text-secondary;
+                                        horizontal-stretch: 1;
+                                        overflow: elide;
+                                    }
+                                }
+                                if row.last-error != "": Text {
+                                    text: row.last-error;
+                                    font-size: 18px * TvUi.u;
+                                    color: Theme.warn;
+                                    wrap: word-wrap;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                border-radius: 6px;
+                background: Theme.surface;
+                height: files-col.preferred-height + 40px * TvUi.u;
+
+                files-col := VerticalLayout {
+                    x: 24px * TvUi.u;
+                    y: 20px * TvUi.u;
+                    width: parent.width - 48px * TvUi.u;
+                    spacing: 12px * TvUi.u;
+
+                    Text {
+                        text: "FILES";
+                        font-size: 20px * TvUi.u;
+                        font-weight: 500;
+                        letter-spacing: 1.2px;
+                        color: Theme.text-secondary;
+                    }
+
+                    for line in Diagnostics.paths: Text {
+                        text: line;
+                        font-size: 19px * TvUi.u;
+                        color: Theme.text-secondary;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Tab 5: What's new ────────────────────────────────────────────────────
+    if root.tab-idx == 5: Flickable {
         x: 96px * TvUi.u;
         y: 184px * TvUi.u;
         width: 1728px * TvUi.u;

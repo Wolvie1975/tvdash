@@ -16,6 +16,8 @@ export component TvWindow inherits Window {
     in property <string> date-text;
     // Replaces "Ready…" while something is starting ("Opening Netflix…").
     in property <string> message;
+    in property <image> video;
+    in property <bool> video-on: false;
 
     // Burn-in protection: the idle screen drifts a few pixels every few minutes.
     property <int> shift-step: 0;
@@ -64,6 +66,20 @@ export component TvWindow inherits Window {
             horizontal-alignment: center;
             font-size: Theme.tv-body-size;
             color: Theme.text-muted.with-alpha(0.5);
+        }
+    }
+
+    // ── In-window video when playing in two-screen mode ──────────────
+    if root.video-on: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #000000;
+
+        Image {
+            source: root.video;
+            width: 100%;
+            height: 100%;
+            image-fit: contain;
         }
     }
 }

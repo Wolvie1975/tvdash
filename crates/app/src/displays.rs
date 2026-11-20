@@ -21,7 +21,7 @@ use tvdash_core::{
     models::Geometry,
 };
 
-use crate::{Accounts, LaptopWindow, Library, SiteEditor, TvWindow, Watch};
+use crate::{Accounts, LaptopWindow, SiteEditor, TvWindow, Watch};
 
 const DEBOUNCE: Duration = Duration::from_secs(3);
 const POLL_FALLBACK: Duration = Duration::from_secs(5);
@@ -186,8 +186,7 @@ pub fn on_displays_changed(laptop: &LaptopWindow) {
 }
 
 fn has_unsaved_or_search(laptop: &LaptopWindow) -> bool {
-    !laptop.global::<Library>().get_query().is_empty()
-        || !laptop.global::<Watch>().get_query().is_empty()
+    !laptop.global::<Watch>().get_query().is_empty()
         || laptop.global::<SiteEditor>().get_open()
         || !laptop.global::<Accounts>().get_editing().is_empty()
 }
@@ -305,7 +304,6 @@ pub fn switch_layout(laptop: &LaptopWindow, layout: Layout) {
                     laptop.window().set_size(slint::LogicalSize::new(1920.0, 1080.0));
                 }
                 spawn_placement(laptop, "tv", s.display.tv_output.clone(), s.fullscreen, Some(s.commands.clone()));
-                crate::tv_nav::go_home(laptop);
             }
             Layout::Dual => {
                 if let Err(e) = s.tv.show() {
@@ -318,6 +316,8 @@ pub fn switch_layout(laptop: &LaptopWindow, layout: Layout) {
             }
         }
         let _ = s.commands.send(Command::SetLayout(layout));
+        laptop.window().request_redraw();
+        s.tv.window().request_redraw();
     });
 }
 

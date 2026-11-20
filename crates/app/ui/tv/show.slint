@@ -15,6 +15,13 @@ export component TvShow inherits Rectangle {
     property <length> content-top: (700px - TvUi.show-scroll) * TvUi.u;
     property <length> season-col-y: ShowPageState.scrolled ? 244px * TvUi.u : root.content-top;
 
+    TouchArea {
+        scroll-event(event) => {
+            TvUi.scroll-panorama(event.delta-y);
+            accept
+        }
+    }
+
     // Faint tint glow top right when scrolled
     Rectangle {
         x: 960px * TvUi.u;
@@ -66,7 +73,7 @@ export component TvShow inherits Rectangle {
         }
     }
 
-    // Episode grid (behind sticky header/top block, clips cleanly below y: 120 when scrolled)
+    // Episode grid (behind sticky header/top block, clips cleanly below y: 224 when scrolled)
     Rectangle {
         x: 0px;
         y: ShowPageState.scrolled ? 224px * TvUi.u : 0px;
@@ -74,12 +81,20 @@ export component TvShow inherits Rectangle {
         height: parent.height - self.y;
         clip: true;
 
+        Rectangle {
+            x: 0px;
+            y: -TvUi.show-scroll * TvUi.u - parent.y;
+            width: parent.width;
+            height: (700 + Math.ceil((root.ep-count + (root.has-next-season ? 1 : 0)) / 3) * 380 + 60) * 1px * TvUi.u;
+            background: transparent;
+            animate y { duration: 150ms; easing: ease-out; }
+
         for ep[i] in ShowPageState.episodes: Tile {
             property <int> grid-col: Math.mod(i, 3);
             property <int> grid-row: Math.floor(i / 3);
             property <bool> is-up-next: ep.rating-key == ShowPageState.up-next-key;
             x: (388 + grid-col * 484) * 1px * TvUi.u;
-            y: (700 + grid-row * 380) * 1px * TvUi.u - TvUi.show-scroll * TvUi.u - parent.y;
+            y: (700 + grid-row * 380) * 1px * TvUi.u;
             base-width: 468px * TvUi.u;
             base-height: 344px * TvUi.u;
             focused: TvUi.focused-tile == root.grid-base + i;
@@ -225,7 +240,7 @@ export component TvShow inherits Rectangle {
             property <int> grid-col: Math.mod(idx, 3);
             property <int> grid-row: Math.floor(idx / 3);
             x: (388 + grid-col * 484) * 1px * TvUi.u;
-            y: (700 + grid-row * 380) * 1px * TvUi.u - TvUi.show-scroll * TvUi.u - parent.y;
+            y: (700 + grid-row * 380) * 1px * TvUi.u;
             base-width: 468px * TvUi.u;
             base-height: 263px * TvUi.u;
             focused: TvUi.focused-tile == root.grid-base + root.ep-count;
@@ -256,6 +271,7 @@ export component TvShow inherits Rectangle {
                     wrap: word-wrap;
                 }
             }
+        }
         }
     }
 
