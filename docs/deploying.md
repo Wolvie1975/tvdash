@@ -165,6 +165,23 @@ Start **tvdash** from the app menu. With nothing signed in, first-time setup ope
 Then, for Where to watch and the service logos: **Settings › Accounts › TMDB**, paste your
 TMDB API Read Access Token. (Or from a terminal: `tvdash --set-secret tmdb_api_key`.)
 
+For the **Sports** tab (Competitions & Scoreboard from SQL Server), save the read-only SQL password in the keyring:
+
+```bash
+tvdash --set-secret events_sql_password
+```
+
+(Or set it in **Settings › Accounts › Sports · SQL Server**.) Connection settings live under `[events]` in `~/.config/tvdash/config.toml` (defaults to `192.168.1.100:1433`, database `WebScraper`, user `mynewspaper_web`, `trust_cert = true`).
+
+To switch an existing **Crunchyroll** tile to **YouTube Music** on a machine that already has `~/.config/tvdash/config.toml`, either edit it in **Settings › Sites** or replace the `[[streaming]]` block in `~/.config/tvdash/config.toml`:
+
+```toml
+[[streaming]]
+name = "YouTube Music"
+url = "https://music.youtube.com"
+tmdb_providers = []
+```
+
 Check the keyring is working: `tvdash --check-keyring` should say `write/read/delete OK`.
 
 ---
