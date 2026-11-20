@@ -42,7 +42,7 @@ Options:
   --set-secret KEY  Read a value from stdin and store it in the keyring, e.g.
                     tvdash --set-secret tmdb_api_key
   --clear-secret KEY  Remove a secret from the keyring
-                    KEY: plex_token, tmdb_api_key, tautulli_api_key
+                    KEY: plex_token, tmdb_api_key, tautulli_api_key, events_sql_password
   -h, --help        Show this help
 
 Logging: set RUST_LOG (default: info), e.g. RUST_LOG=tvdash=debug";

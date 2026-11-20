@@ -4,7 +4,7 @@ members = ["crates/*"]
 
 [workspace.package]
 edition = "2024"
-version = "0.1.39"
+version = "0.1.40"
 license = "MIT"
 publish = false
 
@@ -15,6 +15,7 @@ tvdash-media = { path = "crates/media" }
 tvdash-player = { path = "crates/player" }
 tvdash-widgets = { path = "crates/widgets" }
 tvdash-discover = { path = "crates/discover" }
+tvdash-events = { path = "crates/events" }
 
 # External
 tokio = { version = "1.54", features = ["full"] }

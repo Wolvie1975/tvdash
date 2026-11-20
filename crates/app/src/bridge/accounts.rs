@@ -226,6 +226,39 @@ fn tautulli_row(s: &UiState) -> AccountRow {
     }
 }
 
+fn events_row(s: &UiState) -> AccountRow {
+    let input_hint = "SQL Server password".into();
+    if s.events_password_configured {
+        AccountRow {
+            input_hint,
+            ..Row {
+                id: "events",
+                name: "Sports · SQL Server",
+                status: "Password saved".into(),
+                detail: "Reads upcoming games from WebScraper".into(),
+                state: "ok",
+                primary: ("Change", "edit"),
+                secondary: ("Remove", "remove"),
+            }
+            .into()
+        }
+    } else {
+        AccountRow {
+            input_hint,
+            ..Row {
+                id: "events",
+                name: "Sports · SQL Server",
+                status: "Not set up".into(),
+                detail: "Add the read-only SQL Server password for the Sports tab".into(),
+                state: "off",
+                primary: ("Set up", "edit"),
+                secondary: NONE,
+            }
+            .into()
+        }
+    }
+}
+
 /// Rebuild Settings › Accounts and Settings › Streaming (and setup, if it's showing).
 pub(super) fn refresh(s: &UiState, laptop: &LaptopWindow) {
     s.account_rows.set_vec(vec![
@@ -233,6 +266,7 @@ pub(super) fn refresh(s: &UiState, laptop: &LaptopWindow) {
         media_account_row(s, SourceKind::Jellyfin),
         tmdb_row(s),
         tautulli_row(s),
+        events_row(s),
     ]);
     let sites: Vec<SiteRow> = s
         .sites

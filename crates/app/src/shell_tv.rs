@@ -7,7 +7,8 @@ pub enum Tab {
     Home = 0,
     Library = 1,
     Collections = 2,
-    Settings = 3,
+    Sports = 3,
+    Settings = 4,
 }
 
 impl Tab {
@@ -16,7 +17,8 @@ impl Tab {
             0 => Some(Self::Home),
             1 => Some(Self::Library),
             2 => Some(Self::Collections),
-            3 => Some(Self::Settings),
+            3 => Some(Self::Sports),
+            4 => Some(Self::Settings),
             _ => None,
         }
     }
@@ -25,7 +27,8 @@ impl Tab {
         match self {
             Self::Home => Self::Library,
             Self::Library => Self::Collections,
-            Self::Collections => Self::Settings,
+            Self::Collections => Self::Sports,
+            Self::Sports => Self::Settings,
             Self::Settings => Self::Settings,
         }
     }
@@ -35,7 +38,8 @@ impl Tab {
             Self::Home => Self::Home,
             Self::Library => Self::Home,
             Self::Collections => Self::Library,
-            Self::Settings => Self::Collections,
+            Self::Sports => Self::Collections,
+            Self::Settings => Self::Sports,
         }
     }
 
@@ -44,6 +48,7 @@ impl Tab {
             Self::Home => Page::Home,
             Self::Library => Page::Library,
             Self::Collections => Page::Collections,
+            Self::Sports => Page::Sports,
             Self::Settings => Page::Settings,
         }
     }
@@ -56,6 +61,7 @@ pub enum Page {
     Show(String),
     Collection(String),
     Collections,
+    Sports,
     Search,
     Settings,
 }

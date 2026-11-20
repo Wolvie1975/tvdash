@@ -9,8 +9,8 @@ use slint::{ComponentHandle, Model, SharedString, platform::Key};
 use tvdash_core::config::Layout;
 
 use crate::{
-    Accounts, Artwork, CollectionPageState, Dash, Display, LaptopWindow, Library, LibraryLanding, Nav, Server,
-    ShowPageState, SiteEditor, TvUi, UiTheme, Watch,
+    Accounts, Artwork, CollectionPageState, Dash, Display, LaptopWindow, Library, LibraryLanding, Nav, Scoreboard,
+    Server, ShowPageState, SiteEditor, Sports, TvUi, UiTheme, Watch,
     focus::{self, Dir, Rect},
     shell_tv::{Page, ShellState, Tab},
 };
@@ -47,6 +47,7 @@ fn page_name(page: &Page) -> &'static str {
         Page::Show(_) => "show",
         Page::Collection(_) => "collection",
         Page::Collections => "collections",
+        Page::Sports => "sports",
         Page::Search => "search",
         Page::Settings => "settings",
     }
@@ -205,6 +206,12 @@ pub fn sync(laptop: &LaptopWindow) {
                 Page::Collection(_) => {
                     s.col_scroll = 0.0;
                 }
+                Page::Sports => {
+                    let sp = laptop.global::<Sports>();
+                    if sp.get_rows().row_count() == 0 && !sp.get_loading() && sp.get_error().is_empty() {
+                        sp.invoke_load(sp.get_schedule(), 0);
+                    }
+                }
                 _ => {}
             }
         }
@@ -293,6 +300,10 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
+        Page::Sports => vec![
+            Rect { x: 96.0, y: 122.0, w: 184.0, h: 44.0 },
+            Rect { x: 316.0, y: 122.0, w: 164.0, h: 44.0 },
+        ],
         Page::Library => {
             let lib = laptop.global::<Library>();
             // 0..=3: TV Series, Movies, Browse all, Watching now pill
@@ -932,6 +943,18 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 }
             }
         }
+        Page::Sports => {
+            if idx < 2 {
+                let next_tab = if idx == 1 { "scoreboard" } else { "competitions" };
+                tv.set_sports_tab(next_tab.into());
+                if next_tab == "scoreboard" {
+                    let sb = laptop.global::<Scoreboard>();
+                    if sb.get_rows().row_count() == 0 && !sb.get_loading() && sb.get_error().is_empty() {
+                        sb.invoke_load(sb.get_day(), sb.get_show(), sb.get_final_only());
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1268,7 +1291,7 @@ mod tests {
 
         // Switch to Settings via TabBar and toggle Celsius (tile 8; 0..=5 are SubTabs)
         assert!(key(&l, &SharedString::from(Key::UpArrow)));
-        for _ in 0..3 {
+        for _ in 0..4 {
             assert!(key(&l, &SharedString::from(Key::RightArrow)));
         }
         assert_eq!(tv.get_screen(), "settings");

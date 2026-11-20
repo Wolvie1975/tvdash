@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.40 — 2026-11-19
+- Added the **Sports** tab (`tvdash-events` crate + `tv/events.slint`) reading read-only from the `WebScraper` SQL Server database (`tiberius`), with GNOME Keyring password storage (`events_sql_password` / **Settings → Accounts → Sports · SQL Server**).
+- Implemented **Sports → Competitions** (today through +3 days in Central time, schedule filter dropdown, day/league grouping, team logos/initials, TV/Radio, and `Stats`/`Video`/`Audio`/`Details` links opening in `tvdash`'s TV browser, 200/page).
+- Implemented **Sports → Scoreboard** (yesterday through +7 days, `Show` filter for All sports / Top 25 / Leagues / Conferences / Teams, Final scores toggle, Live/Upcoming/Final groups, `LiveDetailsJson` period/baseball details, coverage/staleness warnings, and 5-minute auto-refresh).
+
 ## v0.1.39 — 2026-11-19
 - Unified the dashboard UI around `TvShell` for both one-screen (`TV only`) and two-screen (`Two screens`) modes, removing the old dual-only Slint pages.
 - Added **Sites** (`Accounts.sites` + `SiteEditorDialog`) and **Diagnostics** (`Diagnostics.rows` / `Diagnostics.paths`) tabs to `TvSettings`.

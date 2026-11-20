@@ -680,6 +680,7 @@ export global TvUi {
     in property <float> last-played-progress;
     in property <Brand> last-played-brand;
     in-out property <string> settings-tab: "display"; // "display" | "accounts" | "server" | "changelog"
+    in-out property <string> sports-tab: "competitions"; // "competitions" | "scoreboard"
     in property <bool> rail-open;
     // What has focus: "rail" | "hero" | "prompts" | "continue" | "services" | "lib-continue"
     // | "lib-recent" | "grid" | "set-layout" | "set-theme" | "set-units" | "set-clock"
@@ -730,4 +731,103 @@ export global AmbientState {
     in property <bool> up-next-has-poster: false;
     in property <color> up-next-accent: #8FC1FF;
     in property <string> footer-line;
+}
+
+export struct SportsChoiceData {
+    value: string,
+    label: string,
+}
+
+export struct SportsRowData {
+    kind: string, // "day" | "league" | "game"
+    header-text: string,
+    sport: string,
+    is-neutral: bool,
+    away-name: string,
+    away-label: string,
+    away-has-logo: bool,
+    away-logo: image,
+    away-initials: string,
+    home-name: string,
+    home-label: string,
+    home-has-logo: bool,
+    home-logo: image,
+    home-initials: string,
+    time-text: string,
+    is-tbd: bool,
+    city: string,
+    venue: string,
+    tv: string,
+    radio: string,
+    stats-url: string,
+    stream-url: string,
+    audio-url: string,
+    details-url: string,
+}
+
+export global Sports {
+    in property <bool> loading: false;
+    in property <string> error;
+    in property <string> schedule;
+    in property <string> schedule-label: "All schedules";
+    in property <[SportsChoiceData]> choices;
+    in property <int> total-count: 0;
+    in property <int> page: 0;
+    in property <int> total-pages: 1;
+    in property <string> last-updated;
+    in property <[SportsRowData]> rows;
+    callback load(string, int);
+    callback open-url(string, string);
+}
+
+export struct ScoreboardChoiceData {
+    value: string,
+    label: string,
+    group: string,
+}
+
+export struct ScoreboardRowData {
+    kind: string, // "group" | "game"
+    group-title: string,
+    group-subtitle: string,
+    is-live: bool,
+    league-label: string,
+    status: string,
+    header-text: string,
+    away-name: string,
+    away-score: string,
+    away-winner: bool,
+    away-leading: bool,
+    away-has-logo: bool,
+    away-logo: image,
+    away-initials: string,
+    home-name: string,
+    home-score: string,
+    home-winner: bool,
+    home-leading: bool,
+    home-has-logo: bool,
+    home-logo: image,
+    home-initials: string,
+    details-text: string,
+    warning-text: string,
+    source-url: string,
+}
+
+export global Scoreboard {
+    in property <bool> loading: false;
+    in property <string> error;
+    in property <string> day;
+    in property <string> day-label: "Today";
+    in property <string> prev-day;
+    in property <string> next-day;
+    in property <bool> is-today: true;
+    in property <string> show;
+    in property <string> show-label: "All sports";
+    in property <bool> final-only: false;
+    in property <[ScoreboardChoiceData]> choices;
+    in property <string> coverage-warning;
+    in property <string> empty-message;
+    in property <[ScoreboardRowData]> rows;
+    callback load(string, string, bool);
+    callback open-url(string, string);
 }

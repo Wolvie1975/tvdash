@@ -1,0 +1,18 @@
+[package]
+name = "tvdash-events"
+description = "Read-only SQL Server client and formatter for Sports / Competitions"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono.workspace = true
+chrono-tz.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tiberius = { version = "0.12", default-features = false, features = ["rustls", "tds73", "chrono"] }
+tokio.workspace = true
+tokio-util = { version = "0.7", features = ["compat"] }
+tracing.workspace = true
+tvdash-core.workspace = true

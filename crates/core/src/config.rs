@@ -35,6 +35,7 @@ pub struct Config {
     pub plex: PlexConfig,
     pub jellyfin: JellyfinConfig,
     pub tautulli: TautulliConfig,
+    pub events: EventsConfig,
     pub browser: BrowserConfig,
     pub player: PlayerConfig,
     pub tv: TvConfig,
@@ -260,6 +261,29 @@ pub struct TvConfig {
     pub recent: Vec<RecentService>,
 }
 
+/// SQL Server connection for the Sports / Competitions tab. Password lives in the keyring.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EventsConfig {
+    pub host: String,
+    pub port: u16,
+    pub database: String,
+    pub user: String,
+    pub trust_cert: bool,
+}
+
+impl Default for EventsConfig {
+    fn default() -> Self {
+        Self {
+            host: "192.168.1.100".into(),
+            port: 1433,
+            database: "WebScraper".into(),
+            user: "mynewspaper_web".into(),
+            trust_cert: true,
+        }
+    }
+}
+
 /// A recently opened streaming service entry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecentService {
@@ -349,6 +373,7 @@ impl Default for Config {
             plex: PlexConfig::default(),
             jellyfin: JellyfinConfig::default(),
             tautulli: TautulliConfig::default(),
+            events: EventsConfig::default(),
             browser: BrowserConfig::default(),
             player: PlayerConfig::default(),
             tv: TvConfig::default(),

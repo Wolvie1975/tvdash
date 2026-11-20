@@ -170,6 +170,7 @@ pub struct Controller {
     state_path: Option<PathBuf>,
     posters_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
     backdrops_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
+    sports_logos_requested: Arc<Mutex<HashSet<String>>>,
     server_sections: Arc<Mutex<Vec<ServerLibrary>>>,
     /// Where to watch (TMDB) and service logos.
     pub(crate) watch: Watch,
@@ -228,6 +229,7 @@ impl Controller {
             state_path,
             posters_requested: Arc::default(),
             backdrops_requested: Arc::default(),
+            sports_logos_requested: Arc::default(),
             server_sections: Arc::default(),
             general_tx: None,
             video: None,
@@ -341,6 +343,7 @@ impl Controller {
         self.emit_sites();
         self.watch.init(&self.config.streaming).await;
         self.init_tautulli().await;
+        self.init_events().await;
         self.watch.refresh_library(self.sources(), true);
         if !self.config.jellyfin.server_url.is_empty() {
             self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(self.config.jellyfin.server_url.clone())));
@@ -757,6 +760,15 @@ impl Controller {
             Command::ClearTautulli => {
                 self.clear_tautulli().await;
             }
+            Command::LoadSportsEvents { schedule, page } => {
+                self.load_sports_events(schedule, page);
+            }
+            Command::SetEventsPassword(pw) => {
+                self.set_events_password(pw).await;
+            }
+            Command::LoadScoreboard { day, show, final_only } => {
+                self.load_scoreboard(day, show, final_only);
+            }
             Command::LoadLibraryShelves { is_tv, sort, popular_days } => {
                 self.load_library_shelves(is_tv, sort, popular_days);
             }
@@ -842,6 +854,7 @@ impl Controller {
             let _ = tokio::task::spawn_blocking(move || secrets::set(SecretKey::TautulliApiKey, &k)).await;
         }
         self.init_tautulli().await;
+        self.init_events().await;
         self.toast(if self.tautulli.is_some() { "Tautulli saved" } else { "Tautulli URL saved (API key needed)" });
     }
 
@@ -851,6 +864,170 @@ impl Controller {
         let _ = tokio::task::spawn_blocking(|| secrets::delete(SecretKey::TautulliApiKey)).await;
         self.emit(AppEvent::Tautulli { configured: false, url: String::new() });
         self.toast("Tautulli disconnected");
+    }
+
+    async fn init_events(&self) {
+        let configured = tokio::task::spawn_blocking(|| secrets::get(SecretKey::EventsSqlPassword))
+            .await
+            .ok()
+            .and_then(|r| r.ok())
+            .flatten()
+            .is_some_and(|s| !s.trim().is_empty());
+        self.emit(AppEvent::EventsPasswordConfigured(configured));
+    }
+
+    async fn set_events_password(&self, pw: Option<String>) {
+        match pw {
+            Some(password) => {
+                let res = tokio::task::spawn_blocking(move || {
+                    secrets::set(SecretKey::EventsSqlPassword, &password)
+                })
+                .await;
+                match res {
+                    Ok(Ok(())) => {
+                        self.emit(AppEvent::EventsPasswordConfigured(true));
+                        self.toast("Sports SQL password saved");
+                    }
+                    Ok(Err(e)) => self.toast(format!("Couldn't save password: {e}")),
+                    Err(e) => self.toast(format!("Keyring task failed: {e}")),
+                }
+            }
+            None => {
+                let _ = tokio::task::spawn_blocking(|| secrets::delete(SecretKey::EventsSqlPassword)).await;
+                self.emit(AppEvent::EventsPasswordConfigured(false));
+                self.toast("Sports SQL password removed");
+            }
+        }
+    }
+
+    fn load_sports_events(&self, schedule: String, page: u32) {
+        let cfg = self.config.events.clone();
+        let events = self.events.clone();
+        let logos_req = self.sports_logos_requested.clone();
+        tokio::spawn(async move {
+            let pw = tokio::task::spawn_blocking(|| secrets::get(SecretKey::EventsSqlPassword))
+                .await
+                .ok()
+                .and_then(|r| r.ok())
+                .flatten()
+                .unwrap_or_default();
+            let res = tvdash_events::fetch_page(&cfg, &pw, &schedule, page).await;
+            match res {
+                Ok(data) => {
+                    let count = data.total_count;
+                    let _ = events.send(AppEvent::Health {
+                        service: Service::Events,
+                        result: Ok(format!("{count} upcoming")),
+                    });
+                    let mut logo_urls = Vec::new();
+                    for day in &data.days {
+                        for lg in &day.leagues {
+                            for g in &lg.games {
+                                if let Some(u) = &g.away_logo_url {
+                                    logo_urls.push(u.clone());
+                                }
+                                if let Some(u) = &g.home_logo_url {
+                                    logo_urls.push(u.clone());
+                                }
+                            }
+                        }
+                    }
+                    let _ = events.send(AppEvent::SportsEvents(Ok(data)));
+                    Self::spawn_sports_logos(logo_urls, logos_req, events);
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    let _ = events.send(AppEvent::Health {
+                        service: Service::Events,
+                        result: Err(msg.clone()),
+                    });
+                    let _ = events.send(AppEvent::SportsEvents(Err(msg)));
+                }
+            }
+        });
+    }
+
+    fn load_scoreboard(&self, day: String, show: String, final_only: bool) {
+        let cfg = self.config.events.clone();
+        let events = self.events.clone();
+        let logos_req = self.sports_logos_requested.clone();
+        tokio::spawn(async move {
+            let pw = tokio::task::spawn_blocking(|| secrets::get(SecretKey::EventsSqlPassword))
+                .await
+                .ok()
+                .and_then(|r| r.ok())
+                .flatten()
+                .unwrap_or_default();
+            let res = tvdash_events::scoreboard::fetch_scoreboard(&cfg, &pw, &day, &show, final_only).await;
+            match res {
+                Ok(data) => {
+                    let count: usize = data.groups.iter().map(|g| g.games.len()).sum();
+                    let _ = events.send(AppEvent::Health {
+                        service: Service::Events,
+                        result: Ok(format!("{count} scoreboard games")),
+                    });
+                    let mut logo_urls = Vec::new();
+                    for grp in &data.groups {
+                        for g in &grp.games {
+                            if let Some(u) = &g.away_logo_url {
+                                logo_urls.push(u.clone());
+                            }
+                            if let Some(u) = &g.home_logo_url {
+                                logo_urls.push(u.clone());
+                            }
+                        }
+                    }
+                    let _ = events.send(AppEvent::Scoreboard(Ok(data)));
+                    Self::spawn_sports_logos(logo_urls, logos_req, events);
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    let _ = events.send(AppEvent::Health {
+                        service: Service::Events,
+                        result: Err(msg.clone()),
+                    });
+                    let _ = events.send(AppEvent::Scoreboard(Err(msg)));
+                }
+            }
+        });
+    }
+
+    fn spawn_sports_logos(
+        urls: Vec<String>,
+        requested: Arc<Mutex<HashSet<String>>>,
+        events: UnboundedSender<AppEvent>,
+    ) {
+        let todo: Vec<String> = {
+            let mut guard = requested.lock().unwrap();
+            urls.into_iter().filter(|u| guard.insert(u.clone())).collect()
+        };
+        if todo.is_empty() {
+            return;
+        }
+        tokio::spawn(async move {
+            let client = match reqwest::Client::builder().timeout(Duration::from_secs(8)).build() {
+                Ok(c) => c,
+                Err(_) => return,
+            };
+            for url in todo {
+                let Ok(resp) = client.get(&url).send().await else { continue };
+                if !resp.status().is_success() {
+                    continue;
+                }
+                let Ok(bytes) = resp.bytes().await else { continue };
+                if let Some(image) = tokio::task::spawn_blocking(move || {
+                    let img = image::load_from_memory(&bytes).ok()?;
+                    let rgba = img.to_rgba8();
+                    Some(RgbaImage { width: rgba.width(), height: rgba.height(), pixels: rgba.into_raw() })
+                })
+                .await
+                .ok()
+                .flatten()
+                {
+                    let _ = events.send(AppEvent::SportsLogo { url, image });
+                }
+            }
+        });
     }
 
     fn load_library_shelves(&self, is_tv: bool, sort: tvdash_core::models::LibrarySort, popular_days: u32) {

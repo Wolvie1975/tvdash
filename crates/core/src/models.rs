@@ -400,3 +400,121 @@ pub struct LibraryShelves {
     pub genres: Vec<GenreTile>,
     pub collections: Vec<CollectionInfo>,
 }
+
+/// One schedule filter choice (`"{provider}|{sport}"` or `""` for All schedules).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScheduleChoice {
+    pub value: String,
+    pub label: String,
+}
+
+/// A rendered sports game row (already grouped and formatted for display).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsGame {
+    pub id: i32,
+    pub sport: String,
+    pub is_neutral: bool,
+    pub away_name: String,
+    pub away_label: String,
+    pub away_logo_url: Option<String>,
+    pub away_initials: String,
+    pub home_name: String,
+    pub home_label: String,
+    pub home_logo_url: Option<String>,
+    pub home_initials: String,
+    pub time_text: String,
+    pub is_tbd: bool,
+    pub city: String,
+    pub venue: String,
+    pub tv: String,
+    pub radio: String,
+    pub stats_url: Option<String>,
+    pub stream_url: Option<String>,
+    pub audio_url: Option<String>,
+    pub details_url: Option<String>,
+}
+
+/// One league section inside a day.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsLeagueGroup {
+    pub league: String,
+    pub games: Vec<SportsGame>,
+}
+
+/// One calendar day section.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsDayGroup {
+    pub date_heading: String,
+    pub leagues: Vec<SportsLeagueGroup>,
+}
+
+/// Full payload for the Sports / Competitions tab.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsEventsPage {
+    pub schedule: String,
+    pub choices: Vec<ScheduleChoice>,
+    pub total_count: u32,
+    pub page: u32,
+    pub total_pages: u32,
+    pub last_updated: String,
+    pub days: Vec<SportsDayGroup>,
+}
+
+/// One Show dropdown option on the Scoreboard.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScoreboardChoice {
+    pub value: String,
+    pub label: String,
+    pub group: String, // "" | "Leagues" | "Conferences" | "Teams"
+}
+
+/// One formatted Scoreboard game card.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScoreboardGame {
+    pub key: String,
+    pub league_label: String,
+    pub status: String, // "live" | "delayed" | "suspended" | "upcoming" | "final" | ...
+    pub header_text: String,
+    pub away_name: String,
+    pub away_rank: Option<u8>,
+    pub away_score: String,
+    pub away_winner: bool,
+    pub away_leading: bool,
+    pub away_logo_url: Option<String>,
+    pub away_initials: String,
+    pub home_name: String,
+    pub home_rank: Option<u8>,
+    pub home_score: String,
+    pub home_winner: bool,
+    pub home_leading: bool,
+    pub home_logo_url: Option<String>,
+    pub home_initials: String,
+    pub details_text: String,
+    pub warning_text: String,
+    pub source_url: Option<String>,
+}
+
+/// One status section on the Scoreboard (Live, Upcoming, Final, or Top 25 Week).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScoreboardGroup {
+    pub title: String,
+    pub subtitle: String,
+    pub is_live: bool,
+    pub games: Vec<ScoreboardGame>,
+}
+
+/// Full payload for the Sports → Scoreboard tab.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScoreboardPage {
+    pub day: String,
+    pub day_label: String,
+    pub prev_day: String,
+    pub next_day: String,
+    pub is_today: bool,
+    pub show: String,
+    pub final_only: bool,
+    pub choices: Vec<ScoreboardChoice>,
+    pub coverage_warning: String,
+    pub empty_message: String,
+    pub groups: Vec<ScoreboardGroup>,
+}

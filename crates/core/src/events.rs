@@ -32,11 +32,20 @@ pub enum Service {
     Keyring,
     Player,
     Browser,
+    Events,
 }
 
 impl Service {
-    pub const ALL: [Service; 7] =
-        [Self::Jellyfin, Self::Plex, Self::Tmdb, Self::Weather, Self::Keyring, Self::Player, Self::Browser];
+    pub const ALL: [Service; 8] = [
+        Self::Jellyfin,
+        Self::Plex,
+        Self::Tmdb,
+        Self::Weather,
+        Self::Keyring,
+        Self::Player,
+        Self::Browser,
+        Self::Events,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -47,6 +56,7 @@ impl Service {
             Self::Keyring => "GNOME Keyring",
             Self::Player => "mpv",
             Self::Browser => "Streaming browser",
+            Self::Events => "Sports (SQL Server)",
         }
     }
 }
@@ -178,6 +188,17 @@ pub enum AppEvent {
     NextEpisodePrompt(Option<MediaItem>),
     /// Collection page data.
     CollectionDetail(Result<crate::models::CollectionDetail, String>),
+    /// Sports / Competitions page data.
+    SportsEvents(Result<crate::models::SportsEventsPage, String>),
+    /// Downloaded team logo for the Sports tab.
+    SportsLogo {
+        url: String,
+        image: RgbaImage,
+    },
+    /// Whether the SQL Server password is stored in the keyring.
+    EventsPasswordConfigured(bool),
+    /// Sports → Scoreboard page data.
+    Scoreboard(Result<crate::models::ScoreboardPage, String>),
 }
 
 /// Requests from the UI, handled by background tasks.
@@ -221,6 +242,19 @@ pub enum Command {
     OpenUrl {
         label: String,
         url: String,
+    },
+    /// Fetch Sports / Competitions from SQL Server.
+    LoadSportsEvents {
+        schedule: String,
+        page: u32,
+    },
+    /// Save or clear the Sports SQL Server password in the keyring.
+    SetEventsPassword(Option<String>),
+    /// Fetch Sports → Scoreboard from SQL Server.
+    LoadScoreboard {
+        day: String,
+        show: String,
+        final_only: bool,
     },
     /// Search TMDB and rank by availability.
     WhereToWatch(String),

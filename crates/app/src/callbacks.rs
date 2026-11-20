@@ -6,8 +6,8 @@ use tracing::{error, warn};
 use tvdash_core::{Command, models::SourceKind};
 
 use crate::{
-    Accounts, Artwork, CollectionPageState, Dash, LaptopWindow, Library, Nav, Server, Setup, ShowPageState, SiteEditor,
-    Watch, bridge, watch_ui,
+    Accounts, Artwork, CollectionPageState, Dash, LaptopWindow, Library, Nav, Scoreboard, Server, Setup, ShowPageState,
+    SiteEditor, Sports, Watch, bridge, watch_ui,
 };
 use tvdash_core::config::StreamingSite;
 
@@ -27,6 +27,45 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
     };
     wire_dash(laptop, send.clone());
     wire_site_editor(laptop, send.clone());
+
+    let sports = laptop.global::<Sports>();
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    sports.on_load(move |schedule, page| {
+        if let Some(l) = weak.upgrade() {
+            let sp = l.global::<Sports>();
+            sp.set_loading(true);
+            sp.set_error("".into());
+        }
+        s(Command::LoadSportsEvents {
+            schedule: schedule.to_string(),
+            page: page.max(0) as u32,
+        });
+    });
+
+    let s = send.clone();
+    sports.on_open_url(move |label, url| {
+        s(Command::OpenUrl { label: label.to_string(), url: url.to_string() });
+    });
+
+    let scoreboard = laptop.global::<Scoreboard>();
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    scoreboard.on_load(move |day, show, final_only| {
+        if let Some(l) = weak.upgrade() {
+            let sb = l.global::<Scoreboard>();
+            sb.set_loading(true);
+            sb.set_error("".into());
+        }
+        s(Command::LoadScoreboard {
+            day: day.to_string(),
+            show: show.to_string(),
+            final_only,
+        });
+    });
+
+    let s = send.clone();
+    scoreboard.on_open_url(move |label, url| {
+        s(Command::OpenUrl { label: label.to_string(), url: url.to_string() });
+    });
     wire_watch(laptop, send.clone());
     wire_library(laptop, send.clone());
     wire_accounts(laptop, send.clone());
@@ -570,6 +609,7 @@ fn wire_accounts(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static
             (_, "retry", _) => Command::Refresh,
             ("tmdb", "remove", _) => Command::SetTmdbToken(String::new()),
             ("tautulli", "remove", _) => Command::ClearTautulli,
+            ("events", "remove", _) => Command::SetEventsPassword(None),
             _ => {
                 warn!(%id, %action, "unknown account action");
                 return;
@@ -605,6 +645,16 @@ fn wire_accounts(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static
                 }
             } else if let Some(l) = weak.upgrade() {
                 l.global::<Accounts>().set_edit_error("Enter: http://host:8181 | API_KEY".into());
+            }
+        } else if id == "events" {
+            let pw = value.trim().to_string();
+            if !pw.is_empty() {
+                s(Command::SetEventsPassword(Some(pw)));
+                if let Some(l) = weak.upgrade() {
+                    l.global::<Accounts>().set_editing("".into());
+                }
+            } else if let Some(l) = weak.upgrade() {
+                l.global::<Accounts>().set_edit_error("Enter the SQL Server password".into());
             }
         }
     });

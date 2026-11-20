@@ -11,6 +11,7 @@ import { TvShow } from "show.slint";
 import { TvCollection } from "collection.slint";
 import { TvSearch } from "search.slint";
 import { TvSettings } from "settings.slint";
+import { TvSports } from "events.slint";
 import { TvPlayerHud } from "player_hud.slint";
 import { TvAmbient } from "ambient.slint";
 
@@ -112,6 +113,7 @@ export component TvShell inherits Rectangle {
         if TvUi.screen == "show": TvShow { }
         if TvUi.screen == "collection": TvCollection { }
         if TvUi.screen == "search": TvSearch { }
+        if TvUi.screen == "sports": TvSports { }
         if TvUi.screen == "settings": TvSettings { }
 
         // Top chrome: optional Back pill + TabBar left, compact clock + weather top-right

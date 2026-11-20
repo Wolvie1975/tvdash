@@ -45,8 +45,9 @@ pub use library::{
 
 use crate::{
     AccountPrompt, AccountRow, Accounts, Artwork, ArtworkRow, Dash, Diagnostics, Display, LaptopWindow, Library, Nav,
-    PosterCardData, Server, ServerActivityRow, ServerLibraryRow, ServerStreamRow, SessionRow, Setup, SiteRow, Theme,
-    TvWindow, UiTheme, tint::Hue,
+    PosterCardData, Scoreboard, ScoreboardChoiceData, ScoreboardRowData, Server, ServerActivityRow, ServerLibraryRow,
+    ServerStreamRow, SessionRow, Setup, SiteRow, Sports, SportsChoiceData, SportsRowData, Theme, TvWindow, UiTheme,
+    tint::Hue,
 };
 
 /// Display order for sources everywhere (rows, prompts, sessions).
@@ -82,6 +83,10 @@ pub struct UiState {
     /// Tautulli status.
     tautulli_configured: bool,
     tautulli_url: String,
+    events_password_configured: bool,
+    sports_page: Option<tvdash_core::models::SportsEventsPage>,
+    scoreboard_page: Option<tvdash_core::models::ScoreboardPage>,
+    sports_logos: HashMap<String, Image>,
     collection_detail: Option<tvdash_core::models::CollectionDetail>,
     show_detail: Option<tvdash_core::models::ShowDetail>,
     ambient_starts: usize,
@@ -598,6 +603,47 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::CollectionDetail(res) => {
             library::on_collection_detail(s, laptop, res);
         }
+        AppEvent::SportsEvents(res) => {
+            let sp = laptop.global::<Sports>();
+            sp.set_loading(false);
+            match res {
+                Ok(page) => {
+                    sp.set_error("".into());
+                    s.sports_page = Some(page);
+                    refresh_sports(s, laptop);
+                }
+                Err(msg) => {
+                    sp.set_error(msg.into());
+                }
+            }
+        }
+        AppEvent::SportsLogo { url, image } => {
+            s.sports_logos.insert(url, to_image(&image));
+            if s.sports_page.is_some() {
+                refresh_sports(s, laptop);
+            }
+            if s.scoreboard_page.is_some() {
+                refresh_scoreboard(s, laptop);
+            }
+        }
+        AppEvent::EventsPasswordConfigured(configured) => {
+            s.events_password_configured = configured;
+            accounts::refresh(s, laptop);
+        }
+        AppEvent::Scoreboard(res) => {
+            let sb = laptop.global::<Scoreboard>();
+            sb.set_loading(false);
+            match res {
+                Ok(page) => {
+                    sb.set_error("".into());
+                    s.scoreboard_page = Some(page);
+                    refresh_scoreboard(s, laptop);
+                }
+                Err(_) => {
+                    sb.set_error("Scores are temporarily unavailable. Please retry.".into());
+                }
+            }
+        }
         AppEvent::Sites(sites) => {
             s.sites = sites;
             home::refresh_tiles(s, laptop);
@@ -621,6 +667,157 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
     if on_setup(laptop) {
         accounts::refresh_setup(s, laptop);
     }
+}
+
+fn refresh_sports(s: &UiState, laptop: &LaptopWindow) {
+    let Some(page) = &s.sports_page else { return };
+    let sp = laptop.global::<Sports>();
+    let choices: Vec<SportsChoiceData> = page
+        .choices
+        .iter()
+        .map(|c| SportsChoiceData { value: c.value.as_str().into(), label: c.label.as_str().into() })
+        .collect();
+    let label = page
+        .choices
+        .iter()
+        .find(|c| c.value == page.schedule)
+        .map(|c| c.label.as_str())
+        .unwrap_or("All schedules");
+
+    let mut rows = Vec::new();
+    for day in &page.days {
+        rows.push(SportsRowData {
+            kind: "day".into(),
+            header_text: day.date_heading.as_str().into(),
+            ..Default::default()
+        });
+        for lg in &day.leagues {
+            rows.push(SportsRowData {
+                kind: "league".into(),
+                header_text: lg.league.as_str().into(),
+                ..Default::default()
+            });
+            for g in &lg.games {
+                let away_logo = g.away_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
+                let home_logo = g.home_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
+                rows.push(SportsRowData {
+                    kind: "game".into(),
+                    header_text: Default::default(),
+                    sport: g.sport.as_str().into(),
+                    is_neutral: g.is_neutral,
+                    away_name: g.away_name.as_str().into(),
+                    away_label: g.away_label.as_str().into(),
+                    away_has_logo: away_logo.is_some(),
+                    away_logo: away_logo.cloned().unwrap_or_default(),
+                    away_initials: g.away_initials.as_str().into(),
+                    home_name: g.home_name.as_str().into(),
+                    home_label: g.home_label.as_str().into(),
+                    home_has_logo: home_logo.is_some(),
+                    home_logo: home_logo.cloned().unwrap_or_default(),
+                    home_initials: g.home_initials.as_str().into(),
+                    time_text: g.time_text.as_str().into(),
+                    is_tbd: g.is_tbd,
+                    city: g.city.as_str().into(),
+                    venue: g.venue.as_str().into(),
+                    tv: g.tv.as_str().into(),
+                    radio: g.radio.as_str().into(),
+                    stats_url: g.stats_url.as_deref().unwrap_or_default().into(),
+                    stream_url: g.stream_url.as_deref().unwrap_or_default().into(),
+                    audio_url: g.audio_url.as_deref().unwrap_or_default().into(),
+                    details_url: g.details_url.as_deref().unwrap_or_default().into(),
+                });
+            }
+        }
+    }
+
+    sp.set_schedule(page.schedule.as_str().into());
+    sp.set_schedule_label(label.into());
+    sp.set_choices(ModelRc::new(VecModel::from(choices)));
+    sp.set_total_count(page.total_count as i32);
+    sp.set_page(page.page as i32);
+    sp.set_total_pages(page.total_pages as i32);
+    sp.set_last_updated(page.last_updated.as_str().into());
+    sp.set_rows(ModelRc::new(VecModel::from(rows)));
+}
+
+fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
+    let Some(page) = &s.scoreboard_page else { return };
+    let sb = laptop.global::<Scoreboard>();
+    let choices: Vec<ScoreboardChoiceData> = page
+        .choices
+        .iter()
+        .map(|c| ScoreboardChoiceData {
+            value: c.value.as_str().into(),
+            label: c.label.as_str().into(),
+            group: c.group.as_str().into(),
+        })
+        .collect();
+    let show_label = page
+        .choices
+        .iter()
+        .find(|c| c.value == page.show)
+        .map(|c| c.label.as_str())
+        .unwrap_or("All sports");
+
+    let mut rows = Vec::new();
+    for group in &page.groups {
+        rows.push(ScoreboardRowData {
+            kind: "group".into(),
+            group_title: group.title.as_str().into(),
+            group_subtitle: group.subtitle.as_str().into(),
+            is_live: group.is_live,
+            ..Default::default()
+        });
+        for g in &group.games {
+            let away_logo = g.away_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
+            let home_logo = g.home_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
+            let away_display = match g.away_rank {
+                Some(r) => format!("#{r} {}", g.away_name),
+                None => g.away_name.clone(),
+            };
+            let home_display = match g.home_rank {
+                Some(r) => format!("#{r} {}", g.home_name),
+                None => g.home_name.clone(),
+            };
+            rows.push(ScoreboardRowData {
+                kind: "game".into(),
+                league_label: g.league_label.as_str().into(),
+                status: g.status.as_str().into(),
+                header_text: g.header_text.as_str().into(),
+                away_name: away_display.into(),
+                away_score: g.away_score.as_str().into(),
+                away_winner: g.away_winner,
+                away_leading: g.away_leading,
+                away_has_logo: away_logo.is_some(),
+                away_logo: away_logo.cloned().unwrap_or_default(),
+                away_initials: g.away_initials.as_str().into(),
+                home_name: home_display.into(),
+                home_score: g.home_score.as_str().into(),
+                home_winner: g.home_winner,
+                home_leading: g.home_leading,
+                home_has_logo: home_logo.is_some(),
+                home_logo: home_logo.cloned().unwrap_or_default(),
+                home_initials: g.home_initials.as_str().into(),
+                details_text: g.details_text.as_str().into(),
+                warning_text: g.warning_text.as_str().into(),
+                source_url: g.source_url.as_deref().unwrap_or_default().into(),
+                ..Default::default()
+            });
+        }
+    }
+
+    sb.set_day(page.day.as_str().into());
+    sb.set_day_label(page.day_label.as_str().into());
+    sb.set_prev_day(page.prev_day.as_str().into());
+    sb.set_next_day(page.next_day.as_str().into());
+    sb.set_is_today(page.is_today);
+    sb.set_show(page.show.as_str().into());
+    sb.set_show_label(show_label.into());
+    sb.set_final_only(page.final_only);
+    sb.set_choices(ModelRc::new(VecModel::from(choices)));
+    sb.set_coverage_warning(page.coverage_warning.as_str().into());
+    sb.set_empty_message(page.empty_message.as_str().into());
+    sb.set_rows(ModelRc::new(VecModel::from(rows)));
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────

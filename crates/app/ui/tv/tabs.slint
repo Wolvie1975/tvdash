@@ -2,7 +2,7 @@ import { Theme } from "../theme.slint";
 import { TvUi } from "../state.slint";
 
 export component TabBar inherits HorizontalLayout {
-    in property <[string]> tabs: ["Home", "Library", "Collections", "Settings"];
+    in property <[string]> tabs: ["Home", "Library", "Collections", "Sports", "Settings"];
     in property <int> active: 0;
     in property <bool> bar-focused: false;
     callback tab-clicked(int);
