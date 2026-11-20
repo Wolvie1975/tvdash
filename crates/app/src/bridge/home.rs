@@ -329,7 +329,8 @@ pub(super) fn refresh_tv_card(s: &UiState, laptop: &LaptopWindow) {
 fn tv_card(s: &UiState) -> (TvCard, Hue) {
     let poster_of = |item: &MediaItem| {
         let key = (item.source, item.id.clone());
-        (s.posters.get(&key).cloned(), s.hues.get(&key).copied().unwrap_or(tint::DEFAULT))
+        let art = s.backdrops.get(&key).or_else(|| s.posters.get(&key)).cloned();
+        (art, s.hues.get(&key).copied().unwrap_or(tint::DEFAULT))
     };
     let base = TvCard { label: "ON THE TV".into(), ..Default::default() };
     if let Some(st) = &s.player {

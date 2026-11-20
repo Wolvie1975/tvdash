@@ -1491,6 +1491,7 @@ impl Controller {
         for source in self.sources() {
             let events = self.events.clone();
             let requested = self.posters_requested.clone();
+            let backdrops_req = self.backdrops_requested.clone();
             tokio::spawn(async move {
                 let kind = source.kind();
                 match source.continue_watching().await {
@@ -1499,6 +1500,9 @@ impl Controller {
                         let _ = events.send(AppEvent::Health { service: kind.into(), result: Ok(note) });
                         let _ = events.send(AppEvent::Account(kind, AccountStatus::Connected));
                         let _ = events.send(AppEvent::ContinueWatching(kind, items.clone()));
+                        if let Some(hero) = items.first().cloned() {
+                            fetch_backdrops(source.clone(), vec![hero], backdrops_req.clone(), events.clone());
+                        }
                         fetch_posters(source.clone(), items, requested.clone(), events.clone());
                     }
                     Err(e) => {

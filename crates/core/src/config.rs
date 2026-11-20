@@ -450,7 +450,7 @@ fn default_streaming_sites() -> Vec<StreamingSite> {
         ("Netflix", "https://www.netflix.com"),
         ("Fandango at Home", "https://athome.fandango.com"),
         ("Prime Video", "https://www.primevideo.com"),
-        ("Crunchyroll", "https://www.crunchyroll.com"),
+        ("YouTube Music", "https://music.youtube.com"),
         ("Tubi", "https://tubitv.com"),
     ]
     .into_iter()

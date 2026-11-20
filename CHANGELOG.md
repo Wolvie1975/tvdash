@@ -1,5 +1,12 @@
 # tvdash Changelog
 
+## v0.1.42 — 2026-11-19
+- Added **YouTube Music** brand styling + bundled SVG (`assets/logos/youtube-music.svg`) and replaced Crunchyroll in `default_streaming_sites()`.
+
+## v0.1.41 — 2026-11-19
+- Updated the Home hero tile (`On the TV` / `Currently Playing`) to use the `16:9` backdrop when available (falling back to the poster until prefetched) so widescreen artwork fits without cropping.
+- Fixed `TvShow` mouse-wheel scrolling jumping back to the top when background `AppEvent`s triggered `tv_nav::sync`.
+
 ## v0.1.40 — 2026-11-19
 - Added the **Sports** tab (`tvdash-events` crate + `tv/events.slint`) reading read-only from the `WebScraper` SQL Server database (`tiberius`), with GNOME Keyring password storage (`events_sql_password` / **Settings → Accounts → Sports · SQL Server**).
 - Implemented **Sports → Competitions** (today through +3 days in Central time, schedule filter dropdown, day/league grouping, team logos/initials, TV/Radio, and `Stats`/`Video`/`Audio`/`Details` links opening in `tvdash`'s TV browser, 200/page).

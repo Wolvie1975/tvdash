@@ -187,16 +187,10 @@ pub fn sync(laptop: &LaptopWindow) {
                     let season_n = show.get_seasons().row_count();
                     let grid_base = 3 + season_n;
                     if s.shell.focused_tile >= grid_base {
-                        show.set_scrolled(true);
                         let ep_idx = s.shell.focused_tile - grid_base;
                         if let Some(ep) = show.get_episodes().row_data(ep_idx) {
                             show.set_focused_episode(ep);
                         }
-                        let vert = Rect { x: r.y - 244.0, y: 0.0, w: r.h, h: r.w };
-                        s.show_scroll = focus::panorama_scroll(vert, s.show_scroll.max(456.0), 804.0, 16.0);
-                    } else {
-                        show.set_scrolled(false);
-                        s.show_scroll = 0.0;
                     }
                 }
                 Page::Collection(_) if s.shell.focused_tile >= 2 => {
@@ -524,6 +518,26 @@ fn hover_tile(laptop: &LaptopWindow, idx: usize) {
     if tv.get_screen() == "library" && !laptop.global::<Library>().get_browse_all() && idx >= 4 {
         laptop.global::<LibraryLanding>().invoke_focus_changed(idx as i32);
     }
+}
+
+fn scroll_show_to_focus(laptop: &LaptopWindow) {
+    let tv = laptop.global::<TvUi>();
+    let rects = tile_rects(laptop, &Page::Show(String::new()));
+    STATE.with_borrow_mut(|s| {
+        let Some(&r) = rects.get(s.shell.focused_tile) else { return };
+        let show = laptop.global::<ShowPageState>();
+        let season_n = show.get_seasons().row_count();
+        let grid_base = 3 + season_n;
+        if s.shell.focused_tile >= grid_base {
+            show.set_scrolled(true);
+            let vert = Rect { x: r.y - 244.0, y: 0.0, w: r.h, h: r.w };
+            s.show_scroll = focus::panorama_scroll(vert, s.show_scroll.max(456.0), 804.0, 16.0);
+        } else {
+            show.set_scrolled(false);
+            s.show_scroll = 0.0;
+        }
+        tv.set_show_scroll(s.show_scroll);
+    });
 }
 
 fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
@@ -1159,12 +1173,16 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
             && rects.get(next_idx).is_some_and(|r| r.w > 0.0)
         {
             STATE.with_borrow_mut(|s| s.shell.focused_tile = next_idx);
+            scroll_show_to_focus(laptop);
             sync(laptop);
             return true;
         }
         if let Some(next_idx) = focus::next(&rects, from, dir) {
             if rects[next_idx].w > 0.0 {
                 STATE.with_borrow_mut(|s| s.shell.focused_tile = next_idx);
+                if matches!(page, Page::Show(_)) {
+                    scroll_show_to_focus(laptop);
+                }
                 sync(laptop);
                 return true;
             }

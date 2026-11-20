@@ -1041,6 +1041,7 @@ pub(super) fn on_backdrop(
     let img = to_image(image);
     s.backdrop_hues.insert(key.clone(), hue);
     s.backdrops.insert(key.clone(), img.clone());
+    super::home::refresh_tv_card(s, laptop);
 
     let ll = laptop.global::<LibraryLanding>();
     let shelf1 = ll.get_shelf1();
