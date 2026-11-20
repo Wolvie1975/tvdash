@@ -387,7 +387,7 @@ impl Default for DisplayConfig {
         Self {
             tv_output: "HDMI-A-1".into(),
             laptop_output: "eDP-1".into(),
-            layout: LayoutSetting::Auto,
+            layout: LayoutSetting::Tv,
             switch_while_running: true,
             night_mode: false,
             night_start: default_night_start(),

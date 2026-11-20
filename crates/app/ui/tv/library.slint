@@ -1,8 +1,92 @@
 import { Theme } from "../theme.slint";
-import { Library, LibraryLanding, TvUi } from "../state.slint";
+import { Library, LibraryLanding, RankedTileData, TvUi } from "../state.slint";
 import { SubTabs } from "tabs.slint";
 import { FocusBackdrop } from "focus_backdrop.slint";
 import { MediaTile, Tile } from "tile.slint";
+
+component RankedShelf inherits Rectangle {
+    in property <string> title;
+    in property <string> count-text;
+    in property <[RankedTileData]> items;
+    in property <int> base-tile;
+
+    height: 265px * TvUi.u;
+    background: transparent;
+
+    Text {
+        x: 96px * TvUi.u;
+        y: 0px;
+        text: root.title;
+        font-size: 20px * TvUi.u;
+        font-weight: 500;
+        letter-spacing: 1.2px;
+        color: Theme.text-secondary;
+    }
+
+    Text {
+        x: 1920px * TvUi.u - 96px * TvUi.u - self.preferred-width;
+        y: 0px;
+        text: root.count-text;
+        font-size: 18px * TvUi.u;
+        color: Theme.text-muted;
+    }
+
+    for item[i] in root.items: Rectangle {
+        visible: i < 6;
+        property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == root.base-tile + i;
+
+        x: (96px + i * 292px) * TvUi.u;
+        y: 40px * TvUi.u;
+        width: 284px * TvUi.u;
+        height: 225px * TvUi.u;
+        background: transparent;
+
+        // Outlined rank numeral (1..6)
+        Image {
+            x: 0;
+            y: 8px * TvUi.u;
+            width: 150px * TvUi.u;
+            height: 225px * TvUi.u;
+            source: item.rank == 1 ? @image-url("../../../../assets/rank/1.svg")
+                : item.rank == 2 ? @image-url("../../../../assets/rank/2.svg")
+                : item.rank == 3 ? @image-url("../../../../assets/rank/3.svg")
+                : item.rank == 4 ? @image-url("../../../../assets/rank/4.svg")
+                : item.rank == 5 ? @image-url("../../../../assets/rank/5.svg")
+                : @image-url("../../../../assets/rank/6.svg");
+            image-fit: contain;
+        }
+
+        // 2:3 poster tile on the right of the numeral
+        Tile {
+            x: 134px * TvUi.u;
+            y: 0;
+            base-width: 150px * TvUi.u;
+            base-height: 225px * TvUi.u;
+            fill: Theme.surface;
+            focused: parent.is-foc;
+            activated => { TvUi.tile-activated(root.base-tile + i); }
+            hovered => { TvUi.tile-hovered(root.base-tile + i); }
+
+            if item.has-poster: Image {
+                source: item.poster;
+                width: 100%;
+                height: 100%;
+                image-fit: cover;
+            }
+
+            if !item.has-poster: Text {
+                x: 12px * TvUi.u;
+                y: parent.height - self.preferred-height - 12px * TvUi.u;
+                width: parent.width - 24px * TvUi.u;
+                text: item.title;
+                font-size: 18px * TvUi.u;
+                font-weight: 600;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+            }
+        }
+    }
+}
 
 export component TvLibrary inherits Rectangle {
     width: 1920px * TvUi.u;
@@ -16,8 +100,9 @@ export component TvLibrary inherits Rectangle {
 
     property <int> s1-n: LibraryLanding.shelf1.length;
     property <int> s2-n: LibraryLanding.shelf2.length;
-    property <float> s2-label-y: root.s1-n > 0 ? 808.0 : 496.0;
-    property <float> s2-row-y: root.s1-n > 0 ? 848.0 : 536.0;
+    property <int> s3-n: LibraryLanding.shelf3.length;
+    property <float> s2-label-y: root.s1-n > 0 ? 322.0 : 10.0;
+    property <float> s3-label-y: root.s2-label-y + (root.s2-n > 0 ? 301.0 : 0.0);
 
     // ── Option C FocusBackdrop (top-right, below TabBar) ─────────────────────
     if !Library.browse-all: FocusBackdrop {
@@ -258,10 +343,33 @@ export component TvLibrary inherits Rectangle {
             }
         }
 
+        // Scrollable shelves viewport below FocusInfo
+        Rectangle {
+            x: 0px;
+            y: 486px * TvUi.u;
+            width: parent.width;
+            height: 594px * TvUi.u;
+            clip: true;
+
+            TouchArea {
+                scroll-event(event) => {
+                    TvUi.scroll-panorama(event.delta-y);
+                    accept
+                }
+            }
+
+            Rectangle {
+                x: 0px;
+                y: -TvUi.lib-scroll * TvUi.u;
+                width: parent.width;
+                height: (root.s3-label-y + (root.s3-n > 0 ? 300.0 : 0.0)) * 1px * TvUi.u;
+                background: transparent;
+                animate y { duration: 150ms; easing: ease-out; }
+
         // Shelf 1: Finish the season (TV) / Continue watching (Movies) — 4 x 420x236
         if root.s1-n > 0: Text {
             x: 96px * TvUi.u;
-            y: 496px * TvUi.u;
+            y: 10px * TvUi.u;
             text: LibraryLanding.shelf1-title;
             font-size: 20px * TvUi.u;
             font-weight: 500;
@@ -270,7 +378,7 @@ export component TvLibrary inherits Rectangle {
         }
         if root.s1-n > 0: Text {
             x: 1920px * TvUi.u - 96px * TvUi.u - self.preferred-width;
-            y: 496px * TvUi.u;
+            y: 10px * TvUi.u;
             text: LibraryLanding.shelf1-count;
             font-size: 18px * TvUi.u;
             color: Theme.text-muted;
@@ -279,7 +387,7 @@ export component TvLibrary inherits Rectangle {
         for item[i] in LibraryLanding.shelf1: Tile {
             visible: i < 4;
             x: (96px + i * 436px) * TvUi.u;
-            y: 536px * TvUi.u;
+            y: 50px * TvUi.u;
             base-width: 420px * TvUi.u;
             base-height: 236px * TvUi.u;
             fill: Theme.surface;
@@ -353,76 +461,26 @@ export component TvLibrary inherits Rectangle {
         }
 
         // Shelf 2: Start watching (TV) / Recently added (Movies) — 6 x 284x225 numbered
-        if root.s2-n > 0: Text {
-            x: 96px * TvUi.u;
+        if root.s2-n > 0: RankedShelf {
+            x: 0;
             y: root.s2-label-y * 1px * TvUi.u;
-            text: LibraryLanding.shelf2-title;
-            font-size: 20px * TvUi.u;
-            font-weight: 500;
-            letter-spacing: 1.2px;
-            color: Theme.text-secondary;
-        }
-        if root.s2-n > 0: Text {
-            x: 1920px * TvUi.u - 96px * TvUi.u - self.preferred-width;
-            y: root.s2-label-y * 1px * TvUi.u;
-            text: LibraryLanding.shelf2-count;
-            font-size: 18px * TvUi.u;
-            color: Theme.text-muted;
+            width: parent.width;
+            title: LibraryLanding.shelf2-title;
+            count-text: LibraryLanding.shelf2-count;
+            items: LibraryLanding.shelf2;
+            base-tile: 4 + root.s1-n;
         }
 
-        for item[i] in LibraryLanding.shelf2: Rectangle {
-            visible: i < 6;
-            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 4 + root.s1-n + i;
-
-            x: (96px + i * 292px) * TvUi.u;
-            y: root.s2-row-y * 1px * TvUi.u;
-            width: 284px * TvUi.u;
-            height: 225px * TvUi.u;
-            background: transparent;
-
-            // Outlined rank numeral (1..6)
-            Image {
-                x: 0;
-                y: 8px * TvUi.u;
-                width: 150px * TvUi.u;
-                height: 225px * TvUi.u;
-                source: item.rank == 1 ? @image-url("../../../../assets/rank/1.svg")
-                    : item.rank == 2 ? @image-url("../../../../assets/rank/2.svg")
-                    : item.rank == 3 ? @image-url("../../../../assets/rank/3.svg")
-                    : item.rank == 4 ? @image-url("../../../../assets/rank/4.svg")
-                    : item.rank == 5 ? @image-url("../../../../assets/rank/5.svg")
-                    : @image-url("../../../../assets/rank/6.svg");
-                image-fit: contain;
-            }
-
-            // 2:3 poster tile on the right of the numeral
-            Tile {
-                x: 134px * TvUi.u;
-                y: 0;
-                base-width: 150px * TvUi.u;
-                base-height: 225px * TvUi.u;
-                fill: Theme.surface;
-                focused: parent.is-foc;
-                activated => { TvUi.tile-activated(4 + root.s1-n + i); }
-                hovered => { TvUi.tile-hovered(4 + root.s1-n + i); }
-
-                if item.has-poster: Image {
-                    source: item.poster;
-                    width: 100%;
-                    height: 100%;
-                    image-fit: cover;
-                }
-
-                if !item.has-poster: Text {
-                    x: 12px * TvUi.u;
-                    y: parent.height - self.preferred-height - 12px * TvUi.u;
-                    width: parent.width - 24px * TvUi.u;
-                    text: item.title;
-                    font-size: 18px * TvUi.u;
-                    font-weight: 600;
-                    color: Theme.text-primary;
-                    wrap: word-wrap;
-                }
+        // Shelf 3: Recently released episodes (TV) / Recently released (Movies) — 6 x 284x225 numbered
+        if root.s3-n > 0: RankedShelf {
+            x: 0;
+            y: root.s3-label-y * 1px * TvUi.u;
+            width: parent.width;
+            title: LibraryLanding.shelf3-title;
+            count-text: LibraryLanding.shelf3-count;
+            items: LibraryLanding.shelf3;
+            base-tile: 4 + root.s1-n + root.s2-n;
+        }
             }
         }
     }

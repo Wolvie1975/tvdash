@@ -35,11 +35,11 @@ impl Layout {
 #[serde(rename_all = "lowercase")]
 pub enum LayoutSetting {
     /// Pick Dual or Tv based on which screens are currently on.
-    #[default]
     Auto,
     /// Always use two screens (laptop dashboard + TV).
     Dual,
     /// Always use the 10-foot TV-only shell.
+    #[default]
     Tv,
 }
 

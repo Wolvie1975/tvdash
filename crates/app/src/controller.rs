@@ -1040,12 +1040,13 @@ impl Controller {
         let days = if popular_days == 7 { 7 } else { 30 };
 
         tokio::spawn(async move {
-            let shelves_key = format!("plex:shelves:v3:{is_tv}:{}:{days}", sort.plex_sort());
+            let shelves_key = format!("plex:shelves:v4:{is_tv}:{}:{days}", sort.plex_sort());
             if let Some(cached_shelves) =
                 cache.as_ref().and_then(|c| c.get::<tvdash_core::models::LibraryShelves>(&shelves_key, Duration::from_secs(1800)))
             {
                 let source: Arc<dyn MediaSource> = plex;
                 fetch_posters(source.clone(), cached_shelves.added_this_week.clone(), requested.clone(), events.clone());
+                fetch_posters(source.clone(), cached_shelves.recently_released.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), cached_shelves.watch_again.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), collection_poster_items(&cached_shelves.collections), requested.clone(), events.clone());
                 let browse_sample: Vec<_> = cached_shelves.browse_items.iter().take(48).cloned().collect();
@@ -1057,7 +1058,8 @@ impl Controller {
                     .map(|f| f.item.clone())
                     .chain(cached_shelves.continue_watching.iter().cloned())
                     .chain(cached_shelves.added_this_week.iter().cloned())
-                    .take(12)
+                    .chain(cached_shelves.recently_released.iter().cloned())
+                    .take(16)
                     .collect();
                 fetch_backdrops(source, bd_items, backdrops_req, events.clone());
                 let _ = events.send(AppEvent::LibraryShelves(cached_shelves));
@@ -1096,10 +1098,12 @@ impl Controller {
                         .await
                         .unwrap_or_default();
                 }
+                shelves.recently_released = plex.recently_released(&sec.key, is_tv, 6).await.unwrap_or_default();
                 shelves.watch_again = plex.watch_again(&sec.key, is_tv, sort, 6).await.unwrap_or_default();
                 shelves.browse_items = plex.section_items(&sec.key, sort, None, 1000).await.unwrap_or_default();
                 let source: Arc<dyn MediaSource> = plex;
                 fetch_posters(source.clone(), shelves.added_this_week.clone(), requested.clone(), events.clone());
+                fetch_posters(source.clone(), shelves.recently_released.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), shelves.watch_again.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), collection_poster_items(&shelves.collections), requested.clone(), events.clone());
                 let browse_sample: Vec<_> = shelves.browse_items.iter().take(48).cloned().collect();
@@ -1111,7 +1115,8 @@ impl Controller {
                     .map(|f| f.item.clone())
                     .chain(shelves.continue_watching.iter().cloned())
                     .chain(shelves.added_this_week.iter().cloned())
-                    .take(12)
+                    .chain(shelves.recently_released.iter().cloned())
+                    .take(16)
                     .collect();
                 fetch_backdrops(source, bd_items, backdrops_req, events.clone());
             }
@@ -1146,13 +1151,14 @@ impl Controller {
         let backdrops_req = self.backdrops_requested.clone();
         tokio::spawn(async move {
             let res = async {
+                let show_key = plex.show_key_for(&rating_key).await.unwrap_or(rating_key);
                 let item = plex
-                    .item(&rating_key)
+                    .item(&show_key)
                     .await
                     .map_err(|e| e.to_string())?
                     .ok_or_else(|| "Show not found".to_string())?;
-                let seasons = plex.show_seasons(&rating_key).await.map_err(|e| e.to_string())?;
-                let on_deck = plex.show_on_deck(&rating_key).await.ok().flatten();
+                let seasons = plex.show_seasons(&show_key).await.map_err(|e| e.to_string())?;
+                let on_deck = plex.show_on_deck(&show_key).await.ok().flatten();
                 let up_next_season_key = on_deck
                     .as_ref()
                     .and_then(|ep| seasons.iter().find(|s| s.index == ep.season_index))

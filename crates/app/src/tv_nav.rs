@@ -174,7 +174,7 @@ pub fn sync(laptop: &LaptopWindow) {
                     if browse && s.shell.focused_tile >= 32 {
                         let vert = Rect { x: r.y - 256.0, y: 0.0, w: r.h, h: r.w };
                         s.lib_scroll = focus::panorama_scroll(vert, s.lib_scroll, 748.0, 16.0);
-                    } else {
+                    } else if browse {
                         s.lib_scroll = 0.0;
                     }
                 }
@@ -326,13 +326,15 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                     });
                 }
             } else {
+                let lib_scroll = laptop.global::<TvUi>().get_lib_scroll();
                 let ll = laptop.global::<LibraryLanding>();
                 let s1_n = ll.get_shelf1().row_count().min(4);
                 let s2_n = ll.get_shelf2().row_count().min(6);
+                let s3_n = ll.get_shelf3().row_count().min(6);
                 for i in 0..s1_n {
                     rects.push(Rect {
                         x: 96.0 + i as f32 * 436.0,
-                        y: 536.0,
+                        y: 536.0 - lib_scroll,
                         w: 420.0,
                         h: 236.0,
                     });
@@ -341,7 +343,16 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 for i in 0..s2_n {
                     rects.push(Rect {
                         x: 96.0 + i as f32 * 292.0,
-                        y: s2_y,
+                        y: s2_y - lib_scroll,
+                        w: 284.0,
+                        h: 225.0,
+                    });
+                }
+                let s3_y = s2_y + if s2_n > 0 { 301.0 } else { 0.0 };
+                for i in 0..s3_n {
+                    rects.push(Rect {
+                        x: 96.0 + i as f32 * 292.0,
+                        y: s3_y - lib_scroll,
                         w: 284.0,
                         h: 225.0,
                     });
@@ -520,6 +531,23 @@ fn hover_tile(laptop: &LaptopWindow, idx: usize) {
     }
 }
 
+fn scroll_library_to_focus(laptop: &LaptopWindow, idx: usize) {
+    let tv = laptop.global::<TvUi>();
+    if idx < 4 {
+        STATE.with_borrow_mut(|s| s.lib_scroll = 0.0);
+        tv.set_lib_scroll(0.0);
+        return;
+    }
+    let rects = tile_rects(laptop, &Page::Library);
+    STATE.with_borrow_mut(|s| {
+        let Some(&r) = rects.get(idx) else { return };
+        let abs_y = r.y + s.lib_scroll;
+        let vert = Rect { x: abs_y - 486.0, y: 0.0, w: r.h, h: r.w };
+        s.lib_scroll = focus::panorama_scroll(vert, s.lib_scroll, 594.0, 16.0);
+        tv.set_lib_scroll(s.lib_scroll);
+    });
+}
+
 fn scroll_show_to_focus(laptop: &LaptopWindow) {
     let tv = laptop.global::<TvUi>();
     let rects = tile_rects(laptop, &Page::Show(String::new()));
@@ -550,7 +578,28 @@ fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
                 s.cw_scroll = (s.cw_scroll + step).clamp(0.0, 2400.0);
                 tv.set_cw_scroll(s.cw_scroll);
             }
-            Page::Library | Page::Collections => {
+            Page::Library => {
+                let lib = laptop.global::<Library>();
+                let max_scroll = if lib.get_browse_all() {
+                    4000.0
+                } else {
+                    let ll = laptop.global::<LibraryLanding>();
+                    let s1_n = ll.get_shelf1().row_count().min(4);
+                    let s2_n = ll.get_shelf2().row_count().min(6);
+                    let s3_n = ll.get_shelf3().row_count().min(6);
+                    let mut h: f32 = if s1_n > 0 { 322.0 } else { 10.0 };
+                    if s2_n > 0 {
+                        h += 301.0;
+                    }
+                    if s3_n > 0 {
+                        h += 300.0;
+                    }
+                    (h - 594.0).max(0.0)
+                };
+                s.lib_scroll = (s.lib_scroll + step).clamp(0.0, max_scroll);
+                tv.set_lib_scroll(s.lib_scroll);
+            }
+            Page::Collections => {
                 s.lib_scroll = (s.lib_scroll + step).clamp(0.0, 4000.0);
                 tv.set_lib_scroll(s.lib_scroll);
             }
@@ -756,13 +805,25 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
 
             let item_idx = idx - 4;
             let s1_n = ll.get_shelf1().row_count().min(4);
+            let s2_n = ll.get_shelf2().row_count().min(6);
             if item_idx < s1_n {
                 if let Some(row) = ll.get_shelf1().row_data(item_idx) {
                     lib.invoke_play_key(row.rating_key, true);
                 }
-            } else {
+            } else if item_idx < s1_n + s2_n {
                 let s2_idx = item_idx - s1_n;
                 if let Some(row) = ll.get_shelf2().row_data(s2_idx) {
+                    if is_tv {
+                        lib.invoke_open_show(row.rating_key);
+                        STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
+                        sync(laptop);
+                    } else {
+                        lib.invoke_play_key(row.rating_key, true);
+                    }
+                }
+            } else {
+                let s3_idx = item_idx - s1_n - s2_n;
+                if let Some(row) = ll.get_shelf3().row_data(s3_idx) {
                     if is_tv {
                         lib.invoke_open_show(row.rating_key);
                         STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
@@ -919,13 +980,8 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                     }
                     match item {
                         0 => {
-                            let next = match disp.get_layout_setting().as_str() {
-                                "auto" => "tv",
-                                "tv" => "dual",
-                                _ => "auto",
-                            };
-                            disp.set_layout_setting(next.into());
-                            disp.invoke_set_layout_setting(next.into());
+                            disp.set_layout_setting("tv".into());
+                            disp.invoke_set_layout_setting("tv".into());
                         }
                         1 => {
                             let next = match laptop.global::<crate::Theme>().get_mode() {
@@ -1182,6 +1238,8 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
                 STATE.with_borrow_mut(|s| s.shell.focused_tile = next_idx);
                 if matches!(page, Page::Show(_)) {
                     scroll_show_to_focus(laptop);
+                } else if matches!(page, Page::Library) && !laptop.global::<Library>().get_browse_all() {
+                    scroll_library_to_focus(laptop, next_idx);
                 }
                 sync(laptop);
                 return true;

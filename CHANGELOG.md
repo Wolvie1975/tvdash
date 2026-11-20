@@ -1,5 +1,11 @@
 # tvdash Changelog
 
+## v0.1.44 — 2026-11-20
+- Swapped the `Settings` and `Theme` tile fills on `TvHome` so `Settings` matches the bottom row (`Dash.tint.card`) and `Theme` aligns with the right-hand column (`Dash.tint.poster`).
+- Moved the clock and date into the bottom-left **Weather / Time** tile on `TvHome` and dedicated the full tall left tile to Plex content details.
+- Added a **Recently Released** (Top 6) 3rd shelf to `TvLibrary` for both TV Series (`RECENTLY RELEASED EPISODES`, opening the Show page) and Movies (`RECENTLY RELEASED`), with vertical shelf scrolling.
+- Defaulted to **TV only** (`LayoutSetting::Tv`) and locked two-screen mode off in the UI/startup (still available via `--layout dual`).
+
 ## v0.1.43 — 2026-11-19
 - Moved `FocusBackdrop` on `TvLibrary` below the top `TabBar` (`y: 118px` with a soft top fade) so navigation tabs and clock stay crisp and legible in Dark, Stone, and Mist themes.
 

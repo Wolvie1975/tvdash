@@ -239,6 +239,7 @@ pub(super) fn on_shelves(s: &mut UiState, laptop: &LaptopWindow, shelves: Librar
         .collect();
     lib.set_finish_season(ModelRc::new(VecModel::from(finish_rows)));
     s.lib_added_week = s.added_this_week_or_empty(&shelves).to_vec();
+    s.lib_recently_released = shelves.recently_released;
     s.lib_watch_again = shelves.watch_again;
     s.lib_browse_all = shelves.browse_items;
     s.lib_added_week_cards.set_vec(cards_for(s, &s.lib_added_week));
@@ -822,6 +823,24 @@ fn apply_focus_item(s: &mut UiState, laptop: &LaptopWindow, item: &MediaItem, is
     }
 }
 
+fn ranked_tiles(s: &UiState, items: &[MediaItem]) -> Vec<RankedTileData> {
+    items
+        .iter()
+        .enumerate()
+        .map(|(i, item)| {
+            let key = (item.source, item.id.clone());
+            let poster = s.posters.get(&key);
+            RankedTileData {
+                rating_key: item.id.as_str().into(),
+                rank: (i + 1) as i32,
+                title: item.title.as_str().into(),
+                has_poster: poster.is_some(),
+                poster: poster.cloned().unwrap_or_default(),
+            }
+        })
+        .collect()
+}
+
 pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
     let lib = laptop.global::<Library>();
     let ll = laptop.global::<LibraryLanding>();
@@ -878,29 +897,21 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
             (items, tiles, "CONTINUE WATCHING")
         };
         let s2_items = start_watching(&s.lib_browse_all);
-        let s2_tiles: Vec<RankedTileData> = s2_items
-            .iter()
-            .enumerate()
-            .map(|(i, item)| {
-                let key = (item.source, item.id.clone());
-                let poster = s.posters.get(&key);
-                RankedTileData {
-                    rating_key: item.id.as_str().into(),
-                    rank: (i + 1) as i32,
-                    title: item.title.as_str().into(),
-                    has_poster: poster.is_some(),
-                    poster: poster.cloned().unwrap_or_default(),
-                }
-            })
-            .collect();
+        let s2_tiles = ranked_tiles(s, &s2_items);
+        let s3_items: Vec<MediaItem> = s.lib_recently_released.iter().take(6).cloned().collect();
+        let s3_tiles = ranked_tiles(s, &s3_items);
         ll.set_shelf1_title(s1_title.into());
         ll.set_shelf1_count(format!("{} in progress", s1_tiles.len()).into());
         ll.set_shelf2_title("START WATCHING".into());
         ll.set_shelf2_count("Not started yet · new picks every Monday".into());
+        ll.set_shelf3_title("RECENTLY RELEASED EPISODES".into());
+        ll.set_shelf3_count("Newest air dates".into());
         ll.set_shelf1(ModelRc::new(VecModel::from(s1_tiles)));
         ll.set_shelf2(ModelRc::new(VecModel::from(s2_tiles)));
+        ll.set_shelf3(ModelRc::new(VecModel::from(s3_tiles)));
         s.lib_shelf1_items = s1_items;
         s.lib_shelf2_items = s2_items;
+        s.lib_shelf3_items = s3_items;
     } else {
         let s1_items: Vec<MediaItem> = s.lib_continue.iter().take(4).cloned().collect();
         let s1_tiles: Vec<Shelf1TileData> = s1_items
@@ -925,29 +936,21 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
         } else {
             s.lib_recent.iter().take(6).cloned().collect()
         };
-        let s2_tiles: Vec<RankedTileData> = s2_items
-            .iter()
-            .enumerate()
-            .map(|(i, item)| {
-                let key = (item.source, item.id.clone());
-                let poster = s.posters.get(&key);
-                RankedTileData {
-                    rating_key: item.id.as_str().into(),
-                    rank: (i + 1) as i32,
-                    title: item.title.as_str().into(),
-                    has_poster: poster.is_some(),
-                    poster: poster.cloned().unwrap_or_default(),
-                }
-            })
-            .collect();
+        let s2_tiles = ranked_tiles(s, &s2_items);
+        let s3_items: Vec<MediaItem> = s.lib_recently_released.iter().take(6).cloned().collect();
+        let s3_tiles = ranked_tiles(s, &s3_items);
         ll.set_shelf1_title("CONTINUE WATCHING".into());
         ll.set_shelf1_count(format!("{} in progress", s1_tiles.len()).into());
         ll.set_shelf2_title("RECENTLY ADDED".into());
         ll.set_shelf2_count("Newest first".into());
+        ll.set_shelf3_title("RECENTLY RELEASED".into());
+        ll.set_shelf3_count("Newest release dates".into());
         ll.set_shelf1(ModelRc::new(VecModel::from(s1_tiles)));
         ll.set_shelf2(ModelRc::new(VecModel::from(s2_tiles)));
+        ll.set_shelf3(ModelRc::new(VecModel::from(s3_tiles)));
         s.lib_shelf1_items = s1_items;
         s.lib_shelf2_items = s2_items;
+        s.lib_shelf3_items = s3_items;
     }
 
     if let Some(first) = s.lib_shelf1_items.first().cloned() {
@@ -990,6 +993,7 @@ pub fn on_library_focus_changed(
             let is_tv = laptop.global::<Library>().get_media_tab() == "tv";
             let idx = (tile_idx - 4) as usize;
             let s1_len = s.lib_shelf1_items.len();
+            let s2_len = s.lib_shelf2_items.len();
             let (item, is_shelf1, neighbors) = if idx < s1_len {
                 let it = s.lib_shelf1_items.get(idx).cloned();
                 let mut nb = Vec::new();
@@ -998,7 +1002,7 @@ pub fn on_library_focus_changed(
                 }
                 nb.extend(s.lib_shelf1_items.get(idx + 1).cloned());
                 (it, true, nb)
-            } else {
+            } else if idx < s1_len + s2_len {
                 let j = idx - s1_len;
                 let it = s.lib_shelf2_items.get(j).cloned();
                 let mut nb = Vec::new();
@@ -1006,6 +1010,15 @@ pub fn on_library_focus_changed(
                     nb.extend(s.lib_shelf2_items.get(j - 1).cloned());
                 }
                 nb.extend(s.lib_shelf2_items.get(j + 1).cloned());
+                (it, false, nb)
+            } else {
+                let k = idx - s1_len - s2_len;
+                let it = s.lib_shelf3_items.get(k).cloned();
+                let mut nb = Vec::new();
+                if k > 0 {
+                    nb.extend(s.lib_shelf3_items.get(k - 1).cloned());
+                }
+                nb.extend(s.lib_shelf3_items.get(k + 1).cloned());
                 (it, false, nb)
             };
             let mut out = Vec::new();
@@ -1060,6 +1073,8 @@ pub(super) fn on_backdrop(
         if let Some(it) = s.lib_shelf1_items.iter().find(|i| (i.source, i.id.clone()) == key).cloned() {
             apply_focus_item(s, laptop, &it, true, is_tv);
         } else if let Some(it) = s.lib_shelf2_items.iter().find(|i| (i.source, i.id.clone()) == key).cloned() {
+            apply_focus_item(s, laptop, &it, false, is_tv);
+        } else if let Some(it) = s.lib_shelf3_items.iter().find(|i| (i.source, i.id.clone()) == key).cloned() {
             apply_focus_item(s, laptop, &it, false, is_tv);
         }
     }

@@ -121,6 +121,8 @@ pub struct UiState {
     lib_finish_season: Vec<tvdash_core::models::FinishSeasonItem>,
     lib_shelf1_items: Vec<MediaItem>,
     lib_shelf2_items: Vec<MediaItem>,
+    lib_shelf3_items: Vec<MediaItem>,
+    lib_recently_released: Vec<MediaItem>,
     lib_focused_key: Option<(SourceKind, String)>,
     lib_shelves_loading: bool,
     backdrops: HashMap<(SourceKind, String), Image>,

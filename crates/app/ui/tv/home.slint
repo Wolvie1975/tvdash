@@ -9,7 +9,7 @@ export component TvHome inherits Rectangle {
     background: transparent;
 
     // ── Left/center hub (x: 96..1306, y: 136..972) ─────────────────────────
-    // 0: Tall Clock + Plex Up Next info tile (210 x 590)
+    // 0: Tall Plex Up Next / Now Playing info tile (210 x 590)
     Tile {
         x: 96px * TvUi.u;
         y: 136px * TvUi.u;
@@ -25,50 +25,26 @@ export component TvHome inherits Rectangle {
             spacing: 8px * TvUi.u;
             alignment: start;
 
-            HorizontalLayout {
-                spacing: 6px * TvUi.u;
-                alignment: start;
-
-                Text {
-                    text: Dash.clock-hh + ":" + Dash.clock-mm;
-                    font-size: 42px * TvUi.u;
-                    font-weight: 300;
-                    color: Theme.text-primary;
-                }
-
-                if Dash.clock-ampm != "": Text {
-                    text: Dash.clock-ampm;
-                    font-size: 20px * TvUi.u;
-                    font-weight: 400;
-                    color: Dash.tint.sec;
-                    vertical-alignment: bottom;
-                }
-            }
-
-            Text {
-                text: Dash.clock-year != "" ? Dash.date-text + ", " + Dash.clock-year : Dash.date-text;
-                font-size: 18px * TvUi.u;
-                color: Dash.tint.sec;
-                wrap: word-wrap;
-            }
-
-            Rectangle {
-                height: 1px;
-                background: Dash.tint.sec.with-alpha(0.25);
-            }
-
             Text {
                 text: Dash.tv.source != "" ? Dash.tv.source + " · " + Dash.tv.label : Dash.tv.label;
-                font-size: 14px * TvUi.u;
+                font-size: 13px * TvUi.u;
                 font-weight: 600;
                 letter-spacing: 0.4px;
                 color: Dash.tint.accent;
                 wrap: word-wrap;
             }
 
+            if Dash.tv.title != "": Text {
+                text: Dash.tv.title;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+            }
+
             if Dash.tv.subtitle != "": Text {
                 text: Dash.tv.subtitle;
-                font-size: 18px * TvUi.u;
+                font-size: 17px * TvUi.u;
                 font-weight: 500;
                 color: Theme.text-primary;
                 wrap: word-wrap;
@@ -76,21 +52,26 @@ export component TvHome inherits Rectangle {
 
             if Dash.tv.at-text != "": Text {
                 text: Dash.tv.at-text;
-                font-size: 16px * TvUi.u;
+                font-size: 15px * TvUi.u;
                 color: Dash.tint.sec;
                 wrap: word-wrap;
             }
 
             if Dash.tv.left-text != "": Text {
                 text: Dash.tv.left-text;
-                font-size: 16px * TvUi.u;
+                font-size: 15px * TvUi.u;
                 color: Dash.tint.sec;
                 wrap: word-wrap;
             }
 
+            if Dash.tv.summary != "": Rectangle {
+                height: 1px;
+                background: Dash.tint.sec.with-alpha(0.25);
+            }
+
             if Dash.tv.summary != "": Text {
                 text: Dash.tv.summary;
-                font-size: 14px * TvUi.u;
+                font-size: 15px * TvUi.u;
                 color: Theme.text-secondary;
                 wrap: word-wrap;
                 overflow: elide;
@@ -189,21 +170,53 @@ export component TvHome inherits Rectangle {
 
         VerticalLayout {
             padding: 16px * TvUi.u;
-            spacing: 8px * TvUi.u;
+            spacing: 6px * TvUi.u;
 
             HorizontalLayout {
-                spacing: 10px * TvUi.u;
+                spacing: 4px * TvUi.u;
+                alignment: start;
+
+                Text {
+                    text: Dash.clock-hh + ":" + Dash.clock-mm;
+                    font-size: 32px * TvUi.u;
+                    font-weight: 300;
+                    color: Theme.text-primary;
+                }
+
+                if Dash.clock-ampm != "": Text {
+                    text: Dash.clock-ampm;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 400;
+                    color: Dash.tint.sec;
+                    vertical-alignment: bottom;
+                }
+            }
+
+            Text {
+                text: Dash.clock-year != "" ? Dash.date-text + ", " + Dash.clock-year : Dash.date-text;
+                font-size: 14px * TvUi.u;
+                color: Dash.tint.sec;
+                overflow: elide;
+            }
+
+            Rectangle {
+                height: 1px;
+                background: Dash.tint.sec.with-alpha(0.25);
+            }
+
+            HorizontalLayout {
+                spacing: 8px * TvUi.u;
                 alignment: start;
 
                 Icon {
                     name: Dash.weather-icon;
-                    size: 36px * TvUi.u;
+                    size: 28px * TvUi.u;
                     tint: Dash.tint.accent;
                 }
 
                 Text {
                     text: Dash.weather-on ? Dash.weather-temp : "—";
-                    font-size: 36px * TvUi.u;
+                    font-size: 28px * TvUi.u;
                     font-weight: 300;
                     color: Theme.text-primary;
                     vertical-alignment: center;
@@ -214,7 +227,7 @@ export component TvHome inherits Rectangle {
 
             Text {
                 text: Dash.weather-on ? Dash.weather-condition : "Weather";
-                font-size: 18px * TvUi.u;
+                font-size: 16px * TvUi.u;
                 font-weight: 500;
                 color: Theme.text-primary;
                 overflow: elide;
@@ -222,7 +235,7 @@ export component TvHome inherits Rectangle {
 
             Text {
                 text: Dash.weather-on ? (Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail) : "Set location in Settings";
-                font-size: 15px * TvUi.u;
+                font-size: 14px * TvUi.u;
                 color: Dash.tint.sec;
                 wrap: word-wrap;
                 overflow: elide;
@@ -335,7 +348,7 @@ export component TvHome inherits Rectangle {
         y: 742px * TvUi.u;
         base-width: 356px * TvUi.u;
         base-height: 230px * TvUi.u;
-        fill: Dash.tint.poster;
+        fill: Dash.tint.card;
         icon: "gear";
         label: "Settings";
         focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
@@ -349,7 +362,7 @@ export component TvHome inherits Rectangle {
         y: 742px * TvUi.u;
         base-width: 240px * TvUi.u;
         base-height: 230px * TvUi.u;
-        fill: Dash.tint.card;
+        fill: Dash.tint.poster;
         label: "Theme";
         value: Theme.mode == UiTheme.dark ? "Dark" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
         focused: !TvUi.bar-focused && TvUi.focused-tile == 8;

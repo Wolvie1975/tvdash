@@ -269,6 +269,15 @@ impl PlexClient {
             .find_map(Metadata::into_media_item))
     }
 
+    pub async fn show_key_for(&self, rating_key: &str) -> Result<String> {
+        let meta = self.metadata(&format!("/library/metadata/{rating_key}"), &[], "show key").await?;
+        Ok(meta
+            .into_iter()
+            .next()
+            .and_then(|m| if m.kind == "episode" { m.grandparent_rating_key } else { Some(m.rating_key) })
+            .unwrap_or_else(|| rating_key.to_string()))
+    }
+
     fn items(meta: Vec<Metadata>) -> Vec<MediaItem> {
         meta.into_iter().filter_map(Metadata::into_media_item).collect()
     }
@@ -441,6 +450,21 @@ impl PlexClient {
             ("X-Plex-Container-Size", limit.to_string()),
         ];
         let meta = self.metadata(&format!("/library/sections/{section_key}/all"), &q, "added since").await?;
+        Ok(Self::items(meta))
+    }
+
+    pub async fn recently_released(&self, section_key: &str, is_tv: bool, limit: u32) -> Result<Vec<MediaItem>> {
+        let mut q = vec![
+            ("sort", "originallyAvailableAt:desc".to_owned()),
+            ("X-Plex-Container-Start", "0".into()),
+            ("X-Plex-Container-Size", limit.to_string()),
+        ];
+        if is_tv {
+            q.push(("type", "4".to_owned()));
+        }
+        let meta = self
+            .metadata(&format!("/library/sections/{section_key}/all"), &q, "recently released")
+            .await?;
         Ok(Self::items(meta))
     }
 

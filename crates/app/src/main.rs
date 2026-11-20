@@ -193,7 +193,7 @@ fn main() -> anyhow::Result<()> {
             tvdash_core::Decision { tv_connected: true, ..d }
         }
     };
-    let layout = args.layout.unwrap_or(decision.layout);
+    let layout = args.layout.unwrap_or(tvdash_core::Layout::Tv);
 
     // Design units for TV-only are 1920x1080; scale 1440p/4K proportionally.
     if layout == tvdash_core::Layout::Tv && !args.windowed && std::env::var_os("SLINT_SCALE_FACTOR").is_none() {
