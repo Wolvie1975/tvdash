@@ -1,5 +1,9 @@
 # tvdash Changelog
 
+## v0.1.45 — 2026-11-20
+- Changed the TV Series **Recently Released** 3rd shelf in `TvLibrary` to query TV series (`type=2`) by `originallyAvailableAt:desc` instead of individual episodes.
+- Replaced the Phone Remote QR card in **Settings → Display** with the **Weather Location** lookup card.
+
 ## v0.1.44 — 2026-11-20
 - Swapped the `Settings` and `Theme` tile fills on `TvHome` so `Settings` matches the bottom row (`Dash.tint.card`) and `Theme` aligns with the right-hand column (`Dash.tint.poster`).
 - Moved the clock and date into the bottom-left **Weather / Time** tile on `TvHome` and dedicated the full tall left tile to Plex content details.

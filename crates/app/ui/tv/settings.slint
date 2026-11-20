@@ -174,8 +174,8 @@ export component TvSettings inherits Rectangle {
             hovered => { TvUi.tile-hovered(11); }
         }
 
-        // Phone Remote QR card
-        if Dash.remote-url != "": Rectangle {
+        // Weather location lookup card
+        Rectangle {
             x: 960px * TvUi.u;
             y: 420px * TvUi.u;
             width: 848px * TvUi.u;
@@ -183,69 +183,9 @@ export component TvSettings inherits Rectangle {
             border-radius: 6px;
             background: Theme.surface;
 
-            if Dash.remote-has-qr: Rectangle {
-                x: 22px * TvUi.u;
-                y: 22px * TvUi.u;
-                width: 176px * TvUi.u;
-                height: 176px * TvUi.u;
-                border-radius: 10px * TvUi.u;
-                background: #FFFFFF;
-
-                Image {
-                    x: 8px * TvUi.u;
-                    y: 8px * TvUi.u;
-                    width: parent.width - 16px * TvUi.u;
-                    height: parent.height - 16px * TvUi.u;
-                    source: Dash.remote-qr;
-                    image-rendering: pixelated;
-                }
-            }
-
             VerticalLayout {
-                x: (Dash.remote-has-qr ? 222px : 24px) * TvUi.u;
-                y: 24px * TvUi.u;
-                width: parent.width - (Dash.remote-has-qr ? 246px : 48px) * TvUi.u;
-                height: parent.height - 48px * TvUi.u;
-                alignment: center;
-                spacing: 8px * TvUi.u;
-
-                Text {
-                    text: "PHONE REMOTE";
-                    font-size: 18px * TvUi.u;
-                    font-weight: 500;
-                    letter-spacing: 1.2px;
-                    color: Theme.text-secondary;
-                }
-
-                Text {
-                    text: Dash.remote-url;
-                    font-size: 28px * TvUi.u;
-                    font-weight: 400;
-                    color: Theme.text-primary;
-                    overflow: elide;
-                }
-
-                Text {
-                    text: "Scan with your phone camera on the same Wi-Fi to open the remote.";
-                    font-size: 20px * TvUi.u;
-                    color: Theme.text-muted;
-                    wrap: word-wrap;
-                }
-            }
-        }
-
-        // Weather location lookup card
-        Rectangle {
-            x: 96px * TvUi.u;
-            y: 656px * TvUi.u;
-            width: 848px * TvUi.u;
-            height: 248px * TvUi.u;
-            border-radius: 6px;
-            background: Theme.surface;
-
-            VerticalLayout {
-                padding: 22px * TvUi.u;
-                spacing: 12px * TvUi.u;
+                padding: 20px * TvUi.u;
+                spacing: 10px * TvUi.u;
 
                 Text {
                     text: "WEATHER LOCATION";

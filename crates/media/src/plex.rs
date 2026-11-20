@@ -460,7 +460,7 @@ impl PlexClient {
             ("X-Plex-Container-Size", limit.to_string()),
         ];
         if is_tv {
-            q.push(("type", "4".to_owned()));
+            q.push(("type", "2".to_owned()));
         }
         let meta = self
             .metadata(&format!("/library/sections/{section_key}/all"), &q, "recently released")

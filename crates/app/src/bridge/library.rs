@@ -904,8 +904,8 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
         ll.set_shelf1_count(format!("{} in progress", s1_tiles.len()).into());
         ll.set_shelf2_title("START WATCHING".into());
         ll.set_shelf2_count("Not started yet · new picks every Monday".into());
-        ll.set_shelf3_title("RECENTLY RELEASED EPISODES".into());
-        ll.set_shelf3_count("Newest air dates".into());
+        ll.set_shelf3_title("RECENTLY RELEASED".into());
+        ll.set_shelf3_count("Newest release dates".into());
         ll.set_shelf1(ModelRc::new(VecModel::from(s1_tiles)));
         ll.set_shelf2(ModelRc::new(VecModel::from(s2_tiles)));
         ll.set_shelf3(ModelRc::new(VecModel::from(s3_tiles)));

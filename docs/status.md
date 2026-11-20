@@ -1,17 +1,17 @@
 # tvdash: where things stand
 
-Last updated 2026-11-20 (v0.1.44). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-20 (v0.1.45). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-- **TV-only v2 Tile Hub (`v0.1.44`)** is complete on branch `tv-tile-hub-v2` (ready to push/merge whenever you want).
+- **TV-only v2 Tile Hub (`v0.1.45`)** is complete on branch `tv-tile-hub-v2` (ready to push/merge whenever you want).
 - Reference to build/upgrade an RPM on the TV machine:
   ```bash
   cargo build --release -j 2
   ./packaging/rpm.sh
-  cp dist/tvdash-0.1.44-1.x86_64.rpm releases/
-  sudo dnf upgrade ./releases/tvdash-0.1.44-1.x86_64.rpm
+  cp dist/tvdash-0.1.45-1.x86_64.rpm releases/
+  sudo dnf upgrade ./releases/tvdash-0.1.45-1.x86_64.rpm
   ```
 
 ## Done

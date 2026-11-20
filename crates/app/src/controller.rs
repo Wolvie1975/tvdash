@@ -1040,7 +1040,7 @@ impl Controller {
         let days = if popular_days == 7 { 7 } else { 30 };
 
         tokio::spawn(async move {
-            let shelves_key = format!("plex:shelves:v4:{is_tv}:{}:{days}", sort.plex_sort());
+            let shelves_key = format!("plex:shelves:v5:{is_tv}:{}:{days}", sort.plex_sort());
             if let Some(cached_shelves) =
                 cache.as_ref().and_then(|c| c.get::<tvdash_core::models::LibraryShelves>(&shelves_key, Duration::from_secs(1800)))
             {
