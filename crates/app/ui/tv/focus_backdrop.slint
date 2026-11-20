@@ -37,11 +37,11 @@ export component FocusBackdrop inherits Rectangle {
         background: @linear-gradient(90deg, Theme.bg 0%, Theme.bg.with-alpha(0.8) 22%, transparent 60%);
     }
 
-    // Top scrim (keeps TabBar + clock legible over bright backdrops)
+    // Soft top fade into the header bar
     Rectangle {
         width: 100%;
-        height: 160px * TvUi.u;
-        background: @linear-gradient(180deg, Theme.bg.with-alpha(0.75) 0%, transparent 100%);
+        height: 72px * TvUi.u;
+        background: @linear-gradient(180deg, Theme.bg 0%, transparent 100%);
     }
 
     // Bottom scrim

@@ -19,12 +19,12 @@ export component TvLibrary inherits Rectangle {
     property <float> s2-label-y: root.s1-n > 0 ? 808.0 : 496.0;
     property <float> s2-row-y: root.s1-n > 0 ? 848.0 : 536.0;
 
-    // ── Option C FocusBackdrop (top-right, bleeds off top/right edges) ───────
+    // ── Option C FocusBackdrop (top-right, below TabBar) ─────────────────────
     if !Library.browse-all: FocusBackdrop {
         x: 620px * TvUi.u;
-        y: 0px;
+        y: 118px * TvUi.u;
         width: 1300px * TvUi.u;
-        height: 660px * TvUi.u;
+        height: 542px * TvUi.u;
         image-a: LibraryLanding.backdrop-a;
         image-b: LibraryLanding.backdrop-b;
         show-b: LibraryLanding.backdrop-show-b;

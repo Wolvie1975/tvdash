@@ -1,5 +1,8 @@
 # tvdash Changelog
 
+## v0.1.43 — 2026-11-19
+- Moved `FocusBackdrop` on `TvLibrary` below the top `TabBar` (`y: 118px` with a soft top fade) so navigation tabs and clock stay crisp and legible in Dark, Stone, and Mist themes.
+
 ## v0.1.42 — 2026-11-19
 - Added **YouTube Music** brand styling + bundled SVG (`assets/logos/youtube-music.svg`) and replaced Crunchyroll in `default_streaming_sites()`.
 
