@@ -178,15 +178,16 @@ export component V3Settings inherits Rectangle {
             }
 
             HorizontalLayout {
-                x: parent.width - 332px * TvUi.u;
+                x: parent.width - 392px * TvUi.u;
                 y: 22px * TvUi.u;
-                width: 310px * TvUi.u;
+                width: 370px * TvUi.u;
                 height: 38px * TvUi.u;
                 spacing: 4px * TvUi.u;
 
                 for t in [
                     { label: "Midnight", mode: UiTheme.dark, val: "dark" },
                     { label: "Aubergine", mode: UiTheme.aubergine, val: "aubergine" },
+                    { label: "Kansas", mode: UiTheme.ku, val: "ku" },
                     { label: "Stone", mode: UiTheme.stone, val: "stone" },
                     { label: "Mist", mode: UiTheme.mist, val: "mist" },
                 ]: Rectangle {

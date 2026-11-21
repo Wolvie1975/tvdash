@@ -385,6 +385,7 @@ fn ui_theme(mode: ThemeMode) -> UiTheme {
     match mode {
         ThemeMode::Dark | ThemeMode::FollowSystem => UiTheme::Dark,
         ThemeMode::Aubergine => UiTheme::Aubergine,
+        ThemeMode::Ku => UiTheme::Ku,
         ThemeMode::Stone => UiTheme::Stone,
         ThemeMode::Mist => UiTheme::Mist,
     }
@@ -393,6 +394,7 @@ fn ui_theme(mode: ThemeMode) -> UiTheme {
 pub fn theme_mode(theme: UiTheme) -> ThemeMode {
     match theme {
         UiTheme::Aubergine => ThemeMode::Aubergine,
+        UiTheme::Ku => ThemeMode::Ku,
         UiTheme::Stone => ThemeMode::Stone,
         UiTheme::Mist => ThemeMode::Mist,
         _ => ThemeMode::Dark,

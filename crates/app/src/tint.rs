@@ -194,11 +194,11 @@ mod tests {
     #[test]
     fn text_on_every_tint_passes_aa() {
         let text = |m: ThemeMode| match m {
-            ThemeMode::Dark | ThemeMode::Aubergine | ThemeMode::FollowSystem => rgb(0xE8EAED),
+            ThemeMode::Dark | ThemeMode::Aubergine | ThemeMode::Ku | ThemeMode::FollowSystem => rgb(0xE8EAED),
             ThemeMode::Stone => rgb(0x1F1D1A),
             ThemeMode::Mist => rgb(0x1A1E23),
         };
-        for mode in [ThemeMode::Dark, ThemeMode::Aubergine, ThemeMode::Stone, ThemeMode::Mist] {
+        for mode in [ThemeMode::Dark, ThemeMode::Aubergine, ThemeMode::Ku, ThemeMode::Stone, ThemeMode::Mist] {
             for deg in (0..360).step_by(10) {
                 for sat in [0.0, 0.5, 1.0] {
                     let t = card_tint(Hue { degrees: deg as f32, saturation: sat }, mode);

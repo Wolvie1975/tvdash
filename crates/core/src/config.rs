@@ -148,6 +148,8 @@ pub enum ThemeMode {
     Dark,
     /// Deep plum dark theme.
     Aubergine,
+    /// University of Kansas (Crimson & Blue) dark theme.
+    Ku,
     /// Warm grey light theme.
     Stone,
     /// Cool blue-grey light theme.

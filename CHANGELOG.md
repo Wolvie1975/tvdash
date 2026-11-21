@@ -1,5 +1,8 @@
 # tvdash Changelog
 
+## v0.1.51 — 2026-11-21
+- Added the **Kansas** (University of Kansas Crimson & Blue) dark theme across both **Classic** and **Blades** (`ThemeMode::Ku`).
+
 ## v0.1.50 — 2026-11-21
 - Fixed **Library** TV/Movie landing **Continue Watching** staleness: requested up to 30 items from Plex `/hubs/continueWatching/items`, triggered `refresh()` on `LoadLibraryShelves`, and reduced the `LibraryShelves` cache TTL from 30 minutes to 5 minutes.
 

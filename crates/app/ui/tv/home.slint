@@ -377,7 +377,7 @@ export component TvHome inherits Rectangle {
         base-height: 230px * TvUi.u;
         fill: Dash.tint.poster;
         label: "Theme";
-        value: Theme.mode == UiTheme.dark ? "Midnight" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
+        value: Theme.mode == UiTheme.dark ? "Midnight" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
         focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
         activated => { TvUi.tile-activated(8); }
         hovered => { TvUi.tile-hovered(8); }
