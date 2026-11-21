@@ -6,8 +6,8 @@ use tracing::{error, warn};
 use tvdash_core::{Command, models::SourceKind};
 
 use crate::{
-    Accounts, Artwork, CollectionPageState, Dash, LaptopWindow, Library, Nav, Scoreboard, Server, Setup, ShowPageState,
-    SiteEditor, Sports, Watch, bridge, watch_ui,
+    Accounts, Artwork, CollectionPageState, Dash, Display, LaptopWindow, Library, Nav, Scoreboard, Server, Setup,
+    ShowPageState, SiteEditor, SleepState, Sports, Watch, bridge, watch_ui,
 };
 use tvdash_core::config::StreamingSite;
 
@@ -27,6 +27,7 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
     };
     wire_dash(laptop, send.clone());
     wire_site_editor(laptop, send.clone());
+    wire_sleep(laptop, send.clone());
 
     let sports = laptop.global::<Sports>();
     let (weak, s) = (laptop.as_weak(), send.clone());
@@ -324,10 +325,14 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
 fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     let lib = laptop.global::<Library>();
 
-    let weak = laptop.as_weak();
+    let (weak, s) = (laptop.as_weak(), send.clone());
     lib.on_set_filter(move |f| {
         if let Some(l) = weak.upgrade() {
             bridge::set_filter(&l, &f);
+            let missing = bridge::missing_browse_posters();
+            if !missing.is_empty() {
+                s(Command::FetchPosters(missing));
+            }
         }
     });
 
@@ -344,6 +349,10 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
         if let Some(l) = weak.upgrade() {
             bridge::set_media_tab(&l, &tab);
             reload_shelves(&l, &s);
+            let missing = bridge::missing_browse_posters();
+            if !missing.is_empty() {
+                s(Command::FetchPosters(missing));
+            }
         }
     });
 
@@ -363,10 +372,14 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
         }
     });
 
-    let weak = laptop.as_weak();
+    let (weak, s) = (laptop.as_weak(), send.clone());
     lib.on_set_browse_letter(move |letter| {
         if let Some(l) = weak.upgrade() {
             bridge::set_browse_letter(&l, &letter);
+            let missing = bridge::missing_browse_posters();
+            if !missing.is_empty() {
+                s(Command::FetchPosters(missing));
+            }
         }
     });
 
@@ -846,6 +859,7 @@ fn wire_site_editor(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'sta
                 tmdb_providers,
                 hidden: existing.is_some_and(|x| x.hidden),
                 logo: existing.and_then(|x| x.logo.clone()),
+                hold_sleep_timer: existing.is_some_and(|x| x.hold_sleep_timer),
             };
             let others: Vec<&StreamingSite> =
                 all.iter().enumerate().filter(|(i, _)| Some(*i) != index).map(|(_, x)| x).collect();
@@ -908,6 +922,89 @@ fn wire_site_editor(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'sta
         if index >= 0 {
             send(Command::SetSiteHidden(index as usize, hidden));
         }
+    });
+}
+
+fn wire_sleep(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
+    let sl = laptop.global::<SleepState>();
+
+    let weak = laptop.as_weak();
+    sl.on_open_picker(move || {
+        let Some(l) = weak.upgrade() else { return };
+        let use_24h = !l.global::<Display>().get_h12();
+        let now = crate::sleep::now_unix();
+        let presets = [15i64, 30, 45, 60, 90, 120];
+        let ends: Vec<slint::SharedString> = presets
+            .iter()
+            .map(|m| format!("Ends {}", crate::sleep::format_ends_at(now + m * 60, use_24h)).into())
+            .collect();
+        let sl = l.global::<SleepState>();
+        sl.set_preset_ends(slint::ModelRc::new(slint::VecModel::from(ends)));
+        let start_focus = if sl.get_active() {
+            let sel = sl.get_selected_tile();
+            if sel >= 0 { sel } else { 3 }
+        } else {
+            let def = sl.get_default_minutes() as i64;
+            presets.iter().position(|&m| m == def).unwrap_or(3) as i32
+        };
+        sl.set_focused_tile(start_focus);
+        sl.set_picker_open(true);
+    });
+
+    let weak = laptop.as_weak();
+    sl.on_close_picker(move || {
+        if let Some(l) = weak.upgrade() {
+            l.global::<SleepState>().set_picker_open(false);
+        }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    sl.on_set_minutes(move |mins| {
+        if let Some(l) = weak.upgrade() {
+            let sl = l.global::<SleepState>();
+            let tile = [15, 30, 45, 60, 90, 120].iter().position(|&m| m == mins).map(|i| i as i32).unwrap_or(-1);
+            sl.set_selected_tile(tile);
+            sl.set_picker_open(false);
+        }
+        s(Command::SleepSetMinutes(mins as i64));
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    sl.on_set_end_of_item(move || {
+        if let Some(l) = weak.upgrade() {
+            let sl = l.global::<SleepState>();
+            if !sl.get_end_of_item_ok() {
+                return;
+            }
+            sl.set_selected_tile(6);
+            sl.set_picker_open(false);
+        }
+        s(Command::SleepSetEndOfItem);
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    sl.on_off(move || {
+        if let Some(l) = weak.upgrade() {
+            l.global::<SleepState>().set_selected_tile(7);
+        }
+        s(Command::SleepOff);
+    });
+
+    let s = send.clone();
+    sl.on_extend(move || s(Command::SleepExtend));
+
+    let s = send.clone();
+    sl.on_sleep_now(move || s(Command::SleepNow));
+
+    let s = send.clone();
+    sl.on_play_next(move || s(Command::SleepPlayNext));
+
+    let (weak, s) = (laptop.as_weak(), send);
+    sl.on_set_warn_before(move |val| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<SleepState>().set_warn_before(val.clone());
+        }
+        s(Command::SetSleepWarnBefore(val.to_string()));
     });
 }
 

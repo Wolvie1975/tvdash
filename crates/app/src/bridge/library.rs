@@ -1158,6 +1158,16 @@ pub fn watching_now_item(idx: usize) -> Option<MediaItem> {
     STATE.with_borrow(|s| s.raw_sessions.get(idx).map(|x| x.item.clone()))
 }
 
+pub fn missing_browse_posters() -> Vec<MediaItem> {
+    STATE.with_borrow(|s| {
+        s.lib_browse
+            .iter()
+            .filter(|i| !s.posters.contains_key(&(i.source, i.id.clone())))
+            .cloned()
+            .collect()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{browse_sort_key, matches_letter};

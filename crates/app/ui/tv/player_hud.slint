@@ -1,5 +1,5 @@
 import { Theme } from "../theme.slint";
-import { Dash, TvUi } from "../state.slint";
+import { Dash, SleepState, TvUi } from "../state.slint";
 import { IconTile } from "tile.slint";
 
 export component TvPlayerHud inherits Rectangle {
@@ -156,6 +156,32 @@ export component TvPlayerHud inherits Rectangle {
             focused: TvUi.focused-tile == 6;
             activated => { Dash.transport("audio"); }
             hovered => { TvUi.focused-tile = 6; }
+        }
+
+        IconTile {
+            x: 1080px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 140px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "moon";
+            label: SleepState.active ? SleepState.label : "Sleep";
+            focused: TvUi.focused-tile == 7;
+            activated => { SleepState.open-picker(); }
+            hovered => { TvUi.focused-tile = 7; }
+        }
+
+        IconTile {
+            x: 1236px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 140px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "forward";
+            label: "Next ep";
+            focused: TvUi.focused-tile == 8;
+            activated => { Dash.transport("next-ep"); }
+            hovered => { TvUi.focused-tile = 8; }
         }
     }
 }

@@ -1,5 +1,18 @@
-chrome.runtime.onMessage.addListener((msg) => {
+const BASE = 'http://127.0.0.1:47800';
+chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg === 'home') {
-    fetch('http://127.0.0.1:47800/home', { method: 'POST' }).catch(() => {});
+    fetch(BASE + '/home', { method: 'POST' }).catch(() => {});
+    return;
+  }
+  if (msg?.t === 'sleep?') {
+    fetch(BASE + '/sleep').then((r) => r.json()).then(reply, () => reply(null));
+    return true;
+  }
+  if (msg?.t === 'sleep') {
+    fetch(BASE + '/sleep', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: msg.action }),
+    }).catch(() => {});
   }
 });

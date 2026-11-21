@@ -1,4 +1,4 @@
-import { AmbientState, Dash, TvUi } from "../state.slint";
+import { AmbientState, Dash, SleepState, TvUi } from "../state.slint";
 
 component PosterWall inherits Rectangle {
     in property <image> wall;
@@ -243,7 +243,7 @@ export component TvAmbient inherits Rectangle {
                 x: 0px;
                 y: 12px * TvUi.u;
                 width: parent.width;
-                text: AmbientState.footer-line;
+                text: AmbientState.footer-line + (SleepState.active ? " · Sleep in " + SleepState.label : "");
                 font-size: 20px * TvUi.u;
                 color: #6E747D;
                 horizontal-alignment: right;

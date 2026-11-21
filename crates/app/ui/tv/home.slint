@@ -1,6 +1,6 @@
 import { Theme, UiTheme } from "../theme.slint";
 import { Icon } from "../icons.slint";
-import { Dash, TvUi } from "../state.slint";
+import { Dash, SleepState, TvUi } from "../state.slint";
 import { IconTile, MediaTile, ServiceTile, Tile, ValueTile } from "tile.slint";
 
 export component TvHome inherits Rectangle {
@@ -117,12 +117,12 @@ export component TvHome inherits Rectangle {
         }
     }
 
-    // 2..4: Utility column (Search, Library, Screensaver)
+    // 2..4, 9: Utility column (Search, Library, Screensaver, Sleep)
     IconTile {
         x: 1066px * TvUi.u;
         y: 136px * TvUi.u;
         base-width: 240px * TvUi.u;
-        base-height: 186px * TvUi.u;
+        base-height: 135px * TvUi.u;
         fill: Dash.tint.poster;
         icon: "search";
         label: "Search";
@@ -133,9 +133,9 @@ export component TvHome inherits Rectangle {
 
     IconTile {
         x: 1066px * TvUi.u;
-        y: 338px * TvUi.u;
+        y: 287px * TvUi.u;
         base-width: 240px * TvUi.u;
-        base-height: 186px * TvUi.u;
+        base-height: 135px * TvUi.u;
         fill: Dash.tint.poster;
         icon: "library";
         label: "Library";
@@ -146,15 +146,28 @@ export component TvHome inherits Rectangle {
 
     IconTile {
         x: 1066px * TvUi.u;
-        y: 540px * TvUi.u;
+        y: 438px * TvUi.u;
         base-width: 240px * TvUi.u;
-        base-height: 186px * TvUi.u;
+        base-height: 135px * TvUi.u;
         fill: Dash.tint.poster;
         icon: "moon";
         label: "Screensaver";
         focused: !TvUi.bar-focused && TvUi.focused-tile == 4;
         activated => { TvUi.tile-activated(4); }
         hovered => { TvUi.tile-hovered(4); }
+    }
+
+    IconTile {
+        x: 1066px * TvUi.u;
+        y: 589px * TvUi.u;
+        base-width: 240px * TvUi.u;
+        base-height: 135px * TvUi.u;
+        fill: Dash.tint.poster;
+        icon: "moon";
+        label: SleepState.active ? "Sleep · " + SleepState.label : "Sleep";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 9;
+        activated => { TvUi.tile-activated(9); }
+        hovered => { TvUi.tile-hovered(9); }
     }
 
     // 5: Weather tile underneath the left Clock column (210 x 230)
@@ -389,8 +402,8 @@ export component TvHome inherits Rectangle {
         base-height: 146px * TvUi.u;
         brand: svc.brand;
         is-recent: svc.is-recent;
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 9 + i;
-        activated => { TvUi.tile-activated(9 + i); }
-        hovered => { TvUi.tile-hovered(9 + i); }
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;
+        activated => { TvUi.tile-activated(10 + i); }
+        hovered => { TvUi.tile-hovered(10 + i); }
     }
 }

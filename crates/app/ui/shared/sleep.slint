@@ -1,0 +1,428 @@
+import { Theme } from "../theme.slint";
+import { Icon } from "../icons.slint";
+import { SleepState } from "../state.slint";
+
+export component SleepChip inherits Rectangle {
+    in property <bool> clickable: false;
+    in property <color> ink: Theme.accent;
+    visible: SleepState.active;
+    width: SleepState.active ? row.preferred-width + (clickable ? 16px : 0px) : 0px;
+    height: 36px;
+    border-radius: 18px;
+    background: clickable && ta.has-hover ? Theme.surface-raised : transparent;
+
+    row := HorizontalLayout {
+        padding-left: clickable ? 8px : 0px;
+        padding-right: clickable ? 8px : 0px;
+        spacing: 8px;
+        alignment: center;
+
+        Rectangle {
+            width: 22px;
+            Icon {
+                name: "moon";
+                size: 20px;
+                tint: root.ink;
+                y: (parent.height - self.height) / 2;
+            }
+        }
+
+        Text {
+            text: SleepState.label;
+            color: root.ink;
+            font-family: Theme.font;
+            font-size: 24px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+    }
+
+    ta := TouchArea {
+        enabled: root.clickable;
+        clicked => { SleepState.open-picker(); }
+    }
+}
+
+component PickerTile inherits Rectangle {
+    in property <string> value-text;
+    in property <string> caption-text;
+    in property <bool> selected: false;
+    in property <bool> focused: false;
+    in property <bool> disabled: false;
+    callback clicked();
+
+    height: 120px;
+    border-radius: 18px;
+    opacity: disabled ? 0.5 : 1.0;
+    background: selected ? Theme.accent : (ta.has-hover && !disabled ? Theme.border : Theme.surface-raised);
+    border-width: focused ? 3px : 1px;
+    border-color: focused ? Theme.accent : (selected ? Theme.accent : Theme.border);
+
+    VerticalLayout {
+        padding: 16px;
+        alignment: center;
+        spacing: 6px;
+
+        Text {
+            text: root.value-text;
+            color: selected ? Theme.on-accent : Theme.text-primary;
+            font-family: Theme.font;
+            font-size: 28px;
+            font-weight: 900;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.caption-text;
+            color: selected ? Theme.on-accent : Theme.text-secondary;
+            font-family: Theme.font;
+            font-size: 16px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    ta := TouchArea {
+        enabled: !root.disabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component SleepPicker inherits Rectangle {
+    visible: SleepState.picker-open;
+    background: #050608B8;
+
+    // Swallow background clicks; clicking scrim closes.
+    TouchArea {
+        clicked => { SleepState.close-picker(); }
+    }
+
+    dialog := Rectangle {
+        width: Math.min(960px, parent.width - 48px);
+        height: content.preferred-height + 68px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: 28px;
+        background: Theme.surface;
+        border-width: 1px;
+        border-color: Theme.border;
+        drop-shadow-blur: 40px;
+        drop-shadow-color: #00000080;
+
+        TouchArea {} // prevent scrim click-through
+
+        content := VerticalLayout {
+            padding-left: 40px;
+            padding-right: 40px;
+            padding-top: 34px;
+            padding-bottom: 34px;
+            spacing: 24px;
+
+            // Header
+            HorizontalLayout {
+                spacing: 16px;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 14px;
+                    Rectangle {
+                        width: 34px;
+                        Icon {
+                            name: "moon";
+                            size: 32px;
+                            tint: Theme.accent;
+                            y: (parent.height - self.height) / 2;
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: 2px;
+                        Text {
+                            text: "Sleep timer";
+                            color: Theme.text-primary;
+                            font-family: Theme.font;
+                            font-size: 36px;
+                            font-weight: 900;
+                        }
+                        Text {
+                            text: !SleepState.active
+                                ? "Off"
+                                : (SleepState.ends-at != ""
+                                    ? "Ends at " + SleepState.ends-at + " · " + SleepState.label + " left"
+                                    : SleepState.label);
+                            color: Theme.text-secondary;
+                            font-family: Theme.font;
+                            font-size: 21px;
+                            font-weight: 600;
+                        }
+                    }
+                }
+
+                // Close button with ESC hint
+                Rectangle {
+                    width: close-row.preferred-width + 28px;
+                    height: 48px;
+                    border-radius: 24px;
+                    background: close-ta.has-hover ? Theme.border : Theme.surface-raised;
+                    border-width: SleepState.focused-tile == 8 ? 3px : 1px;
+                    border-color: SleepState.focused-tile == 8 ? Theme.accent : Theme.border;
+
+                    close-row := HorizontalLayout {
+                        padding-left: 14px;
+                        padding-right: 14px;
+                        spacing: 10px;
+                        alignment: center;
+                        Text {
+                            text: "Close";
+                            color: Theme.text-primary;
+                            font-family: Theme.font;
+                            font-size: 18px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                        Rectangle {
+                            width: 44px;
+                            height: 26px;
+                            y: (parent.height - self.height) / 2;
+                            border-radius: 6px;
+                            border-width: 1px;
+                            border-color: Theme.text-muted;
+                            Text {
+                                text: "ESC";
+                                color: Theme.text-secondary;
+                                font-family: Theme.font;
+                                font-size: 13px;
+                                font-weight: 800;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                    close-ta := TouchArea {
+                        clicked => { SleepState.close-picker(); }
+                    }
+                }
+            }
+
+            // 4x2 Option grid
+            VerticalLayout {
+                spacing: 14px;
+
+                HorizontalLayout {
+                    spacing: 14px;
+                    PickerTile {
+                        horizontal-stretch: 1;
+                        value-text: "15 min";
+                        caption-text: SleepState.preset-ends[0];
+                        selected: SleepState.selected-tile == 0;
+                        focused: SleepState.focused-tile == 0;
+                        clicked => { SleepState.set-minutes(15); }
+                    }
+                    PickerTile {
+                        horizontal-stretch: 1;
+                        value-text: "30 min";
+                        caption-text: SleepState.preset-ends[1];
+                        selected: SleepState.selected-tile == 1;
+                        focused: SleepState.focused-tile == 1;
+                        clicked => { SleepState.set-minutes(30); }
+                    }
+                    PickerTile {
+                        horizontal-stretch: 1;
+                        value-text: "45 min";
+                        caption-text: SleepState.preset-ends[2];
+                        selected: SleepState.selected-tile == 2;
+                        focused: SleepState.focused-tile == 2;
+                        clicked => { SleepState.set-minutes(45); }
+                    }
+                    PickerTile {
+                        horizontal-stretch: 1;
+                        value-text: "1 h";
+                        caption-text: SleepState.preset-ends[3];
+                        selected: SleepState.selected-tile == 3;
+                        focused: SleepState.focused-tile == 3;
+                        clicked => { SleepState.set-minutes(60); }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 14px;
+                    PickerTile {
+                        horizontal-stretch: 1;
+                        value-text: "1 h 30";
+                        caption-text: SleepState.preset-ends[4];
+                        selected: SleepState.selected-tile == 4;
+                        focused: SleepState.focused-tile == 4;
+                        clicked => { SleepState.set-minutes(90); }
+                    }
+                    PickerTile {
+                        horizontal-stretch: 1;
+                        value-text: "2 h";
+                        caption-text: SleepState.preset-ends[5];
+                        selected: SleepState.selected-tile == 5;
+                        focused: SleepState.focused-tile == 5;
+                        clicked => { SleepState.set-minutes(120); }
+                    }
+                    PickerTile {
+                        horizontal-stretch: 1;
+                        value-text: SleepState.is-movie ? "End of movie" : "End of episode";
+                        caption-text: SleepState.end-of-item-ok
+                            ? (SleepState.item-caption != "" ? SleepState.item-caption : "Current item")
+                            : "Plex only";
+                        disabled: !SleepState.end-of-item-ok;
+                        selected: SleepState.selected-tile == 6;
+                        focused: SleepState.focused-tile == 6;
+                        clicked => { SleepState.set-end-of-item(); }
+                    }
+                    PickerTile {
+                        horizontal-stretch: 1;
+                        value-text: "Off";
+                        caption-text: "No timer";
+                        selected: SleepState.selected-tile == 7;
+                        focused: SleepState.focused-tile == 7;
+                        clicked => { SleepState.off(); SleepState.close-picker(); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component SleepWarning inherits Rectangle {
+    visible: SleepState.phase == "warn" && !SleepState.held;
+    width: 470px;
+    height: warn-col.preferred-height + 32px;
+    border-radius: 24px;
+    background: #14171C;
+    border-width: 1px;
+    border-color: #2A303A;
+    drop-shadow-blur: 36px;
+    drop-shadow-color: #00000090;
+
+    warn-col := VerticalLayout {
+        padding: 16px;
+        spacing: 10px;
+
+        Text {
+            text: "SLEEP TIMER · " + SleepState.warn-clock;
+            color: #F5A524;
+            font-family: Theme.font;
+            font-size: 16px;
+            font-weight: 900;
+            letter-spacing: 1.5px;
+        }
+
+        Text {
+            text: SleepState.episode-finished ? "Episode finished" : "Still watching?";
+            color: #E8EAED;
+            font-family: Theme.font;
+            font-size: 22px;
+            font-weight: 900;
+        }
+
+        Text {
+            text: "tvdash will save your place and close.";
+            color: #A3ABB6;
+            font-family: Theme.font;
+            font-size: 18px;
+            font-weight: 600;
+            wrap: word-wrap;
+        }
+
+        // 6px countdown bar
+        Rectangle {
+            height: 6px;
+            border-radius: 3px;
+            background: #252A31;
+
+            Rectangle {
+                height: 6px;
+                border-radius: 3px;
+                background: #F5A524;
+                width: SleepState.warn-total > 0
+                    ? parent.width * Math.max(0.0, Math.min(1.0, SleepState.left / SleepState.warn-total))
+                    : 0px;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            padding-top: 4px;
+
+            // Primary: Keep watching / Play next
+            Rectangle {
+                height: 48px;
+                horizontal-stretch: 1;
+                border-radius: 24px;
+                background: pri-ta.has-hover ? #FFB845 : #F5A524;
+                border-width: SleepState.warn-focus == 0 ? 3px : 0px;
+                border-color: #FFFFFF;
+
+                Text {
+                    text: SleepState.episode-finished ? "Play next" : "Keep watching · +30 min";
+                    color: #1A1200;
+                    font-family: Theme.font;
+                    font-size: 16px;
+                    font-weight: 900;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                pri-ta := TouchArea {
+                    clicked => {
+                        if SleepState.episode-finished {
+                            SleepState.play-next();
+                        } else {
+                            SleepState.extend();
+                        }
+                    }
+                }
+            }
+
+            // Sleep now
+            Rectangle {
+                height: 48px;
+                width: 108px;
+                border-radius: 24px;
+                background: now-ta.has-hover ? #333A44 : #252A31;
+                border-width: SleepState.warn-focus == 1 ? 3px : 0px;
+                border-color: #F5A524;
+
+                Text {
+                    text: "Sleep now";
+                    color: #E8EAED;
+                    font-family: Theme.font;
+                    font-size: 16px;
+                    font-weight: 800;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                now-ta := TouchArea {
+                    clicked => { SleepState.sleep-now(); }
+                }
+            }
+
+            // Turn off timer
+            Rectangle {
+                height: 48px;
+                width: 82px;
+                border-radius: 24px;
+                background: off-ta.has-hover ? #333A44 : #252A31;
+                border-width: SleepState.warn-focus == 2 ? 3px : 0px;
+                border-color: #F5A524;
+
+                Text {
+                    text: "Turn off";
+                    color: #A3ABB6;
+                    font-family: Theme.font;
+                    font-size: 15px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                off-ta := TouchArea {
+                    clicked => { SleepState.off(); }
+                }
+            }
+        }
+    }
+}

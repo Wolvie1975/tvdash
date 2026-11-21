@@ -1,5 +1,5 @@
 import { Theme, UiTheme } from "../theme.slint";
-import { Accounts, Dash, Diagnostics, Display, Server, SiteEditor, TvUi } from "../state.slint";
+import { Accounts, Dash, Diagnostics, Display, Server, SiteEditor, SleepState, TvUi } from "../state.slint";
 import { SubTabs } from "tabs.slint";
 import { Tile, ValueTile } from "tile.slint";
 
@@ -188,6 +188,20 @@ export component TvSettings inherits Rectangle {
             hovered => { TvUi.tile-hovered(12); }
         }
 
+        // 13: Sleep warning
+        ValueTile {
+            x: 528px * TvUi.u;
+            y: 656px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 220px * TvUi.u;
+            fill: Theme.surface;
+            label: "Sleep warning";
+            value: SleepState.warn-before == "30s" ? "30 s" : SleepState.warn-before == "2m" ? "2 min" : "60 s";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 13;
+            activated => { TvUi.tile-activated(13); }
+            hovered => { TvUi.tile-hovered(13); }
+        }
+
         // Weather location lookup card
         Rectangle {
             x: 960px * TvUi.u;
@@ -299,9 +313,9 @@ export component TvSettings inherits Rectangle {
             base-width: 848px * TvUi.u;
             base-height: 54px * TvUi.u;
             fill: Theme.surface;
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 13 + i;
-            activated => { TvUi.tile-activated(13 + i); }
-            hovered => { TvUi.tile-hovered(13 + i); }
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 14 + i;
+            activated => { TvUi.tile-activated(14 + i); }
+            hovered => { TvUi.tile-hovered(14 + i); }
 
             Text {
                 x: 20px * TvUi.u;

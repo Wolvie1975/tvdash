@@ -119,6 +119,13 @@ impl Player {
         }
     }
 
+    async fn set_volume(&mut self, volume: f64) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.set_volume(volume).await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.set_volume(volume).map_err(|e| e.to_string()),
+        }
+    }
+
     async fn show_text(&mut self, text: &str, duration_ms: Option<u32>) -> Result<(), String> {
         match self {
             Self::Window(m) => m.show_text(text, duration_ms).await.map_err(|e| e.to_string()),
@@ -182,6 +189,12 @@ pub struct Controller {
     layout: Layout,
     /// In-window drawing failed this run: use mpv's window from now on.
     video_failed: bool,
+    sleep: crate::sleep::Sleep,
+    sleep_tx: Option<tokio::sync::watch::Sender<crate::home_cmd::SleepHttpState>>,
+    sleep_episode_finished: bool,
+    sleep_finished_key: Option<String>,
+    sleep_held: bool,
+    sleep_last_key: String,
 }
 
 enum Step {
@@ -192,6 +205,7 @@ enum Step {
     Refresh,
     Sessions,
     Progress,
+    SleepTick,
     Shutdown,
 }
 
@@ -236,9 +250,20 @@ impl Controller {
             layout: Layout::Dual,
             video_failed: false,
             watch: Watch::new(events.clone(), cache_path),
+            sleep: crate::sleep::Sleep::default(),
+            sleep_tx: None,
+            sleep_episode_finished: false,
+            sleep_finished_key: None,
+            sleep_held: false,
+            sleep_last_key: String::new(),
         };
         c.watch.set_internal(c.internal.clone());
         (c, internal_rx)
+    }
+
+    pub fn set_sleep_tx(&mut self, tx: tokio::sync::watch::Sender<crate::home_cmd::SleepHttpState>) {
+        self.sleep_tx = Some(tx);
+        self.emit_sleep();
     }
 
     /// Play inside the tvdash window (through `slot`) whenever the layout is TV only.
@@ -279,6 +304,10 @@ impl Controller {
         sessions.set_missed_tick_behavior(MissedTickBehavior::Skip);
         sessions.tick().await; // init already polled once
 
+        let mut sleep_tick = interval(Duration::from_secs(1));
+        sleep_tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        sleep_tick.tick().await;
+
         loop {
             let step = {
                 let (playback, browser) = (self.playback.as_mut(), self.browser.as_mut());
@@ -302,6 +331,7 @@ impl Controller {
                     _ = refresh.tick() => Step::Refresh,
                     _ = progress.tick() => Step::Progress,
                     _ = sessions.tick() => Step::Sessions,
+                    _ = sleep_tick.tick() => Step::SleepTick,
                 }
             };
             match step {
@@ -323,6 +353,7 @@ impl Controller {
                 }
                 Step::Sessions => self.poll_sessions(),
                 Step::Progress => self.report_tick(),
+                Step::SleepTick => self.on_sleep_tick().await,
                 Step::Shutdown => break,
             }
         }
@@ -377,7 +408,8 @@ impl Controller {
             rt.browser_pid = b.pid();
             rt.browser_site = Some(b.site.clone());
         }
-        if rt.mpv_socket.is_none() && rt.browser_pid.is_none() {
+        rt.sleep = self.sleep.clone();
+        if rt.mpv_socket.is_none() && rt.browser_pid.is_none() && !rt.sleep.is_active() {
             crate::instance::RuntimeState::clear(&path);
         } else {
             rt.save(&path);
@@ -450,6 +482,11 @@ impl Controller {
                 self.emit(AppEvent::Browser(Some(site)));
                 info!(pid, "reattached to running browser");
             }
+        }
+
+        if rt.sleep.is_active() {
+            self.sleep = rt.sleep;
+            self.emit_sleep();
         }
 
         self.save_runtime_state();
@@ -790,6 +827,92 @@ impl Controller {
                         item.resume_ms = None;
                     }
                     self.play(item).await;
+                }
+            }
+            Command::SleepSetMinutes(mins) => {
+                let mins = mins.clamp(1, 480);
+                let now = crate::sleep::now_unix();
+                self.sleep.set_minutes(mins, now);
+                if !self.config.sleep.remember_last {
+                    self.sleep.last_minutes = None;
+                }
+                self.sleep_episode_finished = false;
+                self.sleep_finished_key = None;
+                self.save_runtime_state();
+                self.emit_sleep();
+                let use_24h = self.config.general.clock == tvdash_core::config::ClockFormat::H24;
+                let ends = crate::sleep::format_ends_at(now + mins * 60, use_24h);
+                let dur = crate::sleep::label(mins * 60);
+                self.toast(format!("Sleep in {dur} · ends {ends}"));
+            }
+            Command::SleepSetEndOfItem => {
+                if let Some(p) = &self.playback
+                    && p.status.item.source == SourceKind::Plex
+                {
+                    let key = p.status.item.id.clone();
+                    let is_movie = p.status.item.kind == tvdash_core::models::MediaKind::Movie;
+                    self.sleep.set_end_of_item(&key);
+                    self.sleep_episode_finished = false;
+                    self.sleep_finished_key = None;
+                    self.save_runtime_state();
+                    self.emit_sleep();
+                    self.toast(if is_movie { "Sleeping after this movie" } else { "Sleeping after this episode" });
+                } else {
+                    self.toast("End of episode is only available during Plex playback");
+                }
+            }
+            Command::SleepOff => {
+                self.sleep.off();
+                self.sleep_episode_finished = false;
+                self.sleep_finished_key = None;
+                self.save_runtime_state();
+                self.emit_sleep();
+            }
+            Command::SleepExtend => {
+                let ext = self.config.sleep.extend_minutes();
+                let now = crate::sleep::now_unix();
+                self.sleep.set_minutes(ext, now);
+                self.sleep_episode_finished = false;
+                self.sleep_finished_key = None;
+                self.save_runtime_state();
+                self.emit_sleep();
+                let use_24h = self.config.general.clock == tvdash_core::config::ClockFormat::H24;
+                let ends = crate::sleep::format_ends_at(now + ext * 60, use_24h);
+                self.toast(format!("Sleep extended · ends {ends}"));
+            }
+            Command::SleepNow => {
+                self.sleep_now().await;
+            }
+            Command::SleepPlayNext => {
+                let key = self.sleep_finished_key.take();
+                self.sleep.off();
+                self.sleep_episode_finished = false;
+                self.save_runtime_state();
+                self.emit_sleep();
+                if let Some(id) = key
+                    && let Some(plex) = &self.plex
+                    && let Ok(Some(mut ep)) = plex.adjacent_episode(&id, true).await
+                {
+                    ep.resume_ms = None;
+                    self.play(ep).await;
+                }
+            }
+            Command::SetSleepWarnBefore(val) => {
+                self.update_config(|c| c.sleep.warn_before = val);
+                self.emit_sleep();
+            }
+            Command::FetchPosters(items) => {
+                let (plex_items, jf_items): (Vec<_>, Vec<_>) =
+                    items.into_iter().partition(|i| i.source == SourceKind::Plex);
+                if !plex_items.is_empty()
+                    && let Some(plex) = &self.plex
+                {
+                    fetch_posters(plex.clone(), plex_items, self.posters_requested.clone(), self.events.clone());
+                }
+                if !jf_items.is_empty()
+                    && let Some(jf) = &self.jellyfin
+                {
+                    fetch_posters(jf.clone(), jf_items, self.posters_requested.clone(), self.events.clone());
                 }
             }
         }
@@ -2123,11 +2246,150 @@ impl Controller {
         self.save_runtime_state();
         self.update_inhibit().await;
         self.emit(AppEvent::Player(None));
+        self.emit_sleep();
         // Give the server a moment to record the stop before re-reading resume points.
         let internal = self.internal.clone();
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_secs(2)).await;
             let _ = internal.send(Internal::Refresh);
+        });
+    }
+
+    fn is_sleep_held(&self) -> bool {
+        let Some(b) = &self.browser else { return false };
+        if b.site.eq_ignore_ascii_case("Google Meet") {
+            return true;
+        }
+        self.config.streaming.iter().any(|s| s.hold_sleep_timer && s.name.eq_ignore_ascii_case(&b.site))
+    }
+
+    fn sleep_snapshot(&self, now: i64) -> tvdash_core::SleepSnapshot {
+        let warn_total = self.config.sleep.warn_secs();
+        let default_minutes = if self.config.sleep.remember_last {
+            self.sleep.last_minutes.unwrap_or(self.config.sleep.default)
+        } else {
+            self.config.sleep.default
+        };
+        let use_24h = self.config.general.clock == tvdash_core::config::ClockFormat::H24;
+        let held = self.sleep_held;
+        let active = self.sleep.is_active();
+        let phase = self.sleep.phase().to_owned();
+        let (left, ends_at, label) = match &self.sleep.timer {
+            crate::sleep::SleepTimer::Off => (0, String::new(), "Off".into()),
+            crate::sleep::SleepTimer::EndOfItem { .. } => {
+                let is_movie = self
+                    .playback
+                    .as_ref()
+                    .is_some_and(|p| p.status.item.kind == tvdash_core::models::MediaKind::Movie);
+                (0, String::new(), if is_movie { "End of movie".into() } else { "End of episode".into() })
+            }
+            crate::sleep::SleepTimer::At { deadline } => {
+                let left = (*deadline - now).max(0);
+                let ends = crate::sleep::format_ends_at(*deadline, use_24h);
+                let lbl = if held {
+                    "Paused · on a call".into()
+                } else {
+                    crate::sleep::label(left)
+                };
+                (left, ends, lbl)
+            }
+        };
+        tvdash_core::SleepSnapshot {
+            active,
+            phase,
+            label,
+            ends_at,
+            left,
+            warn_total,
+            episode_finished: self.sleep_episode_finished,
+            held,
+            default_minutes,
+        }
+    }
+
+    fn emit_sleep(&mut self) {
+        let now = crate::sleep::now_unix();
+        let snap = self.sleep_snapshot(now);
+        let plex_playing = self.playback.as_ref().is_some_and(|p| p.status.item.source == SourceKind::Plex);
+        if let Some(tx) = &self.sleep_tx {
+            let _ = tx.send(crate::home_cmd::SleepHttpState::from_snapshot(&snap, plex_playing));
+        }
+        let key = format!(
+            "{}|{}|{}|{}|{}|{}",
+            snap.phase,
+            snap.label,
+            snap.ends_at,
+            if snap.phase == "warn" { snap.left } else { 0 },
+            snap.episode_finished,
+            snap.held
+        );
+        if key != self.sleep_last_key {
+            self.sleep_last_key = key;
+            self.emit(AppEvent::Sleep(snap));
+        }
+    }
+
+    async fn on_sleep_tick(&mut self) {
+        let now = crate::sleep::now_unix();
+        let warn = self.config.sleep.warn_secs();
+        let held = self.is_sleep_held();
+        self.sleep_held = held;
+        if held {
+            if self.sleep.hold(now, warn) {
+                self.save_runtime_state();
+            }
+            self.emit_sleep();
+            return;
+        }
+        match self.sleep.tick(now, warn) {
+            crate::sleep::Tick::Idle => {}
+            crate::sleep::Tick::Counting(_) => {
+                self.emit_sleep();
+            }
+            crate::sleep::Tick::Warn(_) => {
+                self.emit_sleep();
+            }
+            crate::sleep::Tick::Fire => {
+                self.sleep_now().await;
+            }
+        }
+    }
+
+    async fn sleep_now(&mut self) {
+        self.toast("Going to sleep · saving your place");
+        self.sleep.off();
+        self.sleep_episode_finished = false;
+        self.sleep_finished_key = None;
+
+        if let Some(mut p) = self.playback.take() {
+            self.detach_video(&p.player);
+            let fade = self.config.sleep.fade_duration();
+            let steps = 20u32;
+            let step_wait = fade / steps;
+            for _ in 0..steps {
+                let _ = p.player.add_volume(-5).await;
+                if !step_wait.is_zero() {
+                    tokio::time::sleep(step_wait).await;
+                }
+            }
+            let _ = p.player.set_pause(true).await;
+            let _ = p.reporter.send((p.status.position_ms, PlayState::Stopped));
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            let _ = p.player.set_volume(100.0).await;
+            p.player.quit().await;
+        }
+
+        if let Some(b) = self.browser.take() {
+            b.close().await;
+        }
+
+        if let Some(inh) = self.inhibit.take() {
+            inh.release().await;
+        }
+        crate::instance::RuntimeState::clear(&crate::instance::runtime_state_path());
+        tracing::info!("sleep timer fired");
+        let _ = slint::invoke_from_event_loop(|| {
+            let _ = slint::quit_event_loop();
         });
     }
 
@@ -2194,6 +2456,21 @@ impl Controller {
                 let _ = p.reporter.send((final_pos, PlayState::Stopped));
                 info!("mpv exited; TV back to idle");
                 self.after_playback().await;
+                if p.ended_eof {
+                    let now = crate::sleep::now_unix();
+                    let warn = self.config.sleep.warn_secs();
+                    if self.sleep.item_finished(&p.status.item.id, now, warn) {
+                        self.sleep_episode_finished = true;
+                        self.sleep_finished_key = Some(p.status.item.id);
+                        self.save_runtime_state();
+                        self.emit_sleep();
+                        return;
+                    }
+                } else if self.sleep.item_stopped() {
+                    self.save_runtime_state();
+                    self.emit_sleep();
+                    self.toast("Sleep timer off · playback stopped");
+                }
                 if p.ended_eof
                     && p.status.item.kind == tvdash_core::models::MediaKind::Episode
                     && p.status.item.source == SourceKind::Plex
@@ -3258,6 +3535,7 @@ mod e2e {
             tmdb_providers: vec![386, 387],
             hidden: false,
             logo: None,
+            ..Default::default()
         };
         h.send(Command::SaveSite { index: None, site: peacock.clone() });
         let v = h
@@ -3354,6 +3632,7 @@ mod e2e {
             tmdb_providers: ids.to_vec(),
             hidden,
             logo: None,
+            ..Default::default()
         };
         let endpoints = tvdash_discover::Endpoints { api: tmdb_url.clone(), images: format!("{tmdb_url}/t/p") };
         let mut h = Harness::start_with(

@@ -8,6 +8,7 @@
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 use crate::models::{
     AccountStatus, Geometry, MediaItem, PlayState, RgbaImage, Session, SignInState, SourceKind, WatchHit, Weather,
@@ -199,6 +200,30 @@ pub enum AppEvent {
     EventsPasswordConfigured(bool),
     /// Sports → Scoreboard page data.
     Scoreboard(Result<crate::models::ScoreboardPage, String>),
+    /// Current sleep timer state for UI and status endpoints.
+    Sleep(SleepSnapshot),
+}
+
+/// Snapshot of the sleep timer sent to the UI on change / each tick.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SleepSnapshot {
+    pub active: bool,
+    /// `"off" | "counting" | "warn" | "end_of_item"`
+    pub phase: String,
+    /// Short label for chip/hints: `"42 min"`, `"1 h 05 min"`, `"End of episode"`, `"Paused · on a call"`, `"0:58"`, or `"Off"`.
+    pub label: String,
+    /// Formatted end time, e.g. `"11:42 PM"` or `""`.
+    pub ends_at: String,
+    /// Seconds left (for warning countdown & `/sleep` API).
+    pub left: i64,
+    /// Total warning duration in seconds (for countdown bar progress).
+    pub warn_total: i64,
+    /// True when End of episode/movie was triggered (episode finished).
+    pub episode_finished: bool,
+    /// True when a call (`hold_sleep_timer`) is holding the timer.
+    pub held: bool,
+    /// Last-used preset in minutes (or config default) for initial picker focus.
+    pub default_minutes: i64,
 }
 
 /// Requests from the UI, handled by background tasks.
@@ -364,4 +389,20 @@ pub enum Command {
         rating_key: String,
         resume: bool,
     },
+    /// Set sleep timer in minutes (1–480).
+    SleepSetMinutes(i64),
+    /// Set sleep timer to end of the current Plex item.
+    SleepSetEndOfItem,
+    /// Turn off the sleep timer.
+    SleepOff,
+    /// Extend sleep timer ("Keep watching").
+    SleepExtend,
+    /// Sleep immediately ("Sleep now").
+    SleepNow,
+    /// Play next episode and turn off the sleep timer (when End of episode finished).
+    SleepPlayNext,
+    /// Change Sleep warning duration ("30s" | "60s" | "2m") in Settings › Display.
+    SetSleepWarnBefore(String),
+    /// Fetch posters for visible Browse-all items that aren't cached yet.
+    FetchPosters(Vec<MediaItem>),
 }

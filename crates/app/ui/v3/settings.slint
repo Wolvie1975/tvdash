@@ -2,7 +2,8 @@
 
 import { ListView } from "std-widgets.slint";
 import { Theme, UiTheme } from "../theme.slint";
-import { Accounts, Dash, Diagnostics, Display, Server, SiteEditor, TvUi } from "../state.slint";
+import { Accounts, Dash, Diagnostics, Display, Nav, Server, SiteEditor, SleepState, TvUi } from "../state.slint";
+import { SleepChip } from "../shared/sleep.slint";
 import { V3Theme } from "theme.slint";
 
 export component V3Settings inherits Rectangle {
@@ -26,6 +27,12 @@ export component V3Settings inherits Rectangle {
         y: 38px * TvUi.u;
         spacing: 20px * TvUi.u;
         alignment: end;
+
+        SleepChip {
+            ink: V3Theme.accent;
+            clickable: Nav.layout == "dual";
+            y: (parent.height - self.height) / 2;
+        }
 
         if Dash.weather-on: Text {
             text: Dash.weather-temp;
@@ -307,10 +314,70 @@ export component V3Settings inherits Rectangle {
             }
         }
 
+        // 13: Sleep warning (30s | 60s | 2m)
+        Rectangle {
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 13;
+            x: 0;
+            y: 376px * TvUi.u;
+            width: 820px * TvUi.u;
+            height: 82px * TvUi.u;
+            border-radius: 16px * TvUi.u;
+            background: V3Theme.surface;
+            border-width: self.is-foc ? 3px : 1px;
+            border-color: self.is-foc ? V3Theme.focus-ring : V3Theme.border;
+
+            Text {
+                x: 22px * TvUi.u;
+                y: 18px * TvUi.u;
+                text: "Sleep warning";
+                font-family: V3Theme.font;
+                font-size: 18px * TvUi.u;
+                font-weight: 700;
+                color: V3Theme.text-primary;
+            }
+            Text {
+                x: 22px * TvUi.u;
+                y: 46px * TvUi.u;
+                text: "Countdown before stopping";
+                font-family: V3Theme.font;
+                font-size: 14px * TvUi.u;
+                color: V3Theme.text-secondary;
+            }
+            HorizontalLayout {
+                x: parent.width - 218px * TvUi.u;
+                y: 22px * TvUi.u;
+                width: 196px * TvUi.u;
+                height: 38px * TvUi.u;
+                spacing: 4px * TvUi.u;
+                for opt in [
+                    { val: "30s", lbl: "30 s" },
+                    { val: "60s", lbl: "60 s" },
+                    { val: "2m", lbl: "2 m" },
+                ]: Rectangle {
+                    horizontal-stretch: 1;
+                    border-radius: 10px * TvUi.u;
+                    background: SleepState.warn-before == opt.val ? V3Theme.accent : V3Theme.surface-raised;
+                    Text {
+                        text: opt.lbl;
+                        font-family: V3Theme.font;
+                        font-size: 14px * TvUi.u;
+                        font-weight: 700;
+                        color: SleepState.warn-before == opt.val ? V3Theme.on-accent : V3Theme.text-primary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { SleepState.set-warn-before(opt.val); }
+                    }
+                }
+            }
+        }
+
         // Weather Location card
         Rectangle {
             x: 0;
-            y: 376px * TvUi.u;
+            y: 470px * TvUi.u;
             width: 820px * TvUi.u;
             height: 92px * TvUi.u;
             border-radius: 16px * TvUi.u;
@@ -371,13 +438,13 @@ export component V3Settings inherits Rectangle {
         for p[i] in Display.places: Rectangle {
             visible: i < 4;
             x: 0;
-            y: (480px + i * 54px) * TvUi.u;
+            y: (574px + i * 54px) * TvUi.u;
             width: 820px * TvUi.u;
             height: 46px * TvUi.u;
             border-radius: 12px * TvUi.u;
             background: V3Theme.surface;
-            border-width: (!TvUi.bar-focused && TvUi.focused-tile == 13 + i) ? 3px : 1px;
-            border-color: (!TvUi.bar-focused && TvUi.focused-tile == 13 + i) ? V3Theme.focus-ring : V3Theme.border;
+            border-width: (!TvUi.bar-focused && TvUi.focused-tile == 14 + i) ? 3px : 1px;
+            border-color: (!TvUi.bar-focused && TvUi.focused-tile == 14 + i) ? V3Theme.focus-ring : V3Theme.border;
             Text {
                 x: 18px * TvUi.u;
                 text: p;
@@ -614,27 +681,227 @@ export component V3Settings inherits Rectangle {
             border-width: self.is-foc ? 3px : 1px;
             border-color: self.is-foc ? V3Theme.focus-ring : V3Theme.border;
 
-            VerticalLayout {
-                padding: 20px * TvUi.u;
-                spacing: 6px * TvUi.u;
-                Text {
-                    text: a.name;
-                    font-family: V3Theme.font;
-                    font-size: 20px * TvUi.u;
-                    font-weight: 700;
-                    color: V3Theme.text-primary;
-                }
-                Text {
-                    text: a.detail;
-                    font-family: V3Theme.font;
-                    font-size: 15px * TvUi.u;
-                    color: V3Theme.text-secondary;
-                    overflow: elide;
-                }
-            }
             TouchArea {
                 mouse-cursor: pointer;
                 clicked => { TvUi.tile-activated(6 + i); }
+            }
+
+            HorizontalLayout {
+                padding: 18px * TvUi.u;
+                spacing: 14px * TvUi.u;
+
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 12px * TvUi.u;
+                        height: 12px * TvUi.u;
+                        border-radius: 6px * TvUi.u;
+                        background: a.state == "ok" ? V3Theme.ok
+                            : a.state == "warn" ? V3Theme.warn
+                            : a.state == "busy" ? V3Theme.accent
+                            : V3Theme.text-muted;
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 4px * TvUi.u;
+                    horizontal-stretch: 1;
+
+                    HorizontalLayout {
+                        spacing: 10px * TvUi.u;
+                        Text {
+                            text: a.name;
+                            font-family: V3Theme.font;
+                            font-size: 20px * TvUi.u;
+                            font-weight: 700;
+                            color: V3Theme.text-primary;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: a.status;
+                            font-family: V3Theme.font;
+                            font-size: 16px * TvUi.u;
+                            color: V3Theme.text-secondary;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
+
+                    if a.detail != "": Text {
+                        text: a.detail;
+                        font-family: V3Theme.font;
+                        font-size: 14px * TvUi.u;
+                        color: V3Theme.text-muted;
+                        overflow: elide;
+                    }
+                }
+
+                if (a.primary != "" || a.secondary != ""): HorizontalLayout {
+                    spacing: 8px * TvUi.u;
+                    alignment: center;
+
+                    if a.primary != "": VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: v3-pri-lbl.preferred-width + 22px * TvUi.u;
+                            height: 40px * TvUi.u;
+                            border-radius: 10px * TvUi.u;
+                            background: v3-pri-ta.has-hover ? V3Theme.accent : V3Theme.surface-raised;
+                            border-width: 1px;
+                            border-color: V3Theme.border;
+
+                            v3-pri-lbl := Text {
+                                text: a.primary;
+                                font-family: V3Theme.font;
+                                font-size: 15px * TvUi.u;
+                                font-weight: 700;
+                                color: v3-pri-ta.has-hover ? V3Theme.on-accent : V3Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            v3-pri-ta := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    if a.primary-id == "edit" {
+                                        Accounts.edit-error = "";
+                                        Accounts.editing = a.id;
+                                    } else {
+                                        Accounts.action(a.id, a.primary-id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if a.secondary != "": VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: v3-sec-lbl.preferred-width + 22px * TvUi.u;
+                            height: 40px * TvUi.u;
+                            border-radius: 10px * TvUi.u;
+                            background: v3-sec-ta.has-hover ? V3Theme.accent : V3Theme.surface-raised;
+                            border-width: 1px;
+                            border-color: V3Theme.border;
+
+                            v3-sec-lbl := Text {
+                                text: a.secondary;
+                                font-family: V3Theme.font;
+                                font-size: 15px * TvUi.u;
+                                font-weight: 700;
+                                color: v3-sec-ta.has-hover ? V3Theme.on-accent : V3Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            v3-sec-ta := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    if a.secondary-id == "edit" {
+                                        Accounts.edit-error = "";
+                                        Accounts.editing = a.id;
+                                    } else {
+                                        Accounts.action(a.id, a.secondary-id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if Accounts.editing != "": Rectangle {
+            x: 0;
+            y: parent.height - 130px * TvUi.u;
+            width: 1200px * TvUi.u;
+            height: 118px * TvUi.u;
+            border-radius: 16px * TvUi.u;
+            background: V3Theme.surface-raised;
+            border-width: 2px;
+            border-color: V3Theme.accent;
+
+            VerticalLayout {
+                padding: 16px * TvUi.u;
+                spacing: 8px * TvUi.u;
+
+                HorizontalLayout {
+                    spacing: 12px * TvUi.u;
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 48px * TvUi.u;
+                        border-radius: 10px * TvUi.u;
+                        background: V3Theme.bg;
+                        border-width: 1px;
+                        border-color: V3Theme.border;
+
+                        v3-acc-input := TextInput {
+                            x: 14px * TvUi.u;
+                            width: parent.width - 28px * TvUi.u;
+                            height: parent.height;
+                            font-family: V3Theme.font;
+                            font-size: 18px * TvUi.u;
+                            color: V3Theme.text-primary;
+                            vertical-alignment: center;
+                            accepted => { Accounts.submit(Accounts.editing, self.text); }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 110px * TvUi.u;
+                        height: 48px * TvUi.u;
+                        border-radius: 10px * TvUi.u;
+                        background: V3Theme.accent;
+
+                        Text {
+                            text: "Save";
+                            font-family: V3Theme.font;
+                            font-size: 18px * TvUi.u;
+                            font-weight: 700;
+                            color: V3Theme.on-accent;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Accounts.submit(Accounts.editing, v3-acc-input.text); }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 110px * TvUi.u;
+                        height: 48px * TvUi.u;
+                        border-radius: 10px * TvUi.u;
+                        background: V3Theme.surface;
+                        border-width: 1px;
+                        border-color: V3Theme.border;
+
+                        Text {
+                            text: "Cancel";
+                            font-family: V3Theme.font;
+                            font-size: 18px * TvUi.u;
+                            color: V3Theme.text-primary;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Accounts.editing = ""; }
+                        }
+                    }
+                }
+
+                if Accounts.edit-error != "": Text {
+                    text: Accounts.edit-error;
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    color: V3Theme.warn;
+                    overflow: elide;
+                }
             }
         }
     }

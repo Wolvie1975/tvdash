@@ -1,5 +1,6 @@
 import { Theme } from "theme.slint";
 import { Clock } from "components.slint";
+import { SleepWarning } from "shared/sleep.slint";
 
 // TV (HDMI) window. No input — everything is driven from the laptop.
 export component TvWindow inherits Window {
@@ -81,5 +82,10 @@ export component TvWindow inherits Window {
             height: 100%;
             image-fit: contain;
         }
+    }
+
+    SleepWarning {
+        x: parent.width - self.width - 48px;
+        y: parent.height - self.height - 48px;
     }
 }

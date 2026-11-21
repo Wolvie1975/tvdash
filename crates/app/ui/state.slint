@@ -835,3 +835,35 @@ export global Scoreboard {
     callback load(string, string, bool);
     callback open-url(string, string);
 }
+
+export global SleepState {
+    in-out property <bool> active: false;
+    in-out property <string> phase: "off"; // "off" | "counting" | "warn" | "end_of_item"
+    in-out property <string> label: "Off";
+    in-out property <string> ends-at: "";
+    in-out property <int> left: 0;
+    in-out property <int> warn-total: 60;
+    in-out property <string> warn-clock: "1:00";
+    in-out property <bool> episode-finished: false;
+    in-out property <bool> held: false;
+    in-out property <bool> end-of-item-ok: false;
+    in-out property <bool> is-movie: false;
+    in-out property <string> item-caption: "";
+    in-out property <int> default-minutes: 60;
+    in-out property <bool> picker-open: false;
+    in-out property <int> selected-tile: -1; // -1=none, 0..5=presets, 6=end_of_item, 7=off
+    in-out property <int> focused-tile: 3;   // 0..8 (8=Close) for TV remote focus
+    in-out property <int> warn-focus: 0;     // 0=Keep watching, 1=Sleep now, 2=Turn off
+    in-out property <string> warn-before: "60s";
+    in-out property <[string]> preset-ends: ["", "", "", "", "", ""];
+
+    callback set-minutes(int);
+    callback set-end-of-item();
+    callback off();
+    callback extend();
+    callback sleep-now();
+    callback play-next();
+    callback set-warn-before(string);
+    callback open-picker();
+    callback close-picker();
+}

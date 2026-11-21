@@ -1,5 +1,11 @@
 # tvdash Changelog
 
+## v0.1.49 — 2026-11-21
+- Added **Sleep timer** across Classic, Blades, and two-screen layouts: Home Quick actions / tile, panel header chip, Player HUD control, Ambient footer, Settings › Display **Sleep warning** (`30 s` / `60 s` / `2 m`), **Still watching?** / **Episode finished** warning card (plus Brave pill-extension overlay), `tvdash --sleep` CLI, `GET/POST /sleep` HTTP endpoint, layout re-exec persistence (`state.json`), and `hold_sleep_timer` support for Google Meet.
+- Added **Next ep** transport control to the Player HUD in both Classic and Blades, and added the **Up Next** episode prompt to Blades (`v3/shell.slint`).
+- Fixed **Library → Browse all** poster loading for items beyond the first 48, and fixed the `#`/`A–Z` letter filter off-by-one in Blades (`v3/library.slint`).
+- Fixed **Blades** Home **Screensaver** activation (`v3/shell.slint`) and added full account status/actions/inline editing to **Settings → Accounts** (`v3/settings.slint`).
+
 ## v0.1.48 — 2026-11-21
 - Replaced the Home **Settings** tile (Classic & Blades) with **Google Meet** (`https://meet.google.com`).
 - Replaced the old dark theme color with **Midnight** (`#0E1526`, default) and added **Aubergine** (`#1A1024`) as a selectable theme option across both Classic and Blades.

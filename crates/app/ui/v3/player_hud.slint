@@ -1,7 +1,7 @@
 // Blades UI (v3) — Full-screen Video HUD.
 
 import { Icon } from "../icons.slint";
-import { Dash, TvUi } from "../state.slint";
+import { Dash, SleepState, TvUi } from "../state.slint";
 import { V3Theme } from "theme.slint";
 
 export component V3PlayerHud inherits Rectangle {
@@ -261,6 +261,51 @@ export component V3PlayerHud inherits Rectangle {
                 TouchArea {
                     mouse-cursor: pointer;
                     clicked => { Dash.transport("audio"); }
+                }
+            }
+
+            Rectangle {
+                width: 156px * TvUi.u;
+                height: 54px * TvUi.u;
+                border-radius: 14px * TvUi.u;
+                background: #1B1F26;
+                border-width: TvUi.focused-tile == 7 ? 3px : 1px;
+                border-color: TvUi.focused-tile == 7 ? V3Theme.accent : #FFFFFF22;
+                Text {
+                    text: SleepState.active ? "Sleep · " + SleepState.label : "Sleep · Off";
+                    font-family: V3Theme.font;
+                    font-size: 17px * TvUi.u;
+                    font-weight: 700;
+                    color: SleepState.active ? V3Theme.accent : #FFFFFF;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { SleepState.open-picker(); }
+                }
+            }
+
+            Rectangle {
+                width: 118px * TvUi.u;
+                height: 54px * TvUi.u;
+                border-radius: 14px * TvUi.u;
+                background: #1B1F26;
+                border-width: TvUi.focused-tile == 8 ? 3px : 1px;
+                border-color: TvUi.focused-tile == 8 ? V3Theme.accent : #FFFFFF22;
+                Text {
+                    text: "Next ep";
+                    font-family: V3Theme.font;
+                    font-size: 17px * TvUi.u;
+                    font-weight: 700;
+                    color: #FFFFFF;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.transport("next-ep"); }
                 }
             }
         }

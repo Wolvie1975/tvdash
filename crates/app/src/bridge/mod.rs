@@ -39,15 +39,15 @@ use tvdash_core::{
 pub use accounts::sync_setup;
 pub use home::{row, set_cw_filter, up_next};
 pub use library::{
-    clear_search, close_detail, on_library_focus_changed, reorder_collection, select, selected, set_browse_letter,
-    set_filter, set_media_tab, start_search, watching_now_item,
+    clear_search, close_detail, missing_browse_posters, on_library_focus_changed, reorder_collection, select, selected,
+    set_browse_letter, set_filter, set_media_tab, start_search, watching_now_item,
 };
 
 use crate::{
     AccountPrompt, AccountRow, Accounts, Artwork, ArtworkRow, Dash, Diagnostics, Display, LaptopWindow, Library, Nav,
     PosterCardData, Scoreboard, ScoreboardChoiceData, ScoreboardRowData, Server, ServerActivityRow, ServerLibraryRow,
-    ServerStreamRow, SessionRow, Setup, SiteRow, Sports, SportsChoiceData, SportsRowData, Theme, TvWindow, UiTheme,
-    tint::Hue,
+    ServerStreamRow, SessionRow, Setup, SiteRow, SleepState, Sports, SportsChoiceData, SportsRowData, Theme,
+    TvWindow, UiTheme, tint::Hue,
 };
 
 /// Display order for sources everywhere (rows, prompts, sessions).
@@ -469,7 +469,28 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::SearchResults { query, items } => library::on_results(s, laptop, query, items),
         AppEvent::Poster { source, item_id, image } => home::on_poster(s, laptop, source, item_id, &image),
         AppEvent::Backdrop { source, item_id, image } => library::on_backdrop(s, laptop, source, item_id, &image),
-        AppEvent::Player(status) => home::on_player(s, laptop, tv, status),
+        AppEvent::Player(status) => {
+            let is_plex = status.as_ref().is_some_and(|p| p.item.source == SourceKind::Plex);
+            let is_movie = status.as_ref().is_some_and(|p| p.item.kind == tvdash_core::models::MediaKind::Movie);
+            let caption = status.as_ref().map(|p| {
+                let rem_min = p
+                    .duration_ms
+                    .or(p.item.duration_ms)
+                    .map(|d| d.saturating_sub(p.position_ms) / 60_000)
+                    .unwrap_or(0);
+                if let Some(sub) = p.item.subtitle.as_deref().filter(|s| !s.is_empty()) {
+                    format!("{sub} · {rem_min} min left")
+                } else {
+                    format!("{rem_min} min left")
+                }
+            }).unwrap_or_default();
+            for sl in [laptop.global::<SleepState>(), tv.global::<SleepState>()] {
+                sl.set_end_of_item_ok(is_plex);
+                sl.set_is_movie(is_movie);
+                sl.set_item_caption(caption.clone().into());
+            }
+            home::on_player(s, laptop, tv, status);
+        }
         AppEvent::Browser(site) => home::on_browser(s, laptop, tv, site),
         AppEvent::NowPlaying(sessions) => {
             library::on_sessions(s, laptop, &sessions);
@@ -647,6 +668,32 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
                 }
                 Err(_) => {
                     sb.set_error("Scores are temporarily unavailable. Please retry.".into());
+                }
+            }
+        }
+        AppEvent::Sleep(snap) => {
+            let clock_str = format!("{}:{:02}", (snap.left.max(0)) / 60, (snap.left.max(0)) % 60);
+            let sel = match snap.phase.as_str() {
+                "off" => 7,
+                "end_of_item" => 6,
+                _ => -1,
+            };
+            for sl in [laptop.global::<SleepState>(), tv.global::<SleepState>()] {
+                sl.set_active(snap.active);
+                sl.set_phase(snap.phase.clone().into());
+                sl.set_label(snap.label.clone().into());
+                sl.set_ends_at(snap.ends_at.clone().into());
+                sl.set_left(snap.left as i32);
+                sl.set_warn_total(snap.warn_total as i32);
+                sl.set_warn_clock(clock_str.clone().into());
+                sl.set_episode_finished(snap.episode_finished);
+                sl.set_held(snap.held);
+                sl.set_default_minutes(snap.default_minutes as i32);
+                if sel >= 0 {
+                    sl.set_selected_tile(sel);
+                }
+                if snap.phase == "warn" {
+                    sl.set_warn_focus(0);
                 }
             }
         }

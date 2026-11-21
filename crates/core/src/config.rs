@@ -39,6 +39,7 @@ pub struct Config {
     pub browser: BrowserConfig,
     pub player: PlayerConfig,
     pub tv: TvConfig,
+    pub sleep: SleepConfig,
     /// Kept last: TOML arrays of tables must follow plain tables.
     pub streaming: Vec<StreamingSite>,
 }
@@ -290,6 +291,69 @@ pub struct TvConfig {
     pub recent: Vec<RecentService>,
 }
 
+/// Sleep timer settings (`[sleep]`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SleepConfig {
+    /// Preset durations in minutes for picker tiles 1–6.
+    pub presets: Vec<i64>,
+    /// Default preset (minutes) focused when the timer is off and there is no last-used value.
+    pub default: i64,
+    /// Focus the last-used preset next time the picker opens.
+    pub remember_last: bool,
+    /// Warning duration before sleep (`"30s"`, `"60s"`, `"2m"`).
+    pub warn_before: String,
+    /// Extension added by "Keep watching" (`"30m"`).
+    pub extend_by: String,
+    /// Audio fade-out duration before stopping mpv (`"20s"`).
+    pub fade: String,
+}
+
+impl Default for SleepConfig {
+    fn default() -> Self {
+        Self {
+            presets: vec![15, 30, 45, 60, 90, 120],
+            default: 60,
+            remember_last: true,
+            warn_before: "60s".into(),
+            extend_by: "30m".into(),
+            fade: "20s".into(),
+        }
+    }
+}
+
+impl SleepConfig {
+    /// Parse a short human duration like `"30s"`, `"60s"`, `"2m"`, `"30m"`, `"1h"` into seconds.
+    pub fn parse_duration_secs(raw: &str) -> Option<i64> {
+        let s = raw.trim();
+        if s.is_empty() {
+            return None;
+        }
+        if let Some(n) = s.strip_suffix('s') {
+            n.trim().parse::<i64>().ok().filter(|&v| v > 0)
+        } else if let Some(n) = s.strip_suffix('m') {
+            n.trim().parse::<i64>().ok().filter(|&v| v > 0).map(|v| v * 60)
+        } else if let Some(n) = s.strip_suffix('h') {
+            n.trim().parse::<i64>().ok().filter(|&v| v > 0).map(|v| v * 3600)
+        } else {
+            s.parse::<i64>().ok().filter(|&v| v > 0)
+        }
+    }
+
+    pub fn warn_secs(&self) -> i64 {
+        Self::parse_duration_secs(&self.warn_before).unwrap_or(60)
+    }
+
+    pub fn extend_minutes(&self) -> i64 {
+        (Self::parse_duration_secs(&self.extend_by).unwrap_or(30 * 60) / 60).max(1)
+    }
+
+    pub fn fade_duration(&self) -> std::time::Duration {
+        let secs = Self::parse_duration_secs(&self.fade).unwrap_or(20).max(0) as u64;
+        std::time::Duration::from_secs(secs)
+    }
+}
+
 /// SQL Server connection for the Sports / Competitions tab. Password lives in the keyring.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -339,6 +403,9 @@ pub struct StreamingSite {
     /// Tile logo to use instead of TMDB's: a PNG, JPEG or WebP file (`~/` allowed).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logo: Option<String>,
+    /// Hold the sleep timer while this site is open (e.g. Google Meet).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hold_sleep_timer: bool,
 }
 
 impl StreamingSite {
@@ -406,6 +473,7 @@ impl Default for Config {
             browser: BrowserConfig::default(),
             player: PlayerConfig::default(),
             tv: TvConfig::default(),
+            sleep: SleepConfig::default(),
             streaming: default_streaming_sites(),
         }
     }

@@ -10,7 +10,7 @@ use tvdash_core::config::Layout;
 
 use crate::{
     Accounts, Artwork, CollectionPageState, Dash, Display, LaptopWindow, Library, LibraryLanding, Nav, Scoreboard,
-    Server, ShowPageState, SiteEditor, Sports, TvUi, UiTheme, Watch,
+    Server, ShowPageState, SiteEditor, SleepState, Sports, TvUi, UiTheme, Watch,
     focus::{self, Dir, Rect},
     shell_tv::{Page, ShellState, Tab},
 };
@@ -256,13 +256,14 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             let mut rects = vec![
                 Rect { x: ox + 40.0, y: oy + 96.0, w: 900.0, h: 470.0 },  // 0: Hero
                 Rect { x: ox + 40.0, y: oy + 96.0, w: 900.0, h: 470.0 },  // 1: Hero
-                Rect { x: ox + 978.0, y: oy + 492.0, w: 572.0, h: 58.0 }, // 2: Search
-                Rect { x: ox + 978.0, y: oy + 555.0, w: 572.0, h: 58.0 }, // 3: Library
-                Rect { x: ox + 978.0, y: oy + 618.0, w: 572.0, h: 58.0 }, // 4: Screensaver
+                Rect { x: ox + 978.0, y: oy + 492.0, w: 572.0, h: 50.0 }, // 2: Search
+                Rect { x: ox + 978.0, y: oy + 545.0, w: 572.0, h: 50.0 }, // 3: Library
+                Rect { x: ox + 978.0, y: oy + 598.0, w: 572.0, h: 50.0 }, // 4: Screensaver
                 Rect { x: ox + 968.0, y: oy + 96.0, w: 592.0, h: 204.0 }, // 5: Clock/Weather
                 Rect { x: ox + 968.0, y: oy + 318.0, w: 592.0, h: 146.0 }, // 6: Last Played
-                Rect { x: ox + 978.0, y: oy + 681.0, w: 572.0, h: 58.0 }, // 7: Settings
-                Rect { x: ox + 978.0, y: oy + 744.0, w: 572.0, h: 58.0 }, // 8: Theme
+                Rect { x: ox + 978.0, y: oy + 704.0, w: 572.0, h: 50.0 }, // 7: Google Meet
+                Rect { x: ox + 978.0, y: oy + 757.0, w: 572.0, h: 50.0 }, // 8: Theme
+                Rect { x: ox + 978.0, y: oy + 651.0, w: 572.0, h: 50.0 }, // 9: Sleep timer
             ];
             let n = laptop.global::<TvUi>().get_services().row_count().min(10);
             for i in 0..n {
@@ -490,12 +491,13 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                         Rect { x: ox + 1168.0, y: oy + 486.0, w: 392.0, h: 56.0 },
                         Rect { x: ox + 1168.0, y: oy + 554.0, w: 392.0, h: 56.0 },
                         Rect { x: ox + 1168.0, y: oy + 190.0, w: 392.0, h: 254.0 },
+                        Rect { x: ox + 316.0, y: oy + 482.0, w: 820.0, h: 82.0 }, // 13: Sleep warning
                     ]);
                     let places_n = laptop.global::<Display>().get_places().row_count().min(4);
                     for i in 0..places_n {
                         rects.push(Rect {
                             x: ox + 316.0,
-                            y: oy + 586.0 + i as f32 * 54.0,
+                            y: oy + 680.0 + i as f32 * 54.0,
                             w: 820.0,
                             h: 46.0,
                         });
@@ -521,13 +523,14 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             let mut rects = vec![
                 Rect { x: 96.0, y: 136.0, w: 210.0, h: 590.0 },   // 0: Clock + Plex info
                 Rect { x: 322.0, y: 136.0, w: 728.0, h: 590.0 },  // 1: Hero
-                Rect { x: 1066.0, y: 136.0, w: 240.0, h: 186.0 }, // 2: Search
-                Rect { x: 1066.0, y: 338.0, w: 240.0, h: 186.0 }, // 3: Library
-                Rect { x: 1066.0, y: 540.0, w: 240.0, h: 186.0 }, // 4: Screensaver
+                Rect { x: 1066.0, y: 136.0, w: 240.0, h: 135.0 }, // 2: Search
+                Rect { x: 1066.0, y: 287.0, w: 240.0, h: 135.0 }, // 3: Library
+                Rect { x: 1066.0, y: 438.0, w: 240.0, h: 135.0 }, // 4: Screensaver
                 Rect { x: 96.0, y: 742.0, w: 210.0, h: 230.0 },   // 5: Weather
                 Rect { x: 322.0, y: 742.0, w: 356.0, h: 230.0 },  // 6: Last Played
-                Rect { x: 694.0, y: 742.0, w: 356.0, h: 230.0 },  // 7: Settings
+                Rect { x: 694.0, y: 742.0, w: 356.0, h: 230.0 },  // 7: Google Meet
                 Rect { x: 1066.0, y: 742.0, w: 240.0, h: 230.0 }, // 8: Theme
+                Rect { x: 1066.0, y: 589.0, w: 240.0, h: 135.0 }, // 9: Sleep
             ];
             let svcs_n = tv.get_services().row_count().min(10);
             for i in 0..svcs_n {
@@ -761,6 +764,7 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                         Rect { x: 96.0, y: 420.0, w: 416.0, h: 220.0 },
                         Rect { x: 528.0, y: 420.0, w: 416.0, h: 220.0 },
                         Rect { x: 96.0, y: 656.0, w: 416.0, h: 220.0 },
+                        Rect { x: 528.0, y: 656.0, w: 416.0, h: 220.0 }, // 13: Sleep warning
                     ]);
                     let places_n = laptop.global::<Display>().get_places().row_count().min(4);
                     for i in 0..places_n {
@@ -845,7 +849,7 @@ fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
                 let max_scroll = if lib.get_browse_all() {
                     4000.0
                 } else {
-                    let ll = laptop.global::<LibraryLanding>();
+                let ll = laptop.global::<LibraryLanding>();
                     let s1_n = ll.get_shelf1().row_count().min(4);
                     let s2_n = ll.get_shelf2().row_count().min(6);
                     let s3_n = ll.get_shelf3().row_count().min(6);
@@ -1009,9 +1013,10 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 };
                 dash.invoke_set_theme(next);
             }
-            i if i >= 9 => {
+            9 => laptop.global::<SleepState>().invoke_open_picker(),
+            i if i >= 10 => {
                 let svcs = tv.get_services();
-                if let Some(svc) = svcs.row_data(i - 9) {
+                if let Some(svc) = svcs.row_data(i - 10) {
                     dash.invoke_open_site(svc.index);
                 }
             }
@@ -1027,7 +1032,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
         }
         Page::Library => {
             let lib = laptop.global::<Library>();
-            let ll = laptop.global::<LibraryLanding>();
+                let ll = laptop.global::<LibraryLanding>();
             if idx < 4 {
                 STATE.with_borrow_mut(|s| s.lib_scroll = 0.0);
                 tv.set_lib_scroll(0.0);
@@ -1274,7 +1279,16 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                             let next = if disp.get_dashboard_ui() == "blades" { "classic" } else { "blades" };
                             disp.invoke_set_dashboard_ui(next.into());
                         }
-                        7..=10 => disp.invoke_pick_place((item - 7) as i32),
+                        7 => {
+                            let sl = laptop.global::<SleepState>();
+                            let next = match sl.get_warn_before().as_str() {
+                                "30s" => "60s",
+                                "60s" => "2m",
+                                _ => "30s",
+                            };
+                            sl.invoke_set_warn_before(next.into());
+                        }
+                        8..=11 => disp.invoke_pick_place((item - 8) as i32),
                         _ => {}
                     }
                 }
@@ -1373,6 +1387,114 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
         return true;
     }
 
+    let sl = laptop.global::<SleepState>();
+    if sl.get_picker_open() {
+        if is_back(text) {
+            sl.invoke_close_picker();
+            return true;
+        }
+        let end_ok = sl.get_end_of_item_ok();
+        let cur = sl.get_focused_tile().clamp(0, 8);
+        match decode_dir(text) {
+            Some(Dir::Left) => {
+                let next = match cur {
+                    0 | 4 | 8 => cur,
+                    7 if !end_ok => 5,
+                    _ => cur - 1,
+                };
+                sl.set_focused_tile(next);
+                return true;
+            }
+            Some(Dir::Right) => {
+                let next = match cur {
+                    3 | 7 | 8 => cur,
+                    5 if !end_ok => 7,
+                    _ => cur + 1,
+                };
+                sl.set_focused_tile(next);
+                return true;
+            }
+            Some(Dir::Up) => {
+                let next = match cur {
+                    0..=3 => 8,
+                    4..=7 => cur - 4,
+                    _ => 8,
+                };
+                sl.set_focused_tile(next);
+                return true;
+            }
+            Some(Dir::Down) => {
+                let next = match cur {
+                    8 => 3,
+                    0..=3 => {
+                        let c = cur + 4;
+                        if c == 6 && !end_ok { 7 } else { c }
+                    }
+                    _ => cur,
+                };
+                sl.set_focused_tile(next);
+                return true;
+            }
+            None => {}
+        }
+        if is_ok(text) {
+            match cur {
+                0 => sl.invoke_set_minutes(15),
+                1 => sl.invoke_set_minutes(30),
+                2 => sl.invoke_set_minutes(45),
+                3 => sl.invoke_set_minutes(60),
+                4 => sl.invoke_set_minutes(90),
+                5 => sl.invoke_set_minutes(120),
+                6 => sl.invoke_set_end_of_item(),
+                7 => {
+                    sl.invoke_off();
+                    sl.invoke_close_picker();
+                }
+                _ => sl.invoke_close_picker(),
+            }
+        }
+        return true;
+    }
+
+    if sl.get_phase() == "warn" && !sl.get_held() {
+        let ep_fin = sl.get_episode_finished();
+        if is_back(text) {
+            if ep_fin {
+                sl.invoke_play_next();
+            } else {
+                sl.invoke_extend();
+            }
+            return true;
+        }
+        let cur = sl.get_warn_focus().clamp(0, 2);
+        match decode_dir(text) {
+            Some(Dir::Left) => {
+                sl.set_warn_focus((cur - 1).max(0));
+                return true;
+            }
+            Some(Dir::Right) => {
+                sl.set_warn_focus((cur + 1).min(2));
+                return true;
+            }
+            _ => {}
+        }
+        if is_ok(text) {
+            match cur {
+                0 => {
+                    if ep_fin {
+                        sl.invoke_play_next();
+                    } else {
+                        sl.invoke_extend();
+                    }
+                }
+                1 => sl.invoke_sleep_now(),
+                2 => sl.invoke_off(),
+                _ => {}
+            }
+        }
+        return true;
+    }
+
     let ll = laptop.global::<LibraryLanding>();
     if ll.get_watching_now_open() {
         if is_back(text) {
@@ -1416,14 +1538,14 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
             return true;
         }
         if tv.get_hud_open() {
-            let cur = tv.get_focused_tile().clamp(0, 6);
+            let cur = tv.get_focused_tile().clamp(0, 8);
             match decode_dir(text) {
                 Some(Dir::Left) => {
                     tv.set_focused_tile((cur - 1).max(0));
                     return true;
                 }
                 Some(Dir::Right) => {
-                    tv.set_focused_tile((cur + 1).min(6));
+                    tv.set_focused_tile((cur + 1).min(8));
                     return true;
                 }
                 _ => {}
@@ -1442,6 +1564,8 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
                     4 => minimize_to_home(laptop),
                     5 => dash.invoke_transport("sub".into()),
                     6 => dash.invoke_transport("audio".into()),
+                    7 => laptop.global::<SleepState>().invoke_open_picker(),
+                    8 => dash.invoke_transport("next-ep".into()),
                     _ => {}
                 }
                 return true;
@@ -1611,10 +1735,14 @@ mod tests {
         assert!(key(&l, &SharedString::from(Key::Escape)));
         assert_eq!(tv.get_screen(), "home");
 
-        // Down from Hero lands on Last Played (tile 6), service tile (9..19) opens it
+        // Down from Hero lands on Last Played (tile 6), Sleep (tile 9) opens picker, service tile (10..20) opens it
         assert!(key(&l, &SharedString::from(Key::DownArrow)));
         assert_eq!(tv.get_focused_tile(), 6);
         activate_tile(&l, 9);
+        assert!(l.global::<SleepState>().get_picker_open());
+        assert!(key(&l, &SharedString::from(Key::Escape)));
+        assert!(!l.global::<SleepState>().get_picker_open());
+        activate_tile(&l, 10);
         assert!(matches!(rx.recv_timeout(Duration::from_secs(2)).unwrap(), Command::OpenSite(_)));
     }
 

@@ -1,7 +1,8 @@
 // Blades UI (v3) — Sports panel (Competitions + Scoreboard).
 
 import { ListView } from "std-widgets.slint";
-import { Dash, Scoreboard, Sports, TvUi } from "../state.slint";
+import { Dash, Nav, Scoreboard, Sports, TvUi } from "../state.slint";
+import { SleepChip } from "../shared/sleep.slint";
 import { V3Theme } from "theme.slint";
 
 component V3TeamLogo inherits Rectangle {
@@ -107,6 +108,12 @@ export component V3Sports inherits Rectangle {
         y: 38px * TvUi.u;
         spacing: 20px * TvUi.u;
         alignment: end;
+
+        SleepChip {
+            ink: V3Theme.accent;
+            clickable: Nav.layout == "dual";
+            y: (parent.height - self.height) / 2;
+        }
 
         if Dash.weather-on: Text {
             text: Dash.weather-temp;

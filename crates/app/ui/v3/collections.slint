@@ -1,6 +1,7 @@
 // Blades UI (v3) — Collections panel.
 
-import { Dash, Library, TvUi } from "../state.slint";
+import { Dash, Library, Nav, TvUi } from "../state.slint";
+import { SleepChip } from "../shared/sleep.slint";
 import { V3Theme } from "theme.slint";
 
 export component V3Collections inherits Rectangle {
@@ -23,6 +24,12 @@ export component V3Collections inherits Rectangle {
         y: 38px * TvUi.u;
         spacing: 20px * TvUi.u;
         alignment: end;
+
+        SleepChip {
+            ink: V3Theme.accent;
+            clickable: Nav.layout == "dual";
+            y: (parent.height - self.height) / 2;
+        }
 
         if Dash.weather-on: Text {
             text: Dash.weather-temp;

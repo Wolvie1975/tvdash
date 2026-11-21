@@ -1,7 +1,8 @@
 import { Theme } from "theme.slint";
 import { ArtworkPicker } from "artwork_picker.slint";
-import { Artwork, Dash, Display, SiteEditor, TvUi } from "state.slint";
+import { Artwork, Dash, Display, SiteEditor, SleepState, TvUi } from "state.slint";
 import { SiteEditorDialog } from "site_editor.slint";
+import { SleepPicker, SleepWarning } from "shared/sleep.slint";
 import { TvShell } from "tv/shell.slint";
 import { V3Theme } from "v3/theme.slint";
 import { V3Shell } from "v3/shell.slint";
@@ -24,6 +25,13 @@ export component LaptopWindow inherits Window {
     if SiteEditor.open: SiteEditorDialog { width: root.width; height: root.height; }
 
     if Artwork.open: ArtworkPicker { width: root.width; height: root.height; }
+
+    SleepPicker { width: root.width; height: root.height; }
+
+    SleepWarning {
+        x: parent.width - self.width - 48px;
+        y: parent.height - self.height - 48px;
+    }
 
     if Dash.toast != "": Rectangle {
         x: (parent.width - self.width) / 2;

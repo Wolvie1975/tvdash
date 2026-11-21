@@ -22,27 +22,40 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 /// Messages the socket understands, one per line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Message {
     /// Back to Home: stop playback / close the browser, show the Home screen.
     Home,
     /// Just checking whether an instance is running.
     Ping,
+    /// Sleep timer command: `sleep <60|end|now|off|status>`.
+    Sleep(String),
 }
 
 impl Message {
-    fn as_str(self) -> &'static str {
+    fn write_to(&self, w: &mut impl Write) -> std::io::Result<()> {
         match self {
-            Self::Home => "home",
-            Self::Ping => "ping",
+            Self::Home => writeln!(w, "home"),
+            Self::Ping => writeln!(w, "ping"),
+            Self::Sleep(arg) => writeln!(w, "sleep {arg}"),
         }
     }
 
     fn parse(line: &str) -> Option<Self> {
-        match line.trim() {
-            "home" => Some(Self::Home),
-            "ping" => Some(Self::Ping),
-            _ => None,
+        let trimmed = line.trim();
+        if trimmed == "home" {
+            Some(Self::Home)
+        } else if trimmed == "ping" {
+            Some(Self::Ping)
+        } else if let Some(rest) = trimmed.strip_prefix("sleep") {
+            let arg = rest.trim();
+            if arg.is_empty() {
+                Some(Self::Sleep("status".into()))
+            } else {
+                Some(Self::Sleep(arg.to_owned()))
+            }
+        } else {
+            None
         }
     }
 }
@@ -62,15 +75,32 @@ pub fn send(path: &Path, msg: Message) -> std::io::Result<bool> {
         Err(e) => return Err(e),
     };
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
-    writeln!(stream, "{}", msg.as_str())?;
+    msg.write_to(&mut stream)?;
     let mut reply = String::new();
     BufReader::new(stream).read_line(&mut reply)?;
     Ok(reply.trim() == "ok")
 }
 
-/// Listen for messages; `on_message` runs for each one (on the tokio runtime).
+/// Send `msg` to a running instance and return its single-line reply (`Ok(None)` if not running).
+pub fn send_reply(path: &Path, msg: Message) -> std::io::Result<Option<String>> {
+    let mut stream = match UnixStream::connect(path) {
+        Ok(s) => s,
+        Err(e) if matches!(e.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused) => {
+            return Ok(None);
+        }
+        Err(e) => return Err(e),
+    };
+    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    msg.write_to(&mut stream)?;
+    let mut reply = String::new();
+    BufReader::new(stream).read_line(&mut reply)?;
+    Ok(Some(reply.trim_end_matches(['\r', '\n']).to_owned()))
+}
+
+/// Listen for messages; `on_message` runs for each one (on the tokio runtime) and
+/// optionally returns a custom single-line reply (default `"ok"`).
 /// A stale socket file from a crashed run is replaced. Call inside a runtime.
-pub fn listen(path: PathBuf, on_message: impl Fn(Message) + Send + Sync + 'static) -> std::io::Result<()> {
+pub fn listen(path: PathBuf, on_message: impl Fn(Message) -> Option<String> + Send + Sync + 'static) -> std::io::Result<()> {
     if path.exists() {
         // Nobody answered before we got here (main checks), so it's stale.
         let _ = std::fs::remove_file(&path);
@@ -97,10 +127,12 @@ pub fn listen(path: PathBuf, on_message: impl Fn(Message) + Send + Sync + 'stati
                 let reply = match Message::parse(&line) {
                     Some(m) => {
                         debug!(message = ?m, "instance socket");
-                        on_message(m);
-                        "ok\n"
+                        match on_message(m) {
+                            Some(custom) => format!("{custom}\n"),
+                            None => "ok\n".to_owned(),
+                        }
                     }
-                    None => "unknown\n",
+                    None => "unknown\n".to_owned(),
                 };
                 use tokio::io::AsyncWriteExt;
                 let _ = write.write_all(reply.as_bytes()).await;
@@ -131,6 +163,7 @@ pub struct RuntimeState {
     pub source: Option<SourceKind>,
     pub item_id: Option<String>,
     pub item_title: Option<String>,
+    pub sleep: crate::sleep::Sleep,
 }
 
 impl RuntimeState {
@@ -214,7 +247,11 @@ mod tests {
         std::fs::write(&path, b"stale").unwrap(); // a crashed run left its socket behind
         let got = Arc::new(Mutex::new(Vec::new()));
         let g = got.clone();
-        listen(path.clone(), move |m| g.lock().unwrap().push(m)).unwrap();
+        listen(path.clone(), move |m| {
+            g.lock().unwrap().push(m);
+            None
+        })
+        .unwrap();
         let p = path.clone();
         let answered =
             tokio::task::spawn_blocking(move || (send(&p, Message::Ping), send(&p, Message::Home))).await.unwrap();

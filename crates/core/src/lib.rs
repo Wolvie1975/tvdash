@@ -10,7 +10,7 @@ pub mod secrets;
 pub mod state;
 
 pub use config::{Config, LoadedConfig};
-pub use events::{AppEvent, Command};
+pub use events::{AppEvent, Command, SleepSnapshot};
 pub use layout::{Decision, Layout, LayoutSetting};
 pub use secrets::SecretKey;
 
