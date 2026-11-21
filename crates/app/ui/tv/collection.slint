@@ -70,20 +70,6 @@ export component TvCollection inherits Rectangle {
         }
     }
 
-    // 1: Shuffle
-    IconTile {
-        x: 96px * TvUi.u;
-        y: 628px * TvUi.u;
-        base-width: 520px * TvUi.u;
-        base-height: 140px * TvUi.u;
-        fill: CollectionPageState.tint.card;
-        icon: "forward";
-        label: "Shuffle";
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 1;
-        activated => { TvUi.tile-activated(1); }
-        hovered => { TvUi.tile-hovered(1); }
-    }
-
     // 3-column vertical-scrolling movie grid (372 x 236)
     Rectangle {
         x: 660px * TvUi.u;
@@ -118,9 +104,9 @@ export component TvCollection inherits Rectangle {
                 title: item.title;
                 subtitle: item.status;
                 badge: item.num != "" ? item.num : "#" + (i + 1);
-                focused: !TvUi.bar-focused && TvUi.focused-tile == 2 + i;
-                activated => { TvUi.tile-activated(2 + i); }
-                hovered => { TvUi.tile-hovered(2 + i); }
+                focused: !TvUi.bar-focused && TvUi.focused-tile == 1 + i;
+                activated => { TvUi.tile-activated(1 + i); }
+                hovered => { TvUi.tile-hovered(1 + i); }
             }
         }
     }

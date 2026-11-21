@@ -1,0 +1,226 @@
+// Blades UI (v3) shell. Design units: 1920 x 1080, scaled via TvUi.u.
+
+import { Icon } from "../icons.slint";
+import { Dash, Library, TvUi } from "../state.slint";
+import { V3Theme } from "theme.slint";
+import { BladeStrip } from "blades.slint";
+import { V3Home } from "home.slint";
+import { V3Library } from "library.slint";
+import { V3Collections } from "collections.slint";
+import { V3Show } from "show.slint";
+import { V3Collection } from "collection.slint";
+import { V3Search } from "search.slint";
+import { V3Sports } from "events.slint";
+import { V3Settings } from "settings.slint";
+import { V3PlayerHud } from "player_hud.slint";
+import { V3Ambient } from "ambient.slint";
+
+export component V3Shell inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: V3Theme.bg;
+
+    property <float> scale: max(0.5, min(root.width / 1920px, root.height / 1080px));
+    changed scale => { TvUi.u = self.scale; }
+    init => { TvUi.u = self.scale; }
+
+    property <int> focus-ticket: TvUi.focus-ticket;
+    changed focus-ticket => { keys.focus(); }
+
+    property <bool> is-subpage: TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search";
+    property <int> parent-tab: TvUi.screen == "show" ? 1 : TvUi.screen == "collection" ? 2 : 0;
+    property <int> eff-active: root.is-subpage ? root.parent-tab : TvUi.active-tab;
+    property <int> left-count: root.is-subpage ? (root.eff-active + 1) : root.eff-active;
+    property <length> panel-x: (24px + root.left-count * 68px) * TvUi.u;
+    property <length> panel-w: (root.is-subpage ? 1532px : 1600px) * TvUi.u;
+
+    keys := FocusScope {
+        width: 100%;
+        height: 100%;
+        key-pressed(event) => {
+            if TvUi.key(event.text) {
+                accept
+            } else {
+                reject
+            }
+        }
+    }
+
+    // In-window full-screen video when playing on TV
+    if TvUi.video-on && TvUi.video-full: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #000000;
+
+        Image {
+            source: TvUi.video;
+            width: 100%;
+            height: 100%;
+            image-fit: contain;
+        }
+
+        TouchArea {
+            clicked => {
+                TvUi.hud-open = !TvUi.hud-open;
+                if TvUi.hud-open {
+                    TvUi.focused-tile = 1;
+                }
+                TvUi.overlay();
+            }
+            moved => {
+                if !TvUi.hud-open {
+                    TvUi.focused-tile = 1;
+                    TvUi.hud-open = true;
+                    TvUi.overlay();
+                }
+            }
+        }
+
+        if TvUi.hud-open: V3PlayerHud { }
+    }
+
+    // ── Blades Shell (hidden while full-screen video is active) ──────────────
+    if !(TvUi.video-on && TvUi.video-full): Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 1920px * TvUi.u;
+        height: 1080px * TvUi.u;
+        background: V3Theme.bg;
+
+        // Left Blades
+        for tab[i] in [
+            { idx: 0, label: "home" },
+            { idx: 1, label: "library" },
+            { idx: 2, label: "collections" },
+            { idx: 3, label: "sports" },
+            { idx: 4, label: "settings" },
+        ]: BladeStrip {
+            visible: root.is-subpage ? (i <= root.eff-active) : (i < root.eff-active);
+            x: (24px + i * 68px) * TvUi.u;
+            y: 24px * TvUi.u;
+            label: tab.label;
+            is-left: true;
+            near-active: i == root.left-count - 1;
+            parent-tinted: root.is-subpage && i == root.eff-active;
+            focused: TvUi.bar-focused && TvUi.active-tab == i;
+            clicked => { TvUi.tab-clicked(i); }
+        }
+
+        // Active Rounded Panel
+        Rectangle {
+            x: root.panel-x;
+            y: 24px * TvUi.u;
+            width: root.panel-w;
+            height: 1032px * TvUi.u;
+            border-radius: 18px * TvUi.u;
+            clip: true;
+            background: V3Theme.panel;
+            border-width: 1px;
+            border-color: V3Theme.border;
+
+            if TvUi.screen == "home": V3Home { }
+            if TvUi.screen == "collections": V3Collections { }
+            if TvUi.screen == "library": V3Library { }
+            if TvUi.screen == "show": V3Show { }
+            if TvUi.screen == "collection": V3Collection { }
+            if TvUi.screen == "search": V3Search { }
+            if TvUi.screen == "sports": V3Sports { }
+            if TvUi.screen == "settings": V3Settings { }
+
+            // Sub-page top bar: < Back pill + breadcrumb + Weather/Clock
+            if root.is-subpage: Rectangle {
+                x: 0;
+                y: 0;
+                width: parent.width;
+                height: 84px * TvUi.u;
+                background: transparent;
+
+                Rectangle {
+                    x: 40px * TvUi.u;
+                    y: 26px * TvUi.u;
+                    width: back-lbl.preferred-width + 32px * TvUi.u;
+                    height: 38px * TvUi.u;
+                    border-radius: 19px * TvUi.u;
+                    background: back-ta.has-hover ? V3Theme.surface-raised : V3Theme.surface;
+                    border-width: 1px;
+                    border-color: V3Theme.border;
+
+                    back-lbl := Text {
+                        text: "‹  Back";
+                        font-family: V3Theme.font;
+                        font-size: 16px * TvUi.u;
+                        font-weight: 700;
+                        color: V3Theme.text-primary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    back-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { TvUi.back-clicked(); }
+                    }
+                }
+
+                Text {
+                    x: 156px * TvUi.u;
+                    y: 34px * TvUi.u;
+                    text: TvUi.screen == "show"
+                        ? ("Library › " + (Library.media-tab == "movies" ? "Movies" : "TV Series"))
+                        : TvUi.screen == "collection"
+                            ? "Collections"
+                            : "Search";
+                    font-family: V3Theme.font;
+                    font-size: 16px * TvUi.u;
+                    font-weight: 600;
+                    color: V3Theme.text-secondary;
+                }
+
+                HorizontalLayout {
+                    x: parent.width - 40px * TvUi.u - self.preferred-width;
+                    y: 34px * TvUi.u;
+                    spacing: 20px * TvUi.u;
+                    alignment: end;
+
+                    if Dash.weather-on: Text {
+                        text: Dash.weather-temp;
+                        font-family: V3Theme.font;
+                        font-size: 20px * TvUi.u;
+                        font-weight: 600;
+                        color: V3Theme.text-primary;
+                    }
+                    Text {
+                        text: Dash.clock-hh + ":" + Dash.clock-mm + (Dash.clock-ampm != "" ? " " + Dash.clock-ampm : "");
+                        font-family: V3Theme.font;
+                        font-size: 20px * TvUi.u;
+                        font-weight: 600;
+                        color: V3Theme.text-primary;
+                    }
+                }
+            }
+        }
+
+        // Right Blades
+        for tab[i] in [
+            { idx: 0, label: "home" },
+            { idx: 1, label: "library" },
+            { idx: 2, label: "collections" },
+            { idx: 3, label: "sports" },
+            { idx: 4, label: "settings" },
+        ]: BladeStrip {
+            visible: i > root.eff-active;
+            x: root.panel-x + root.panel-w + 10px * TvUi.u + (i - root.eff-active - 1) * 68px * TvUi.u;
+            y: 24px * TvUi.u;
+            label: tab.label;
+            is-left: false;
+            near-active: i == root.eff-active + 1;
+            focused: TvUi.bar-focused && TvUi.active-tab == i;
+            clicked => { TvUi.tab-clicked(i); }
+        }
+    }
+
+    // Ambient screensaver overlay
+    if Dash.screensaver-open: V3Ambient {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+}

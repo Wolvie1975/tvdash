@@ -689,6 +689,7 @@ impl Controller {
             Command::JellyfinPassword { username, password } => self.jellyfin_password(username, password),
             Command::ClearBrowserProfile => self.clear_browser_profile().await,
             Command::SetTheme(mode) => self.update_config(|c| c.general.theme = mode),
+            Command::SetDashboardUi(ui) => self.update_config(|c| c.display.dashboard_ui = ui),
             Command::FindPlace(query) => {
                 let events = self.events.clone();
                 tokio::spawn(async move {
@@ -789,40 +790,6 @@ impl Controller {
                         item.resume_ms = None;
                     }
                     self.play(item).await;
-                }
-            }
-            Command::ShuffleShow(show_key) => {
-                if let Some(plex) = &self.plex {
-                    let plex = Arc::clone(plex);
-                    if let Ok(seasons) = plex.show_seasons(&show_key).await {
-                        let non_special: Vec<_> = seasons.into_iter().filter(|s| s.index != 0).collect();
-                        if !non_special.is_empty() {
-                            let idx = (chrono::Utc::now().timestamp_subsec_nanos() as usize) % non_special.len();
-                            if let Ok(eps) = plex.season_episodes(&non_special[idx].rating_key).await
-                                && !eps.is_empty()
-                            {
-                                let eidx = (chrono::Utc::now().timestamp_subsec_millis() as usize) % eps.len();
-                                if let Ok(Some(mut item)) = plex.item(&eps[eidx].rating_key).await {
-                                    item.resume_ms = None;
-                                    self.play(item).await;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            Command::ShuffleCollection(collection_key) => {
-                if let Some(plex) = &self.plex
-                    && let Ok(items) = plex.collection_items(&collection_key, None).await
-                {
-                    let pool: Vec<_> = items.iter().filter(|i| i.resume_ms.is_none()).cloned().collect();
-                    let pick_from = if pool.is_empty() { &items } else { &pool };
-                    if !pick_from.is_empty() {
-                        let idx = (chrono::Utc::now().timestamp_subsec_nanos() as usize) % pick_from.len();
-                        let mut item = pick_from[idx].clone();
-                        item.resume_ms = None;
-                        self.play(item).await;
-                    }
                 }
             }
         }

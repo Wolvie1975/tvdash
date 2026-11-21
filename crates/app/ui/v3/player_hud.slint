@@ -1,0 +1,268 @@
+// Blades UI (v3) — Full-screen Video HUD.
+
+import { Icon } from "../icons.slint";
+import { Dash, TvUi } from "../state.slint";
+import { V3Theme } from "theme.slint";
+
+export component V3PlayerHud inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+
+    // Auto-hide after 3.5 s
+    Timer {
+        interval: 3.5s;
+        running: TvUi.hud-open;
+        triggered => { TvUi.hud-open = false; }
+    }
+
+    // Top-left source + title badge
+    Rectangle {
+        x: 64px * TvUi.u;
+        y: 44px * TvUi.u;
+        width: top-col.preferred-width + 36px * TvUi.u;
+        height: 82px * TvUi.u;
+        border-radius: 16px * TvUi.u;
+        background: #0B0D10D8;
+        border-width: 1px;
+        border-color: #FFFFFF22;
+
+        top-col := VerticalLayout {
+            x: 18px * TvUi.u;
+            height: parent.height;
+            alignment: center;
+            spacing: 2px * TvUi.u;
+
+            Text {
+                text: (Dash.tv.source != "" ? Dash.tv.source + " · " : "") + "NOW PLAYING";
+                font-family: V3Theme.font;
+                font-size: 12px * TvUi.u;
+                font-weight: 700;
+                letter-spacing: 1px;
+                color: V3Theme.accent;
+            }
+            Text {
+                text: Dash.tv.title + (Dash.tv.subtitle != "" ? " · " + Dash.tv.subtitle : "");
+                font-family: V3Theme.font;
+                font-size: 20px * TvUi.u;
+                font-weight: 700;
+                color: #FFFFFF;
+                max-width: 900px * TvUi.u;
+                overflow: elide;
+            }
+        }
+    }
+
+    // Bottom floating rounded HUD pill bar
+    Rectangle {
+        x: (parent.width - 1520px * TvUi.u) / 2;
+        y: parent.height - 210px * TvUi.u;
+        width: 1520px * TvUi.u;
+        height: 164px * TvUi.u;
+        border-radius: 22px * TvUi.u;
+        background: #0B0D10E6;
+        border-width: 1px;
+        border-color: #FFFFFF22;
+
+        // Ends at / position row
+        Text {
+            x: 28px * TvUi.u;
+            y: 18px * TvUi.u;
+            text: Dash.tv.at-text != "" ? Dash.tv.at-text : Dash.tv.subtitle;
+            font-family: V3Theme.font;
+            font-size: 15px * TvUi.u;
+            font-weight: 600;
+            color: #C4C9D2;
+        }
+
+        if Dash.tv-ends-at != "": Text {
+            x: parent.width - 28px * TvUi.u - self.preferred-width;
+            y: 18px * TvUi.u;
+            text: "Ends at " + Dash.tv-ends-at;
+            font-family: V3Theme.font;
+            font-size: 15px * TvUi.u;
+            font-weight: 600;
+            color: #C4C9D2;
+        }
+
+        // Timeline bar
+        Rectangle {
+            x: 28px * TvUi.u;
+            y: 50px * TvUi.u;
+            width: parent.width - 56px * TvUi.u;
+            height: 7px * TvUi.u;
+            border-radius: 4px * TvUi.u;
+            background: #FFFFFF28;
+
+            Rectangle {
+                width: parent.width * clamp(Dash.tv.progress, 0.0, 1.0);
+                height: 100%;
+                border-radius: 4px * TvUi.u;
+                background: V3Theme.accent;
+            }
+        }
+
+        // 7 transport buttons (0..6): -10s, Play/Pause, +30s, Stop, Home, Subtitles, Audio
+        HorizontalLayout {
+            x: 28px * TvUi.u;
+            y: 78px * TvUi.u;
+            width: parent.width - 56px * TvUi.u;
+            height: 60px * TvUi.u;
+            spacing: 14px * TvUi.u;
+            alignment: center;
+
+            for btn in [
+                { id: 0, label: "-10s", cmd: "back", w: 96px },
+            ]: Rectangle {
+                width: btn.w * TvUi.u;
+                height: 54px * TvUi.u;
+                border-radius: 14px * TvUi.u;
+                background: #1B1F26;
+                border-width: TvUi.focused-tile == btn.id ? 3px : 1px;
+                border-color: TvUi.focused-tile == btn.id ? V3Theme.accent : #FFFFFF22;
+                Text {
+                    text: btn.label;
+                    font-family: V3Theme.font;
+                    font-size: 18px * TvUi.u;
+                    font-weight: 700;
+                    color: #FFFFFF;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.transport(btn.cmd); }
+                }
+            }
+
+            // 1: Play / Pause amber circle
+            Rectangle {
+                width: 64px * TvUi.u;
+                height: 54px * TvUi.u;
+                border-radius: 16px * TvUi.u;
+                background: V3Theme.accent;
+                border-width: TvUi.focused-tile == 1 ? 3px : 0px;
+                border-color: #FFFFFF;
+                Icon {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    name: Dash.tv.mode == "paused" ? "play" : "pause";
+                    size: 26px * TvUi.u;
+                    tint: V3Theme.on-accent;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.transport("pause"); }
+                }
+            }
+
+            Rectangle {
+                width: 96px * TvUi.u;
+                height: 54px * TvUi.u;
+                border-radius: 14px * TvUi.u;
+                background: #1B1F26;
+                border-width: TvUi.focused-tile == 2 ? 3px : 1px;
+                border-color: TvUi.focused-tile == 2 ? V3Theme.accent : #FFFFFF22;
+                Text {
+                    text: "+30s";
+                    font-family: V3Theme.font;
+                    font-size: 18px * TvUi.u;
+                    font-weight: 700;
+                    color: #FFFFFF;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.transport("fwd"); }
+                }
+            }
+
+            Rectangle {
+                width: 72px * TvUi.u;
+                height: 54px * TvUi.u;
+                border-radius: 14px * TvUi.u;
+                background: #1B1F26;
+                border-width: TvUi.focused-tile == 3 ? 3px : 1px;
+                border-color: TvUi.focused-tile == 3 ? V3Theme.accent : #FFFFFF22;
+                Icon {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    name: "stop";
+                    size: 20px * TvUi.u;
+                    tint: #FFFFFF;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.transport("stop"); }
+                }
+            }
+
+            Rectangle {
+                width: 96px * TvUi.u;
+                height: 54px * TvUi.u;
+                border-radius: 14px * TvUi.u;
+                background: #1B1F26;
+                border-width: TvUi.focused-tile == 4 ? 3px : 1px;
+                border-color: TvUi.focused-tile == 4 ? V3Theme.accent : #FFFFFF22;
+                Text {
+                    text: "Home";
+                    font-family: V3Theme.font;
+                    font-size: 17px * TvUi.u;
+                    font-weight: 700;
+                    color: #FFFFFF;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { TvUi.video-full = false; }
+                }
+            }
+
+            Rectangle {
+                width: 130px * TvUi.u;
+                height: 54px * TvUi.u;
+                border-radius: 14px * TvUi.u;
+                background: #1B1F26;
+                border-width: TvUi.focused-tile == 5 ? 3px : 1px;
+                border-color: TvUi.focused-tile == 5 ? V3Theme.accent : #FFFFFF22;
+                Text {
+                    text: "Subtitles";
+                    font-family: V3Theme.font;
+                    font-size: 17px * TvUi.u;
+                    font-weight: 700;
+                    color: #FFFFFF;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.transport("sub"); }
+                }
+            }
+
+            Rectangle {
+                width: 112px * TvUi.u;
+                height: 54px * TvUi.u;
+                border-radius: 14px * TvUi.u;
+                background: #1B1F26;
+                border-width: TvUi.focused-tile == 6 ? 3px : 1px;
+                border-color: TvUi.focused-tile == 6 ? V3Theme.accent : #FFFFFF22;
+                Text {
+                    text: "Audio";
+                    font-family: V3Theme.font;
+                    font-size: 17px * TvUi.u;
+                    font-weight: 700;
+                    color: #FFFFFF;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.transport("audio"); }
+                }
+            }
+        }
+    }
+}

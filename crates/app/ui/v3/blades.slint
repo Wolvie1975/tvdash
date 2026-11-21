@@ -1,0 +1,51 @@
+// Vertical side blade strips for Blades UI (v3).
+
+import { TvUi } from "../state.slint";
+import { V3Theme } from "theme.slint";
+
+export component BladeStrip inherits Rectangle {
+    in property <string> label;
+    in property <bool> is-left: true;
+    in property <bool> near-active: false;
+    in property <bool> parent-tinted: false;
+    in property <bool> focused: false;
+    callback clicked();
+
+    width: 58px * TvUi.u;
+    height: 1032px * TvUi.u;
+    border-radius: 14px * TvUi.u;
+    background: root.parent-tinted ? V3Theme.blade-parent-tint
+        : ta.has-hover ? V3Theme.surface-raised
+        : root.near-active ? V3Theme.blade-near : V3Theme.blade-far;
+    border-width: root.focused ? 3px : 1px;
+    border-color: root.focused ? V3Theme.focus-ring : V3Theme.border;
+
+    // Left blades: rotated -90deg near the bottom; Right blades: rotated +90deg near the top.
+    Rectangle {
+        x: 0;
+        y: root.is-left ? (parent.height - 180px * TvUi.u) : (24px * TvUi.u);
+        width: parent.width;
+        height: 156px * TvUi.u;
+        background: transparent;
+
+        Text {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 150px * TvUi.u;
+            height: 36px * TvUi.u;
+            text: root.label;
+            font-family: V3Theme.font;
+            font-size: 20px * TvUi.u;
+            font-weight: root.parent-tinted ? 700 : 600;
+            color: root.parent-tinted ? V3Theme.accent : (root.focused ? V3Theme.text-primary : V3Theme.text-secondary);
+            horizontal-alignment: root.is-left ? left : left;
+            vertical-alignment: center;
+            transform-rotation: root.is-left ? -90deg : 90deg;
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}

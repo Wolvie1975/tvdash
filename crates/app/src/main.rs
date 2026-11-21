@@ -243,6 +243,7 @@ fn main() -> anyhow::Result<()> {
             units: config.general.units,
             theme: config.general.theme,
             layout_setting: config.display.layout,
+            dashboard_ui: config.display.dashboard_ui,
             tv_connected: decision.tv_connected,
             sites: config.streaming.clone(),
         },

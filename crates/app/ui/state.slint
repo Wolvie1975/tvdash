@@ -244,6 +244,7 @@ export global Library {
     in-out property <int> popular-days: 30;   // 7 | 30
     in-out property <bool> browse-all: false;
     in-out property <string> browse-letter: ""; // "" (all) | "#" | "A".."Z"
+    in property <string> browse-status;
     in-out property <string> query;
     in property <bool> searching;
     // Non-empty while showing search results ("Results for “x”").
@@ -380,7 +381,6 @@ export global ShowPageState {
     callback select-season(string);
     callback play-episode(string, bool);
     callback play-from-start();
-    callback shuffle();
     callback close();
 }
 
@@ -405,7 +405,6 @@ export global CollectionPageState {
     callback set-order(string);
     callback set-hide-watched(bool);
     callback play-item(string, bool);
-    callback shuffle();
     callback close();
 }
 
@@ -631,8 +630,10 @@ export global Display {
     in property <string> place-message;     // "No place called …" / errors
     in property <[string]> places;          // matches to pick from
     in-out property <string> layout-setting: "auto"; // "auto" | "dual" | "tv"
+    in-out property <string> dashboard-ui: "classic"; // "classic" | "blades"
     callback set-layout(bool);  // true = TV only
     callback set-layout-setting(string);
+    callback set-dashboard-ui(string);
     callback find-place(string);
     callback pick-place(int);
 }

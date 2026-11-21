@@ -330,6 +330,8 @@ pub enum Command {
     SetLayout(crate::config::Layout),
     /// User changed Settings › Display › Layout (`auto` | `dual` | `tv`).
     SetLayoutSetting(crate::layout::LayoutSetting),
+    /// User changed Settings › Display › Dashboard UI (`classic` | `blades`).
+    SetDashboardUi(crate::config::DashboardUi),
     /// Remember the laptop theme picked in the header.
     SetTheme(crate::config::ThemeMode),
     /// Settings › Display: temperature units, clock format, seconds.
@@ -362,8 +364,4 @@ pub enum Command {
         rating_key: String,
         resume: bool,
     },
-    /// Shuffle an episode from show `rating_key`.
-    ShuffleShow(String),
-    /// Shuffle an unwatched movie from collection `rating_key`.
-    ShuffleCollection(String),
 }

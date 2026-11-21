@@ -307,6 +307,15 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         s(Command::SetTheme(mode));
     });
 
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    laptop.global::<crate::Display>().on_set_dashboard_ui(move |ui| {
+        let mode = tvdash_core::config::DashboardUi::parse(&ui);
+        if let Some(l) = weak.upgrade() {
+            l.global::<crate::Display>().set_dashboard_ui(mode.as_str().into());
+        }
+        s(Command::SetDashboardUi(mode));
+    });
+
     dash.on_quit(|| {
         let _ = slint::quit_event_loop();
     });
@@ -417,17 +426,6 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
             l.global::<Nav>().set_page("home".into());
         }
     });
-    let (weak, s) = (laptop.as_weak(), send.clone());
-    sp.on_shuffle(move || {
-        if let Some(l) = weak.upgrade() {
-            let key = l.global::<ShowPageState>().get_rating_key().to_string();
-            if !key.is_empty() {
-                s(Command::ShuffleShow(key));
-            }
-            l.global::<ShowPageState>().set_open(false);
-            l.global::<Nav>().set_page("home".into());
-        }
-    });
     let weak = laptop.as_weak();
     sp.on_close(move || {
         if let Some(l) = weak.upgrade() {
@@ -456,17 +454,6 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     cp.on_play_item(move |key, resume| {
         s(Command::PlayRatingKey { rating_key: key.to_string(), resume });
         if let Some(l) = weak.upgrade() {
-            l.global::<CollectionPageState>().set_open(false);
-            l.global::<Nav>().set_page("home".into());
-        }
-    });
-    let (weak, s) = (laptop.as_weak(), send.clone());
-    cp.on_shuffle(move || {
-        if let Some(l) = weak.upgrade() {
-            let key = l.global::<CollectionPageState>().get_rating_key().to_string();
-            if !key.is_empty() {
-                s(Command::ShuffleCollection(key));
-            }
             l.global::<CollectionPageState>().set_open(false);
             l.global::<Nav>().set_page("home".into());
         }

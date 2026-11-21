@@ -1,5 +1,14 @@
 # tvdash Changelog
 
+## v0.1.47 — 2026-11-20
+- Fixed the horizontal gradient band across the Library hero backdrop in Blades (`v3/library.slint`) and Classic (`tv/focus_backdrop.slint`).
+
+## v0.1.46 — 2026-11-20
+- Added the **Blades** (`ui/v3/`) dashboard UI option alongside **Classic** (`TvShell`), switchable live under **Settings → Display → Dashboard UI** (`[display] dashboard_ui = "classic" | "blades"`), with bundled `Nunito Sans` font and Dark/Stone/Mist + Night Mode support.
+- Updated **Library → Browse all** (in both Classic and Blades) to return only the first 10 A–Z titles on `"All"` with a status summary, and load the full per-library set when `#` or `A–Z` is selected.
+- Removed **Shuffle** from Show and Collection detail pages.
+- Added team logos and a separate event-type header line on **Sports → Scoreboard** and **Competitions** in Blades.
+
 ## v0.1.45 — 2026-11-20
 - Changed the TV Series **Recently Released** 3rd shelf in `TvLibrary` to query TV series (`type=2`) by `originallyAvailableAt:desc` instead of individual episodes.
 - Replaced the Phone Remote QR card in **Settings → Display** with the **Weather Location** lookup card.

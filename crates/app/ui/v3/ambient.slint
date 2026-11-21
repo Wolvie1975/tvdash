@@ -1,0 +1,178 @@
+// Blades UI (v3) — Ambient screensaver.
+
+import { AmbientState, Dash, TvUi } from "../state.slint";
+import { Icon } from "../icons.slint";
+import { V3Theme } from "theme.slint";
+
+export component V3Ambient inherits Rectangle {
+    width: 1920px * TvUi.u;
+    height: 1080px * TvUi.u;
+    background: #050608;
+    clip: true;
+
+    property <length> wall-offset: 0px;
+
+    // Angled drifting poster wall
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 2700px * TvUi.u;
+        height: 2300px * TvUi.u;
+        clip: true;
+        transform-rotation: -10deg;
+
+        if AmbientState.has-wall: Image {
+            source: AmbientState.wall;
+            x: 0px;
+            y: -Math.mod(root.wall-offset / 1px, AmbientState.repeat-height / 1px) * 1px * TvUi.u;
+            width: parent.width;
+            height: AmbientState.repeat-height * 2 * TvUi.u;
+            image-fit: cover;
+        }
+    }
+
+    Timer {
+        interval: 33ms;
+        running: AmbientState.has-wall;
+        triggered => {
+            if root.wall-offset >= AmbientState.repeat-height {
+                root.wall-offset -= AmbientState.repeat-height;
+            }
+            root.wall-offset += 0.4px;
+        }
+    }
+
+    // Bottom scrim for clock + Up Next legibility
+    Rectangle {
+        x: 0;
+        y: parent.height - 460px * TvUi.u;
+        width: parent.width;
+        height: 460px * TvUi.u;
+        background: @linear-gradient(180deg, transparent 0%, #050608D8 55%, #050608F5 100%);
+    }
+
+    // Bottom-left Clock, Date & Weather
+    VerticalLayout {
+        x: 72px * TvUi.u;
+        y: parent.height - 320px * TvUi.u;
+        width: 720px * TvUi.u;
+        spacing: 8px * TvUi.u;
+        alignment: end;
+
+        HorizontalLayout {
+            spacing: 12px * TvUi.u;
+            alignment: start;
+
+            Text {
+                text: Dash.clock-hh + ":" + Dash.clock-mm;
+                font-family: V3Theme.font;
+                font-size: 132px * TvUi.u;
+                font-weight: 700;
+                color: #FFFFFF;
+            }
+            if Dash.clock-ampm != "": Text {
+                text: Dash.clock-ampm;
+                font-family: V3Theme.font;
+                font-size: 40px * TvUi.u;
+                font-weight: 600;
+                color: #A0A6AF;
+                vertical-alignment: bottom;
+            }
+        }
+
+        Text {
+            text: Dash.clock-year != "" ? Dash.date-text + ", " + Dash.clock-year : Dash.date-text;
+            font-family: V3Theme.font;
+            font-size: 26px * TvUi.u;
+            color: #C4C9D2;
+        }
+
+        if Dash.weather-on: HorizontalLayout {
+            spacing: 10px * TvUi.u;
+            Icon {
+                name: Dash.weather-icon;
+                size: 26px * TvUi.u;
+                tint: V3Theme.accent;
+                y: (parent.height - self.height) / 2;
+            }
+            Text {
+                text: Dash.weather-temp + " · " + Dash.weather-condition + (Dash.weather-detail != "" ? " · " + Dash.weather-detail : "");
+                font-family: V3Theme.font;
+                font-size: 22px * TvUi.u;
+                color: #E8EAED;
+            }
+        }
+    }
+
+    // Bottom-right Up Next compact card
+    if Dash.tv.title != "": Rectangle {
+        x: parent.width - 72px * TvUi.u - 480px * TvUi.u;
+        y: parent.height - 210px * TvUi.u;
+        width: 480px * TvUi.u;
+        height: 112px * TvUi.u;
+        border-radius: 18px * TvUi.u;
+        background: #14181FD8;
+        border-width: 1px;
+        border-color: #FFFFFF22;
+
+        HorizontalLayout {
+            padding: 16px * TvUi.u;
+            spacing: 14px * TvUi.u;
+
+            if Dash.tv.has-poster: Rectangle {
+                width: 54px * TvUi.u;
+                height: 80px * TvUi.u;
+                border-radius: 8px * TvUi.u;
+                clip: true;
+                Image {
+                    source: Dash.tv.poster;
+                    width: 100%;
+                    height: 100%;
+                    image-fit: cover;
+                }
+            }
+
+            VerticalLayout {
+                horizontal-stretch: 1;
+                alignment: center;
+                spacing: 3px * TvUi.u;
+                Text {
+                    text: "UP NEXT";
+                    font-family: V3Theme.font;
+                    font-size: 12px * TvUi.u;
+                    font-weight: 700;
+                    letter-spacing: 1px;
+                    color: V3Theme.accent;
+                }
+                Text {
+                    text: Dash.tv.title;
+                    font-family: V3Theme.font;
+                    font-size: 22px * TvUi.u;
+                    font-weight: 700;
+                    color: #FFFFFF;
+                    overflow: elide;
+                }
+                if Dash.tv.subtitle != "": Text {
+                    text: Dash.tv.subtitle;
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    color: #A0A6AF;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+
+    Text {
+        x: parent.width - 72px * TvUi.u - self.preferred-width;
+        y: parent.height - 64px * TvUi.u;
+        text: "Press any key to return";
+        font-family: V3Theme.font;
+        font-size: 16px * TvUi.u;
+        color: #727983;
+    }
+
+    TouchArea {
+        clicked => { TvUi.key("Escape"); }
+    }
+}

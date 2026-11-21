@@ -63,6 +63,18 @@ fn browse_sort_key(title: &str) -> (u8, String) {
     (group, trimmed.to_ascii_lowercase())
 }
 
+fn format_count(n: usize) -> String {
+    let s = n.to_string();
+    let mut out = String::with_capacity(s.len() + s.len() / 3);
+    for (i, ch) in s.chars().rev().enumerate() {
+        if i > 0 && i % 3 == 0 {
+            out.push(',');
+        }
+        out.push(ch);
+    }
+    out.chars().rev().collect()
+}
+
 fn rebuild_browse(s: &mut UiState, laptop: &LaptopWindow) {
     let lib = laptop.global::<Library>();
     let filter = lib.get_filter();
@@ -76,8 +88,24 @@ fn rebuild_browse(s: &mut UiState, laptop: &LaptopWindow) {
         .collect();
     items.sort_by(|a, b| {
         let ord = browse_sort_key(&a.title).cmp(&browse_sort_key(&b.title));
-        if desc { ord.reverse() } else { ord }
+        if desc && !letter.is_empty() { ord.reverse() } else { ord }
     });
+    let noun = if movies { "movies" } else { "shows" };
+    let status = if letter.is_empty() {
+        let total = items.len();
+        items.truncate(10);
+        if total <= 10 {
+            format!("{} {noun}, A–Z", format_count(total))
+        } else {
+            format!(
+                "First 10 of {} {noun}, A–Z · pick a letter to see the rest",
+                format_count(total)
+            )
+        }
+    } else {
+        format!("{} · {} {noun}", letter, format_count(items.len()))
+    };
+    lib.set_browse_status(status.into());
     s.lib_browse = items;
     s.lib_browse_cards.set_vec(cards_for(s, &s.lib_browse));
 }

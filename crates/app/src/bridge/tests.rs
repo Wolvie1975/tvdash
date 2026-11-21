@@ -21,6 +21,7 @@ fn windows() -> (LaptopWindow, TvWindow) {
             units: Units::Fahrenheit,
             theme: ThemeMode::Dark,
             layout_setting: tvdash_core::LayoutSetting::Auto,
+            dashboard_ui: tvdash_core::config::DashboardUi::Classic,
             tv_connected: true,
             sites: sites
                 .into_iter()

@@ -1,22 +1,25 @@
 import { Theme } from "theme.slint";
 import { ArtworkPicker } from "artwork_picker.slint";
-import { Artwork, Dash, SiteEditor, TvUi } from "state.slint";
+import { Artwork, Dash, Display, SiteEditor, TvUi } from "state.slint";
 import { SiteEditorDialog } from "site_editor.slint";
 import { TvShell } from "tv/shell.slint";
+import { V3Theme } from "v3/theme.slint";
+import { V3Shell } from "v3/shell.slint";
 
-// The main window. Renders the unified TvShell dashboard in both one-screen
-// (TV only) and two-screen (laptop + TV) modes.
+// The main window. Renders either Classic (TvShell) or Blades (V3Shell) based on
+// Display.dashboard-ui ("classic" | "blades").
 export component LaptopWindow inherits Window {
     title: "tvdash";
-    background: Theme.bg;
-    default-font-family: Theme.font;
+    background: Display.dashboard-ui == "blades" ? V3Theme.bg : Theme.bg;
+    default-font-family: Display.dashboard-ui == "blades" ? V3Theme.font : Theme.font;
     preferred-width: 1600px;
     preferred-height: 1000px;
-    // Small enough for a 1080p panel at 200% (960 × 540); TvShell scales via TvUi.u.
+    // Small enough for a 1080p panel at 200% (960 × 540); TvShell/V3Shell scale via TvUi.u.
     min-width: 800px;
     min-height: 480px;
 
-    TvShell { width: root.width; height: root.height; }
+    if Display.dashboard-ui != "blades": TvShell { width: root.width; height: root.height; }
+    if Display.dashboard-ui == "blades": V3Shell { width: root.width; height: root.height; }
 
     if SiteEditor.open: SiteEditorDialog { width: root.width; height: root.height; }
 

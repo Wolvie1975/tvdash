@@ -11,7 +11,7 @@ export component TvShow inherits Rectangle {
     property <int> season-count: ShowPageState.seasons.length;
     property <int> ep-count: ShowPageState.episodes.length;
     property <bool> has-next-season: ShowPageState.next-season-label != "";
-    property <int> grid-base: 3 + root.season-count;
+    property <int> grid-base: 2 + root.season-count;
     property <length> content-top: (700px - TvUi.show-scroll) * TvUi.u;
     property <length> season-col-y: ShowPageState.scrolled ? 244px * TvUi.u : root.content-top;
 
@@ -414,37 +414,6 @@ export component TvShow inherits Rectangle {
             }
         }
 
-        // 2: Shuffle (220)
-        Tile {
-            x: 828px * TvUi.u;
-            y: 452px * TvUi.u;
-            base-width: 220px * TvUi.u;
-            base-height: 120px * TvUi.u;
-            focused: TvUi.focused-tile == 2;
-            fill: Theme.surface;
-            activated => {
-                TvUi.focused-tile = 2;
-                ShowPageState.shuffle();
-            }
-
-            Text {
-                x: 24px * TvUi.u;
-                y: 26px * TvUi.u;
-                text: "Shuffle";
-                font-size: 24px * TvUi.u;
-                font-weight: 500;
-                color: Theme.text-primary;
-            }
-
-            Text {
-                x: 24px * TvUi.u;
-                y: 62px * TvUi.u;
-                text: "Random episode";
-                font-size: 17px * TvUi.u;
-                color: Theme.text-muted;
-            }
-        }
-
         // Season tabs: y = 620, 26px
         HorizontalLayout {
             x: 96px * TvUi.u;
@@ -455,13 +424,13 @@ export component TvShow inherits Rectangle {
 
             for tab[i] in ShowPageState.seasons: Tile {
                 property <bool> is-selected: tab.rating-key == ShowPageState.selected-season;
-                property <bool> is-focused: TvUi.focused-tile == 3 + i;
+                property <bool> is-focused: TvUi.focused-tile == 2 + i;
                 base-width: root.season-count <= 6 ? 170px * TvUi.u : (root.season-count <= 14 ? 116px * TvUi.u : 84px * TvUi.u);
                 base-height: 48px * TvUi.u;
                 focused: is-focused;
                 fill: root.season-count <= 6 ? transparent : (is-selected ? ShowPageState.tint.card : Theme.surface);
                 activated => {
-                    TvUi.focused-tile = 3 + i;
+                    TvUi.focused-tile = 2 + i;
                     ShowPageState.select-season(tab.rating-key);
                 }
 

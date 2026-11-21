@@ -238,9 +238,30 @@ export component TvLibrary inherits Rectangle {
             }
         }
 
+        if Library.browse-status != "": HorizontalLayout {
+            x: 96px * TvUi.u;
+            y: 252px * TvUi.u;
+            spacing: 12px * TvUi.u;
+            height: 28px * TvUi.u;
+
+            Text {
+                text: Library.browse-letter == "" ? "All" : Library.browse-letter;
+                font-size: 20px * TvUi.u;
+                font-weight: 700;
+                color: Theme.text-primary;
+                vertical-alignment: center;
+            }
+            Text {
+                text: Library.browse-status;
+                font-size: 16px * TvUi.u;
+                color: Theme.text-secondary;
+                vertical-alignment: center;
+            }
+        }
+
         if Library.browse-items.length == 0: Text {
             x: 96px * TvUi.u;
-            y: 276px * TvUi.u;
+            y: 296px * TvUi.u;
             text: Library.browse-letter == ""
                 ? "No items in this library."
                 : "No items starting with “" + Library.browse-letter + "”.";
@@ -250,9 +271,9 @@ export component TvLibrary inherits Rectangle {
 
         if Library.browse-items.length > 0: Rectangle {
             x: 0;
-            y: 256px * TvUi.u;
+            y: 288px * TvUi.u;
             width: 1920px * TvUi.u;
-            height: 748px * TvUi.u;
+            height: 716px * TvUi.u;
             clip: true;
             background: transparent;
 

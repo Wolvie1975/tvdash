@@ -203,6 +203,7 @@ pub struct UiConfig {
     pub units: Units,
     pub theme: ThemeMode,
     pub layout_setting: tvdash_core::LayoutSetting,
+    pub dashboard_ui: tvdash_core::config::DashboardUi,
     pub tv_connected: bool,
     pub sites: Vec<StreamingSite>,
 }
@@ -316,6 +317,7 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         acc.set_sites(ModelRc::from(s.site_rows.clone()));
         let d = laptop.global::<Display>();
         d.set_layout_setting(c.layout_setting.as_str().into());
+        d.set_dashboard_ui(c.dashboard_ui.as_str().into());
         d.set_celsius(c.units == Units::Celsius);
         d.set_h12(c.clock == ClockFormat::H12);
         d.set_seconds(c.seconds);

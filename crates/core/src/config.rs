@@ -65,6 +65,33 @@ pub struct DisplayConfig {
     /// End of night-mode hours in `HH:MM` 24-hour format (default `"07:00"`).
     #[serde(default = "default_night_end")]
     pub night_end: String,
+    /// Dashboard UI skin (`"classic"` or `"blades"`).
+    #[serde(default)]
+    pub dashboard_ui: DashboardUi,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DashboardUi {
+    #[default]
+    Classic,
+    Blades,
+}
+
+impl DashboardUi {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Classic => "classic",
+            Self::Blades => "blades",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "blades" => Self::Blades,
+            _ => Self::Classic,
+        }
+    }
 }
 
 fn default_night_start() -> String {
@@ -392,6 +419,7 @@ impl Default for DisplayConfig {
             night_mode: false,
             night_start: default_night_start(),
             night_end: default_night_end(),
+            dashboard_ui: DashboardUi::Classic,
         }
     }
 }

@@ -185,7 +185,7 @@ pub fn sync(laptop: &LaptopWindow) {
                 Page::Show(_) => {
                     let show = laptop.global::<ShowPageState>();
                     let season_n = show.get_seasons().row_count();
-                    let grid_base = 3 + season_n;
+                    let grid_base = 2 + season_n;
                     if s.shell.focused_tile >= grid_base {
                         let ep_idx = s.shell.focused_tile - grid_base;
                         if let Some(ep) = show.get_episodes().row_data(ep_idx) {
@@ -193,7 +193,7 @@ pub fn sync(laptop: &LaptopWindow) {
                         }
                     }
                 }
-                Page::Collection(_) if s.shell.focused_tile >= 2 => {
+                Page::Collection(_) if s.shell.focused_tile >= 1 => {
                     let vert = Rect { x: r.y - 180.0, y: 0.0, w: r.h, h: r.w };
                     s.col_scroll = focus::panorama_scroll(vert, s.col_scroll, 824.0, 16.0);
                 }
@@ -247,7 +247,271 @@ pub fn sync(laptop: &LaptopWindow) {
     }
 }
 
+fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
+    let tv = laptop.global::<TvUi>();
+    let dash = laptop.global::<Dash>();
+    match page {
+        Page::Home => {
+            let ox = 24.0;
+            let oy = 24.0;
+            let mut rects = vec![
+                Rect { x: ox + 40.0, y: oy + 96.0, w: 900.0, h: 470.0 },  // 0: Hero
+                Rect { x: ox + 40.0, y: oy + 96.0, w: 900.0, h: 470.0 },  // 1: Hero
+                Rect { x: ox + 978.0, y: oy + 492.0, w: 572.0, h: 58.0 }, // 2: Search
+                Rect { x: ox + 978.0, y: oy + 555.0, w: 572.0, h: 58.0 }, // 3: Library
+                Rect { x: ox + 978.0, y: oy + 618.0, w: 572.0, h: 58.0 }, // 4: Screensaver
+                Rect { x: ox + 968.0, y: oy + 96.0, w: 592.0, h: 204.0 }, // 5: Clock/Weather
+                Rect { x: ox + 968.0, y: oy + 318.0, w: 592.0, h: 146.0 }, // 6: Last Played
+                Rect { x: ox + 978.0, y: oy + 681.0, w: 572.0, h: 58.0 }, // 7: Settings
+                Rect { x: ox + 978.0, y: oy + 744.0, w: 572.0, h: 58.0 }, // 8: Theme
+            ];
+            let n = laptop.global::<TvUi>().get_services().row_count().min(10);
+            for i in 0..n {
+                rects.push(Rect {
+                    x: ox + 40.0 + (i % 5) as f32 * 182.0,
+                    y: oy + 626.0 + (i / 5) as f32 * 102.0,
+                    w: 170.0,
+                    h: 88.0,
+                });
+            }
+            rects
+        }
+        Page::Library => {
+            let ox = 92.0;
+            let oy = 24.0;
+            let lib = laptop.global::<Library>();
+            let mut rects = vec![
+                Rect { x: ox + 208.0, y: oy + 38.0, w: 126.0, h: 36.0 },
+                Rect { x: ox + 336.0, y: oy + 38.0, w: 112.0, h: 36.0 },
+                Rect { x: ox + 450.0, y: oy + 38.0, w: 132.0, h: 36.0 },
+                Rect { x: ox + 610.0, y: oy + 34.0, w: 200.0, h: 44.0 },
+            ];
+            if lib.get_browse_all() {
+                for i in 0..28 {
+                    rects.push(Rect {
+                        x: ox + 48.0 + i as f32 * 44.0,
+                        y: oy + 106.0,
+                        w: 40.0,
+                        h: 36.0,
+                    });
+                }
+                let n = lib.get_browse_items().row_count();
+                for i in 0..n {
+                    rects.push(Rect {
+                        x: ox + 40.0 + (i % 8) as f32 * 192.0,
+                        y: oy + 210.0 + (i / 8) as f32 * 316.0,
+                        w: 174.0,
+                        h: 248.0,
+                    });
+                }
+            } else {
+                let lib_scroll = tv.get_lib_scroll();
+                let ll = laptop.global::<LibraryLanding>();
+                let s1_n = ll.get_shelf1().row_count().min(4);
+                let s2_n = ll.get_shelf2().row_count().min(6);
+                let s3_n = ll.get_shelf3().row_count().min(6);
+                let s2_y = oy + 452.0 + if s1_n > 0 { 316.0 } else { 10.0 } + 36.0;
+                let s3_y = s2_y + if s2_n > 0 { 276.0 } else { 0.0 };
+                for i in 0..s1_n {
+                    rects.push(Rect {
+                        x: ox + 40.0 + i as f32 * 384.0,
+                        y: oy + 492.0 - lib_scroll,
+                        w: 368.0,
+                        h: 206.0,
+                    });
+                }
+                for i in 0..s2_n {
+                    rects.push(Rect {
+                        x: ox + 148.0 + i as f32 * 256.0,
+                        y: s2_y - lib_scroll,
+                        w: 134.0,
+                        h: 200.0,
+                    });
+                }
+                for i in 0..s3_n {
+                    rects.push(Rect {
+                        x: ox + 148.0 + i as f32 * 256.0,
+                        y: s3_y - lib_scroll,
+                        w: 134.0,
+                        h: 200.0,
+                    });
+                }
+            }
+            rects
+        }
+        Page::Collections => {
+            let ox = 160.0;
+            let oy = 24.0;
+            let n = laptop.global::<Library>().get_collections().row_count();
+            (0..n)
+                .map(|i| Rect {
+                    x: ox + 40.0 + (i % 7) as f32 * 218.0,
+                    y: oy + 112.0 + (i / 7) as f32 * 352.0,
+                    w: 198.0,
+                    h: 280.0,
+                })
+                .collect()
+        }
+        Page::Show(_) => {
+            let ox = 160.0;
+            let oy = 24.0;
+            let show = laptop.global::<ShowPageState>();
+            let mut rects = vec![
+                Rect { x: ox + 40.0, y: oy + 304.0, w: 280.0, h: 52.0 },
+                Rect { x: ox + 340.0, y: oy + 304.0, w: 170.0, h: 52.0 },
+            ];
+            let season_n = show.get_seasons().row_count();
+            for i in 0..season_n {
+                rects.push(Rect {
+                    x: ox + 40.0 + i as f32 * 130.0,
+                    y: oy + 380.0,
+                    w: 120.0,
+                    h: 42.0,
+                });
+            }
+            let ep_n = show.get_episodes().row_count();
+            for i in 0..ep_n {
+                rects.push(Rect {
+                    x: ox + 360.0 + (i % 3) as f32 * 384.0,
+                    y: oy + 446.0 + (i / 3) as f32 * 280.0,
+                    w: 366.0,
+                    h: 204.0,
+                });
+            }
+            if !show.get_next_season_label().is_empty() {
+                rects.push(Rect {
+                    x: ox + 360.0 + (ep_n % 3) as f32 * 384.0,
+                    y: oy + 446.0 + (ep_n / 3) as f32 * 280.0,
+                    w: 366.0,
+                    h: 204.0,
+                });
+            }
+            rects
+        }
+        Page::Collection(_) => {
+            let ox = 228.0;
+            let oy = 24.0;
+            let col = laptop.global::<CollectionPageState>();
+            let mut rects = vec![Rect { x: ox + 40.0, y: oy + 320.0, w: 220.0, h: 48.0 }];
+            let n = col.get_items().row_count();
+            for i in 0..n {
+                rects.push(Rect {
+                    x: ox + 410.0 + (i % 3) as f32 * 366.0,
+                    y: oy + 124.0 + (i / 3) as f32 * 260.0,
+                    w: 348.0,
+                    h: 190.0,
+                });
+            }
+            rects
+        }
+        Page::Search => {
+            let ox = 92.0;
+            let oy = 24.0;
+            let mut rects = Vec::with_capacity(51);
+            for i in 0..36 {
+                rects.push(Rect {
+                    x: ox + 40.0 + (i % 6) as f32 * 82.0,
+                    y: oy + 214.0 + (i / 6) as f32 * 80.0,
+                    w: 72.0,
+                    h: 70.0,
+                });
+            }
+            for i in 0..3 {
+                rects.push(Rect {
+                    x: ox + 40.0 + i as f32 * 166.0,
+                    y: oy + 706.0,
+                    w: 154.0,
+                    h: 58.0,
+                });
+            }
+            let n = laptop.global::<Watch>().get_included().row_count().min(12);
+            for i in 0..n {
+                rects.push(Rect {
+                    x: ox + 568.0 + (i % 4) as f32 * 238.0,
+                    y: oy + 172.0 + (i / 4) as f32 * 268.0,
+                    w: 222.0,
+                    h: 196.0,
+                });
+            }
+            rects
+        }
+        Page::Sports => {
+            let ox = 228.0;
+            let oy = 24.0;
+            vec![
+                Rect { x: ox + 200.0, y: oy + 38.0, w: 144.0, h: 36.0 },
+                Rect { x: ox + 346.0, y: oy + 38.0, w: 126.0, h: 36.0 },
+            ]
+        }
+        Page::Settings => {
+            let ox = 296.0;
+            let oy = 24.0;
+            let mut rects = (0..6)
+                .map(|i| Rect {
+                    x: ox + 40.0,
+                    y: oy + 106.0 + i as f32 * 56.0,
+                    w: 240.0,
+                    h: 48.0,
+                })
+                .collect::<Vec<_>>();
+            match tv.get_settings_tab().as_str() {
+                "accounts" => {
+                    let n = laptop.global::<Accounts>().get_accounts().row_count();
+                    for i in 0..n {
+                        rects.push(Rect {
+                            x: ox + 316.0 + (i % 2) as f32 * 610.0,
+                            y: oy + 106.0 + (i / 2) as f32 * 144.0,
+                            w: 590.0,
+                            h: 128.0,
+                        });
+                    }
+                }
+                "sites" => {
+                    rects.push(Rect { x: ox + 1420.0, y: oy + 106.0, w: 140.0, h: 40.0 });
+                    let n = laptop.global::<Accounts>().get_sites().row_count();
+                    for i in 0..n {
+                        rects.push(Rect {
+                            x: ox + 316.0,
+                            y: oy + 162.0 + i as f32 * 64.0,
+                            w: 1232.0,
+                            h: 56.0,
+                        });
+                    }
+                }
+                "server" => {
+                    rects.push(Rect { x: ox + 1420.0, y: oy + 106.0, w: 140.0, h: 40.0 });
+                }
+                "diagnostics" | "changelog" => {}
+                _ => {
+                    rects.extend([
+                        Rect { x: ox + 316.0, y: oy + 106.0, w: 820.0, h: 82.0 },
+                        Rect { x: ox + 316.0, y: oy + 200.0, w: 820.0, h: 82.0 },
+                        Rect { x: ox + 316.0, y: oy + 294.0, w: 820.0, h: 82.0 },
+                        Rect { x: ox + 316.0, y: oy + 388.0, w: 820.0, h: 82.0 },
+                        Rect { x: ox + 1168.0, y: oy + 486.0, w: 392.0, h: 56.0 },
+                        Rect { x: ox + 1168.0, y: oy + 554.0, w: 392.0, h: 56.0 },
+                        Rect { x: ox + 1168.0, y: oy + 190.0, w: 392.0, h: 254.0 },
+                    ]);
+                    let places_n = laptop.global::<Display>().get_places().row_count().min(4);
+                    for i in 0..places_n {
+                        rects.push(Rect {
+                            x: ox + 316.0,
+                            y: oy + 586.0 + i as f32 * 54.0,
+                            w: 820.0,
+                            h: 46.0,
+                        });
+                    }
+                }
+            }
+            rects
+        }
+    }
+}
+
 fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
+    if laptop.global::<Display>().get_dashboard_ui() == "blades" {
+        return blades_tile_rects(laptop, page);
+    }
     let tv = laptop.global::<TvUi>();
     let dash = laptop.global::<Dash>();
     match page {
@@ -320,7 +584,7 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 for i in 0..n {
                     rects.push(Rect {
                         x: 96.0 + (i % 8) as f32 * 218.0,
-                        y: 264.0 + (i / 8) as f32 * 276.0,
+                        y: 296.0 + (i / 8) as f32 * 276.0,
                         w: 198.0,
                         h: 256.0,
                     });
@@ -365,7 +629,6 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             let mut rects = vec![
                 Rect { x: 96.0, y: 452.0, w: 440.0, h: 120.0 },
                 Rect { x: 552.0, y: 452.0, w: 260.0, h: 120.0 },
-                Rect { x: 828.0, y: 452.0, w: 220.0, h: 120.0 },
             ];
             let season_n = show.get_seasons().row_count();
             let tab_w = if season_n <= 6 {
@@ -407,7 +670,6 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             let col = laptop.global::<CollectionPageState>();
             let mut rects = vec![
                 Rect { x: 96.0, y: 472.0, w: 520.0, h: 140.0 },
-                Rect { x: 96.0, y: 628.0, w: 520.0, h: 140.0 },
             ];
             let n = col.get_items().row_count();
             for i in 0..n {
@@ -499,6 +761,7 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                         Rect { x: 1392.0, y: 184.0, w: 416.0, h: 220.0 },
                         Rect { x: 96.0, y: 420.0, w: 416.0, h: 220.0 },
                         Rect { x: 528.0, y: 420.0, w: 416.0, h: 220.0 },
+                        Rect { x: 96.0, y: 656.0, w: 416.0, h: 220.0 },
                     ]);
                     let places_n = laptop.global::<Display>().get_places().row_count().min(4);
                     for i in 0..places_n {
@@ -555,7 +818,7 @@ fn scroll_show_to_focus(laptop: &LaptopWindow) {
         let Some(&r) = rects.get(s.shell.focused_tile) else { return };
         let show = laptop.global::<ShowPageState>();
         let season_n = show.get_seasons().row_count();
-        let grid_base = 3 + season_n;
+        let grid_base = 2 + season_n;
         if s.shell.focused_tile >= grid_base {
             show.set_scrolled(true);
             let vert = Rect { x: r.y - 244.0, y: 0.0, w: r.h, h: r.w };
@@ -627,27 +890,27 @@ fn show_nav_override(laptop: &LaptopWindow, from: usize, dir: Dir) -> Option<usi
     let seasons = show.get_seasons();
     let season_n = seasons.row_count();
     let ep_n = show.get_episodes().row_count();
-    let grid_base = 3 + season_n;
+    let grid_base = 2 + season_n;
     let sel_key = show.get_selected_season();
     let sel_idx = (0..season_n)
         .find(|&i| seasons.row_data(i).is_some_and(|t| t.rating_key == sel_key))
         .unwrap_or(0);
 
-    if from < 3 && dir == Dir::Down && season_n > 0 {
-        return Some(3 + sel_idx);
+    if from < 2 && dir == Dir::Down && season_n > 0 {
+        return Some(2 + sel_idx);
     }
-    if (3..grid_base).contains(&from) {
+    if (2..grid_base).contains(&from) {
         match dir {
-            Dir::Left if from > 3 => {
+            Dir::Left if from > 2 => {
                 let next = from - 1;
-                if let Some(tab) = seasons.row_data(next - 3) {
+                if let Some(tab) = seasons.row_data(next - 2) {
                     show.invoke_select_season(tab.rating_key);
                 }
                 return Some(next);
             }
             Dir::Right if from + 1 < grid_base => {
                 let next = from + 1;
-                if let Some(tab) = seasons.row_data(next - 3) {
+                if let Some(tab) = seasons.row_data(next - 2) {
                     show.invoke_select_season(tab.rating_key);
                 }
                 return Some(next);
@@ -771,11 +1034,13 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 tv.set_lib_scroll(0.0);
                 match idx {
                     0 => {
+                        lib.set_browse_all(false);
                         lib.invoke_set_media_tab("tv".into());
                         STATE.with_borrow_mut(|s| s.shell.focused_tile = 4);
                         sync(laptop);
                     }
                     1 => {
+                        lib.set_browse_all(false);
                         lib.invoke_set_media_tab("movies".into());
                         STATE.with_borrow_mut(|s| s.shell.focused_tile = 4);
                         sync(laptop);
@@ -838,7 +1103,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             let show = laptop.global::<ShowPageState>();
             let season_n = show.get_seasons().row_count();
             let ep_n = show.get_episodes().row_count();
-            let grid_base = 3 + season_n;
+            let grid_base = 2 + season_n;
             match idx {
                 0 => {
                     let key = show.get_up_next_key();
@@ -847,9 +1112,8 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                     }
                 }
                 1 => show.invoke_play_from_start(),
-                2 => show.invoke_shuffle(),
-                i if (3..grid_base).contains(&i) => {
-                    if let Some(tab) = show.get_seasons().row_data(i - 3) {
+                i if (2..grid_base).contains(&i) => {
+                    if let Some(tab) = show.get_seasons().row_data(i - 2) {
                         show.invoke_select_season(tab.rating_key);
                     }
                 }
@@ -876,9 +1140,8 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                         col.invoke_play_item(key, true);
                     }
                 }
-                1 => col.invoke_shuffle(),
-                i if i >= 2 => {
-                    if let Some(item) = col.get_items().row_data(i - 2) {
+                i if i >= 1 => {
+                    if let Some(item) = col.get_items().row_data(i - 1) {
                         col.invoke_play_item(item.rating_key, true);
                     }
                 }
@@ -1007,7 +1270,11 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                                 tv.set_confirm_quit(true);
                             }
                         }
-                        6..=9 => disp.invoke_pick_place((item - 6) as i32),
+                        6 => {
+                            let next = if disp.get_dashboard_ui() == "blades" { "classic" } else { "blades" };
+                            disp.invoke_set_dashboard_ui(next.into());
+                        }
+                        7..=10 => disp.invoke_pick_place((item - 7) as i32),
                         _ => {}
                     }
                 }
@@ -1304,6 +1571,7 @@ mod tests {
                 units: Units::Fahrenheit,
                 theme: ThemeMode::Dark,
                 layout_setting: tvdash_core::LayoutSetting::Auto,
+                dashboard_ui: tvdash_core::config::DashboardUi::Classic,
                 tv_connected: true,
                 sites: ["YouTube TV", "YouTube", "Disney+", "Hulu", "Netflix"]
                     .into_iter()
