@@ -1,5 +1,9 @@
 # tvdash Changelog
 
+## v0.1.48 — 2026-11-21
+- Replaced the Home **Settings** tile (Classic & Blades) with **Google Meet** (`https://meet.google.com`).
+- Replaced the old dark theme color with **Midnight** (`#0E1526`, default) and added **Aubergine** (`#1A1024`) as a selectable theme option across both Classic and Blades.
+
 ## v0.1.47 — 2026-11-20
 - Fixed the horizontal gradient band across the Library hero backdrop in Blades (`v3/library.slint`) and Classic (`tv/focus_backdrop.slint`).
 

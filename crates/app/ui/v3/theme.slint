@@ -13,36 +13,38 @@ export global V3Theme {
     out property <string> font: "Nunito Sans";
 
     out property <bool> dark: Theme.mode == UiTheme.dark;
+    out property <bool> aubergine: Theme.mode == UiTheme.aubergine;
+    out property <bool> is-dark: dark || aubergine;
     out property <bool> stone: Theme.mode == UiTheme.stone;
     out property <bool> mist: Theme.mode == UiTheme.mist;
 
     // Outer canvas & active panel
-    out property <color> bg: dark ? #0B0D10 : stone ? #DFD9CE : #D6DDE4;
-    out property <color> panel: dark ? #12151B : stone ? #F2EFE9 : #EDF1F5;
-    out property <color> surface: dark ? #171B22 : stone ? #E7E2D8 : #E2E7ED;
-    out property <color> surface-raised: dark ? #1E232C : stone ? #DDD7CB : #D7DEE6;
-    out property <color> border: dark ? #252A34 : stone ? #CCC4B6 : #C3CCD6;
+    out property <color> bg: dark ? #0E1526 : aubergine ? #1A1024 : stone ? #DFD9CE : #D6DDE4;
+    out property <color> panel: dark ? #131B2E : aubergine ? #21152D : stone ? #F2EFE9 : #EDF1F5;
+    out property <color> surface: dark ? #19233B : aubergine ? #291B38 : stone ? #E7E2D8 : #E2E7ED;
+    out property <color> surface-raised: dark ? #212D4A : aubergine ? #332245 : stone ? #DDD7CB : #D7DEE6;
+    out property <color> border: dark ? #2B395B : aubergine ? #422D58 : stone ? #CCC4B6 : #C3CCD6;
 
     // Side blade strips (nearer strips are subtly brighter)
-    out property <color> blade-far: dark ? #12151B : stone ? #D5CEC2 : #CCD4DD;
-    out property <color> blade-near: dark ? #161A21 : stone ? #DCD6CA : #D3DBE3;
-    out property <color> blade-parent-tint: dark ? #2D2212 : stone ? #D6C2AA : #CBD2DC;
+    out property <color> blade-far: dark ? #121A2C : aubergine ? #20142C : stone ? #D5CEC2 : #CCD4DD;
+    out property <color> blade-near: dark ? #172138 : aubergine ? #261935 : stone ? #DCD6CA : #D3DBE3;
+    out property <color> blade-parent-tint: dark ? #2D2618 : aubergine ? #382328 : stone ? #D6C2AA : #CBD2DC;
 
     // Typography
-    out property <color> text-primary: dark ? #E8EAED : stone ? #1F1D1A : #1A1E23;
-    out property <color> text-secondary: dark ? #A0A6AF : stone ? #5A544B : #4B535D;
-    out property <color> text-muted: dark ? #727983 : stone ? #7A7368 : #6B737E;
+    out property <color> text-primary: is-dark ? #E8EAED : stone ? #1F1D1A : #1A1E23;
+    out property <color> text-secondary: is-dark ? #A0A6AF : stone ? #5A544B : #4B535D;
+    out property <color> text-muted: is-dark ? #7A8291 : stone ? #7A7368 : #6B737E;
 
     // Amber accent & focus ring
-    out property <color> accent: dark ? #F5A524 : #B45309;
-    out property <color> on-accent: dark ? #0B0D10 : #FFFFFF;
-    out property <color> focus-ring: dark ? #F5A524 : stone ? #B45309 : #B45309;
-    out property <color> accent-tint: dark ? #F5A52426 : #B4530922;
+    out property <color> accent: is-dark ? #F5A524 : #B45309;
+    out property <color> on-accent: is-dark ? #0B0D10 : #FFFFFF;
+    out property <color> focus-ring: is-dark ? #F5A524 : #B45309;
+    out property <color> accent-tint: is-dark ? #F5A52426 : #B4530922;
 
     // Status
-    out property <color> ok: dark ? #4CC38A : #1E6B45;
-    out property <color> warn: dark ? #E5A84B : #92400E;
-    out property <color> alert: dark ? #F0605D : #B91C1C;
+    out property <color> ok: is-dark ? #4CC38A : #1E6B45;
+    out property <color> warn: is-dark ? #E5A84B : #92400E;
+    out property <color> alert: is-dark ? #F0605D : #B91C1C;
     out property <color> scrim: #0B0D10C8;
     out property <color> on-scrim: #E8EAED;
 }

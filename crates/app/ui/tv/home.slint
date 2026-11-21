@@ -342,15 +342,15 @@ export component TvHome inherits Rectangle {
         }
     }
 
-    // 7: Settings tile (356 x 230)
+    // 7: Google Meet tile (356 x 230)
     IconTile {
         x: 694px * TvUi.u;
         y: 742px * TvUi.u;
         base-width: 356px * TvUi.u;
         base-height: 230px * TvUi.u;
         fill: Dash.tint.card;
-        icon: "gear";
-        label: "Settings";
+        icon: "video";
+        label: "Google Meet";
         focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
         activated => { TvUi.tile-activated(7); }
         hovered => { TvUi.tile-hovered(7); }
@@ -364,7 +364,7 @@ export component TvHome inherits Rectangle {
         base-height: 230px * TvUi.u;
         fill: Dash.tint.poster;
         label: "Theme";
-        value: Theme.mode == UiTheme.dark ? "Dark" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
+        value: Theme.mode == UiTheme.dark ? "Midnight" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
         focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
         activated => { TvUi.tile-activated(8); }
         hovered => { TvUi.tile-hovered(8); }

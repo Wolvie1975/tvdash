@@ -94,6 +94,7 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
     let theme = l.global::<Theme>();
     theme.set_mode(match theme_mode {
         ThemeMode::Dark | ThemeMode::FollowSystem => UiTheme::Dark,
+        ThemeMode::Aubergine => UiTheme::Aubergine,
         ThemeMode::Stone => UiTheme::Stone,
         ThemeMode::Mist => UiTheme::Mist,
     });
@@ -468,6 +469,7 @@ fn main() {
         let width = std::env::args().nth(4).and_then(|w| w.parse().ok()).unwrap_or(1920);
         w.set_size(slint::PhysicalSize::new(width, h));
         let theme = match std::env::var("THEME").as_deref() {
+            Ok("aubergine") => ThemeMode::Aubergine,
             Ok("stone") => ThemeMode::Stone,
             Ok("mist") => ThemeMode::Mist,
             _ => ThemeMode::Dark,

@@ -249,7 +249,6 @@ pub fn sync(laptop: &LaptopWindow) {
 
 fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
     let tv = laptop.global::<TvUi>();
-    let dash = laptop.global::<Dash>();
     match page {
         Page::Home => {
             let ox = 24.0;
@@ -999,12 +998,12 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             5 => {} // Weather tile
             6 => tv.invoke_play_last_played(),
             7 => {
-                STATE.with_borrow_mut(|s| s.shell.switch_tab(Tab::Settings));
-                sync(laptop);
+                laptop.global::<Sports>().invoke_open_url("Google Meet".into(), "https://meet.google.com".into());
             }
             8 => {
                 let next = match laptop.global::<crate::Theme>().get_mode() {
-                    UiTheme::Dark => UiTheme::Stone,
+                    UiTheme::Dark => UiTheme::Aubergine,
+                    UiTheme::Aubergine => UiTheme::Stone,
                     UiTheme::Stone => UiTheme::Mist,
                     UiTheme::Mist => UiTheme::Dark,
                 };
@@ -1248,7 +1247,8 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                         }
                         1 => {
                             let next = match laptop.global::<crate::Theme>().get_mode() {
-                                UiTheme::Dark => UiTheme::Stone,
+                                UiTheme::Dark => UiTheme::Aubergine,
+                                UiTheme::Aubergine => UiTheme::Stone,
                                 UiTheme::Stone => UiTheme::Mist,
                                 UiTheme::Mist => UiTheme::Dark,
                             };

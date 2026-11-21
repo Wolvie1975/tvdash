@@ -145,6 +145,8 @@ pub enum ThemeMode {
     FollowSystem,
     #[default]
     Dark,
+    /// Deep plum dark theme.
+    Aubergine,
     /// Warm grey light theme.
     Stone,
     /// Cool blue-grey light theme.
