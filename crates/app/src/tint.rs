@@ -67,6 +67,17 @@ pub fn card_tint(hue: Hue, mode: ThemeMode) -> Tint {
             edge: hsl(h, 0.1 + 0.15 * k, 0.66),
             on_accent: rgb(0xFFFFFF),
         }
+    } else if mode == ThemeMode::Ku {
+        Tint {
+            card: rgb(0x0D203B),
+            poster: rgb(0x142D52),
+            accent: rgb(0xFF4D5A),
+            sec: rgb(0xB8CBE6),
+            track: rgb(0x163259),
+            btn: rgb(0x142D52),
+            edge: rgb(0x21467A),
+            on_accent: rgb(0x0B0D10),
+        }
     } else {
         Tint {
             card: hsl(h, 0.12 + 0.33 * k, 0.11),

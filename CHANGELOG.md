@@ -1,5 +1,9 @@
 # tvdash Changelog
 
+## v0.1.52 — 2026-11-21
+- Applied the **Kansas** theme to Classic Home tiles (`tint.rs`) and updated both Classic and Blades to use **KU Crimson** (`#E8000D`) as the highlight/focus color.
+- Replaced **Midnight** (`#0E1526`) with **Espresso** (`#1B140E`) across Classic and Blades.
+
 ## v0.1.51 — 2026-11-21
 - Added the **Kansas** (University of Kansas Crimson & Blue) dark theme across both **Classic** and **Blades** (`ThemeMode::Ku`).
 

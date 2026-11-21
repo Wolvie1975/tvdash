@@ -472,7 +472,7 @@ export component V3Home inherits Rectangle {
             { id: 4, icon: "moon", label: "Screensaver", right: "" },
             { id: 9, icon: "moon", label: "Sleep timer", right: SleepState.active ? SleepState.label : "Off" },
             { id: 7, icon: "video", label: "Google Meet", right: "" },
-            { id: 8, icon: "sun", label: "Theme", right: Theme.mode == UiTheme.dark ? "Midnight" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas" : Theme.mode == UiTheme.stone ? "Stone" : "Mist" },
+            { id: 8, icon: "sun", label: "Theme", right: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas" : Theme.mode == UiTheme.stone ? "Stone" : "Mist" },
         ]: Rectangle {
             property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == row.id;
             x: 10px * TvUi.u;
