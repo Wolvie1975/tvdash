@@ -30,6 +30,10 @@ pub enum Message {
     Ping,
     /// Sleep timer command: `sleep <60|end|now|off|status>`.
     Sleep(String),
+    /// Sports alert test: `alert-test <soon|final>`.
+    AlertTest(String),
+    /// Sports alerts status: `alerts status`.
+    AlertsStatus,
 }
 
 impl Message {
@@ -38,6 +42,8 @@ impl Message {
             Self::Home => writeln!(w, "home"),
             Self::Ping => writeln!(w, "ping"),
             Self::Sleep(arg) => writeln!(w, "sleep {arg}"),
+            Self::AlertTest(kind) => writeln!(w, "alert-test {kind}"),
+            Self::AlertsStatus => writeln!(w, "alerts status"),
         }
     }
 
@@ -54,6 +60,15 @@ impl Message {
             } else {
                 Some(Self::Sleep(arg.to_owned()))
             }
+        } else if let Some(rest) = trimmed.strip_prefix("alert-test") {
+            let kind = rest.trim();
+            if kind.is_empty() {
+                Some(Self::AlertTest("soon".into()))
+            } else {
+                Some(Self::AlertTest(kind.to_owned()))
+            }
+        } else if trimmed == "alerts" || trimmed == "alerts status" {
+            Some(Self::AlertsStatus)
         } else {
             None
         }

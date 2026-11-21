@@ -821,6 +821,10 @@ fn format_card(g: RawScoreboardGame, today: NaiveDate, now_utc: NaiveDateTime) -
 
     ScoreboardGame {
         key: format!("{}|{}|{}|{}", g.provider, g.sport, g.league, g.event_id),
+        event_id: g.event_id,
+        league: g.league.clone(),
+        away_team_id: g.away_team_id.unwrap_or_default(),
+        home_team_id: g.home_team_id.unwrap_or_default(),
         league_label: competition_label(&g.sport, &g.league),
         status: g.status,
         header_text,

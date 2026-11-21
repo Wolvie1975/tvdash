@@ -14,6 +14,9 @@ mod portal;
 mod recent;
 mod shell_tv;
 mod sleep;
+mod sports_alerts;
+mod sports_follows;
+mod sports_watch;
 mod tint;
 mod tv_nav;
 mod video;
@@ -40,6 +43,8 @@ Options:
   --home            Tell the running tvdash to go Home (stops what's on the TV);
                     bind it to a GNOME keyboard shortcut
   --sleep [ARG]     Control the sleep timer: MINUTES (1-480), end, now, off, or status (default)
+  --alert-test KIND Show a sample sports alert card: soon or final
+  --alerts [status] Print followed teams, starred count, and last poll status
   --check-keyring   Test GNOME Keyring read/write, list which secrets are set, and exit
   --set-secret KEY  Read a value from stdin and store it in the keyring, e.g.
                     tvdash --set-secret tmdb_api_key
@@ -54,6 +59,8 @@ struct Args {
     windowed: bool,
     home: bool,
     sleep: Option<String>,
+    alert_test: Option<String>,
+    alerts_status: bool,
     layout: Option<tvdash_core::config::Layout>,
     check_keyring: bool,
     set_secret: Option<SecretKey>,
@@ -78,6 +85,24 @@ fn parse_args() -> anyhow::Result<Args> {
                     _ => "status".into(),
                 };
                 args.sleep = Some(next);
+            }
+            "--alert-test" => {
+                let kind = argv.next().unwrap_or_else(|| "soon".into());
+                if !matches!(kind.as_str(), "soon" | "final") {
+                    bail!("--alert-test takes soon or final\n\n{USAGE}");
+                }
+                args.alert_test = Some(kind);
+            }
+            "--alerts" => {
+                if let Some(v) = argv.peek()
+                    && !v.starts_with('-')
+                {
+                    let sub = argv.next().unwrap();
+                    if sub != "status" {
+                        bail!("--alerts takes status\n\n{USAGE}");
+                    }
+                }
+                args.alerts_status = true;
             }
             "--layout" => {
                 let v = argv.next().unwrap_or_default();
@@ -161,6 +186,23 @@ fn main() -> anyhow::Result<()> {
                 Ok(())
             }
             Ok(None) => bail!("tvdash isn't running"),
+            Err(e) => Err(e).context("talking to the running tvdash"),
+        };
+    }
+    if args.alerts_status {
+        return match instance::send_reply(&socket, instance::Message::AlertsStatus) {
+            Ok(Some(reply)) => {
+                println!("{reply}");
+                Ok(())
+            }
+            Ok(None) => bail!("tvdash isn't running"),
+            Err(e) => Err(e).context("talking to the running tvdash"),
+        };
+    }
+    if let Some(kind) = args.alert_test {
+        return match instance::send(&socket, instance::Message::AlertTest(kind)) {
+            Ok(true) => Ok(()),
+            Ok(false) => bail!("tvdash isn't running"),
             Err(e) => Err(e).context("talking to the running tvdash"),
         };
     }
@@ -279,7 +321,15 @@ fn main() -> anyhow::Result<()> {
 
     // Background → UI events.
     let (event_tx, event_rx) = mpsc::unbounded_channel::<AppEvent>();
-    runtime.spawn(bridge::forward(event_rx, laptop.as_weak(), tv.as_weak()));
+    let (alert_http_tx, alert_http_rx) = tokio::sync::watch::channel(None);
+    let (alert_status_tx, alert_status_rx) = tokio::sync::watch::channel("Alerts: starting…".to_string());
+    runtime.spawn(bridge::forward(
+        event_rx,
+        laptop.as_weak(),
+        tv.as_weak(),
+        alert_http_tx,
+        alert_status_tx,
+    ));
     runtime.spawn(portal::watch_color_scheme(event_tx.clone()));
 
     // Header widgets (weather).
@@ -368,11 +418,22 @@ fn main() -> anyhow::Result<()> {
                     _ => Some(format!("error: invalid sleep argument {other:?} (use 1-480, end, now, off, status)")),
                 },
             },
+            instance::Message::AlertTest(kind) => {
+                let _ = tx.send(Command::SportsAlertTest(kind));
+                None
+            }
+            instance::Message::AlertsStatus => Some(alert_status_rx.borrow().clone()),
         });
         if let Err(e) = listening {
             warn!(error = %e, "no instance socket; tvdash --home won't work");
         }
-        home_cmd::serve_pill(home_cmd::PILL_PORT, cmd_tx.clone(), laptop.as_weak(), sleep_http_rx);
+        home_cmd::serve_pill(
+            home_cmd::PILL_PORT,
+            cmd_tx.clone(),
+            laptop.as_weak(),
+            sleep_http_rx,
+            alert_http_rx,
+        );
         remote::serve(remote::DEFAULT_PORT, cmd_tx.clone(), laptop.as_weak());
     }
 

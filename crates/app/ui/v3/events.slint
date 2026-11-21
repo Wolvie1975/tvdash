@@ -742,6 +742,42 @@ export component V3Sports inherits Rectangle {
                                 wrap: word-wrap;
                                 overflow: elide;
                             }
+                            if row.is-following: Rectangle {
+                                height: 32px * TvUi.u;
+                                width: v3-fl.preferred-width + 20px * TvUi.u;
+                                border-radius: 16px * TvUi.u;
+                                background: V3Theme.accent-tint;
+                                v3-fl := Text {
+                                    text: "★ Following";
+                                    font-family: V3Theme.font;
+                                    font-size: 13px * TvUi.u;
+                                    font-weight: 700;
+                                    color: V3Theme.accent;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                            if !row.is-following && row.event-id != "": Rectangle {
+                                height: 32px * TvUi.u;
+                                width: v3-st.preferred-width + 20px * TvUi.u;
+                                border-radius: 16px * TvUi.u;
+                                background: row.is-starred ? V3Theme.accent : (v3-st-ta.has-hover ? V3Theme.surface-raised : V3Theme.surface);
+                                border-width: 1px;
+                                border-color: row.is-starred ? V3Theme.accent : V3Theme.border;
+                                v3-st := Text {
+                                    text: row.is-starred ? "★ Starred" : "☆ Star";
+                                    font-family: V3Theme.font;
+                                    font-size: 13px * TvUi.u;
+                                    font-weight: 700;
+                                    color: row.is-starred ? V3Theme.on-accent : V3Theme.text-primary;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                v3-st-ta := TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => { Scoreboard.toggle-star(row.event-id); }
+                                }
+                            }
                         }
                     }
                 }

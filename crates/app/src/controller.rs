@@ -195,6 +195,7 @@ pub struct Controller {
     sleep_finished_key: Option<String>,
     sleep_held: bool,
     sleep_last_key: String,
+    sports_tx: Option<UnboundedSender<crate::sports_watch::WatcherMsg>>,
 }
 
 enum Step {
@@ -256,6 +257,7 @@ impl Controller {
             sleep_finished_key: None,
             sleep_held: false,
             sleep_last_key: String::new(),
+            sports_tx: None,
         };
         c.watch.set_internal(c.internal.clone());
         (c, internal_rx)
@@ -375,6 +377,11 @@ impl Controller {
         self.watch.init(&self.config.streaming).await;
         self.init_tautulli().await;
         self.init_events().await;
+        self.sports_tx = Some(crate::sports_watch::spawn(
+            self.config.events.clone(),
+            self.config.sports.alerts.clone(),
+            self.events.clone(),
+        ));
         self.watch.refresh_library(self.sources(), true);
         if !self.config.jellyfin.server_url.is_empty() {
             self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(self.config.jellyfin.server_url.clone())));
@@ -916,6 +923,56 @@ impl Controller {
                     fetch_posters(jf.clone(), jf_items, self.posters_requested.clone(), self.events.clone());
                 }
             }
+            Command::SportsAlertTest(kind) => {
+                if let Some(tx) = &self.sports_tx {
+                    let _ = tx.send(crate::sports_watch::WatcherMsg::EnqueueTest(kind));
+                }
+            }
+            Command::SportsAlertShown(key) => {
+                if let Some(tx) = &self.sports_tx {
+                    let _ = tx.send(crate::sports_watch::WatcherMsg::AlertShown(key));
+                }
+            }
+            Command::SportsAlertPrimary { kind, source_url } => {
+                if kind == "soon" {
+                    if let Some(idx) = self
+                        .config
+                        .streaming
+                        .iter()
+                        .position(|s| s.name.to_ascii_lowercase().contains("youtube tv"))
+                    {
+                        self.open_site(idx).await;
+                    } else {
+                        self.toast("YouTube TV isn't configured in Sites");
+                    }
+                } else if kind == "final"
+                    && let Some(url) = source_url
+                {
+                    self.clear_tv().await;
+                    self.launch_browser("ESPN Recap", &url).await;
+                }
+            }
+            Command::SetSportsAlertsConfig(cfg) => {
+                self.update_config(|c| c.sports.alerts = cfg.clone());
+                if let Some(tx) = &self.sports_tx {
+                    let _ = tx.send(crate::sports_watch::WatcherMsg::UpdateAlertsConfig(cfg));
+                }
+            }
+            Command::ToggleStarGame(event_id) => {
+                if let Some(tx) = &self.sports_tx {
+                    let _ = tx.send(crate::sports_watch::WatcherMsg::ToggleStar(event_id));
+                }
+            }
+            Command::UnstarGame(event_id) => {
+                if let Some(tx) = &self.sports_tx {
+                    let _ = tx.send(crate::sports_watch::WatcherMsg::Unstar(event_id));
+                }
+            }
+            Command::RefreshSportsFollows => {
+                if let Some(tx) = &self.sports_tx {
+                    let _ = tx.send(crate::sports_watch::WatcherMsg::RefreshFollows);
+                }
+            }
         }
     }
 
@@ -946,6 +1003,11 @@ impl Controller {
         }
         self.init_tautulli().await;
         self.init_events().await;
+        self.sports_tx = Some(crate::sports_watch::spawn(
+            self.config.events.clone(),
+            self.config.sports.alerts.clone(),
+            self.events.clone(),
+        ));
         self.toast(if self.tautulli.is_some() { "Tautulli saved" } else { "Tautulli URL saved (API key needed)" });
     }
 
@@ -2334,6 +2396,11 @@ impl Controller {
         let now = crate::sleep::now_unix();
         let warn = self.config.sleep.warn_secs();
         let held = self.is_sleep_held();
+        if held != self.sleep_held
+            && let Some(tx) = &self.sports_tx
+        {
+            let _ = tx.send(crate::sports_watch::WatcherMsg::SetHeld(held));
+        }
         self.sleep_held = held;
         if held {
             if self.sleep.hold(now, warn) {

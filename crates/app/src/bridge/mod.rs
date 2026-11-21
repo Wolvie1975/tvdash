@@ -10,6 +10,7 @@
 //! - [`status`]: weather, location, Settings › Diagnostics
 
 mod accounts;
+pub mod alerts;
 mod ambient;
 pub use ambient::start_ambient;
 mod home;
@@ -46,8 +47,8 @@ pub use library::{
 use crate::{
     AccountPrompt, AccountRow, Accounts, Artwork, ArtworkRow, Dash, Diagnostics, Display, LaptopWindow, Library, Nav,
     PosterCardData, Scoreboard, ScoreboardChoiceData, ScoreboardRowData, Server, ServerActivityRow, ServerLibraryRow,
-    ServerStreamRow, SessionRow, Setup, SiteRow, SleepState, Sports, SportsChoiceData, SportsRowData, Theme,
-    TvWindow, UiTheme, tint::Hue,
+    ServerStreamRow, SessionRow, Setup, SiteRow, SleepState, Sports, SportsAlertState, SportsChoiceData,
+    SportsRowData, Theme, TvWindow, UiTheme, tint::Hue,
 };
 
 /// Display order for sources everywhere (rows, prompts, sessions).
@@ -143,6 +144,7 @@ pub struct UiState {
     account_rows: Rc<VecModel<AccountRow>>,
     site_rows: Rc<VecModel<SiteRow>>,
     toast_timer: Option<Timer>,
+    sports_alerts: alerts::SportsAlertsUi,
 }
 
 impl UiState {
@@ -414,7 +416,20 @@ fn apply_theme(s: &mut UiState, laptop: &LaptopWindow, mode: ThemeMode) {
 
 // ── Events ──────────────────────────────────────────────────────────
 
-pub async fn forward(mut rx: UnboundedReceiver<AppEvent>, laptop: Weak<LaptopWindow>, tv: Weak<TvWindow>) {
+pub async fn forward(
+    mut rx: UnboundedReceiver<AppEvent>,
+    laptop: Weak<LaptopWindow>,
+    tv: Weak<TvWindow>,
+    alert_http_tx: tokio::sync::watch::Sender<Option<crate::home_cmd::AlertHttpState>>,
+    alert_status_tx: tokio::sync::watch::Sender<String>,
+) {
+    {
+        let (l, t) = (laptop.clone(), tv.clone());
+        let _ = slint::invoke_from_event_loop(move || {
+            alerts::set_channels(alert_http_tx, alert_status_tx);
+            alerts::start_timer(l, t);
+        });
+    }
     while let Some(event) = rx.recv().await {
         let (laptop, tv) = (laptop.clone(), tv.clone());
         let delivered = slint::invoke_from_event_loop(move || {
@@ -699,6 +714,13 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
                 }
             }
         }
+        AppEvent::SportsAlerts(list) => alerts::on_alerts(s, laptop, tv, list),
+        AppEvent::SportsAlertsStatus(st) => {
+            alerts::on_status(s, laptop, st);
+            if s.scoreboard_page.is_some() {
+                refresh_scoreboard(s, laptop);
+            }
+        }
         AppEvent::Sites(sites) => {
             s.sites = sites;
             home::refresh_tiles(s, laptop);
@@ -834,8 +856,20 @@ fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
                 Some(r) => format!("#{r} {}", g.home_name),
                 None => g.home_name.clone(),
             };
+            let is_starred = s
+                .sports_alerts
+                .status
+                .starred
+                .iter()
+                .any(|st| st.event_id == g.event_id);
+            let is_following = s.sports_alerts.status.followed.iter().any(|f| {
+                f.league == g.league && (f.id == g.away_team_id || f.id == g.home_team_id)
+            });
             rows.push(ScoreboardRowData {
                 kind: "game".into(),
+                event_id: g.event_id.as_str().into(),
+                is_starred,
+                is_following,
                 league_label: g.league_label.as_str().into(),
                 status: g.status.as_str().into(),
                 header_text: g.header_text.as_str().into(),

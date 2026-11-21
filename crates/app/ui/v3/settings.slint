@@ -2,9 +2,9 @@
 
 import { ListView } from "std-widgets.slint";
 import { Theme, UiTheme } from "../theme.slint";
-import { Accounts, Dash, Diagnostics, Display, Nav, Server, SiteEditor, SleepState, TvUi } from "../state.slint";
+import { Accounts, Dash, Diagnostics, Display, Nav, Server, SiteEditor, SleepState, SportsAlertsSettings, TvUi } from "../state.slint";
 import { SleepChip } from "../shared/sleep.slint";
-import { V3Theme } from "theme.slint";
+import { V3Pill, V3Theme } from "theme.slint";
 
 export component V3Settings inherits Rectangle {
     width: 100%;
@@ -50,14 +50,15 @@ export component V3Settings inherits Rectangle {
         }
     }
 
-    // ── Left sub-navigation (0..5) ───────────────────────────────────────────
+    // ── Left sub-navigation (0..6) ───────────────────────────────────────────
     for tab[i] in [
         { id: 0, key: "display", label: "Display" },
         { id: 1, key: "accounts", label: "Accounts" },
         { id: 2, key: "sites", label: "Sites" },
-        { id: 3, key: "server", label: "Server" },
-        { id: 4, key: "diagnostics", label: "Diagnostics" },
-        { id: 5, key: "changelog", label: "What's new" },
+        { id: 3, key: "sports", label: "Sports" },
+        { id: 4, key: "server", label: "Server" },
+        { id: 5, key: "diagnostics", label: "Diagnostics" },
+        { id: 6, key: "changelog", label: "What's new" },
     ]: Rectangle {
         property <bool> active: TvUi.settings-tab == tab.key || (TvUi.settings-tab == "" && tab.key == "display");
         property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == tab.id;
@@ -95,9 +96,9 @@ export component V3Settings inherits Rectangle {
         background: transparent;
 
         // Middle settings column (tiles 6..9 + Weather location)
-        // 6: Layout
+        // 7: Layout
         Rectangle {
-            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 6;
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 7;
             x: 0;
             y: 0;
             width: 820px * TvUi.u;
@@ -143,13 +144,13 @@ export component V3Settings inherits Rectangle {
             }
             TouchArea {
                 mouse-cursor: pointer;
-                clicked => { TvUi.tile-activated(6); }
+                clicked => { TvUi.tile-activated(7); }
             }
         }
 
-        // 7: Theme (Dark | Stone | Mist)
+        // 8: Theme (Dark | Stone | Mist)
         Rectangle {
-            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 7;
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 8;
             x: 0;
             y: 94px * TvUi.u;
             width: 820px * TvUi.u;
@@ -211,9 +212,9 @@ export component V3Settings inherits Rectangle {
             }
         }
 
-        // 8: Temperature (°F | °C)
+        // 9: Temperature (°F | °C)
         Rectangle {
-            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 8;
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 9;
             x: 0;
             y: 188px * TvUi.u;
             width: 820px * TvUi.u;
@@ -263,9 +264,9 @@ export component V3Settings inherits Rectangle {
             }
         }
 
-        // 9: Clock (12h | 24h)
+        // 10: Clock (12h | 24h)
         Rectangle {
-            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 9;
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 10;
             x: 0;
             y: 282px * TvUi.u;
             width: 820px * TvUi.u;
@@ -315,9 +316,9 @@ export component V3Settings inherits Rectangle {
             }
         }
 
-        // 13: Sleep warning (30s | 60s | 2m)
+        // 14: Sleep warning (30s | 60s | 2m)
         Rectangle {
-            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 13;
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 14;
             x: 0;
             y: 376px * TvUi.u;
             width: 820px * TvUi.u;
@@ -444,8 +445,8 @@ export component V3Settings inherits Rectangle {
             height: 46px * TvUi.u;
             border-radius: 12px * TvUi.u;
             background: V3Theme.surface;
-            border-width: (!TvUi.bar-focused && TvUi.focused-tile == 14 + i) ? 3px : 1px;
-            border-color: (!TvUi.bar-focused && TvUi.focused-tile == 14 + i) ? V3Theme.focus-ring : V3Theme.border;
+            border-width: (!TvUi.bar-focused && TvUi.focused-tile == 15 + i) ? 3px : 1px;
+            border-color: (!TvUi.bar-focused && TvUi.focused-tile == 15 + i) ? V3Theme.focus-ring : V3Theme.border;
             Text {
                 x: 18px * TvUi.u;
                 text: p;
@@ -610,9 +611,9 @@ export component V3Settings inherits Rectangle {
             }
         }
 
-        // 10: Clear recent services
+        // 11: Clear recent services
         Rectangle {
-            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 10;
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 11;
             x: 852px * TvUi.u;
             y: 380px * TvUi.u;
             width: parent.width - 852px * TvUi.u;
@@ -632,13 +633,13 @@ export component V3Settings inherits Rectangle {
             }
             TouchArea {
                 mouse-cursor: pointer;
-                clicked => { TvUi.tile-activated(10); }
+                clicked => { TvUi.tile-activated(11); }
             }
         }
 
-        // 11: Quit tvdash
+        // 12: Quit tvdash
         Rectangle {
-            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 11;
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 12;
             x: 852px * TvUi.u;
             y: 448px * TvUi.u;
             width: parent.width - 852px * TvUi.u;
@@ -658,7 +659,7 @@ export component V3Settings inherits Rectangle {
             }
             TouchArea {
                 mouse-cursor: pointer;
-                clicked => { TvUi.tile-activated(11); }
+                clicked => { TvUi.tile-activated(12); }
             }
         }
     }
@@ -672,7 +673,7 @@ export component V3Settings inherits Rectangle {
         background: transparent;
 
         for a[i] in Accounts.accounts: Rectangle {
-            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 6 + i;
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 7 + i;
             x: Math.mod(i, 2) * 610px * TvUi.u;
             y: Math.floor(i / 2) * 144px * TvUi.u;
             width: 590px * TvUi.u;
@@ -684,7 +685,7 @@ export component V3Settings inherits Rectangle {
 
             TouchArea {
                 mouse-cursor: pointer;
-                clicked => { TvUi.tile-activated(6 + i); }
+                clicked => { TvUi.tile-activated(7 + i); }
             }
 
             HorizontalLayout {
@@ -961,8 +962,8 @@ export component V3Settings inherits Rectangle {
                     height: 56px * TvUi.u;
                     border-radius: 14px * TvUi.u;
                     background: V3Theme.surface;
-                    border-width: (!TvUi.bar-focused && TvUi.focused-tile == 7 + i) ? 3px : 1px;
-                    border-color: (!TvUi.bar-focused && TvUi.focused-tile == 7 + i) ? V3Theme.focus-ring : V3Theme.border;
+                    border-width: (!TvUi.bar-focused && TvUi.focused-tile == 8 + i) ? 3px : 1px;
+                    border-color: (!TvUi.bar-focused && TvUi.focused-tile == 8 + i) ? V3Theme.focus-ring : V3Theme.border;
                     opacity: site.hidden ? 0.55 : 1.0;
 
                     HorizontalLayout {
@@ -1013,6 +1014,304 @@ export component V3Settings inherits Rectangle {
                             background: V3Theme.surface-raised;
                             Text { text: "Edit"; font-family: V3Theme.font; font-size: 13px * TvUi.u; font-weight: 600; color: V3Theme.text-primary; horizontal-alignment: center; vertical-alignment: center; }
                             TouchArea { mouse-cursor: pointer; clicked => { SiteEditor.edit(site.index); } }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Sports sub-tab ───────────────────────────────────────────────────────
+    if TvUi.settings-tab == "sports": Rectangle {
+        x: 316px * TvUi.u;
+        y: 106px * TvUi.u;
+        width: parent.width - 356px * TvUi.u;
+        height: parent.height - 126px * TvUi.u;
+        background: transparent;
+
+        // Left column: Followed teams (read-only)
+        Rectangle {
+            x: 0;
+            y: 0;
+            width: 580px * TvUi.u;
+            height: parent.height;
+            border-radius: 16px * TvUi.u;
+            background: V3Theme.surface;
+            border-width: 1px;
+            border-color: V3Theme.border;
+
+            VerticalLayout {
+                padding: 20px * TvUi.u;
+                spacing: 12px * TvUi.u;
+
+                Text {
+                    text: "Followed teams";
+                    font-family: V3Theme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-primary;
+                }
+                Text {
+                    text: SportsAlertsSettings.follows-note;
+                    font-family: V3Theme.font;
+                    font-size: 14px * TvUi.u;
+                    color: SportsAlertsSettings.follows-error ? V3Theme.warn : V3Theme.text-secondary;
+                    wrap: word-wrap;
+                }
+
+                if SportsAlertsSettings.followed-teams.length == 0: Text {
+                    text: "No followed teams. Follow teams in MyNewsFeed.";
+                    font-family: V3Theme.font;
+                    font-size: 16px * TvUi.u;
+                    color: V3Theme.text-secondary;
+                    wrap: word-wrap;
+                }
+
+                ListView {
+                    vertical-stretch: 1;
+                    for t in SportsAlertsSettings.followed-teams: Rectangle {
+                        height: 60px * TvUi.u;
+                        border-radius: 12px * TvUi.u;
+                        background: transparent;
+
+                        HorizontalLayout {
+                            spacing: 14px * TvUi.u;
+                            padding-top: 6px * TvUi.u;
+                            padding-bottom: 6px * TvUi.u;
+
+                            Rectangle {
+                                width: 42px * TvUi.u;
+                                height: 42px * TvUi.u;
+                                border-radius: 10px * TvUi.u;
+                                background: t.color;
+                                Text {
+                                    text: t.initials;
+                                    color: #FFFFFF;
+                                    font-family: V3Theme.font;
+                                    font-size: 14px * TvUi.u;
+                                    font-weight: 900;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 2px * TvUi.u;
+                                Text {
+                                    text: t.name;
+                                    font-family: V3Theme.font;
+                                    font-size: 17px * TvUi.u;
+                                    font-weight: 700;
+                                    color: V3Theme.text-primary;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: t.league-label;
+                                    font-family: V3Theme.font;
+                                    font-size: 14px * TvUi.u;
+                                    color: V3Theme.text-secondary;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Right column: Alerts rules + Starred games
+        VerticalLayout {
+            x: 600px * TvUi.u;
+            y: 0;
+            width: parent.width - 600px * TvUi.u;
+            height: parent.height;
+            spacing: 16px * TvUi.u;
+
+            // Alerts rules card
+            Rectangle {
+                height: rules-col.preferred-height + 36px * TvUi.u;
+                border-radius: 16px * TvUi.u;
+                background: V3Theme.surface;
+                border-width: 1px;
+                border-color: V3Theme.border;
+
+                rules-col := VerticalLayout {
+                    padding: 18px * TvUi.u;
+                    spacing: 14px * TvUi.u;
+
+                    Text {
+                        text: "Alerts";
+                        font-family: V3Theme.font;
+                        font-size: 20px * TvUi.u;
+                        font-weight: 700;
+                        color: V3Theme.text-primary;
+                    }
+
+                    // Starting soon: Off | 5 | 10 | 15 | 30 min
+                    HorizontalLayout {
+                        spacing: 12px * TvUi.u;
+                        Text {
+                            text: "Starting soon";
+                            font-family: V3Theme.font;
+                            font-size: 16px * TvUi.u;
+                            font-weight: 600;
+                            color: V3Theme.text-primary;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                        }
+                        for opt[i] in [
+                            { m: 0, lbl: "Off" },
+                            { m: 5, lbl: "5" },
+                            { m: 10, lbl: "10" },
+                            { m: 15, lbl: "15" },
+                            { m: 30, lbl: "30 min" },
+                        ]: V3Pill {
+                            label: opt.lbl;
+                            active: SportsAlertsSettings.soon-minutes == opt.m;
+                            focused: !TvUi.bar-focused && TvUi.focused-tile == 7 + i;
+                            font-px: 15px;
+                            h-pad: 14px;
+                            pill-height: 36px;
+                            clicked => { SportsAlertsSettings.set-soon-minutes(opt.m); }
+                        }
+                    }
+
+                    // Final score: On | Off
+                    HorizontalLayout {
+                        spacing: 12px * TvUi.u;
+                        Text {
+                            text: "Final score";
+                            font-family: V3Theme.font;
+                            font-size: 16px * TvUi.u;
+                            font-weight: 600;
+                            color: V3Theme.text-primary;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                        }
+                        V3Pill {
+                            label: "On";
+                            active: SportsAlertsSettings.final-on;
+                            focused: !TvUi.bar-focused && TvUi.focused-tile == 12;
+                            font-px: 15px;
+                            h-pad: 16px;
+                            pill-height: 36px;
+                            clicked => { SportsAlertsSettings.set-final-on(true); }
+                        }
+                        V3Pill {
+                            label: "Off";
+                            active: !SportsAlertsSettings.final-on;
+                            focused: !TvUi.bar-focused && TvUi.focused-tile == 13;
+                            font-px: 15px;
+                            h-pad: 16px;
+                            pill-height: 36px;
+                            clicked => { SportsAlertsSettings.set-final-on(false); }
+                        }
+                    }
+
+                    // During video: Show | Hold
+                    HorizontalLayout {
+                        spacing: 12px * TvUi.u;
+                        Text {
+                            text: "During video";
+                            font-family: V3Theme.font;
+                            font-size: 16px * TvUi.u;
+                            font-weight: 600;
+                            color: V3Theme.text-primary;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                        }
+                        V3Pill {
+                            label: "Show";
+                            active: SportsAlertsSettings.during-video != "hold";
+                            focused: !TvUi.bar-focused && TvUi.focused-tile == 14;
+                            font-px: 15px;
+                            h-pad: 16px;
+                            pill-height: 36px;
+                            clicked => { SportsAlertsSettings.set-during-video("show"); }
+                        }
+                        V3Pill {
+                            label: "Hold";
+                            active: SportsAlertsSettings.during-video == "hold";
+                            focused: !TvUi.bar-focused && TvUi.focused-tile == 15;
+                            font-px: 15px;
+                            h-pad: 16px;
+                            pill-height: 36px;
+                            clicked => { SportsAlertsSettings.set-during-video("hold"); }
+                        }
+                    }
+                }
+            }
+
+            // Starred games card
+            Rectangle {
+                vertical-stretch: 1;
+                border-radius: 16px * TvUi.u;
+                background: V3Theme.surface;
+                border-width: 1px;
+                border-color: V3Theme.border;
+
+                VerticalLayout {
+                    padding: 18px * TvUi.u;
+                    spacing: 10px * TvUi.u;
+
+                    Text {
+                        text: "Starred games";
+                        font-family: V3Theme.font;
+                        font-size: 20px * TvUi.u;
+                        font-weight: 700;
+                        color: V3Theme.text-primary;
+                    }
+
+                    if SportsAlertsSettings.starred-games.length == 0: Text {
+                        text: "No starred games. Star a game on Scoreboard to get alerts.";
+                        font-family: V3Theme.font;
+                        font-size: 15px * TvUi.u;
+                        color: V3Theme.text-secondary;
+                        wrap: word-wrap;
+                    }
+
+                    ListView {
+                        vertical-stretch: 1;
+                        for g[i] in SportsAlertsSettings.starred-games: Rectangle {
+                            height: 62px * TvUi.u;
+                            HorizontalLayout {
+                                spacing: 12px * TvUi.u;
+                                Text {
+                                    text: "★";
+                                    color: V3Theme.accent;
+                                    font-size: 20px * TvUi.u;
+                                    vertical-alignment: center;
+                                }
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    alignment: center;
+                                    spacing: 2px * TvUi.u;
+                                    Text {
+                                        text: g.matchup;
+                                        font-family: V3Theme.font;
+                                        font-size: 16px * TvUi.u;
+                                        font-weight: 700;
+                                        color: V3Theme.text-primary;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: g.meta;
+                                        font-family: V3Theme.font;
+                                        font-size: 14px * TvUi.u;
+                                        color: V3Theme.text-secondary;
+                                        overflow: elide;
+                                    }
+                                }
+                                V3Pill {
+                                    y: (parent.height - self.height) / 2;
+                                    label: "Unstar";
+                                    focused: !TvUi.bar-focused && TvUi.focused-tile == 16 + i;
+                                    font-px: 14px;
+                                    h-pad: 14px;
+                                    pill-height: 34px;
+                                    clicked => { SportsAlertsSettings.unstar-game(g.event-id); }
+                                }
+                            }
                         }
                     }
                 }

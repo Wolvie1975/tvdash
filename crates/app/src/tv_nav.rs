@@ -10,7 +10,8 @@ use tvdash_core::config::Layout;
 
 use crate::{
     Accounts, Artwork, CollectionPageState, Dash, Display, LaptopWindow, Library, LibraryLanding, Nav, Scoreboard,
-    Server, ShowPageState, SiteEditor, SleepState, Sports, TvUi, UiTheme, Watch,
+    Server, ShowPageState, SiteEditor, SleepState, Sports, SportsAlertState, SportsAlertsSettings, TvUi,
+    UiTheme, Watch,
     focus::{self, Dir, Rect},
     shell_tv::{Page, ShellState, Tab},
 };
@@ -446,7 +447,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
         Page::Settings => {
             let ox = 296.0;
             let oy = 24.0;
-            let mut rects = (0..6)
+            let mut rects = (0..7)
                 .map(|i| Rect {
                     x: ox + 40.0,
                     y: oy + 106.0 + i as f32 * 56.0,
@@ -481,6 +482,23 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 "server" => {
                     rects.push(Rect { x: ox + 1420.0, y: oy + 106.0, w: 140.0, h: 40.0 });
                 }
+                "sports" => {
+                    // 7..=11: Starting soon (Off, 5, 10, 15, 30)
+                    for i in 0..5 {
+                        rects.push(Rect { x: ox + 1150.0 + i as f32 * 76.0, y: oy + 170.0, w: 68.0, h: 36.0 });
+                    }
+                    // 12..=13: Final score (On, Off)
+                    rects.push(Rect { x: ox + 1380.0, y: oy + 220.0, w: 68.0, h: 36.0 });
+                    rects.push(Rect { x: ox + 1460.0, y: oy + 220.0, w: 68.0, h: 36.0 });
+                    // 14..=15: During video (Show, Hold)
+                    rects.push(Rect { x: ox + 1380.0, y: oy + 270.0, w: 68.0, h: 36.0 });
+                    rects.push(Rect { x: ox + 1460.0, y: oy + 270.0, w: 68.0, h: 36.0 });
+                    // 16+: Starred games Unstar
+                    let n = laptop.global::<SportsAlertsSettings>().get_starred_games().row_count();
+                    for i in 0..n {
+                        rects.push(Rect { x: ox + 1420.0, y: oy + 390.0 + i as f32 * 62.0, w: 96.0, h: 34.0 });
+                    }
+                }
                 "diagnostics" | "changelog" => {}
                 _ => {
                     rects.extend([
@@ -510,6 +528,20 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
 }
 
 fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
+    let al = laptop.global::<SportsAlertState>();
+    if al.get_visible() {
+        let bottom = if laptop.global::<TvUi>().get_hud_open() { 250.0 } else { 120.0 };
+        let card_x = 1920.0 - 96.0 - 560.0;
+        let btn_y = 1080.0 - bottom - 22.0 - 56.0;
+        return if al.get_primary().is_empty() {
+            vec![Rect { x: card_x + 24.0, y: btn_y, w: 140.0, h: 56.0 }]
+        } else {
+            vec![
+                Rect { x: card_x + 24.0, y: btn_y, w: 220.0, h: 56.0 },
+                Rect { x: card_x + 256.0, y: btn_y, w: 140.0, h: 56.0 },
+            ]
+        };
+    }
     if laptop.global::<Display>().get_dashboard_ui() == "blades" {
         return blades_tile_rects(laptop, page);
     }
@@ -717,14 +749,15 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             rects
         }
         Page::Settings => {
-            // 0..=5: SubTabs (Display, Accounts, Sites, Server, Diagnostics, What's new)
+            // 0..=6: SubTabs (Display, Accounts, Sites, Sports, Server, Diagnostics, What's new)
             let mut rects = vec![
                 Rect { x: 96.0, y: 122.0, w: 100.0, h: 44.0 },
                 Rect { x: 232.0, y: 122.0, w: 128.0, h: 44.0 },
                 Rect { x: 396.0, y: 122.0, w: 72.0, h: 44.0 },
                 Rect { x: 504.0, y: 122.0, w: 92.0, h: 44.0 },
-                Rect { x: 632.0, y: 122.0, w: 152.0, h: 44.0 },
-                Rect { x: 820.0, y: 122.0, w: 156.0, h: 44.0 },
+                Rect { x: 632.0, y: 122.0, w: 92.0, h: 44.0 },
+                Rect { x: 760.0, y: 122.0, w: 152.0, h: 44.0 },
+                Rect { x: 948.0, y: 122.0, w: 156.0, h: 44.0 },
             ];
             match tv.get_settings_tab().as_str() {
                 "accounts" => {
@@ -1189,19 +1222,23 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             }
         }
         Page::Settings => {
-            if idx < 6 {
+            if idx < 7 {
                 let next_tab = match idx {
                     1 => "accounts",
                     2 => "sites",
-                    3 => "server",
-                    4 => "diagnostics",
-                    5 => "changelog",
+                    3 => "sports",
+                    4 => "server",
+                    5 => "diagnostics",
+                    6 => "changelog",
                     _ => "display",
                 };
                 tv.set_confirm_quit(false);
                 tv.set_settings_tab(next_tab.into());
                 if next_tab != "accounts" {
                     laptop.global::<Accounts>().set_editing("".into());
+                }
+                if next_tab == "sports" {
+                    laptop.global::<SportsAlertsSettings>().invoke_refresh_follows();
                 }
                 if next_tab == "server" {
                     laptop.global::<Server>().invoke_open();
@@ -1212,7 +1249,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             match sub.as_str() {
                 "accounts" => {
                     let acc = laptop.global::<Accounts>();
-                    if let Some(a) = acc.get_accounts().row_data(idx - 6) {
+                    if let Some(a) = acc.get_accounts().row_data(idx - 7) {
                         let action = if !a.primary_id.is_empty() {
                             a.primary_id
                         } else {
@@ -1228,21 +1265,41 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 }
                 "sites" => {
                     let ed = laptop.global::<SiteEditor>();
-                    if idx == 6 {
+                    if idx == 7 {
                         ed.invoke_add();
-                    } else if let Some(s) = laptop.global::<Accounts>().get_sites().row_data(idx - 7) {
+                    } else if let Some(s) = laptop.global::<Accounts>().get_sites().row_data(idx - 8) {
                         ed.invoke_edit(s.index);
                     }
                 }
+                "sports" => {
+                    let sp = laptop.global::<SportsAlertsSettings>();
+                    match idx {
+                        7 => sp.invoke_set_soon_minutes(0),
+                        8 => sp.invoke_set_soon_minutes(5),
+                        9 => sp.invoke_set_soon_minutes(10),
+                        10 => sp.invoke_set_soon_minutes(15),
+                        11 => sp.invoke_set_soon_minutes(30),
+                        12 => sp.invoke_set_final_on(true),
+                        13 => sp.invoke_set_final_on(false),
+                        14 => sp.invoke_set_during_video("show".into()),
+                        15 => sp.invoke_set_during_video("hold".into()),
+                        other if other >= 16 => {
+                            if let Some(g) = sp.get_starred_games().row_data(other - 16) {
+                                sp.invoke_unstar_game(g.event_id);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 "server" => {
-                    if idx == 6 {
+                    if idx == 7 {
                         laptop.global::<Server>().invoke_scan_all();
                     }
                 }
                 "diagnostics" | "changelog" => {}
                 _ => {
                     let disp = laptop.global::<Display>();
-                    let item = idx - 6;
+                    let item = idx - 7;
                     if item != 5 {
                         tv.set_confirm_quit(false);
                     }
@@ -1354,7 +1411,8 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
     let tv = laptop.global::<TvUi>();
     STATE.with_borrow_mut(|s| s.last_key = Instant::now());
 
-    if tv.get_ambient() {
+    let alert_open = laptop.global::<SportsAlertState>().get_visible();
+    if tv.get_ambient() && !alert_open {
         tv.set_ambient(false);
         return true;
     }
@@ -1492,6 +1550,44 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
                 1 => sl.invoke_sleep_now(),
                 2 => sl.invoke_off(),
                 _ => {}
+            }
+        }
+        return true;
+    }
+
+    let al = laptop.global::<SportsAlertState>();
+    if al.get_visible() {
+        if is_back(text) {
+            al.invoke_dismiss_clicked();
+            return true;
+        }
+        let has_primary = !al.get_primary().is_empty();
+        match decode_dir(text) {
+            Some(Dir::Left) => {
+                if has_primary {
+                    al.set_focus(0);
+                }
+                crate::bridge::alerts::reset_countdown(laptop);
+                return true;
+            }
+            Some(Dir::Right) => {
+                if has_primary {
+                    al.set_focus(1);
+                }
+                crate::bridge::alerts::reset_countdown(laptop);
+                return true;
+            }
+            Some(Dir::Up) | Some(Dir::Down) => {
+                crate::bridge::alerts::reset_countdown(laptop);
+                return true;
+            }
+            None => {}
+        }
+        if is_ok(text) {
+            if has_primary && al.get_focus() == 0 {
+                al.invoke_primary_clicked();
+            } else {
+                al.invoke_dismiss_clicked();
             }
         }
         return true;
@@ -1763,19 +1859,21 @@ mod tests {
         assert!(key(&l, &SharedString::from(Key::Escape)));
         assert_eq!(tv.get_screen(), "home");
 
-        // Switch to Settings via TabBar and toggle Celsius (tile 8; 0..=5 are SubTabs)
+        // Switch to Settings via TabBar and toggle Celsius (tile 9; 0..=6 are SubTabs)
         assert!(key(&l, &SharedString::from(Key::UpArrow)));
         for _ in 0..4 {
             assert!(key(&l, &SharedString::from(Key::RightArrow)));
         }
         assert_eq!(tv.get_screen(), "settings");
-        activate_tile(&l, 8);
+        activate_tile(&l, 9);
         assert!(l.global::<Display>().get_celsius());
         activate_tile(&l, 1);
         assert_eq!(tv.get_settings_tab(), "accounts");
         activate_tile(&l, 2);
         assert_eq!(tv.get_settings_tab(), "sites");
-        activate_tile(&l, 4);
+        activate_tile(&l, 3);
+        assert_eq!(tv.get_settings_tab(), "sports");
+        activate_tile(&l, 5);
         assert_eq!(tv.get_settings_tab(), "diagnostics");
         activate_tile(&l, 0);
         assert_eq!(tv.get_settings_tab(), "display");

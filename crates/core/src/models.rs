@@ -474,6 +474,10 @@ pub struct ScoreboardChoice {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScoreboardGame {
     pub key: String,
+    pub event_id: String,
+    pub league: String,
+    pub away_team_id: String,
+    pub home_team_id: String,
     pub league_label: String,
     pub status: String, // "live" | "delayed" | "suspended" | "upcoming" | "final" | ...
     pub header_text: String,

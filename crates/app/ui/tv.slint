@@ -1,6 +1,8 @@
 import { Theme } from "theme.slint";
 import { Clock } from "components.slint";
 import { SleepWarning } from "shared/sleep.slint";
+import { SportsAlertCard } from "shared/sports_alert.slint";
+import { SportsAlertState, TvUi } from "state.slint";
 
 // TV (HDMI) window. No input — everything is driven from the laptop.
 export component TvWindow inherits Window {
@@ -87,5 +89,11 @@ export component TvWindow inherits Window {
     SleepWarning {
         x: parent.width - self.width - 48px;
         y: parent.height - self.height - 48px;
+    }
+
+    SportsAlertCard {
+        x: parent.width - self.width - 96px - (SportsAlertState.visible ? 0px : -24px);
+        y: parent.height - self.height - (TvUi.hud-open ? 250px : 120px);
+        animate x { duration: 180ms; easing: ease-out; }
     }
 }

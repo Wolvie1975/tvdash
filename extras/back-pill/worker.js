@@ -15,4 +15,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
       body: JSON.stringify({ action: msg.action }),
     }).catch(() => {});
   }
+  if (msg?.t === 'alert?') {
+    fetch(BASE + '/alerts').then((r) => r.json()).then(reply, () => reply(null));
+    return true;
+  }
+  if (msg?.t === 'alert') {
+    fetch(BASE + '/alerts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: msg.key, action: msg.action }),
+    }).catch(() => {});
+  }
 });

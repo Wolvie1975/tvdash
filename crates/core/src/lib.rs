@@ -7,6 +7,7 @@ pub mod events;
 pub mod layout;
 pub mod models;
 pub mod secrets;
+pub mod sports_store;
 pub mod state;
 
 pub use config::{Config, LoadedConfig};

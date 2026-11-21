@@ -950,9 +950,28 @@ export component TvSports inherits Rectangle {
                                 color: Theme.warn;
                                 overflow: elide;
                             }
-                            if row.source-url != "": HorizontalLayout {
+                            HorizontalLayout {
                                 alignment: start;
-                                LinkPill {
+                                spacing: 10px * TvUi.u;
+                                if row.is-following: Rectangle {
+                                    height: 36px * TvUi.u;
+                                    width: fl-txt.preferred-width + 24px * TvUi.u;
+                                    border-radius: 18px * TvUi.u;
+                                    background: Theme.accent.with-alpha(0.16);
+                                    fl-txt := Text {
+                                        text: "★ Following";
+                                        font-size: 15px * TvUi.u;
+                                        font-weight: 700;
+                                        color: Theme.accent;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                if !row.is-following && row.event-id != "": LinkPill {
+                                    label: row.is-starred ? "★ Starred" : "☆ Star";
+                                    clicked => { Scoreboard.toggle-star(row.event-id); }
+                                }
+                                if row.source-url != "": LinkPill {
                                     label: row.status == "final" ? "Recap ↗" : "Game ↗";
                                     clicked => { Scoreboard.open-url(row.away-name + " vs " + row.home-name, row.source-url); }
                                 }

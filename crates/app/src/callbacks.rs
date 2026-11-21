@@ -7,7 +7,7 @@ use tvdash_core::{Command, models::SourceKind};
 
 use crate::{
     Accounts, Artwork, CollectionPageState, Dash, Display, LaptopWindow, Library, Nav, Scoreboard, Server, Setup,
-    ShowPageState, SiteEditor, SleepState, Sports, Watch, bridge, watch_ui,
+    ShowPageState, SiteEditor, SleepState, Sports, SportsAlertState, SportsAlertsSettings, Watch, bridge, watch_ui,
 };
 use tvdash_core::config::StreamingSite;
 
@@ -20,6 +20,7 @@ fn parse_source(s: &str) -> Option<SourceKind> {
 }
 
 pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
+    bridge::alerts::set_cmd_tx(cmd_tx.clone());
     let send = move |cmd: Command| {
         if cmd_tx.send(cmd).is_err() {
             error!("command handler stopped");
@@ -28,6 +29,7 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
     wire_dash(laptop, send.clone());
     wire_site_editor(laptop, send.clone());
     wire_sleep(laptop, send.clone());
+    wire_sports_alert(laptop, send.clone());
 
     let sports = laptop.global::<Sports>();
     let (weak, s) = (laptop.as_weak(), send.clone());
@@ -61,6 +63,11 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
             show: show.to_string(),
             final_only,
         });
+    });
+
+    let s = send.clone();
+    scoreboard.on_toggle_star(move |event_id| {
+        s(Command::ToggleStarGame(event_id.to_string()));
     });
 
     let s = send.clone();
@@ -1006,6 +1013,79 @@ fn wire_sleep(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         }
         s(Command::SetSleepWarnBefore(val.to_string()));
     });
+}
+
+fn wire_sports_alert(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
+    let al = laptop.global::<SportsAlertState>();
+    let weak = laptop.as_weak();
+    al.on_primary_clicked(move || {
+        if let Some(l) = weak.upgrade() {
+            bridge::alerts::on_primary(&l);
+        }
+    });
+    let weak = laptop.as_weak();
+    al.on_dismiss_clicked(move || {
+        if let Some(l) = weak.upgrade() {
+            bridge::alerts::on_dismiss(&l);
+        }
+    });
+
+    let cfg_ui = laptop.global::<SportsAlertsSettings>();
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    cfg_ui.on_set_soon_minutes(move |mins| {
+        if let Some(l) = weak.upgrade() {
+            let g = l.global::<SportsAlertsSettings>();
+            g.set_soon_minutes(mins);
+            s(Command::SetSportsAlertsConfig(tvdash_core::config::SportsAlertsConfig {
+                enabled: true,
+                soon_minutes: mins.max(0) as u32,
+                final_on: g.get_final_on(),
+                during_video: if g.get_during_video() == "hold" {
+                    tvdash_core::config::DuringVideo::Hold
+                } else {
+                    tvdash_core::config::DuringVideo::Show
+                },
+            }));
+        }
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    cfg_ui.on_set_final_on(move |on| {
+        if let Some(l) = weak.upgrade() {
+            let g = l.global::<SportsAlertsSettings>();
+            g.set_final_on(on);
+            s(Command::SetSportsAlertsConfig(tvdash_core::config::SportsAlertsConfig {
+                enabled: true,
+                soon_minutes: g.get_soon_minutes().max(0) as u32,
+                final_on: on,
+                during_video: if g.get_during_video() == "hold" {
+                    tvdash_core::config::DuringVideo::Hold
+                } else {
+                    tvdash_core::config::DuringVideo::Show
+                },
+            }));
+        }
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    cfg_ui.on_set_during_video(move |mode| {
+        if let Some(l) = weak.upgrade() {
+            let g = l.global::<SportsAlertsSettings>();
+            g.set_during_video(mode.clone());
+            s(Command::SetSportsAlertsConfig(tvdash_core::config::SportsAlertsConfig {
+                enabled: true,
+                soon_minutes: g.get_soon_minutes().max(0) as u32,
+                final_on: g.get_final_on(),
+                during_video: if mode.as_str() == "hold" {
+                    tvdash_core::config::DuringVideo::Hold
+                } else {
+                    tvdash_core::config::DuringVideo::Show
+                },
+            }));
+        }
+    });
+    let s = send.clone();
+    cfg_ui.on_unstar_game(move |eid| s(Command::UnstarGame(eid.to_string())));
+    let s = send;
+    cfg_ui.on_refresh_follows(move || s(Command::RefreshSportsFollows));
 }
 
 #[cfg(test)]

@@ -75,4 +75,115 @@
   });
   setInterval(poll, 5000);
   poll();
+
+  // Sports alert card (Concept 2 · Action card)
+  const acard = document.createElement('div');
+  acard.className = 'salert';
+  acard.hidden = true;
+  acard.innerHTML = `
+    <div class="top"><span class="k"></span><span class="why"></span></div>
+    <div class="team away"><span class="bdg"></span><span class="nm"></span><span class="rt"></span></div>
+    <div class="team home"><span class="bdg"></span><span class="nm"></span><span class="rt"></span></div>
+    <div class="meta"></div>
+    <div class="div"></div>
+    <div class="row">
+      <button data-a="primary" class="pri"></button>
+      <button data-a="dismiss" class="sec">Dismiss</button>
+      <span class="rem"></span>
+    </div>`;
+  root.appendChild(acard);
+  root.querySelector('style').textContent += `
+    .salert[hidden] { display: none; }
+    .salert { position: fixed; right: 96px; bottom: 120px; z-index: 2147483647; width: 560px; box-sizing: border-box;
+      padding: 22px 24px; border-radius: 26px; background: #1C2026; border: 1px solid #2A303A;
+      color: #E8EAED; font: 700 18px system-ui, sans-serif; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+    .salert .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .salert .k { color: #F5A524; font-size: 16px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
+    .salert .k.fin { color: #A3ABB6; }
+    .salert .why { padding: 4px 10px; border-radius: 9px; background: rgba(245,165,36,.16); color: #F5A524; font-size: 15px; font-weight: 900; }
+    .salert .team { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+    .salert .bdg { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      color: #FFF; font-size: 15px; font-weight: 900; flex: 0 0 44px; }
+    .salert .nm { font-size: 24px; font-weight: 800; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .salert .rt { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .salert.fin .rt { font-size: 30px; }
+    .salert .team.win .nm, .salert .team.win .rt { font-weight: 900; color: #E8EAED; }
+    .salert .team.lose .nm, .salert .team.lose .rt { font-weight: 700; color: #A3ABB6; }
+    .salert .meta { color: #A3ABB6; font-size: 17px; font-weight: 700; margin: 2px 0 10px; }
+    .salert .div { height: 1px; background: #2A303A; margin-bottom: 14px; }
+    .salert .row { display: flex; align-items: center; gap: 12px; }
+    .salert button { position: static; height: 56px; padding: 0 22px; border-radius: 28px; border: 0;
+      background: #252A31; color: #E8EAED; font: 800 20px system-ui, sans-serif; opacity: 1; pointer-events: auto; cursor: pointer; }
+    .salert button.pri { background: #F5A524; color: #1A1200; font-weight: 900; }
+    .salert button[hidden] { display: none; }
+    .salert button:focus { outline: 4px solid #F5A524; outline-offset: 4px; }
+    .salert .rem { margin-left: auto; color: #A3ABB6; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }`;
+
+  let aKey = null, aRem = 0, aTick = null;
+  const remEl = acard.querySelector('.rem');
+  const drawRem = () => { remEl.textContent = `Closes in ${Math.max(0, aRem)} s`; };
+  const hideAlert = () => {
+    acard.hidden = true;
+    aKey = null;
+    clearInterval(aTick);
+    aTick = null;
+  };
+  const renderSide = (el, side, isFinal) => {
+    el.querySelector('.bdg').textContent = side.init || '';
+    el.querySelector('.bdg').style.background = side.color || '#252A31';
+    el.querySelector('.nm').textContent = side.name || '';
+    el.querySelector('.rt').textContent = side.right || '';
+    el.classList.toggle('win', isFinal && !!side.winner);
+    el.classList.toggle('lose', isFinal && !side.winner && side.right !== '');
+  };
+  const pollAlert = () => chrome.runtime.sendMessage({ t: 'alert?' }, (a) => {
+    if (!a || !card.hidden) { hideAlert(); return; }
+    const isNew = aKey !== a.key;
+    aKey = a.key;
+    aRem = a.closes_in ?? 12;
+    const isFinal = a.kind === 'final';
+    acard.classList.toggle('fin', isFinal);
+    const kEl = acard.querySelector('.k');
+    kEl.textContent = a.kicker || '';
+    kEl.classList.toggle('fin', isFinal);
+    acard.querySelector('.why').textContent = a.why || '';
+    renderSide(acard.querySelector('.team.away'), a.away || {}, isFinal);
+    renderSide(acard.querySelector('.team.home'), a.home || {}, isFinal);
+    acard.querySelector('.meta').textContent = a.meta || '';
+    acard.querySelector('.meta').hidden = !a.meta;
+    acard.querySelector('.div').hidden = !a.meta;
+    const priBtn = acard.querySelector('button.pri');
+    const disBtn = acard.querySelector('button.sec');
+    if (a.primary) {
+      priBtn.hidden = false;
+      priBtn.textContent = a.primary;
+    } else {
+      priBtn.hidden = true;
+    }
+    drawRem();
+    if (isNew) {
+      acard.hidden = false;
+      (a.primary ? priBtn : disBtn).focus();
+    }
+    if (!aTick) {
+      aTick = setInterval(() => {
+        if (aRem > 0) { aRem--; drawRem(); }
+        else { hideAlert(); }
+      }, 1000);
+    }
+  });
+  acard.addEventListener('click', (e) => {
+    const act = e.target.closest('button')?.dataset.a;
+    if (!act || !aKey) return;
+    chrome.runtime.sendMessage({ t: 'alert', key: aKey, action: act });
+    hideAlert();
+  });
+  acard.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && aKey) {
+      chrome.runtime.sendMessage({ t: 'alert', key: aKey, action: 'dismiss' });
+      hideAlert();
+    }
+  });
+  setInterval(pollAlert, 3000);
+  pollAlert();
 })();

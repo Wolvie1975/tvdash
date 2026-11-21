@@ -202,6 +202,69 @@ pub enum AppEvent {
     Scoreboard(Result<crate::models::ScoreboardPage, String>),
     /// Current sleep timer state for UI and status endpoints.
     Sleep(SleepSnapshot),
+    /// Newly evaluated sports alerts to enqueue on the UI thread.
+    SportsAlerts(Vec<SportsAlertDto>),
+    /// Full Sports Alerts settings, followed teams, starred games, and health state.
+    SportsAlertsStatus(SportsAlertsStatusSnapshot),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsAlertSideDto {
+    pub name: String,
+    pub initials: String,
+    pub color: String,
+    pub logo_url: Option<String>,
+    pub right: String,
+    pub winner: bool,
+    pub muted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsAlertDto {
+    pub key: String,
+    /// `"soon"` | `"final"`
+    pub kind: String,
+    pub event_id: String,
+    pub start: Option<i64>,
+    pub queued_at: i64,
+    pub kicker: String,
+    pub kicker_final: bool,
+    pub why: String,
+    pub away: SportsAlertSideDto,
+    pub home: SportsAlertSideDto,
+    pub meta: String,
+    pub primary: Option<String>,
+    pub source_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FollowedTeamInfo {
+    pub league: String,
+    pub id: String,
+    pub name: String,
+    pub league_label: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StarredGameInfo {
+    pub event_id: String,
+    pub matchup: String,
+    pub meta: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsAlertsStatusSnapshot {
+    pub config: crate::config::SportsAlertsConfig,
+    pub followed: Vec<FollowedTeamInfo>,
+    pub follows_updated_at: Option<i64>,
+    pub follows_error: Option<String>,
+    pub unmapped_count: usize,
+    pub starred: Vec<StarredGameInfo>,
+    pub held: bool,
+    pub last_poll_at: Option<i64>,
+    pub last_poll_error: Option<String>,
+    pub stale_minutes: Option<i64>,
+    pub next_eligible: Option<String>,
 }
 
 /// Snapshot of the sleep timer sent to the UI on change / each tick.
@@ -405,4 +468,21 @@ pub enum Command {
     SetSleepWarnBefore(String),
     /// Fetch posters for visible Browse-all items that aren't cached yet.
     FetchPosters(Vec<MediaItem>),
+    /// Enqueue a sample sports alert (`"soon"` | `"final"`).
+    SportsAlertTest(String),
+    /// Mark a sports alert key as shown (persisted to `sports-alerts.json`).
+    SportsAlertShown(String),
+    /// Execute the primary action of a sports alert (`"soon"` → YouTube TV, `"final"` → Recap URL).
+    SportsAlertPrimary {
+        kind: String,
+        source_url: Option<String>,
+    },
+    /// Update Sports Alerts settings (`[sports.alerts]`).
+    SetSportsAlertsConfig(crate::config::SportsAlertsConfig),
+    /// Toggle star on a Scoreboard game (`EventId`).
+    ToggleStarGame(String),
+    /// Remove a starred game (`EventId`).
+    UnstarGame(String),
+    /// Refresh followed teams from `dbo.ResultFollows` (e.g. when Settings › Sports opens).
+    RefreshSportsFollows,
 }

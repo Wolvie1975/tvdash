@@ -40,6 +40,7 @@ pub struct Config {
     pub player: PlayerConfig,
     pub tv: TvConfig,
     pub sleep: SleepConfig,
+    pub sports: SportsConfig,
     /// Kept last: TOML arrays of tables must follow plain tables.
     pub streaming: Vec<StreamingSite>,
 }
@@ -367,6 +368,42 @@ pub struct EventsConfig {
     pub trust_cert: bool,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SportsConfig {
+    pub alerts: SportsAlertsConfig,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DuringVideo {
+    #[default]
+    Show,
+    Hold,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SportsAlertsConfig {
+    pub enabled: bool,
+    /// Minutes before start to show "Starting soon" (`0` = off).
+    pub soon_minutes: u32,
+    #[serde(rename = "final")]
+    pub final_on: bool,
+    pub during_video: DuringVideo,
+}
+
+impl Default for SportsAlertsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            soon_minutes: 15,
+            final_on: true,
+            during_video: DuringVideo::Show,
+        }
+    }
+}
+
 impl Default for EventsConfig {
     fn default() -> Self {
         Self {
@@ -476,6 +513,7 @@ impl Default for Config {
             player: PlayerConfig::default(),
             tv: TvConfig::default(),
             sleep: SleepConfig::default(),
+            sports: SportsConfig::default(),
             streaming: default_streaming_sites(),
         }
     }

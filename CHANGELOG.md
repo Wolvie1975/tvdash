@@ -1,5 +1,9 @@
 # tvdash Changelog
 
+## v0.1.53 — 2026-11-21
+- Added **Sports Alerts** (Starting soon & Final action cards) across tvdash (Home, video HUD, ambient screensaver) and Brave (`extras/back-pill` via `GET/POST /alerts`).
+- Added read-only followed teams sync from `dbo.ResultFollows` (with offline cache), local **Starred games** (`sports-starred.json`) with ★ toggles on Scoreboard, **Settings › Sports** sub-tab (in Blades & Classic), Google Meet / `during_video` hold, Diagnostics stale-data warning, and `tvdash --alert-test soon|final` / `tvdash --alerts status`.
+
 ## v0.1.52 — 2026-11-21
 - Applied the **Kansas** theme to Classic Home tiles (`tint.rs`) and updated both Classic and Blades to use **KU Crimson** (`#E8000D`) as the highlight/focus color.
 - Replaced **Midnight** (`#0E1526`) with **Espresso** (`#1B140E`) across Classic and Blades.

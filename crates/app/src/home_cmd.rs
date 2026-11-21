@@ -69,12 +69,40 @@ enum SleepAction {
     EndOfItem,
 }
 
-/// Bind `127.0.0.1:{port}` and listen for `/home` and `/sleep`. Call inside a tokio runtime.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct AlertHttpSide {
+    pub name: String,
+    pub init: String,
+    pub color: String,
+    pub right: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct AlertHttpState {
+    pub key: String,
+    pub kind: String,
+    pub kicker: String,
+    pub why: String,
+    pub away: AlertHttpSide,
+    pub home: AlertHttpSide,
+    pub meta: String,
+    pub primary: Option<String>,
+    pub closes_in: i64,
+}
+
+#[derive(Deserialize)]
+struct AlertReq {
+    key: String,
+    action: String,
+}
+
+/// Bind `127.0.0.1:{port}` and listen for `/home`, `/sleep`, and `/alerts`. Call inside a tokio runtime.
 pub fn serve_pill(
     port: u16,
     cmd_tx: UnboundedSender<Command>,
     laptop: Weak<LaptopWindow>,
     sleep_rx: watch::Receiver<SleepHttpState>,
+    alert_rx: watch::Receiver<Option<AlertHttpState>>,
 ) {
     tokio::spawn(async move {
         let addr = format!("127.0.0.1:{port}");
@@ -93,8 +121,9 @@ pub fn serve_pill(
                 Ok((stream, _)) => {
                     let tx = cmd_tx.clone();
                     let weak = laptop.clone();
-                    let rx = sleep_rx.clone();
-                    tokio::spawn(handle_conn(stream, tx, weak, rx));
+                    let srx = sleep_rx.clone();
+                    let arx = alert_rx.clone();
+                    tokio::spawn(handle_conn(stream, tx, weak, srx, arx));
                 }
                 Err(e) => warn!(error = %e, "pill listener accept failed"),
             }
@@ -107,6 +136,7 @@ async fn handle_conn(
     cmd_tx: UnboundedSender<Command>,
     laptop: Weak<LaptopWindow>,
     mut sleep_rx: watch::Receiver<SleepHttpState>,
+    alert_rx: watch::Receiver<Option<AlertHttpState>>,
 ) {
     let (reader, mut writer) = stream.into_split();
     let mut buf = BufReader::new(reader);
@@ -209,6 +239,27 @@ async fn handle_conn(
             }
             Err(_) => ("400 Bad Request", "application/json", r#"{"error":"invalid request"}"#.into()),
         }
+    } else if method == "GET" && path == "/alerts" {
+        let st = alert_rx.borrow().clone();
+        let json = match st {
+            Some(a) => serde_json::to_string(&a).unwrap_or_else(|_| "null".into()),
+            None => "null".into(),
+        };
+        ("200 OK", "application/json", json)
+    } else if method == "POST" && path == "/alerts" {
+        match serde_json::from_slice::<AlertReq>(&req_body) {
+            Ok(req) if req.action == "primary" || req.action == "dismiss" => {
+                let key = req.key;
+                let action = req.action;
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(l) = laptop.upgrade() {
+                        crate::bridge::alerts::on_http_action(&l, &key, &action);
+                    }
+                });
+                ("204 No Content", "text/plain", String::new())
+            }
+            _ => ("400 Bad Request", "application/json", r#"{"error":"invalid alert request"}"#.into()),
+        }
     } else {
         ("404 Not Found", "text/plain", "not found\n".into())
     };
@@ -240,10 +291,11 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let (_sleep_tx, sleep_rx) = watch::channel(SleepHttpState::off());
+        let (_alert_tx, alert_rx) = watch::channel(None);
 
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
-            handle_conn(stream, tx, Weak::default(), sleep_rx).await;
+            handle_conn(stream, tx, Weak::default(), sleep_rx, alert_rx).await;
         });
 
         let mut client = TcpStream::connect(addr).await.unwrap();
@@ -273,9 +325,10 @@ mod tests {
         });
 
         tokio::spawn(async move {
+            let (_alert_tx, alert_rx) = watch::channel(None);
             loop {
                 let Ok((stream, _)) = listener.accept().await else { break };
-                tokio::spawn(handle_conn(stream, tx.clone(), Weak::default(), sleep_rx.clone()));
+                tokio::spawn(handle_conn(stream, tx.clone(), Weak::default(), sleep_rx.clone(), alert_rx.clone()));
             }
         });
 

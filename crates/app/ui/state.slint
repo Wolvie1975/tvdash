@@ -792,6 +792,9 @@ export struct ScoreboardChoiceData {
 
 export struct ScoreboardRowData {
     kind: string, // "group" | "game"
+    event-id: string,
+    is-starred: bool,
+    is-following: bool,
     group-title: string,
     group-subtitle: string,
     is-live: bool,
@@ -834,6 +837,7 @@ export global Scoreboard {
     in property <[ScoreboardRowData]> rows;
     callback load(string, string, bool);
     callback open-url(string, string);
+    callback toggle-star(string);
 }
 
 export global SleepState {
@@ -866,4 +870,61 @@ export global SleepState {
     callback set-warn-before(string);
     callback open-picker();
     callback close-picker();
+}
+
+export struct SportsAlertSide {
+    name: string,
+    initials: string,
+    color: color,
+    logo: image,
+    has-logo: bool,
+    right: string,
+    winner: bool,
+    muted: bool,
+}
+
+export global SportsAlertState {
+    in-out property <bool> visible: false;
+    in-out property <string> alert-key: "";
+    in-out property <string> kicker: "";
+    in-out property <bool> kicker-final: false;
+    in-out property <string> why: "";
+    in-out property <SportsAlertSide> away;
+    in-out property <SportsAlertSide> home;
+    in-out property <string> meta: "";
+    in-out property <string> primary: "";
+    in-out property <int> closes-in: 12;
+    in-out property <int> focus: 0; // 0 = primary (or Dismiss when primary == ""), 1 = dismiss
+
+    callback primary-clicked();
+    callback dismiss-clicked();
+}
+
+export struct FollowedTeamRow {
+    name: string,
+    initials: string,
+    color: color,
+    league-label: string,
+}
+
+export struct StarredGameRow {
+    event-id: string,
+    matchup: string,
+    meta: string,
+}
+
+export global SportsAlertsSettings {
+    in-out property <int> soon-minutes: 15; // 0 | 5 | 10 | 15 | 30
+    in-out property <bool> final-on: true;
+    in-out property <string> during-video: "show"; // "show" | "hold"
+    in property <string> follows-note: "Managed in MyNewsFeed";
+    in property <bool> follows-error: false;
+    in property <[FollowedTeamRow]> followed-teams;
+    in property <[StarredGameRow]> starred-games;
+
+    callback set-soon-minutes(int);
+    callback set-final-on(bool);
+    callback set-during-video(string);
+    callback unstar-game(string);
+    callback refresh-follows();
 }

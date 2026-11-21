@@ -1,5 +1,6 @@
 //! Read-only SQL Server client for the Sports / Competitions page.
 
+pub mod alerts;
 pub mod format;
 pub mod scoreboard;
 
