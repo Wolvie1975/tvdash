@@ -1,5 +1,8 @@
 # tvdash Changelog
 
+## v0.1.50 — 2026-11-21
+- Fixed **Library** TV/Movie landing **Continue Watching** staleness: requested up to 30 items from Plex `/hubs/continueWatching/items`, triggered `refresh()` on `LoadLibraryShelves`, and reduced the `LibraryShelves` cache TTL from 30 minutes to 5 minutes.
+
 ## v0.1.49 — 2026-11-21
 - Added **Sleep timer** across Classic, Blades, and two-screen layouts: Home Quick actions / tile, panel header chip, Player HUD control, Ambient footer, Settings › Display **Sleep warning** (`30 s` / `60 s` / `2 m`), **Still watching?** / **Episode finished** warning card (plus Brave pill-extension overlay), `tvdash --sleep` CLI, `GET/POST /sleep` HTTP endpoint, layout re-exec persistence (`state.json`), and `hold_sleep_timer` support for Google Meet.
 - Added **Next ep** transport control to the Player HUD in both Classic and Blades, and added the **Up Next** episode prompt to Blades (`v3/shell.slint`).

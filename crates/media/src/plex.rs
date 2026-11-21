@@ -688,9 +688,10 @@ impl MediaSource for PlexClient {
     }
 
     async fn continue_watching(&self) -> Result<Vec<MediaItem>> {
-        let meta = match self.metadata("/hubs/continueWatching/items", &[], "continue watching").await {
+        let q = [("X-Plex-Container-Start", "0".to_owned()), ("X-Plex-Container-Size", "30".to_owned())];
+        let meta = match self.metadata("/hubs/continueWatching/items", &q, "continue watching").await {
             Ok(items) if !items.is_empty() => items,
-            _ => self.metadata("/library/onDeck", &[], "continue watching").await?,
+            _ => self.metadata("/library/onDeck", &q, "continue watching").await?,
         };
         Ok(Self::items(meta))
     }

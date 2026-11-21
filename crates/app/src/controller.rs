@@ -808,6 +808,7 @@ impl Controller {
                 self.load_scoreboard(day, show, final_only);
             }
             Command::LoadLibraryShelves { is_tv, sort, popular_days } => {
+                self.refresh();
                 self.load_library_shelves(is_tv, sort, popular_days);
             }
             Command::OpenShow(rating_key) => {
@@ -1132,7 +1133,7 @@ impl Controller {
         tokio::spawn(async move {
             let shelves_key = format!("plex:shelves:v5:{is_tv}:{}:{days}", sort.plex_sort());
             if let Some(cached_shelves) =
-                cache.as_ref().and_then(|c| c.get::<tvdash_core::models::LibraryShelves>(&shelves_key, Duration::from_secs(1800)))
+                cache.as_ref().and_then(|c| c.get::<tvdash_core::models::LibraryShelves>(&shelves_key, Duration::from_secs(300)))
             {
                 let source: Arc<dyn MediaSource> = plex;
                 fetch_posters(source.clone(), cached_shelves.added_this_week.clone(), requested.clone(), events.clone());
