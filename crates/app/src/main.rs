@@ -22,7 +22,6 @@ mod tint;
 mod tv_nav;
 mod video;
 mod watch;
-mod remote;
 mod watch_ui;
 
 use std::{sync::Arc, time::Duration};
@@ -435,7 +434,6 @@ fn main() -> anyhow::Result<()> {
             sleep_http_rx,
             alert_http_rx,
         );
-        remote::serve(remote::DEFAULT_PORT, cmd_tx.clone(), laptop.as_weak());
     }
 
     // M1 done-check: keyring round-trip, reported in the laptop footer.

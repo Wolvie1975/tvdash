@@ -30,7 +30,6 @@ reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 glow = "0.18"
-qrcode = { version = "0.14", default-features = false }
 zbus.workspace = true
 futures-util.workspace = true
 rand.workspace = true
