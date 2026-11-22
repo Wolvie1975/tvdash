@@ -46,8 +46,8 @@ impl IntroGate {
 
     pub fn logo_len(&self) -> Duration {
         match self.skin {
-            Skin::Tiles => Duration::from_millis(2200),
-            Skin::Blades => Duration::from_millis(1100),
+            Skin::Tiles => Duration::from_millis(2400),
+            Skin::Blades => Duration::from_millis(1600),
         }
     }
 
@@ -128,10 +128,10 @@ fn begin_run(laptop: &LaptopWindow, gate: &SharedGate, max_hold_secs: u64, is_pr
     intro.set_stage(IntroStage::Idle);
     intro.set_instant(false);
 
-    // Next event-loop turn = first frame is up: start the logo.
+    // Give the window a brief moment to map its first frame before starting the logo.
     let weak = laptop.as_weak();
     let g = gate.clone();
-    Timer::single_shot(Duration::from_millis(16), move || {
+    Timer::single_shot(Duration::from_millis(150), move || {
         let Some(app) = weak.upgrade() else { return };
         if g.borrow().generation != run_id {
             return;
@@ -253,11 +253,11 @@ mod tests {
     #[test]
     fn lengths_match_spec() {
         let tiles = IntroGate::new(Skin::Tiles);
-        assert_eq!(tiles.logo_len(), Duration::from_millis(2200));
+        assert_eq!(tiles.logo_len(), Duration::from_millis(2400));
         assert_eq!(tiles.reveal_len(), Duration::from_millis(1300));
 
         let blades = IntroGate::new(Skin::Blades);
-        assert_eq!(blades.logo_len(), Duration::from_millis(1100));
+        assert_eq!(blades.logo_len(), Duration::from_millis(1600));
         assert_eq!(blades.reveal_len(), Duration::from_millis(2000));
     }
 }

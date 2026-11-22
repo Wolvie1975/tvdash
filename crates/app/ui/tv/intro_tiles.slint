@@ -59,36 +59,41 @@ export component TilesIntro inherits Rectangle {
         clicked => { Intro.skip(); }
     }
 
-    HorizontalLayout {
-        x: (parent.width - self.preferred-width) / 2;
-        y: (parent.height - self.preferred-height) / 2;
-        spacing: 56px * TvUi.u;
+    VerticalLayout {
+        width: 100%;
+        height: 100%;
+        alignment: center;
 
-        VerticalLayout {
+        HorizontalLayout {
             alignment: center;
-            GridLayout {
-                spacing: 20px * TvUi.u;
-                Row {
-                    MarkSquare { fill: #5B9DFF; from-x: -850px * TvUi.u; from-y: -480px * TvUi.u; delay: 100ms; }
-                    MarkSquare { fill: #4CC38A; from-x:  850px * TvUi.u; from-y: -480px * TvUi.u; delay: 200ms; }
-                }
-                Row {
-                    MarkSquare { fill: #E5A84B; from-x: -850px * TvUi.u; from-y:  480px * TvUi.u; delay: 300ms; }
-                    MarkSquare { fill: #F0605D; from-x:  850px * TvUi.u; from-y:  480px * TvUi.u; delay: 400ms; }
+            spacing: 56px * TvUi.u;
+
+            VerticalLayout {
+                alignment: center;
+                GridLayout {
+                    spacing: 20px * TvUi.u;
+                    Row {
+                        MarkSquare { fill: #5B9DFF; from-x: -850px * TvUi.u; from-y: -480px * TvUi.u; delay: 100ms; }
+                        MarkSquare { fill: #4CC38A; from-x:  850px * TvUi.u; from-y: -480px * TvUi.u; delay: 200ms; }
+                    }
+                    Row {
+                        MarkSquare { fill: #E5A84B; from-x: -850px * TvUi.u; from-y:  480px * TvUi.u; delay: 300ms; }
+                        MarkSquare { fill: #F0605D; from-x:  850px * TvUi.u; from-y:  480px * TvUi.u; delay: 400ms; }
+                    }
                 }
             }
-        }
 
-        VerticalLayout {
-            alignment: center;
-            Wordmark {
-                ink: Theme.text-primary;
-                accent: #5B9DFF;
-                opacity: word-on ? 1.0 : 0.0;
-                animate opacity {
-                    duration: Intro.instant ? 0ms : 600ms;
-                    delay: Intro.instant ? 0ms : 1100ms;
-                    easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+            VerticalLayout {
+                alignment: center;
+                Wordmark {
+                    ink: Theme.text-primary;
+                    accent: #5B9DFF;
+                    opacity: word-on ? 1.0 : 0.0;
+                    animate opacity {
+                        duration: Intro.instant ? 0ms : 600ms;
+                        delay: Intro.instant ? 0ms : 1100ms;
+                        easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+                    }
                 }
             }
         }

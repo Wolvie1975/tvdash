@@ -364,7 +364,6 @@ fn main() -> anyhow::Result<()> {
     laptop.global::<SleepState>().set_warn_before(config.sleep.warn_before.clone().into());
 
     tv_nav::init(&laptop, layout);
-    intro::start(&laptop, config.display.dashboard_ui.into(), &config.startup);
 
     // `tvdash --home` / `tvdash --sleep` (and refusing a second copy).
     {
@@ -486,6 +485,8 @@ fn main() -> anyhow::Result<()> {
     if startup_state.is_none() {
         displays::on_displays_changed(&laptop);
     }
+
+    intro::start(&laptop, config.display.dashboard_ui.into(), &config.startup);
 
     slint::run_event_loop_until_quit()?;
     instance::cleanup(&socket);

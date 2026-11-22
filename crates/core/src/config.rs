@@ -608,19 +608,26 @@ impl Default for PlayerConfig {
 
 fn default_streaming_sites() -> Vec<StreamingSite> {
     [
-        ("YouTube TV", "https://tv.youtube.com"),
-        ("YouTube", "https://www.youtube.com"),
-        ("Disney+", "https://www.disneyplus.com"),
-        ("Hulu", "https://www.hulu.com"),
-        ("Apple TV", "https://tv.apple.com"),
-        ("Netflix", "https://www.netflix.com"),
-        ("Fandango at Home", "https://athome.fandango.com"),
-        ("Prime Video", "https://www.primevideo.com"),
-        ("YouTube Music", "https://music.youtube.com"),
-        ("Tubi", "https://tubitv.com"),
+        ("YouTube TV", "https://tv.youtube.com", false),
+        ("YouTube", "https://www.youtube.com", false),
+        ("Disney+", "https://www.disneyplus.com", false),
+        ("Hulu", "https://www.hulu.com", false),
+        ("Apple TV", "https://tv.apple.com", false),
+        ("Netflix", "https://www.netflix.com", false),
+        ("Fandango at Home", "https://athome.fandango.com", false),
+        ("Prime Video", "https://www.primevideo.com", false),
+        ("YouTube Music", "https://music.youtube.com", false),
+        ("Tubi", "https://tubitv.com", false),
+        ("Crunchyroll", "https://www.crunchyroll.com", false),
+        ("Google Meet", "https://meet.google.com", true),
     ]
     .into_iter()
-    .map(|(name, url)| StreamingSite { name: name.into(), url: url.into(), ..Default::default() })
+    .map(|(name, url, hold)| StreamingSite {
+        name: name.into(),
+        url: url.into(),
+        hold_sleep_timer: hold,
+        ..Default::default()
+    })
     .collect()
 }
 

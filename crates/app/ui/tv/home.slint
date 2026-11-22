@@ -124,7 +124,7 @@ export component TvHome inherits Rectangle {
     }
     } // end Group 1
 
-    // ── Group 2: Utility column (Search, Library, Screensaver, Sleep) (530 ms)
+    // ── Group 2: Utility column (Search, Library, Screensaver) (530 ms)
     IntroRise {
         width: parent.width;
         height: parent.height;
@@ -133,7 +133,7 @@ export component TvHome inherits Rectangle {
         x: 1066px * TvUi.u;
         y: 136px * TvUi.u;
         base-width: 240px * TvUi.u;
-        base-height: 135px * TvUi.u;
+        base-height: 186px * TvUi.u;
         fill: Dash.tint.poster;
         icon: "search";
         label: "Search";
@@ -144,9 +144,9 @@ export component TvHome inherits Rectangle {
 
     IconTile {
         x: 1066px * TvUi.u;
-        y: 287px * TvUi.u;
+        y: 338px * TvUi.u;
         base-width: 240px * TvUi.u;
-        base-height: 135px * TvUi.u;
+        base-height: 186px * TvUi.u;
         fill: Dash.tint.poster;
         icon: "library";
         label: "Library";
@@ -157,32 +157,19 @@ export component TvHome inherits Rectangle {
 
     IconTile {
         x: 1066px * TvUi.u;
-        y: 438px * TvUi.u;
+        y: 540px * TvUi.u;
         base-width: 240px * TvUi.u;
-        base-height: 135px * TvUi.u;
+        base-height: 186px * TvUi.u;
         fill: Dash.tint.poster;
-        icon: "moon";
+        icon: "screensaver";
         label: "Screensaver";
         focused: !TvUi.bar-focused && TvUi.focused-tile == 4;
         activated => { TvUi.tile-activated(4); }
         hovered => { TvUi.tile-hovered(4); }
     }
-
-    IconTile {
-        x: 1066px * TvUi.u;
-        y: 589px * TvUi.u;
-        base-width: 240px * TvUi.u;
-        base-height: 135px * TvUi.u;
-        fill: Dash.tint.poster;
-        icon: "moon";
-        label: SleepState.active ? "Sleep · " + SleepState.label : "Sleep";
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 9;
-        activated => { TvUi.tile-activated(9); }
-        hovered => { TvUi.tile-hovered(9); }
-    }
     } // end Group 2
 
-    // ── Group 3: Bottom row (Weather, Last Played, Google Meet, Theme) (610 ms)
+    // ── Group 3: Bottom row (Weather, Last Played, Sleep, Theme) (610 ms)
     IntroRise {
         width: parent.width;
         height: parent.height;
@@ -373,25 +360,25 @@ export component TvHome inherits Rectangle {
         }
     }
 
-    // 7: Google Meet tile (356 x 230)
+    // 7: Sleep tile (240 x 230, below Screensaver)
     IconTile {
-        x: 694px * TvUi.u;
+        x: 1066px * TvUi.u;
         y: 742px * TvUi.u;
-        base-width: 356px * TvUi.u;
+        base-width: 240px * TvUi.u;
         base-height: 230px * TvUi.u;
         fill: Dash.tint.card;
-        icon: "video";
-        label: "Google Meet";
+        icon: "moon";
+        label: SleepState.active ? "Sleep · " + SleepState.label : "Sleep";
         focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
         activated => { TvUi.tile-activated(7); }
         hovered => { TvUi.tile-hovered(7); }
     }
 
-    // 8: Theme tile (240 x 230, below Screensaver)
+    // 8: Theme tile (356 x 230)
     ValueTile {
-        x: 1066px * TvUi.u;
+        x: 694px * TvUi.u;
         y: 742px * TvUi.u;
-        base-width: 240px * TvUi.u;
+        base-width: 356px * TvUi.u;
         base-height: 230px * TvUi.u;
         fill: Dash.tint.poster;
         label: "Theme";
@@ -419,11 +406,11 @@ export component TvHome inherits Rectangle {
     }
 
     for svc[i] in TvUi.services: ServiceTile {
-        visible: i < 10;
+        visible: i < 12;
         x: (1338px + Math.mod(i, 2) * 251px) * TvUi.u;
-        y: (176px + Math.floor(i / 2) * 162px) * TvUi.u;
+        y: (176px + Math.floor(i / 2) * 135px) * TvUi.u;
         base-width: 235px * TvUi.u;
-        base-height: 146px * TvUi.u;
+        base-height: 119px * TvUi.u;
         brand: svc.brand;
         is-recent: svc.is-recent;
         focused: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;

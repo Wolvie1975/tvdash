@@ -80,13 +80,13 @@ pub fn card_tint(hue: Hue, mode: ThemeMode) -> Tint {
         }
     } else if mode == ThemeMode::KuLight {
         Tint {
-            card: rgb(0xE8EFF9),
-            poster: rgb(0xD8E4F5),
+            card: rgb(0xE2E5E7),
+            poster: rgb(0xD3D7DA),
             accent: rgb(0xC8000B),
-            sec: rgb(0x1E3D6E),
-            track: rgb(0xC2D4EC),
-            btn: rgb(0xFFFFFF),
-            edge: rgb(0xAEC4E2),
+            sec: rgb(0x0051BA),
+            track: rgb(0xC2C7CA),
+            btn: rgb(0xF2F4F5),
+            edge: rgb(0xB7BCBF),
             on_accent: rgb(0xFFFFFF),
         }
     } else {

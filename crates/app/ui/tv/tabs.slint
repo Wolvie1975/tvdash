@@ -1,4 +1,4 @@
-import { Theme } from "../theme.slint";
+import { Theme, UiTheme } from "../theme.slint";
 import { TvUi } from "../state.slint";
 
 export component TabBar inherits HorizontalLayout {
@@ -21,7 +21,7 @@ export component TabBar inherits HorizontalLayout {
             text: t;
             font-size: 54px * TvUi.u;
             font-weight: i == root.active ? 400 : 300;
-            color: i == root.active ? Theme.text-primary : #5E646D;
+            color: i == root.active ? Theme.text-primary : (Theme.mode == UiTheme.ku-light ? #0B192E99 : #5E646D);
         }
 
         // Underline only while the bar itself has focus.
@@ -31,7 +31,7 @@ export component TabBar inherits HorizontalLayout {
             width: parent.width;
             height: 4px * TvUi.u;
             visible: root.bar-focused && i == root.active;
-            background: Theme.text-primary;
+            background: (Theme.mode == UiTheme.ku || Theme.mode == UiTheme.ku-light) ? Theme.accent : Theme.text-primary;
         }
 
         TouchArea {
