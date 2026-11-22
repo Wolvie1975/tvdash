@@ -47,8 +47,7 @@ pub use library::{
 use crate::{
     AccountPrompt, AccountRow, Accounts, Artwork, ArtworkRow, Dash, Diagnostics, Display, LaptopWindow, Library, Nav,
     PosterCardData, Scoreboard, ScoreboardChoiceData, ScoreboardRowData, Server, ServerActivityRow, ServerLibraryRow,
-    ServerStreamRow, SessionRow, Setup, SiteRow, SleepState, Sports, SportsAlertState, SportsChoiceData,
-    SportsRowData, Theme, TvWindow, UiTheme, tint::Hue,
+    ServerStreamRow, SessionRow, Setup, SiteRow, SleepState, Sports, SportsChoiceData, SportsRowData, Theme, TvWindow, UiTheme, tint::Hue,
 };
 
 /// Display order for sources everywhere (rows, prompts, sessions).
@@ -388,6 +387,7 @@ fn ui_theme(mode: ThemeMode) -> UiTheme {
         ThemeMode::Dark | ThemeMode::FollowSystem => UiTheme::Dark,
         ThemeMode::Aubergine => UiTheme::Aubergine,
         ThemeMode::Ku => UiTheme::Ku,
+        ThemeMode::KuLight => UiTheme::KuLight,
         ThemeMode::Stone => UiTheme::Stone,
         ThemeMode::Mist => UiTheme::Mist,
     }
@@ -397,6 +397,7 @@ pub fn theme_mode(theme: UiTheme) -> ThemeMode {
     match theme {
         UiTheme::Aubergine => ThemeMode::Aubergine,
         UiTheme::Ku => ThemeMode::Ku,
+        UiTheme::KuLight => ThemeMode::KuLight,
         UiTheme::Stone => ThemeMode::Stone,
         UiTheme::Mist => ThemeMode::Mist,
         _ => ThemeMode::Dark,
@@ -478,6 +479,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             home::update_cw_state(s, laptop);
             home::refresh_tv_card(s, laptop);
             home::refresh_last_played(s, laptop);
+            crate::intro::mark_data_ready(laptop);
         }
         AppEvent::RecentlyAdded(kind, items) => {
             s.recently_added.insert(kind, items);
@@ -513,7 +515,10 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             library::on_sessions(s, laptop, &sessions);
             home::on_sessions(s, sessions);
         }
-        AppEvent::Weather(weather) => status::on_weather(s, laptop, weather),
+        AppEvent::Weather(weather) => {
+            status::on_weather(s, laptop, weather);
+            crate::intro::mark_data_ready(laptop);
+        }
         AppEvent::Places { query, result } => status::on_places(s, laptop, &query, result),
         AppEvent::Location { name, timezone } => status::on_location(s, laptop, name, &timezone),
         AppEvent::Tmdb(status) => accounts::on_tmdb(s, laptop, status),
@@ -837,9 +842,11 @@ fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
         .unwrap_or("All sports");
 
     let mut rows = Vec::new();
+    let mut next_focus_id = 2i32;
     for group in &page.groups {
         rows.push(ScoreboardRowData {
             kind: "group".into(),
+            focus_id: -1,
             group_title: group.title.as_str().into(),
             group_subtitle: group.subtitle.as_str().into(),
             is_live: group.is_live,
@@ -865,8 +872,11 @@ fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
             let is_following = s.sports_alerts.status.followed.iter().any(|f| {
                 f.league == g.league && (f.id == g.away_team_id || f.id == g.home_team_id)
             });
+            let focus_id = next_focus_id;
+            next_focus_id += 1;
             rows.push(ScoreboardRowData {
                 kind: "game".into(),
+                focus_id,
                 event_id: g.event_id.as_str().into(),
                 is_starred,
                 is_following,

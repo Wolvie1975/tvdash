@@ -1,6 +1,7 @@
 import { ListView } from "std-widgets.slint";
 import { Theme, UiTheme } from "../theme.slint";
 import { Accounts, Dash, Diagnostics, Display, Server, SiteEditor, SleepState, SportsAlertsSettings, TvUi } from "../state.slint";
+import { Intro } from "../shared/intro.slint";
 import { SubTabs } from "tabs.slint";
 import { Tile, ValueTile } from "tile.slint";
 
@@ -114,7 +115,7 @@ export component TvSettings inherits Rectangle {
             base-height: 220px * TvUi.u;
             fill: Theme.surface;
             label: "Theme";
-            value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
+            value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.ku-light ? "Kansas Light" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
             focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
             activated => { TvUi.tile-activated(8); }
             hovered => { TvUi.tile-hovered(8); }
@@ -202,6 +203,34 @@ export component TvSettings inherits Rectangle {
             focused: !TvUi.bar-focused && TvUi.focused-tile == 14;
             activated => { TvUi.tile-activated(14); }
             hovered => { TvUi.tile-hovered(14); }
+        }
+
+        // 19: Startup animation
+        ValueTile {
+            x: 960px * TvUi.u;
+            y: 656px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 220px * TvUi.u;
+            fill: Theme.surface;
+            label: "Startup animation";
+            value: Intro.enabled ? "On" : "Off";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 19;
+            activated => { TvUi.tile-activated(19); }
+            hovered => { TvUi.tile-hovered(19); }
+        }
+
+        // 20: Preview startup animation
+        ValueTile {
+            x: 1392px * TvUi.u;
+            y: 656px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 220px * TvUi.u;
+            fill: Theme.surface;
+            label: "Startup animation";
+            value: "Preview";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 20;
+            activated => { TvUi.tile-activated(20); }
+            hovered => { TvUi.tile-hovered(20); }
         }
 
         // Weather location lookup card

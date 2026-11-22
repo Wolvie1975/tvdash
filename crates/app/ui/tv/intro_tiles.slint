@@ -1,0 +1,127 @@
+// Tile hub (Classic) startup intro: four squares assemble + wordmark + hold line.
+
+import { Theme } from "../theme.slint";
+import { TvUi } from "../state.slint";
+import { Intro, IntroStage, Wordmark } from "../shared/intro.slint";
+
+component MarkSquare inherits Rectangle {
+    in property <color> fill;
+    in property <length> from-x;
+    in property <length> from-y;
+    in property <duration> delay;
+    property <bool> on: Intro.stage != IntroStage.idle;
+
+    width: 80px * TvUi.u;
+    height: 80px * TvUi.u;
+
+    property <length> dx: on ? 0px : root.from-x;
+    property <length> dy: on ? 0px : root.from-y;
+    property <float> s: on ? 1.0 : 0.4;
+
+    animate dx, dy, s {
+        duration: Intro.instant ? 0ms : 800ms;
+        delay: Intro.instant ? 0ms : root.delay;
+        easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    Rectangle {
+        width: 80px * TvUi.u * root.s;
+        height: 80px * TvUi.u * root.s;
+        x: (80px * TvUi.u - self.width) / 2 + root.dx;
+        y: (80px * TvUi.u - self.height) / 2 + root.dy;
+        border-radius: 20px * TvUi.u * root.s;
+        background: root.fill;
+        opacity: root.on ? 1.0 : 0.0;
+
+        animate opacity {
+            duration: Intro.instant ? 0ms : 800ms;
+            delay: Intro.instant ? 0ms : root.delay;
+            easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+    }
+}
+
+export component TilesIntro inherits Rectangle {
+    background: Theme.bg;
+
+    property <bool> leaving: Intro.revealing;
+    property <bool> word-on: Intro.stage != IntroStage.idle;
+    opacity: leaving ? 0.0 : 1.0;
+
+    animate opacity {
+        duration: Intro.instant ? 0ms : 400ms;
+        easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { Intro.skip(); }
+    }
+
+    HorizontalLayout {
+        x: (parent.width - self.preferred-width) / 2;
+        y: (parent.height - self.preferred-height) / 2;
+        spacing: 56px * TvUi.u;
+
+        VerticalLayout {
+            alignment: center;
+            GridLayout {
+                spacing: 20px * TvUi.u;
+                Row {
+                    MarkSquare { fill: #5B9DFF; from-x: -850px * TvUi.u; from-y: -480px * TvUi.u; delay: 100ms; }
+                    MarkSquare { fill: #4CC38A; from-x:  850px * TvUi.u; from-y: -480px * TvUi.u; delay: 200ms; }
+                }
+                Row {
+                    MarkSquare { fill: #E5A84B; from-x: -850px * TvUi.u; from-y:  480px * TvUi.u; delay: 300ms; }
+                    MarkSquare { fill: #F0605D; from-x:  850px * TvUi.u; from-y:  480px * TvUi.u; delay: 400ms; }
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            Wordmark {
+                ink: Theme.text-primary;
+                accent: #5B9DFF;
+                opacity: word-on ? 1.0 : 0.0;
+                animate opacity {
+                    duration: Intro.instant ? 0ms : 600ms;
+                    delay: Intro.instant ? 0ms : 1100ms;
+                    easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+                }
+            }
+        }
+    }
+
+    // Hold: thin progress line after 1.5 s of waiting
+    Rectangle {
+        y: parent.height / 2 + 120px * TvUi.u;
+        x: (parent.width - 240px * TvUi.u) / 2;
+        width: 240px * TvUi.u;
+        height: 4px * TvUi.u;
+        border-radius: 2px * TvUi.u;
+        background: Theme.border;
+        clip: true;
+        opacity: Intro.stage == IntroStage.hold ? 1.0 : 0.0;
+        animate opacity {
+            duration: Intro.instant ? 0ms : 300ms;
+            delay: Intro.instant ? 0ms : 1500ms;
+        }
+
+        property <bool> sweep: false;
+        Timer {
+            interval: 1200ms;
+            running: Intro.stage == IntroStage.hold;
+            triggered => { parent.sweep = !parent.sweep; }
+        }
+        Rectangle {
+            x: parent.sweep ? (parent.width - self.width) : 0px;
+            width: 60px * TvUi.u;
+            height: parent.height;
+            border-radius: 2px * TvUi.u;
+            background: #5B9DFF;
+            animate x { duration: 1200ms; easing: ease-in-out; }
+        }
+    }
+}

@@ -96,6 +96,7 @@ fn laptop(mode: &str, theme_mode: ThemeMode) -> LaptopWindow {
         ThemeMode::Dark | ThemeMode::FollowSystem => UiTheme::Dark,
         ThemeMode::Aubergine => UiTheme::Aubergine,
         ThemeMode::Ku => UiTheme::Ku,
+        ThemeMode::KuLight => UiTheme::KuLight,
         ThemeMode::Stone => UiTheme::Stone,
         ThemeMode::Mist => UiTheme::Mist,
     });
@@ -472,6 +473,7 @@ fn main() {
         let theme = match std::env::var("THEME").as_deref() {
             Ok("aubergine") => ThemeMode::Aubergine,
             Ok("ku") => ThemeMode::Ku,
+            Ok("ku-light") => ThemeMode::KuLight,
             Ok("stone") => ThemeMode::Stone,
             Ok("mist") => ThemeMode::Mist,
             _ => ThemeMode::Dark,

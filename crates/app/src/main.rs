@@ -10,6 +10,7 @@ mod focus;
 mod format;
 mod home_cmd;
 mod instance;
+mod intro;
 mod portal;
 mod recent;
 mod shell_tv;
@@ -363,6 +364,7 @@ fn main() -> anyhow::Result<()> {
     laptop.global::<SleepState>().set_warn_before(config.sleep.warn_before.clone().into());
 
     tv_nav::init(&laptop, layout);
+    intro::start(&laptop, config.display.dashboard_ui.into(), &config.startup);
 
     // `tvdash --home` / `tvdash --sleep` (and refusing a second copy).
     {

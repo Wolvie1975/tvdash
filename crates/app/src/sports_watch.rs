@@ -174,6 +174,7 @@ async fn run(
                     }
                     WatcherMsg::ToggleStar(event_id) => {
                         w.toggle_star(&event_id);
+                        w.emit_status();
                         w.fetch_and_eval().await;
                         w.emit_status();
                     }

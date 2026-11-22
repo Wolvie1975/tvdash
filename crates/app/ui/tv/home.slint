@@ -2,13 +2,19 @@ import { Theme, UiTheme } from "../theme.slint";
 import { Icon } from "../icons.slint";
 import { Dash, SleepState, TvUi } from "../state.slint";
 import { IconTile, MediaTile, ServiceTile, Tile, ValueTile } from "tile.slint";
+import { IntroRise } from "../shared/intro.slint";
 
 export component TvHome inherits Rectangle {
     width: 1920px * TvUi.u;
     height: 1080px * TvUi.u;
     background: transparent;
 
-    // ── Left/center hub (x: 96..1306, y: 136..972) ─────────────────────────
+    // ── Group 1: Hero + Clock/Plex info tile (450 ms) ────────────────────────
+    IntroRise {
+        width: parent.width;
+        height: parent.height;
+        delay: 450ms;
+
     // 0: Tall Plex Up Next / Now Playing info tile (210 x 590)
     Tile {
         x: 96px * TvUi.u;
@@ -116,8 +122,13 @@ export component TvHome inherits Rectangle {
             }
         }
     }
+    } // end Group 1
 
-    // 2..4, 9: Utility column (Search, Library, Screensaver, Sleep)
+    // ── Group 2: Utility column (Search, Library, Screensaver, Sleep) (530 ms)
+    IntroRise {
+        width: parent.width;
+        height: parent.height;
+        delay: 530ms;
     IconTile {
         x: 1066px * TvUi.u;
         y: 136px * TvUi.u;
@@ -169,6 +180,13 @@ export component TvHome inherits Rectangle {
         activated => { TvUi.tile-activated(9); }
         hovered => { TvUi.tile-hovered(9); }
     }
+    } // end Group 2
+
+    // ── Group 3: Bottom row (Weather, Last Played, Google Meet, Theme) (610 ms)
+    IntroRise {
+        width: parent.width;
+        height: parent.height;
+        delay: 610ms;
 
     // 5: Weather tile underneath the left Clock column (210 x 230)
     Tile {
@@ -377,13 +395,19 @@ export component TvHome inherits Rectangle {
         base-height: 230px * TvUi.u;
         fill: Dash.tint.poster;
         label: "Theme";
-        value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
+        value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.ku-light ? "Kansas Light" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
         focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
         activated => { TvUi.tile-activated(8); }
         hovered => { TvUi.tile-hovered(8); }
     }
+    } // end Group 3
 
-    // ── Streaming Services 2x5 grid (all 10 visible, no scrolling) ───────────
+    // ── Group 4: Streaming Services 2x5 grid (690 ms) ────────────────────────
+    IntroRise {
+        width: parent.width;
+        height: parent.height;
+        delay: 690ms;
+
     Text {
         x: 1338px * TvUi.u;
         y: 136px * TvUi.u;
@@ -406,4 +430,5 @@ export component TvHome inherits Rectangle {
         activated => { TvUi.tile-activated(10 + i); }
         hovered => { TvUi.tile-hovered(10 + i); }
     }
+    } // end Group 4
 }

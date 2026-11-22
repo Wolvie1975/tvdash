@@ -41,6 +41,7 @@ pub struct Config {
     pub tv: TvConfig,
     pub sleep: SleepConfig,
     pub sports: SportsConfig,
+    pub startup: StartupConfig,
     /// Kept last: TOML arrays of tables must follow plain tables.
     pub streaming: Vec<StreamingSite>,
 }
@@ -151,6 +152,8 @@ pub enum ThemeMode {
     Aubergine,
     /// University of Kansas (Crimson & Blue) dark theme.
     Ku,
+    /// University of Kansas (Blue & Crimson) light theme.
+    KuLight,
     /// Warm grey light theme.
     Stone,
     /// Cool blue-grey light theme.
@@ -159,7 +162,7 @@ pub enum ThemeMode {
 
 impl ThemeMode {
     pub fn is_light(self) -> bool {
-        matches!(self, Self::Stone | Self::Mist)
+        matches!(self, Self::KuLight | Self::Stone | Self::Mist)
     }
 
     /// Resolve `FollowSystem` into a concrete theme given the desktop preference.
@@ -357,6 +360,30 @@ impl SleepConfig {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct StartupConfig {
+    /// `"on"` | `"off"`
+    pub intro: String,
+    /// Longest the logo waits for first Home data (seconds).
+    pub max_hold_secs: u64,
+}
+
+impl StartupConfig {
+    pub fn intro_on(&self) -> bool {
+        !self.intro.trim().eq_ignore_ascii_case("off")
+    }
+}
+
+impl Default for StartupConfig {
+    fn default() -> Self {
+        Self {
+            intro: "on".into(),
+            max_hold_secs: 6,
+        }
+    }
+}
+
 /// SQL Server connection for the Sports / Competitions tab. Password lives in the keyring.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -514,6 +541,7 @@ impl Default for Config {
             tv: TvConfig::default(),
             sleep: SleepConfig::default(),
             sports: SportsConfig::default(),
+            startup: StartupConfig::default(),
             streaming: default_streaming_sites(),
         }
     }

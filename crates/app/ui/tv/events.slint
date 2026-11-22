@@ -804,11 +804,14 @@ export component TvSports inherits Rectangle {
                 spacing: 8px * TvUi.u;
 
                 for row in Scoreboard.rows: Rectangle {
+                    property <bool> is-foc: row.kind == "game" && !TvUi.bar-focused && row.focus-id >= 0 && TvUi.focused-tile == row.focus-id;
                     width: 1728px * TvUi.u;
                     height: row.kind == "group" ? 54px * TvUi.u
                         : (row.warning-text != "" ? 142px * TvUi.u : 122px * TvUi.u);
                     background: row.kind == "game" ? Theme.surface : transparent;
                     border-radius: row.kind == "game" ? 8px : 0px;
+                    border-width: self.is-foc ? 3px : 0px;
+                    border-color: Theme.accent;
 
                     if row.kind == "group": HorizontalLayout {
                         x: 0;

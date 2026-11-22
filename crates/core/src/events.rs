@@ -485,4 +485,6 @@ pub enum Command {
     UnstarGame(String),
     /// Refresh followed teams from `dbo.ResultFollows` (e.g. when Settings › Sports opens).
     RefreshSportsFollows,
+    /// Enable or disable the startup intro animation (`[startup] intro = "on" | "off"`).
+    SetStartupIntro(bool),
 }

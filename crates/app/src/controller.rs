@@ -973,6 +973,9 @@ impl Controller {
                     let _ = tx.send(crate::sports_watch::WatcherMsg::RefreshFollows);
                 }
             }
+            Command::SetStartupIntro(on) => {
+                self.update_config(|c| c.startup.intro = if on { "on".into() } else { "off".into() });
+            }
         }
     }
 

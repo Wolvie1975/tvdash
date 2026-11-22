@@ -14,6 +14,8 @@ import { TvSettings } from "settings.slint";
 import { TvSports } from "events.slint";
 import { TvPlayerHud } from "player_hud.slint";
 import { TvAmbient } from "ambient.slint";
+import { Intro, IntroStage } from "../shared/intro.slint";
+import { TilesIntro } from "intro_tiles.slint";
 
 component MiniTransportBtn inherits Rectangle {
     in property <string> icon;
@@ -105,6 +107,12 @@ export component TvShell inherits Rectangle {
         width: 1920px * TvUi.u;
         height: 1080px * TvUi.u;
         background: Theme.bg;
+        opacity: Intro.revealing ? 1.0 : 0.0;
+        animate opacity {
+            duration: Intro.instant ? 0ms : 400ms;
+            delay: Intro.instant ? 0ms : 300ms;
+            easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
 
         // Pages (rendered before top chrome so backdrops never cover TabBar / Back pill)
         if TvUi.screen == "home": TvHome { }
@@ -407,4 +415,9 @@ export component TvShell inherits Rectangle {
 
     // ── Ambient idle overlay ─────────────────────────────────────────────────
     if TvUi.ambient: TvAmbient { }
+
+    if Intro.stage != IntroStage.done: TilesIntro {
+        width: 100%;
+        height: 100%;
+    }
 }

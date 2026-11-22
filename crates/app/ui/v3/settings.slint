@@ -3,6 +3,7 @@
 import { ListView } from "std-widgets.slint";
 import { Theme, UiTheme } from "../theme.slint";
 import { Accounts, Dash, Diagnostics, Display, Nav, Server, SiteEditor, SleepState, SportsAlertsSettings, TvUi } from "../state.slint";
+import { Intro } from "../shared/intro.slint";
 import { SleepChip } from "../shared/sleep.slint";
 import { V3Pill, V3Theme } from "theme.slint";
 
@@ -179,16 +180,17 @@ export component V3Settings inherits Rectangle {
             }
 
             HorizontalLayout {
-                x: parent.width - 392px * TvUi.u;
+                x: parent.width - 472px * TvUi.u;
                 y: 22px * TvUi.u;
-                width: 370px * TvUi.u;
+                width: 450px * TvUi.u;
                 height: 38px * TvUi.u;
                 spacing: 4px * TvUi.u;
 
                 for t in [
                     { label: "Espresso", mode: UiTheme.dark, val: "dark" },
                     { label: "Aubergine", mode: UiTheme.aubergine, val: "aubergine" },
-                    { label: "Kansas", mode: UiTheme.ku, val: "ku" },
+                    { label: "KU Dark", mode: UiTheme.ku, val: "ku" },
+                    { label: "KU Light", mode: UiTheme.ku-light, val: "ku-light" },
                     { label: "Stone", mode: UiTheme.stone, val: "stone" },
                     { label: "Mist", mode: UiTheme.mist, val: "mist" },
                 ]: Rectangle {
@@ -660,6 +662,67 @@ export component V3Settings inherits Rectangle {
             TouchArea {
                 mouse-cursor: pointer;
                 clicked => { TvUi.tile-activated(12); }
+            }
+        }
+
+        // 19: Startup animation (On | Off)
+        Rectangle {
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 19;
+            x: 852px * TvUi.u;
+            y: 516px * TvUi.u;
+            width: parent.width - 852px * TvUi.u;
+            height: 56px * TvUi.u;
+            border-radius: 14px * TvUi.u;
+            background: V3Theme.surface;
+            border-width: self.is-foc ? 3px : 1px;
+            border-color: self.is-foc ? V3Theme.focus-ring : V3Theme.border;
+            Text {
+                x: 18px * TvUi.u;
+                text: "Startup animation";
+                font-family: V3Theme.font;
+                font-size: 16px * TvUi.u;
+                font-weight: 700;
+                color: V3Theme.text-primary;
+                vertical-alignment: center;
+            }
+            Text {
+                x: parent.width - 18px * TvUi.u - self.preferred-width;
+                text: Intro.enabled ? "On" : "Off";
+                font-family: V3Theme.font;
+                font-size: 16px * TvUi.u;
+                font-weight: 700;
+                color: Intro.enabled ? V3Theme.accent : V3Theme.text-secondary;
+                vertical-alignment: center;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { TvUi.tile-activated(19); }
+            }
+        }
+
+        // 20: Preview startup animation
+        Rectangle {
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 20;
+            x: 852px * TvUi.u;
+            y: 584px * TvUi.u;
+            width: parent.width - 852px * TvUi.u;
+            height: 56px * TvUi.u;
+            border-radius: 14px * TvUi.u;
+            background: V3Theme.surface;
+            border-width: self.is-foc ? 3px : 1px;
+            border-color: self.is-foc ? V3Theme.focus-ring : V3Theme.border;
+            Text {
+                text: "Preview startup animation";
+                font-family: V3Theme.font;
+                font-size: 16px * TvUi.u;
+                font-weight: 700;
+                color: V3Theme.text-primary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { TvUi.tile-activated(20); }
             }
         }
     }

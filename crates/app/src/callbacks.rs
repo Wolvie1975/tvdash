@@ -30,6 +30,7 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
     wire_site_editor(laptop, send.clone());
     wire_sleep(laptop, send.clone());
     wire_sports_alert(laptop, send.clone());
+    wire_intro(laptop, send.clone());
 
     let sports = laptop.global::<Sports>();
     let (weak, s) = (laptop.as_weak(), send.clone());
@@ -1086,6 +1087,34 @@ fn wire_sports_alert(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'st
     cfg_ui.on_unstar_game(move |eid| s(Command::UnstarGame(eid.to_string())));
     let s = send;
     cfg_ui.on_refresh_follows(move || s(Command::RefreshSportsFollows));
+}
+
+fn wire_intro(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
+    let intro = laptop.global::<crate::Intro>();
+    let (weak, s) = (laptop.as_weak(), send);
+    intro.on_set_enabled(move |on| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<crate::Intro>().set_enabled(on);
+        }
+        s(Command::SetStartupIntro(on));
+    });
+    let weak = laptop.as_weak();
+    intro.on_preview(move || {
+        if let Some(l) = weak.upgrade() {
+            let skin = if l.global::<Display>().get_dashboard_ui() == "blades" {
+                crate::intro::Skin::Blades
+            } else {
+                crate::intro::Skin::Tiles
+            };
+            crate::intro::preview(&l, skin);
+        }
+    });
+    let weak = laptop.as_weak();
+    intro.on_skip(move || {
+        if let Some(l) = weak.upgrade() {
+            crate::intro::skip(&l);
+        }
+    });
 }
 
 #[cfg(test)]

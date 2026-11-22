@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.54 — 2026-11-21
+- Added **Startup Animation** (`[startup] intro = "on" | "off"`, `max_hold_secs = 6`): **Tiles assemble** for Classic/Tile hub and **Blade swoosh** for Blades, with hold progress line, key/click skip, and **Settings › Display** toggle + preview.
+- Added **Kansas Light** (`ku-light`) alongside **Kansas Dark** (`ku`), with **KU Blue** navigation blades in Blades, soft KU Blue-tinted cards in Classic, and **KU Crimson** highlights.
+- Added remote focus & OK toggling for matchup cards on **Scoreboard** in both Blades and Classic, improved starring responsiveness (`ToggleStar` updates UI immediately), and fixed `☆ Star` pill layout in Blades (`v3/events.slint`).
+
 ## v0.1.53 — 2026-11-21
 - Added **Sports Alerts** (Starting soon & Final action cards) across tvdash (Home, video HUD, ambient screensaver) and Brave (`extras/back-pill` via `GET/POST /alerts`).
 - Added read-only followed teams sync from `dbo.ResultFollows` (with offline cache), local **Starred games** (`sports-starred.json`) with ★ toggles on Scoreboard, **Settings › Sports** sub-tab (in Blades & Classic), Google Meet / `during_video` hold, Diagnostics stale-data warning, and `tvdash --alert-test soon|final` / `tvdash --alerts status`.

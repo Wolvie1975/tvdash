@@ -15,6 +15,8 @@ import { V3Sports } from "events.slint";
 import { V3Settings } from "settings.slint";
 import { V3PlayerHud } from "player_hud.slint";
 import { V3Ambient } from "ambient.slint";
+import { Intro, IntroStage } from "../shared/intro.slint";
+import { BladesIntro } from "intro_blades.slint";
 
 export component V3Shell inherits Rectangle {
     width: 100%;
@@ -34,6 +36,20 @@ export component V3Shell inherits Rectangle {
     property <int> left-count: root.is-subpage ? (root.eff-active + 1) : root.eff-active;
     property <length> panel-x: (24px + root.left-count * 68px) * TvUi.u;
     property <length> panel-w: (root.is-subpage ? 1532px : 1600px) * TvUi.u;
+    property <float> widen: Intro.revealing ? 1.0 : 0.0;
+    animate widen {
+        duration: Intro.instant ? 0ms : 550ms;
+        delay: Intro.instant ? 0ms : 900ms;
+        easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    property <length> panel-intro-dx: Intro.revealing ? 0px : 1920px * TvUi.u;
+    property <float> panel-intro-op: Intro.revealing ? 1.0 : 0.0;
+    animate panel-intro-dx, panel-intro-op {
+        duration: Intro.instant ? 0ms : 550ms;
+        delay: Intro.instant ? 0ms : 200ms;
+        easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    property <length> cur-panel-w: 60px * TvUi.u + (root.panel-w - 60px * TvUi.u) * root.widen;
 
     keys := FocusScope {
         width: 100%;
@@ -108,11 +124,12 @@ export component V3Shell inherits Rectangle {
         }
 
         // Active Rounded Panel
-        Rectangle {
-            x: root.panel-x;
+        active-panel := Rectangle {
+            x: root.panel-x + root.panel-intro-dx;
             y: 24px * TvUi.u;
-            width: root.panel-w;
+            width: root.cur-panel-w;
             height: 1032px * TvUi.u;
+            opacity: root.panel-intro-op;
             border-radius: 18px * TvUi.u;
             clip: true;
             background: V3Theme.panel;
@@ -215,12 +232,13 @@ export component V3Shell inherits Rectangle {
             { idx: 4, label: "settings" },
         ]: BladeStrip {
             visible: i > root.eff-active;
-            x: root.panel-x + root.panel-w + 10px * TvUi.u + (i - root.eff-active - 1) * 68px * TvUi.u;
+            x: active-panel.x + active-panel.width + 10px * TvUi.u + (i - root.eff-active - 1) * 68px * TvUi.u + self.intro-dx;
             y: 24px * TvUi.u;
             label: tab.label;
             is-left: false;
             near-active: i == root.eff-active + 1;
             focused: TvUi.bar-focused && TvUi.active-tab == i;
+            intro-delay: 300ms + (i - 1) * 90ms;
             clicked => { TvUi.tab-clicked(i); }
         }
     }
@@ -359,5 +377,10 @@ export component V3Shell inherits Rectangle {
     if TvUi.ambient || Dash.screensaver-open: V3Ambient {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
+    }
+
+    if Intro.stage != IntroStage.done: BladesIntro {
+        width: 100%;
+        height: 100%;
     }
 }

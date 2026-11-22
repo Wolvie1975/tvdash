@@ -439,10 +439,26 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
         Page::Sports => {
             let ox = 228.0;
             let oy = 24.0;
-            vec![
+            let mut rects = vec![
                 Rect { x: ox + 200.0, y: oy + 38.0, w: 144.0, h: 36.0 },
                 Rect { x: ox + 346.0, y: oy + 38.0, w: 126.0, h: 36.0 },
-            ]
+            ];
+            if tv.get_sports_tab() == "scoreboard" {
+                let sb = laptop.global::<Scoreboard>();
+                let rows = sb.get_rows();
+                let mut y = oy + 170.0;
+                for i in 0..rows.row_count() {
+                    if let Some(r) = rows.row_data(i) {
+                        if r.kind == "group" {
+                            y += 44.0;
+                        } else {
+                            rects.push(Rect { x: ox + 40.0, y, w: 1500.0, h: 126.0 });
+                            y += 136.0;
+                        }
+                    }
+                }
+            }
+            rects
         }
         Page::Settings => {
             let ox = 296.0;
@@ -520,6 +536,11 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                             h: 46.0,
                         });
                     }
+                    for _ in places_n..4 {
+                        rects.push(Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 });
+                    }
+                    rects.push(Rect { x: ox + 1168.0, y: oy + 622.0, w: 392.0, h: 56.0 }); // 19: Startup animation
+                    rects.push(Rect { x: ox + 1168.0, y: oy + 690.0, w: 392.0, h: 56.0 }); // 20: Preview startup animation
                 }
             }
             rects
@@ -592,10 +613,28 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
-        Page::Sports => vec![
-            Rect { x: 96.0, y: 122.0, w: 184.0, h: 44.0 },
-            Rect { x: 316.0, y: 122.0, w: 164.0, h: 44.0 },
-        ],
+        Page::Sports => {
+            let mut rects = vec![
+                Rect { x: 96.0, y: 122.0, w: 184.0, h: 44.0 },
+                Rect { x: 316.0, y: 122.0, w: 164.0, h: 44.0 },
+            ];
+            if tv.get_sports_tab() == "scoreboard" {
+                let sb = laptop.global::<Scoreboard>();
+                let rows = sb.get_rows();
+                let mut y = 248.0;
+                for i in 0..rows.row_count() {
+                    if let Some(r) = rows.row_data(i) {
+                        if r.kind == "group" {
+                            y += 54.0;
+                        } else {
+                            rects.push(Rect { x: 96.0, y, w: 1728.0, h: 122.0 });
+                            y += 130.0;
+                        }
+                    }
+                }
+            }
+            rects
+        }
         Page::Library => {
             let lib = laptop.global::<Library>();
             // 0..=3: TV Series, Movies, Browse all, Watching now pill
@@ -808,6 +847,11 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                             h: 54.0,
                         });
                     }
+                    for _ in places_n..4 {
+                        rects.push(Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 });
+                    }
+                    rects.push(Rect { x: 960.0, y: 656.0, w: 416.0, h: 220.0 }); // 19: Startup animation
+                    rects.push(Rect { x: 1392.0, y: 656.0, w: 416.0, h: 220.0 }); // 20: Preview startup animation
                 }
             }
             rects
@@ -1041,7 +1085,8 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 let next = match laptop.global::<crate::Theme>().get_mode() {
                     UiTheme::Dark => UiTheme::Aubergine,
                     UiTheme::Aubergine => UiTheme::Ku,
-                    UiTheme::Ku => UiTheme::Stone,
+                    UiTheme::Ku => UiTheme::KuLight,
+                    UiTheme::KuLight => UiTheme::Stone,
                     UiTheme::Stone => UiTheme::Mist,
                     UiTheme::Mist => UiTheme::Dark,
                 };
@@ -1312,7 +1357,8 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                             let next = match laptop.global::<crate::Theme>().get_mode() {
                                 UiTheme::Dark => UiTheme::Aubergine,
                                 UiTheme::Aubergine => UiTheme::Ku,
-                                UiTheme::Ku => UiTheme::Stone,
+                                UiTheme::Ku => UiTheme::KuLight,
+                                UiTheme::KuLight => UiTheme::Stone,
                                 UiTheme::Stone => UiTheme::Mist,
                                 UiTheme::Mist => UiTheme::Dark,
                             };
@@ -1348,6 +1394,11 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                             sl.invoke_set_warn_before(next.into());
                         }
                         8..=11 => disp.invoke_pick_place((item - 8) as i32),
+                        12 => {
+                            let intro = laptop.global::<crate::Intro>();
+                            intro.invoke_set_enabled(!intro.get_enabled());
+                        }
+                        13 => laptop.global::<crate::Intro>().invoke_preview(),
                         _ => {}
                     }
                 }
@@ -1361,6 +1412,20 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                     let sb = laptop.global::<Scoreboard>();
                     if sb.get_rows().row_count() == 0 && !sb.get_loading() && sb.get_error().is_empty() {
                         sb.invoke_load(sb.get_day(), sb.get_show(), sb.get_final_only());
+                    }
+                }
+            } else if tv.get_sports_tab() == "scoreboard" {
+                let sb = laptop.global::<Scoreboard>();
+                let rows = sb.get_rows();
+                for i in 0..rows.row_count() {
+                    if let Some(r) = rows.row_data(i)
+                        && r.kind == "game"
+                        && r.focus_id == idx as i32
+                    {
+                        if !r.is_following && !r.event_id.is_empty() {
+                            sb.invoke_toggle_star(r.event_id);
+                        }
+                        break;
                     }
                 }
             }
@@ -1405,6 +1470,10 @@ fn minimize_to_home(laptop: &LaptopWindow) {
 }
 
 pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
+    if crate::intro::is_blocking_input(laptop) {
+        crate::intro::skip(laptop);
+        return true;
+    }
     if laptop.global::<SiteEditor>().get_open() || laptop.global::<Artwork>().get_open() {
         return false;
     }
