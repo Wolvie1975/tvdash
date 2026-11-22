@@ -458,8 +458,9 @@ fn main() -> anyhow::Result<()> {
 
     // Closing either window quits the app.
     for window in [laptop.window(), tv.window()] {
-        window.on_close_requested(|| {
-            let _ = slint::quit_event_loop();
+        let tx = cmd_tx.clone();
+        window.on_close_requested(move || {
+            callbacks::request_quit(&tx);
             CloseRequestResponse::HideWindow
         });
     }
