@@ -891,6 +891,11 @@ impl Controller {
             Command::SleepNow => {
                 self.sleep_now().await;
             }
+            Command::Quit => {
+                info!("quit requested: closing everything on the TV");
+                self.release_tv().await;
+                quit_ui();
+            }
             Command::SleepPlayNext => {
                 let key = self.sleep_finished_key.take();
                 self.sleep.off();
@@ -2450,18 +2455,26 @@ impl Controller {
             p.player.quit().await;
         }
 
-        if let Some(b) = self.browser.take() {
-            b.close().await;
-        }
+        self.release_tv().await;
+        tracing::info!("sleep timer fired");
+        quit_ui();
+    }
 
+    /// Everything tvdash holds on the TV, released in order before the app exits:
+    /// playback (reporting Stopped so Plex keeps your place), the browser, the
+    /// sleep inhibitor, and the reattach state.
+    async fn release_tv(&mut self) {
+        if self.playback.is_some() {
+            self.stop_playback().await;
+            // The Stopped report goes out from the reporter task; give it a moment
+            // before the runtime shuts down.
+            tokio::time::sleep(Duration::from_millis(300)).await;
+        }
+        self.close_browser().await;
         if let Some(inh) = self.inhibit.take() {
             inh.release().await;
         }
         crate::instance::RuntimeState::clear(&crate::instance::runtime_state_path());
-        tracing::info!("sleep timer fired");
-        let _ = slint::invoke_from_event_loop(|| {
-            let _ = slint::quit_event_loop();
-        });
     }
 
     async fn on_mpv(&mut self, event: Option<MpvEvent>) {
@@ -2892,6 +2905,13 @@ async fn read_secret(key: SecretKey) -> Option<String> {
             None
         }
     }
+}
+
+/// End the Slint event loop from the controller (main then shuts the runtime down).
+fn quit_ui() {
+    let _ = slint::invoke_from_event_loop(|| {
+        let _ = slint::quit_event_loop();
+    });
 }
 
 fn spawn_reporter(source: Arc<dyn MediaSource>, item: MediaItem) -> UnboundedSender<(u64, PlayState)> {
@@ -3467,6 +3487,48 @@ mod e2e {
         assert!(argv.contains(&"--start=1200.000".into()));
         assert_eq!(argv.last().unwrap(), &format!("{server_url}/library/parts/9101/file.mkv?X-Plex-Token=ptok"));
         assert_mpv_transport(&cmds);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "needs python3; run with --ignored"]
+    async fn quit_reports_stopped_to_plex_and_quits_mpv() {
+        let _serial = SERIAL.lock().await;
+        let mut h = Harness::start("fake_plex.py", |c, port| {
+            c.plex.account_url = format!("http://127.0.0.1:{port}");
+            c.plex.client_id = "plex-client-e2e".into();
+        })
+        .await;
+        h.wait_for(|e| matches!(e, AppEvent::Account(SourceKind::Plex, AccountStatus::NotSetUp)).then_some(())).await;
+        h.send(Command::SignIn(SourceKind::Plex));
+        h.wait_for(|e| matches!(e, AppEvent::SignIn(SourceKind::Plex, SignInState::Done)).then_some(())).await;
+        let items = h
+            .wait_for(|e| match e {
+                AppEvent::ContinueWatching(SourceKind::Plex, items) => Some(items.clone()),
+                _ => None,
+            })
+            .await;
+        let start = items[0].resume_ms.unwrap_or(0);
+        h.send(Command::Play(items[0].clone()));
+        h.wait_for(|e| match e {
+            AppEvent::Player(Some(s)) if s.position_ms >= start + 2_000 => Some(()),
+            _ => None,
+        })
+        .await;
+
+        // Settings › Quit while playing: playback ends cleanly before the app exits.
+        h.send(Command::Quit);
+        h.wait_for(|e| matches!(e, AppEvent::Player(None)).then_some(())).await;
+        sleep(Duration::from_millis(500)).await;
+
+        let states: Vec<String> = h
+            .server_log()
+            .iter()
+            .filter(|r| r["path"] == "/:/timeline")
+            .filter_map(|r| r["query"]["state"][0].as_str().map(str::to_owned))
+            .collect();
+        assert_eq!(states.last().map(String::as_str), Some("stopped"), "{states:?}");
+        let (_, cmds) = h.mpv_log();
+        assert!(cmds.contains(&json!(["quit"])), "mpv was asked to quit: {cmds:?}");
     }
 
     #[tokio::test(flavor = "multi_thread")]

@@ -22,7 +22,6 @@ mod tint;
 mod tv_nav;
 mod video;
 mod watch;
-mod remote;
 mod watch_ui;
 
 use std::{sync::Arc, time::Duration};
@@ -435,7 +434,6 @@ fn main() -> anyhow::Result<()> {
             sleep_http_rx,
             alert_http_rx,
         );
-        remote::serve(remote::DEFAULT_PORT, cmd_tx.clone(), laptop.as_weak());
     }
 
     // M1 done-check: keyring round-trip, reported in the laptop footer.
@@ -460,8 +458,9 @@ fn main() -> anyhow::Result<()> {
 
     // Closing either window quits the app.
     for window in [laptop.window(), tv.window()] {
-        window.on_close_requested(|| {
-            let _ = slint::quit_event_loop();
+        let tx = cmd_tx.clone();
+        window.on_close_requested(move || {
+            callbacks::request_quit(&tx);
             CloseRequestResponse::HideWindow
         });
     }

@@ -131,6 +131,28 @@ pub fn serve_pill(
     });
 }
 
+/// Only the Back-to-tvdash extension (and local tools like `curl`) may use the endpoint.
+///
+/// The extension's service worker sends `Origin: chrome-extension://<id>` and, thanks to its
+/// `host_permissions`, needs no CORS headers. Web pages always send an `http(s)://` Origin on
+/// POST and on cross-origin `fetch`, so they get a 403. Requests without an Origin come from
+/// local processes, which could already control tvdash through its Unix socket. The Host check
+/// stops DNS-rebinding pages that pretend to be on `127.0.0.1`.
+fn request_allowed(origin: Option<&str>, host: Option<&str>) -> bool {
+    let origin_ok = match origin {
+        None => true,
+        Some(o) => o.starts_with("chrome-extension://") || o.starts_with("moz-extension://"),
+    };
+    let host_ok = match host {
+        None => true,
+        Some(h) => {
+            let name = h.rsplit_once(':').map_or(h, |(name, _)| name);
+            matches!(name, "127.0.0.1" | "localhost" | "[::1]")
+        }
+    };
+    origin_ok && host_ok
+}
+
 async fn handle_conn(
     stream: TcpStream,
     cmd_tx: UnboundedSender<Command>,
@@ -147,6 +169,8 @@ async fn handle_conn(
 
     // Read headers & Content-Length.
     let mut content_len: usize = 0;
+    let mut origin: Option<String> = None;
+    let mut host: Option<String> = None;
     let mut line = String::new();
     loop {
         line.clear();
@@ -154,10 +178,15 @@ async fn handle_conn(
             Ok(0) | Err(_) => break,
             Ok(_) if line == "\r\n" || line == "\n" => break,
             Ok(_) => {
-                if let Some((k, v)) = line.split_once(':')
-                    && k.trim().eq_ignore_ascii_case("content-length")
-                {
-                    content_len = v.trim().parse().unwrap_or(0).min(16 * 1024);
+                if let Some((k, v)) = line.split_once(':') {
+                    let k = k.trim();
+                    if k.eq_ignore_ascii_case("content-length") {
+                        content_len = v.trim().parse().unwrap_or(0).min(16 * 1024);
+                    } else if k.eq_ignore_ascii_case("origin") {
+                        origin = Some(v.trim().to_owned());
+                    } else if k.eq_ignore_ascii_case("host") {
+                        host = Some(v.trim().to_owned());
+                    }
                 }
             }
         }
@@ -172,7 +201,10 @@ async fn handle_conn(
     let method = parts.next().unwrap_or("");
     let path = parts.next().unwrap_or("");
 
-    let (status, content_type, body) = if method == "OPTIONS" {
+    let (status, content_type, body) = if !request_allowed(origin.as_deref(), host.as_deref()) {
+        warn!(?origin, ?host, %path, "pill endpoint: rejected request from a web page");
+        ("403 Forbidden", "text/plain", "forbidden\n".into())
+    } else if method == "OPTIONS" {
         ("204 No Content", "text/plain", String::new())
     } else if method == "POST" && path == "/home" {
         let _ = cmd_tx.send(Command::Home);
@@ -266,9 +298,6 @@ async fn handle_conn(
 
     let resp = format!(
         "HTTP/1.1 {status}\r\n\
-         Access-Control-Allow-Origin: *\r\n\
-         Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n\
-         Access-Control-Allow-Headers: Content-Type\r\n\
          Content-Type: {content_type}\r\n\
          Content-Length: {}\r\n\
          Connection: close\r\n\r\n{body}",
@@ -353,5 +382,45 @@ mod tests {
         let cmd = tokio::time::timeout(Duration::from_secs(1), rx.recv()).await.unwrap().unwrap();
         assert!(matches!(cmd, Command::SleepSetMinutes(30)));
         drop(sleep_tx);
+    }
+
+    #[test]
+    fn only_the_extension_and_local_tools_are_allowed() {
+        let ext = Some("chrome-extension://abcdefghijklmnop");
+        let host = Some("127.0.0.1:47800");
+        assert!(request_allowed(ext, host));
+        assert!(request_allowed(None, host), "curl / local scripts");
+        assert!(request_allowed(None, None));
+        assert!(request_allowed(ext, Some("localhost:47800")));
+        assert!(!request_allowed(Some("https://www.netflix.com"), host), "a web page");
+        assert!(!request_allowed(Some("null"), host), "sandboxed iframe");
+        assert!(!request_allowed(None, Some("evil.example:47800")), "DNS rebinding");
+    }
+
+    #[tokio::test]
+    async fn web_page_post_is_rejected() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let (_sleep_tx, sleep_rx) = watch::channel(SleepHttpState::off());
+        let (_alert_tx, alert_rx) = watch::channel(None);
+
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            handle_conn(stream, tx, Weak::default(), sleep_rx, alert_rx).await;
+        });
+
+        let mut client = TcpStream::connect(addr).await.unwrap();
+        client
+            .write_all(
+                b"POST /home HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: https://ads.example\r\nContent-Length: 0\r\n\r\n",
+            )
+            .await
+            .unwrap();
+        let mut resp = String::new();
+        client.read_to_string(&mut resp).await.unwrap();
+        assert!(resp.starts_with("HTTP/1.1 403"), "{resp}");
+        assert!(!resp.contains("Access-Control-Allow-Origin"));
+        assert!(rx.try_recv().is_err(), "no command sent");
     }
 }

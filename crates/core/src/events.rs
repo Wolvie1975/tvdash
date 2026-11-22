@@ -462,6 +462,9 @@ pub enum Command {
     SleepExtend,
     /// Sleep immediately ("Sleep now").
     SleepNow,
+    /// Quit tvdash (Settings › Quit, window close): stop playback and report it to Plex,
+    /// close the browser, release the sleep inhibitor, then end the UI event loop.
+    Quit,
     /// Play next episode and turn off the sleep timer (when End of episode finished).
     SleepPlayNext,
     /// Change Sleep warning duration ("30s" | "60s" | "2m") in Settings › Display.

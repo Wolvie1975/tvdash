@@ -294,13 +294,6 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         dash.set_changelog(ModelRc::new(VecModel::from(parse_changelog(include_str!(
             "../../../../CHANGELOG.md"
         )))));
-        if let Some(url) = crate::remote::lan_url() {
-            if let Some(qr) = crate::remote::qr_image(&url) {
-                dash.set_remote_qr(qr);
-                dash.set_remote_has_qr(true);
-            }
-            dash.set_remote_url(url.into());
-        }
         dash.set_tv_connected(c.tv_connected);
         dash.set_continue_watching(ModelRc::from(s.cards.clone()));
         dash.set_prompts(ModelRc::from(s.prompts.clone()));

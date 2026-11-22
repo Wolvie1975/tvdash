@@ -19,6 +19,27 @@ fn parse_source(s: &str) -> Option<SourceKind> {
     }
 }
 
+/// How long Quit waits for the controller to stop playback and close the browser
+/// (Brave gets up to 5 s after SIGTERM) before ending the event loop anyway.
+const QUIT_FALLBACK: std::time::Duration = std::time::Duration::from_secs(8);
+
+/// Quit even if the controller never answers [`Command::Quit`] (e.g. it panicked).
+pub fn quit_fallback() {
+    slint::Timer::single_shot(QUIT_FALLBACK, || {
+        tracing::warn!("controller didn't finish quitting in time; exiting anyway");
+        let _ = slint::quit_event_loop();
+    });
+}
+
+/// Window close / Settings › Quit: clean up through the controller, then exit.
+pub fn request_quit(cmd_tx: &UnboundedSender<Command>) {
+    if cmd_tx.send(Command::Quit).is_err() {
+        let _ = slint::quit_event_loop(); // controller already gone
+        return;
+    }
+    quit_fallback();
+}
+
 pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
     bridge::alerts::set_cmd_tx(cmd_tx.clone());
     let send = move |cmd: Command| {
@@ -325,8 +346,10 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         s(Command::SetDashboardUi(mode));
     });
 
-    dash.on_quit(|| {
-        let _ = slint::quit_event_loop();
+    let s = send.clone();
+    dash.on_quit(move || {
+        s(Command::Quit);
+        quit_fallback();
     });
 }
 
