@@ -1,6 +1,11 @@
 # tvdash Changelog
 
-## v0.1.54 — 2026-11-21
+## v0.1.57 — 2026-11-21
+- Updated **Kansas Light** (`ku-light`) to use **Jayhawk Yellow** (`#FFC82D`) background, Signature Gray panels/cards, **KU Blue** Blades navigation strips, and **Crimson** (`#E8000D`) focus/highlights across both Classic (Top Tabs) and Blades; updated **Kansas Dark** (`ku`) with Signature Gray muted text and Jayhawk Yellow warnings.
+- Centered **Tiles assemble** and **Blade swoosh** startup intro animations and started the intro timer after `laptop.show()` so the full animation plays cleanly.
+- Updated Classic Home to a **2×6 Streaming Services** grid (adding **Crunchyroll** and **Google Meet** with `hold_sleep_timer = true`), moved **Sleep** into the bottom row, and gave **Screensaver** its own `"screensaver"` icon in both Classic and Blades.
+
+## v0.1.56 — 2026-11-21
 - Added **Startup Animation** (`[startup] intro = "on" | "off"`, `max_hold_secs = 6`): **Tiles assemble** for Classic/Tile hub and **Blade swoosh** for Blades, with hold progress line, key/click skip, and **Settings › Display** toggle + preview.
 - Added **Kansas Light** (`ku-light`) alongside **Kansas Dark** (`ku`), with **KU Blue** navigation blades in Blades, soft KU Blue-tinted cards in Classic, and **KU Crimson** highlights.
 - Added remote focus & OK toggling for matchup cards on **Scoreboard** in both Blades and Classic, improved starring responsiveness (`ToggleStar` updates UI immediately), and fixed `☆ Star` pill layout in Blades (`v3/events.slint`).

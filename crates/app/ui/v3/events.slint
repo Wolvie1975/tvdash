@@ -641,6 +641,17 @@ export component V3Sports inherits Rectangle {
                     border-width: self.is-foc ? 3px : 1px;
                     border-color: self.is-foc ? V3Theme.focus-ring : (row.is-live ? V3Theme.alert : V3Theme.border);
 
+                    TouchArea {
+                        width: 100%;
+                        height: 100%;
+                        mouse-cursor: (!row.is-following && row.event-id != "") ? pointer : default;
+                        clicked => {
+                            if !row.is-following && row.event-id != "" {
+                                Scoreboard.toggle-star(row.event-id);
+                            }
+                        }
+                    }
+
                     VerticalLayout {
                         padding-left: 18px * TvUi.u;
                         padding-right: 18px * TvUi.u;

@@ -81,6 +81,7 @@ pub fn brand_for_with_logo(id_or_name: &str, display_name: &str, tmdb_logo: Opti
             "prime-video" => (rgb(0x1A8CFF), rgb(0x1A8CFF), rgb(0xFFFFFF), "prime video", "", rgb(0xFFFFFF)),
             "crunchyroll" => (rgb(0xF47521), rgb(0xF47521), rgb(0xFFFFFF), "crunchyroll", "", rgb(0xFFFFFF)),
             "tubi" => (rgb(0x7408FF), rgb(0x7408FF), rgb(0xFFF200), "tubi", "", rgb(0xFFF200)),
+            "google-meet" => (rgb(0x00897B), rgb(0x00695C), rgb(0xFFFFFF), "Google", "Meet", rgb(0xE0F2F1)),
             _ => (rgb(0x1B1F26), rgb(0x1B1F26), rgb(0xE8EAED), display_name, "", rgb(0xE8EAED)),
         };
     let logo = tmdb_logo.or_else(|| bundled_svg(&id).and_then(|bytes| Image::load_from_svg_data(bytes).ok()));

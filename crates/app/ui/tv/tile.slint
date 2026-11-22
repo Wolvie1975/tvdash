@@ -1,4 +1,4 @@
-import { Theme } from "../theme.slint";
+import { Theme, UiTheme } from "../theme.slint";
 import { Brand } from "../shared/brand.slint";
 import { Icon } from "../icons.slint";
 import { TvUi } from "../state.slint";
@@ -48,7 +48,7 @@ export component Tile inherits Rectangle {
         height: body.height + 8px;
         border-radius: 9px;
         border-width: root.focused ? 4px : 0px;
-        border-color: Theme.text-primary;
+        border-color: (Theme.mode == UiTheme.ku || Theme.mode == UiTheme.ku-light) ? Theme.accent : Theme.text-primary;
     }
 
     ta := TouchArea {

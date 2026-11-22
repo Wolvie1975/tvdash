@@ -18,4 +18,4 @@
   - `cargo build --release -j 2`
   - `./packaging/rpm.sh`
   - `cp dist/tvdash-<version>-1.x86_64.rpm releases/`
-- **When the user says it's done**, commit the updates (including the new `.rpm` in `releases/`) and push to GitHub.
+- **When the user says it's done**, commit the updates (including the new `.rpm` in `releases/`), and let the user run `git push`.

@@ -813,6 +813,17 @@ export component TvSports inherits Rectangle {
                     border-width: self.is-foc ? 3px : 0px;
                     border-color: Theme.accent;
 
+                    if row.kind == "game": TouchArea {
+                        width: 100%;
+                        height: 100%;
+                        mouse-cursor: (!row.is-following && row.event-id != "") ? pointer : default;
+                        clicked => {
+                            if !row.is-following && row.event-id != "" {
+                                Scoreboard.toggle-star(row.event-id);
+                            }
+                        }
+                    }
+
                     if row.kind == "group": HorizontalLayout {
                         x: 0;
                         y: 12px * TvUi.u;

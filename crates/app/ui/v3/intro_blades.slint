@@ -22,17 +22,25 @@ export component BladesIntro inherits Rectangle {
         clicked => { Intro.skip(); }
     }
 
-    Wordmark {
-        x: (parent.width - self.preferred-width) / 2;
-        y: (parent.height - self.preferred-height) / 2;
-        ink: V3Theme.text-primary;
-        accent: V3Theme.accent;
-        opacity: word-on ? 1.0 : 0.0;
+    VerticalLayout {
+        width: 100%;
+        height: 100%;
+        alignment: center;
 
-        animate opacity {
-            duration: Intro.instant ? 0ms : 700ms;
-            delay: Intro.instant ? 0ms : 100ms;
-            easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+        HorizontalLayout {
+            alignment: center;
+
+            Wordmark {
+                ink: V3Theme.text-primary;
+                accent: V3Theme.accent;
+                opacity: word-on ? 1.0 : 0.0;
+
+                animate opacity {
+                    duration: Intro.instant ? 0ms : 700ms;
+                    delay: Intro.instant ? 0ms : 100ms;
+                    easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+                }
+            }
         }
     }
 

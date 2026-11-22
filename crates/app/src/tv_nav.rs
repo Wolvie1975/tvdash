@@ -571,29 +571,29 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
     match page {
         Page::Home => {
             // 0..=4: Clock, Hero, Search, Library, Screensaver
-            // 5: Weather (210 x 230), 6: Last Played (356 x 230), 7: Settings (356 x 230), 8: Theme (240 x 230)
-            // 9..19: 2x5 Streaming Services grid (235 x 146)
+            // 5: Weather (210 x 230), 6: Last Played (356 x 230), 7: Sleep (356 x 230), 8: Theme (240 x 230)
+            // 10..21: 2x6 Streaming Services grid (235 x 119)
             let mut rects = vec![
                 Rect { x: 96.0, y: 136.0, w: 210.0, h: 590.0 },   // 0: Clock + Plex info
                 Rect { x: 322.0, y: 136.0, w: 728.0, h: 590.0 },  // 1: Hero
-                Rect { x: 1066.0, y: 136.0, w: 240.0, h: 135.0 }, // 2: Search
-                Rect { x: 1066.0, y: 287.0, w: 240.0, h: 135.0 }, // 3: Library
-                Rect { x: 1066.0, y: 438.0, w: 240.0, h: 135.0 }, // 4: Screensaver
+                Rect { x: 1066.0, y: 136.0, w: 240.0, h: 186.0 }, // 2: Search
+                Rect { x: 1066.0, y: 338.0, w: 240.0, h: 186.0 }, // 3: Library
+                Rect { x: 1066.0, y: 540.0, w: 240.0, h: 186.0 }, // 4: Screensaver
                 Rect { x: 96.0, y: 742.0, w: 210.0, h: 230.0 },   // 5: Weather
                 Rect { x: 322.0, y: 742.0, w: 356.0, h: 230.0 },  // 6: Last Played
-                Rect { x: 694.0, y: 742.0, w: 356.0, h: 230.0 },  // 7: Google Meet
+                Rect { x: 694.0, y: 742.0, w: 356.0, h: 230.0 },  // 7: Sleep
                 Rect { x: 1066.0, y: 742.0, w: 240.0, h: 230.0 }, // 8: Theme
-                Rect { x: 1066.0, y: 589.0, w: 240.0, h: 135.0 }, // 9: Sleep
+                Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 },  // 9: unused in Classic (Blades Sleep)
             ];
-            let svcs_n = tv.get_services().row_count().min(10);
+            let svcs_n = tv.get_services().row_count().min(12);
             for i in 0..svcs_n {
                 let col = (i % 2) as f32;
                 let row = (i / 2) as f32;
                 rects.push(Rect {
                     x: 1338.0 + col * 251.0,
-                    y: 176.0 + row * 162.0,
+                    y: 176.0 + row * 135.0,
                     w: 235.0,
-                    h: 146.0,
+                    h: 119.0,
                 });
             }
             rects
@@ -1079,7 +1079,11 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             5 => {} // Weather tile
             6 => tv.invoke_play_last_played(),
             7 => {
-                laptop.global::<Sports>().invoke_open_url("Google Meet".into(), "https://meet.google.com".into());
+                if laptop.global::<Display>().get_dashboard_ui() == "blades" {
+                    laptop.global::<Sports>().invoke_open_url("Google Meet".into(), "https://meet.google.com".into());
+                } else {
+                    laptop.global::<SleepState>().invoke_open_picker();
+                }
             }
             8 => {
                 let next = match laptop.global::<crate::Theme>().get_mode() {
