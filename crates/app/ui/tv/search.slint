@@ -1,0 +1,155 @@
+import { Theme } from "../theme.slint";
+import { TvUi, Watch } from "../state.slint";
+import { MediaTile, Tile } from "tile.slint";
+
+export component TvSearch inherits Rectangle {
+    width: 1920px;
+    height: 1080px;
+    background: transparent;
+
+    property <[string]> keys: [
+        "A", "B", "C", "D", "E", "F",
+        "G", "H", "I", "J", "K", "L",
+        "M", "N", "O", "P", "Q", "R",
+        "S", "T", "U", "V", "W", "X",
+        "Y", "Z", "0", "1", "2", "3",
+        "4", "5", "6", "7", "8", "9",
+    ];
+
+    // Query display tile
+    Rectangle {
+        x: 96px;
+        y: 136px;
+        width: 500px;
+        height: 72px;
+        border-radius: 6px;
+        background: Theme.surface;
+        border-width: 1px;
+        border-color: Theme.border;
+
+        Text {
+            x: 20px;
+            width: parent.width - 40px;
+            text: Watch.query != "" ? Watch.query : "Search movies & shows…";
+            font-size: 28px;
+            font-weight: 400;
+            color: Watch.query != "" ? Theme.text-primary : Theme.text-muted;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    // 0..35: 6x6 on-screen keyboard
+    for k[i] in root.keys: Tile {
+        x: 96px + Math.mod(i, 6) * 86px;
+        y: 224px + Math.floor(i / 6) * 84px;
+        base-width: 70px;
+        base-height: 70px;
+        fill: Theme.surface;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == i;
+        activated => { TvUi.tile-activated(i); }
+        hovered => { TvUi.tile-hovered(i); }
+
+        Text {
+            text: k;
+            font-size: 26px;
+            font-weight: 500;
+            color: Theme.text-primary;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    // 36..38: Space, Delete, Clear
+    Tile {
+        x: 96px;
+        y: 732px;
+        base-width: 156px;
+        base-height: 64px;
+        fill: Theme.surface-raised;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 36;
+        activated => { TvUi.tile-activated(36); }
+        hovered => { TvUi.tile-hovered(36); }
+
+        Text {
+            text: "Space";
+            font-size: 22px;
+            color: Theme.text-primary;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    Tile {
+        x: 268px;
+        y: 732px;
+        base-width: 156px;
+        base-height: 64px;
+        fill: Theme.surface-raised;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 37;
+        activated => { TvUi.tile-activated(37); }
+        hovered => { TvUi.tile-hovered(37); }
+
+        Text {
+            text: "Delete";
+            font-size: 22px;
+            color: Theme.text-primary;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    Tile {
+        x: 440px;
+        y: 732px;
+        base-width: 156px;
+        base-height: 64px;
+        fill: Theme.surface-raised;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 38;
+        activated => { TvUi.tile-activated(38); }
+        hovered => { TvUi.tile-hovered(38); }
+
+        Text {
+            text: "Clear";
+            font-size: 22px;
+            color: Theme.text-primary;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    // Results (4-across)
+    Text {
+        x: 660px;
+        y: 136px;
+        text: Watch.searching ? "SEARCHING…" : (Watch.message != "" ? Watch.message : "RESULTS");
+        font-size: 22px;
+        font-weight: 500;
+        letter-spacing: 1.2px;
+        color: Theme.text-secondary;
+    }
+
+    for item[i] in Watch.included: MediaTile {
+        visible: i < 8;
+        x: 660px + Math.mod(i, 4) * 296px;
+        y: 180px + Math.floor(i / 4) * 260px;
+        base-width: 280px;
+        base-height: 240px;
+        art: item.poster;
+        has-art: item.has-poster;
+        title: item.title;
+        subtitle: item.line;
+        badge: item.meta;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 39 + i;
+        activated => { TvUi.tile-activated(39 + i); }
+        hovered => { TvUi.tile-hovered(39 + i); }
+    }
+
+    Text {
+        x: 660px;
+        y: 750px;
+        text: "Where-to-watch data powered by JustWatch";
+        font-size: 18px;
+        color: Theme.text-muted;
+    }
+}

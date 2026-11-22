@@ -5,12 +5,13 @@ use slint::{ComponentHandle, Image, Model, ModelRc, VecModel};
 use tvdash_core::{
     config::{ClockFormat, ThemeMode},
     events::PlayerStatus,
-    models::{AccountStatus, MediaItem, PlayState, RgbaImage, Session, SignInState, SourceKind},
+    models::{AccountStatus, MediaItem, MediaKind, PlayState, RgbaImage, Session, SignInState, SourceKind},
 };
 
 use super::{SOURCES, UiState, accounts, in_order, to_image};
 use crate::{
-    AccountPrompt, Dash, LaptopWindow, Library, PosterCardData, SessionRow, SiteTileData, TvCard, TvWindow, format,
+    AccountPrompt, CollectionPageState, Dash, LaptopWindow, Library, PosterCardData, SessionRow, ShowPageState,
+    SiteTileData, TvCard, TvWindow, format,
     tint::{self, Hue},
 };
 
@@ -19,15 +20,35 @@ pub fn row(index: usize) -> Option<MediaItem> {
     super::STATE.with_borrow(|s| s.rows.get(index).cloned())
 }
 
+/// The top Continue Watching item ("UP NEXT" on the On the TV card).
+pub fn up_next() -> Option<MediaItem> {
+    super::STATE.with_borrow(|s| in_order(&s.continue_watching).into_iter().next())
+}
+
+/// Switch Continue Watching between TV / Series (`"tv"`) and Movies (`"movies"`).
+pub fn set_cw_filter(laptop: &LaptopWindow, filter: String) {
+    super::STATE.with_borrow_mut(|s| {
+        s.cw_filter = filter.clone();
+        laptop.global::<Dash>().set_cw_filter(filter.into());
+        rebuild_rows(s);
+        update_cw_state(s, laptop);
+    });
+}
+
 // ── Cards ───────────────────────────────────────────────────────────
 
 fn card(item: &MediaItem, poster: Option<&Image>, hue: Option<Hue>, theme: ThemeMode) -> PosterCardData {
     let hue = hue.unwrap_or(tint::DEFAULT);
+    let badge_text = if item.kind == MediaKind::Movie {
+        format::time_left(item).unwrap_or_else(|| format::item_detail(item))
+    } else {
+        format::item_detail(item)
+    };
     PosterCardData {
         accent: tint::progress_color(hue),
         placeholder: tint::card_tint(Hue { saturation: hue.saturation.max(0.3), ..hue }, theme).poster,
         title: item.title.as_str().into(),
-        subtitle: format::item_detail(item).into(),
+        subtitle: badge_text.into(),
         badge: item.source.label().into(),
         progress: item.progress().unwrap_or(0.0),
         has_poster: poster.is_some(),
@@ -41,13 +62,23 @@ pub(super) fn cards_for(s: &UiState, items: &[MediaItem]) -> Vec<PosterCardData>
         .iter()
         .map(|item| {
             let key = (item.source, item.id.clone());
-            card(item, s.posters.get(&key), s.hues.get(&key).copied(), s.theme)
+            card(item, s.posters.get(&key), s.hues.get(&key).copied(), s.effective_theme())
         })
         .collect()
 }
 
 pub(super) fn rebuild_rows(s: &mut UiState) {
-    s.rows = in_order(&s.continue_watching);
+    let all = in_order(&s.continue_watching);
+    if s.tv_layout || s.cw_filter == "all" {
+        s.rows = all.into_iter().take(6).collect();
+    } else {
+        let movies = s.cw_filter == "movies";
+        s.rows = all
+            .into_iter()
+            .filter(|i| if movies { i.kind == MediaKind::Movie } else { i.kind != MediaKind::Movie })
+            .take(6)
+            .collect();
+    }
     s.cards.set_vec(cards_for(s, &s.rows));
 }
 
@@ -68,13 +99,42 @@ pub(super) fn on_poster(
         (&s.lib_continue, &s.lib_continue_cards),
         (&s.lib_recent, &s.lib_recent_cards),
         (&s.lib_results, &s.lib_result_cards),
+        (&s.lib_added_week, &s.lib_added_week_cards),
+        (&s.lib_watch_again, &s.lib_watch_again_cards),
+        (&s.lib_browse, &s.lib_browse_cards),
     ];
     for (items, model) in models {
         for (i, item) in items.iter().enumerate() {
             if item.source == source && item.id == key.1 {
-                model.set_row_data(i, card(item, Some(&img), Some(hue), s.theme));
+                model.set_row_data(i, card(item, Some(&img), Some(hue), s.effective_theme()));
             }
         }
+    }
+    let ll = laptop.global::<crate::LibraryLanding>();
+    let shelf2 = ll.get_shelf2();
+    for i in 0..shelf2.row_count() {
+        if let Some(mut row) = shelf2.row_data(i)
+            && row.rating_key.as_str() == key.1
+        {
+            row.has_poster = true;
+            row.poster = img.clone();
+            shelf2.set_row_data(i, row);
+        }
+    }
+    if source == SourceKind::Plex {
+        let cols = laptop.global::<Library>().get_collections();
+        for i in 0..cols.row_count() {
+            if let Some(mut row) = cols.row_data(i)
+                && row.rating_key.as_str() == key.1
+            {
+                row.has_poster = true;
+                row.poster = img.clone();
+                cols.set_row_data(i, row);
+            }
+        }
+    }
+    if s.last_played.as_ref().is_some_and(|lp| matches!(lp, super::LastPlayed::Media(item) if item.source == source && item.id == key.1)) {
+        refresh_last_played(s, laptop);
     }
     if s.selected.as_ref().is_some_and(|i| i.source == source && i.id == key.1) {
         let lib = laptop.global::<Library>();
@@ -83,7 +143,28 @@ pub(super) fn on_poster(
         d.has_poster = true;
         lib.set_detail(d);
     }
-    s.posters.insert(key, img);
+    s.posters.insert(key.clone(), img.clone());
+    let sp = laptop.global::<ShowPageState>();
+    if sp.get_open() {
+        let eps = sp.get_episodes();
+        for i in 0..eps.row_count() {
+            if let Some(mut row) = eps.row_data(i)
+                && row.rating_key == key.1.as_str()
+            {
+                row.has_thumb = true;
+                row.thumb = img.clone();
+                eps.set_row_data(i, row);
+            }
+        }
+        if key.1 == sp.get_rating_key().as_str() || key.1 == sp.get_season().rating_key.as_str() {
+            super::library::refresh_show_season_poster(s, laptop);
+        }
+    }
+    if laptop.global::<CollectionPageState>().get_open()
+        && s.collection_detail.as_ref().is_some_and(|d| d.items.iter().any(|i| i.id == key.1))
+    {
+        super::library::rebuild_collection_items(s, laptop);
+    }
     refresh_tv_card(s, laptop);
 }
 
@@ -92,7 +173,7 @@ pub(super) fn on_poster(
 /// (background, foreground) of a site's monogram in the current theme.
 pub(super) fn site_colors(s: &UiState, index: usize) -> (slint::Color, slint::Color) {
     let name = s.sites.get(index).map(|x| x.name.as_str()).unwrap_or_default();
-    tint::site_colors(tint::site_hue(name, index), s.theme)
+    tint::site_colors(tint::site_hue(name, index), s.effective_theme())
 }
 
 /// First letter of a site name ("Disney+" → "D", "Apple TV+" → "A").
@@ -121,6 +202,85 @@ pub(super) fn refresh_tiles(s: &UiState, laptop: &LaptopWindow) {
         })
         .collect();
     laptop.global::<Dash>().set_streaming_sites(ModelRc::new(VecModel::from(tiles)));
+
+    let now = chrono::Utc::now().timestamp();
+    let visible: Vec<(usize, String, &tvdash_core::config::StreamingSite)> = s
+        .sites
+        .iter()
+        .enumerate()
+        .filter(|(_, site)| !site.hidden)
+        .map(|(i, site)| (i, crate::brand::service_id(&site.name), site))
+        .collect();
+
+    let tv_services: Vec<crate::TvServiceTile> = visible
+        .iter()
+        .map(|(i, id, site)| {
+            let recent_entry = s.recent.iter().find(|r| r.id == *id);
+            crate::TvServiceTile {
+                index: *i as i32,
+                brand: crate::brand::brand_for_with_logo(id, &site.name, s.logos.get(&site.name).cloned()),
+                is_recent: recent_entry.is_some(),
+                ago_text: recent_entry.map(|r| crate::recent::ago(r.at, now)).unwrap_or_default().into(),
+            }
+        })
+        .collect();
+
+    let fixed_ids: Vec<String> = visible.iter().map(|(_, id, _)| id.clone()).collect();
+    let home_ids = crate::recent::home_three(&s.recent, &fixed_ids);
+    let home_services: Vec<crate::TvServiceTile> = home_ids
+        .into_iter()
+        .filter_map(|id| tv_services.iter().find(|t| t.brand.id.as_str() == id).cloned())
+        .collect();
+
+    let tv_ui = laptop.global::<crate::TvUi>();
+    tv_ui.set_services(ModelRc::new(VecModel::from(tv_services)));
+    tv_ui.set_home_services(ModelRc::new(VecModel::from(home_services)));
+    refresh_last_played(s, laptop);
+}
+
+pub(super) fn refresh_last_played(s: &UiState, laptop: &LaptopWindow) {
+    let tv = laptop.global::<crate::TvUi>();
+    let target = s.last_played.clone().or_else(|| {
+        s.rows.first().cloned().map(super::LastPlayed::Media).or_else(|| {
+            s.recent.first().and_then(|r| {
+                s.sites
+                    .iter()
+                    .position(|site| !site.hidden && crate::brand::service_id(&site.name) == r.id)
+                    .map(super::LastPlayed::Site)
+            })
+        })
+    });
+    match target {
+        Some(super::LastPlayed::Media(item)) => {
+            let key = (item.source, item.id.clone());
+            let poster = s.posters.get(&key);
+            tv.set_last_played_kind("media".into());
+            tv.set_last_played_title(item.title.as_str().into());
+            tv.set_last_played_subtitle(crate::format::item_detail(&item).into());
+            tv.set_last_played_has_poster(poster.is_some());
+            tv.set_last_played_poster(poster.cloned().unwrap_or_default());
+            tv.set_last_played_progress(item.progress().unwrap_or(0.0));
+        }
+        Some(super::LastPlayed::Site(idx)) => {
+            if let Some(site) = s.sites.get(idx) {
+                let id = crate::brand::service_id(&site.name);
+                let brand = crate::brand::brand_for_with_logo(&id, &site.name, s.logos.get(&site.name).cloned());
+                tv.set_last_played_kind("site".into());
+                tv.set_last_played_title(site.name.as_str().into());
+                tv.set_last_played_subtitle("Click or press OK to launch".into());
+                tv.set_last_played_has_poster(false);
+                tv.set_last_played_progress(0.0);
+                tv.set_last_played_brand(brand);
+            }
+        }
+        None => {
+            tv.set_last_played_kind("".into());
+            tv.set_last_played_title("".into());
+            tv.set_last_played_subtitle("".into());
+            tv.set_last_played_has_poster(false);
+            tv.set_last_played_progress(0.0);
+        }
+    }
 }
 
 // ── On the TV ───────────────────────────────────────────────────────
@@ -131,11 +291,13 @@ pub(super) fn on_player(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, s
             if s.player.as_ref().is_none_or(|p| p.item.id != st.item.id) {
                 tv.set_message(format!("Starting {}…", st.item.title).into());
             }
+            s.last_played = Some(super::LastPlayed::Media(st.item.clone()));
         }
         None => tv.set_message("".into()),
     }
     s.player = status;
     refresh_tv_card(s, laptop);
+    refresh_last_played(s, laptop);
 }
 
 pub(super) fn on_browser(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, site: Option<String>) {
@@ -149,14 +311,26 @@ pub(super) fn on_browser(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, 
 pub(super) fn refresh_tv_card(s: &UiState, laptop: &LaptopWindow) {
     let dash = laptop.global::<Dash>();
     let (card, hue) = tv_card(s);
-    dash.set_tint(tint::card_tint(hue, s.theme));
+    dash.set_tint(tint::card_tint(hue, s.effective_theme()));
     dash.set_tv(card);
+    let ends_at = s
+        .player
+        .as_ref()
+        .and_then(|st| {
+            let dur = st.duration_ms?;
+            let rem = dur.saturating_sub(st.position_ms).min(i64::MAX as u64) as i64;
+            let end = format::now_local(s.tz) + chrono::TimeDelta::milliseconds(rem);
+            Some(format::hm(end, s.clock.unwrap_or(ClockFormat::H24)))
+        })
+        .unwrap_or_default();
+    dash.set_tv_ends_at(ends_at.into());
 }
 
 fn tv_card(s: &UiState) -> (TvCard, Hue) {
     let poster_of = |item: &MediaItem| {
         let key = (item.source, item.id.clone());
-        (s.posters.get(&key).cloned(), s.hues.get(&key).copied().unwrap_or(tint::DEFAULT))
+        let art = s.backdrops.get(&key).or_else(|| s.posters.get(&key)).cloned();
+        (art, s.hues.get(&key).copied().unwrap_or(tint::DEFAULT))
     };
     let base = TvCard { label: "ON THE TV".into(), ..Default::default() };
     if let Some(st) = &s.player {
@@ -168,10 +342,12 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
             source: st.item.source.label().into(),
             title: st.item.title.as_str().into(),
             subtitle: format::item_detail(&st.item).into(),
+            summary: st.item.summary.as_deref().unwrap_or_default().into(),
             at_text: at.into(),
             left_text: left.into(),
             progress: format::fraction(st),
             paused: st.state == PlayState::Paused,
+            is_episode: st.item.kind == MediaKind::Episode,
             has_poster: poster.is_some(),
             poster: poster.unwrap_or_default(),
             ..base
@@ -190,15 +366,16 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
         };
         return (card, Hue { degrees: tint::site_hue(site, index), saturation: 0.7 });
     }
-    if let Some(item) = s.rows.first() {
+    if let Some(item) = in_order(&s.continue_watching).first() {
         let (poster, hue) = poster_of(item);
         let card = TvCard {
             mode: "next".into(),
-            label: "UP NEXT".into(),
+            label: "CURRENTLY PLAYING".into(),
             source: item.source.label().into(),
             note: "Nothing on the TV. Pick up where you left off:".into(),
             title: item.title.as_str().into(),
             subtitle: format::item_detail(item).into(),
+            summary: item.summary.as_deref().unwrap_or_default().into(),
             at_text: item.resume_ms.map(|p| format!("Stopped at {}", format::duration(p))).unwrap_or_default().into(),
             left_text: format::time_left(item).unwrap_or_default().into(),
             progress: item.progress().unwrap_or(0.0),

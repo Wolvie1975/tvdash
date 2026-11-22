@@ -1,0 +1,434 @@
+import { Theme, UiTheme } from "../theme.slint";
+import { Icon } from "../icons.slint";
+import { Dash, SleepState, TvUi } from "../state.slint";
+import { IconTile, MediaTile, ServiceTile, Tile, ValueTile } from "tile.slint";
+import { IntroRise } from "../shared/intro.slint";
+
+export component TvHome inherits Rectangle {
+    width: 1920px * TvUi.u;
+    height: 1080px * TvUi.u;
+    background: transparent;
+
+    // ── Group 1: Hero + Clock/Plex info tile (450 ms) ────────────────────────
+    IntroRise {
+        width: parent.width;
+        height: parent.height;
+        delay: 450ms;
+
+    // 0: Tall Plex Up Next / Now Playing info tile (210 x 590)
+    Tile {
+        x: 96px * TvUi.u;
+        y: 136px * TvUi.u;
+        base-width: 210px * TvUi.u;
+        base-height: 590px * TvUi.u;
+        fill: Dash.tint.card;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 0;
+        activated => { TvUi.tile-activated(0); }
+        hovered => { TvUi.tile-hovered(0); }
+
+        VerticalLayout {
+            padding: 18px * TvUi.u;
+            spacing: 8px * TvUi.u;
+            alignment: start;
+
+            Text {
+                text: Dash.tv.source != "" ? Dash.tv.source + " · " + Dash.tv.label : Dash.tv.label;
+                font-size: 13px * TvUi.u;
+                font-weight: 600;
+                letter-spacing: 0.4px;
+                color: Dash.tint.accent;
+                wrap: word-wrap;
+            }
+
+            if Dash.tv.title != "": Text {
+                text: Dash.tv.title;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+            }
+
+            if Dash.tv.subtitle != "": Text {
+                text: Dash.tv.subtitle;
+                font-size: 17px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+            }
+
+            if Dash.tv.at-text != "": Text {
+                text: Dash.tv.at-text;
+                font-size: 15px * TvUi.u;
+                color: Dash.tint.sec;
+                wrap: word-wrap;
+            }
+
+            if Dash.tv.left-text != "": Text {
+                text: Dash.tv.left-text;
+                font-size: 15px * TvUi.u;
+                color: Dash.tint.sec;
+                wrap: word-wrap;
+            }
+
+            if Dash.tv.summary != "": Rectangle {
+                height: 1px;
+                background: Dash.tint.sec.with-alpha(0.25);
+            }
+
+            if Dash.tv.summary != "": Text {
+                text: Dash.tv.summary;
+                font-size: 15px * TvUi.u;
+                color: Theme.text-secondary;
+                wrap: word-wrap;
+                overflow: elide;
+                vertical-stretch: 1;
+            }
+        }
+    }
+
+    // 1: Big On-the-TV Hero tile (728 x 590, top progress bar; shows poster + play overlay when paused on Home)
+    MediaTile {
+        x: 322px * TvUi.u;
+        y: 136px * TvUi.u;
+        base-width: 728px * TvUi.u;
+        base-height: 590px * TvUi.u;
+        art: Dash.tv.poster;
+        has-art: Dash.tv.has-poster;
+        title: Dash.tv.title;
+        subtitle: TvUi.video-on ? "Paused · Click or press OK to resume" : Dash.tv.subtitle;
+        progress: Dash.tv.progress;
+        progress-top: true;
+        badge: Dash.tv.label;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 1;
+        activated => { TvUi.tile-activated(1); }
+        hovered => { TvUi.tile-hovered(1); }
+
+        if TvUi.video-on: Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 88px * TvUi.u;
+            height: 88px * TvUi.u;
+            border-radius: 44px * TvUi.u;
+            background: #0B0D10B8;
+            border-width: 2px;
+            border-color: #FFFFFF55;
+
+            Icon {
+                x: (parent.width - self.width) / 2 + 3px * TvUi.u;
+                y: (parent.height - self.height) / 2;
+                size: 40px * TvUi.u;
+                name: "play";
+                tint: #FFFFFF;
+            }
+        }
+    }
+    } // end Group 1
+
+    // ── Group 2: Utility column (Search, Library, Screensaver, Sleep) (530 ms)
+    IntroRise {
+        width: parent.width;
+        height: parent.height;
+        delay: 530ms;
+    IconTile {
+        x: 1066px * TvUi.u;
+        y: 136px * TvUi.u;
+        base-width: 240px * TvUi.u;
+        base-height: 135px * TvUi.u;
+        fill: Dash.tint.poster;
+        icon: "search";
+        label: "Search";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 2;
+        activated => { TvUi.tile-activated(2); }
+        hovered => { TvUi.tile-hovered(2); }
+    }
+
+    IconTile {
+        x: 1066px * TvUi.u;
+        y: 287px * TvUi.u;
+        base-width: 240px * TvUi.u;
+        base-height: 135px * TvUi.u;
+        fill: Dash.tint.poster;
+        icon: "library";
+        label: "Library";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 3;
+        activated => { TvUi.tile-activated(3); }
+        hovered => { TvUi.tile-hovered(3); }
+    }
+
+    IconTile {
+        x: 1066px * TvUi.u;
+        y: 438px * TvUi.u;
+        base-width: 240px * TvUi.u;
+        base-height: 135px * TvUi.u;
+        fill: Dash.tint.poster;
+        icon: "moon";
+        label: "Screensaver";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 4;
+        activated => { TvUi.tile-activated(4); }
+        hovered => { TvUi.tile-hovered(4); }
+    }
+
+    IconTile {
+        x: 1066px * TvUi.u;
+        y: 589px * TvUi.u;
+        base-width: 240px * TvUi.u;
+        base-height: 135px * TvUi.u;
+        fill: Dash.tint.poster;
+        icon: "moon";
+        label: SleepState.active ? "Sleep · " + SleepState.label : "Sleep";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 9;
+        activated => { TvUi.tile-activated(9); }
+        hovered => { TvUi.tile-hovered(9); }
+    }
+    } // end Group 2
+
+    // ── Group 3: Bottom row (Weather, Last Played, Google Meet, Theme) (610 ms)
+    IntroRise {
+        width: parent.width;
+        height: parent.height;
+        delay: 610ms;
+
+    // 5: Weather tile underneath the left Clock column (210 x 230)
+    Tile {
+        x: 96px * TvUi.u;
+        y: 742px * TvUi.u;
+        base-width: 210px * TvUi.u;
+        base-height: 230px * TvUi.u;
+        fill: Dash.tint.card;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 5;
+        activated => { TvUi.tile-activated(5); }
+        hovered => { TvUi.tile-hovered(5); }
+
+        VerticalLayout {
+            padding: 16px * TvUi.u;
+            spacing: 6px * TvUi.u;
+
+            HorizontalLayout {
+                spacing: 4px * TvUi.u;
+                alignment: start;
+
+                Text {
+                    text: Dash.clock-hh + ":" + Dash.clock-mm;
+                    font-size: 32px * TvUi.u;
+                    font-weight: 300;
+                    color: Theme.text-primary;
+                }
+
+                if Dash.clock-ampm != "": Text {
+                    text: Dash.clock-ampm;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 400;
+                    color: Dash.tint.sec;
+                    vertical-alignment: bottom;
+                }
+            }
+
+            Text {
+                text: Dash.clock-year != "" ? Dash.date-text + ", " + Dash.clock-year : Dash.date-text;
+                font-size: 14px * TvUi.u;
+                color: Dash.tint.sec;
+                overflow: elide;
+            }
+
+            Rectangle {
+                height: 1px;
+                background: Dash.tint.sec.with-alpha(0.25);
+            }
+
+            HorizontalLayout {
+                spacing: 8px * TvUi.u;
+                alignment: start;
+
+                Icon {
+                    name: Dash.weather-icon;
+                    size: 28px * TvUi.u;
+                    tint: Dash.tint.accent;
+                }
+
+                Text {
+                    text: Dash.weather-on ? Dash.weather-temp : "—";
+                    font-size: 28px * TvUi.u;
+                    font-weight: 300;
+                    color: Theme.text-primary;
+                    vertical-alignment: center;
+                }
+            }
+
+            Rectangle { vertical-stretch: 1; }
+
+            Text {
+                text: Dash.weather-on ? Dash.weather-condition : "Weather";
+                font-size: 16px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+                overflow: elide;
+            }
+
+            Text {
+                text: Dash.weather-on ? (Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail) : "Set location in Settings";
+                font-size: 14px * TvUi.u;
+                color: Dash.tint.sec;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+        }
+    }
+
+    // 6: Last Played tile (356 x 230) — last streaming app, movie, or TV series
+    Tile {
+        x: 322px * TvUi.u;
+        y: 742px * TvUi.u;
+        base-width: 356px * TvUi.u;
+        base-height: 230px * TvUi.u;
+        fill: TvUi.last-played-kind == "site"
+            ? @linear-gradient(135deg, TvUi.last-played-brand.fill 0%, TvUi.last-played-brand.fill-end 100%)
+            : Dash.tint.card;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 6;
+        activated => { TvUi.tile-activated(6); }
+        hovered => { TvUi.tile-hovered(6); }
+
+        if TvUi.last-played-kind == "media" && TvUi.last-played-progress > 0.0: Rectangle {
+            x: 0;
+            y: parent.height - 5px * TvUi.u;
+            width: parent.width;
+            height: 5px * TvUi.u;
+            background: #FFFFFF28;
+
+            Rectangle {
+                x: 0;
+                y: 0;
+                width: parent.width * clamp(TvUi.last-played-progress, 0.0, 1.0);
+                height: 100%;
+                background: #E8EAED;
+            }
+        }
+
+        HorizontalLayout {
+            padding: 16px * TvUi.u;
+            spacing: 14px * TvUi.u;
+
+            if TvUi.last-played-kind == "media" && TvUi.last-played-has-poster: Rectangle {
+                width: 96px * TvUi.u;
+                height: 144px * TvUi.u;
+                border-radius: 6px;
+                clip: true;
+
+                Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: TvUi.last-played-poster;
+                    image-fit: cover;
+                }
+            }
+
+            if TvUi.last-played-kind == "site" && TvUi.last-played-brand.has-logo: Rectangle {
+                width: 104px * TvUi.u;
+                height: 104px * TvUi.u;
+                background: transparent;
+
+                Image {
+                    x: 4px * TvUi.u;
+                    y: 12px * TvUi.u;
+                    width: parent.width - 8px * TvUi.u;
+                    height: parent.height - 24px * TvUi.u;
+                    source: TvUi.last-played-brand.logo;
+                    image-fit: contain;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 6px * TvUi.u;
+                horizontal-stretch: 1;
+
+                Text {
+                    text: TvUi.last-played-kind == "site" ? "LAST PLAYED · APP" : "LAST PLAYED";
+                    font-size: 14px * TvUi.u;
+                    font-weight: 600;
+                    letter-spacing: 1.1px;
+                    color: TvUi.last-played-kind == "site" ? TvUi.last-played-brand.sub-ink : Dash.tint.sec;
+                }
+
+                Text {
+                    text: TvUi.last-played-title != "" ? TvUi.last-played-title : "Nothing yet";
+                    font-size: 24px * TvUi.u;
+                    font-weight: 500;
+                    color: TvUi.last-played-kind == "site" ? TvUi.last-played-brand.ink : Theme.text-primary;
+                    overflow: elide;
+                }
+
+                Text {
+                    text: TvUi.last-played-subtitle != ""
+                        ? TvUi.last-played-subtitle
+                        : (TvUi.last-played-kind == "site"
+                            ? "OK to launch"
+                            : TvUi.last-played-kind == "media"
+                                ? "OK to resume"
+                                : "Pick something to play");
+                    font-size: 16px * TvUi.u;
+                    color: TvUi.last-played-kind == "site" ? TvUi.last-played-brand.sub-ink : Theme.text-secondary;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+
+    // 7: Google Meet tile (356 x 230)
+    IconTile {
+        x: 694px * TvUi.u;
+        y: 742px * TvUi.u;
+        base-width: 356px * TvUi.u;
+        base-height: 230px * TvUi.u;
+        fill: Dash.tint.card;
+        icon: "video";
+        label: "Google Meet";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
+        activated => { TvUi.tile-activated(7); }
+        hovered => { TvUi.tile-hovered(7); }
+    }
+
+    // 8: Theme tile (240 x 230, below Screensaver)
+    ValueTile {
+        x: 1066px * TvUi.u;
+        y: 742px * TvUi.u;
+        base-width: 240px * TvUi.u;
+        base-height: 230px * TvUi.u;
+        fill: Dash.tint.poster;
+        label: "Theme";
+        value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.ku-light ? "Kansas Light" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
+        activated => { TvUi.tile-activated(8); }
+        hovered => { TvUi.tile-hovered(8); }
+    }
+    } // end Group 3
+
+    // ── Group 4: Streaming Services 2x5 grid (690 ms) ────────────────────────
+    IntroRise {
+        width: parent.width;
+        height: parent.height;
+        delay: 690ms;
+
+    Text {
+        x: 1338px * TvUi.u;
+        y: 136px * TvUi.u;
+        text: "STREAMING SERVICES";
+        font-size: 22px * TvUi.u;
+        font-weight: 500;
+        letter-spacing: 1.2px;
+        color: Theme.text-secondary;
+    }
+
+    for svc[i] in TvUi.services: ServiceTile {
+        visible: i < 10;
+        x: (1338px + Math.mod(i, 2) * 251px) * TvUi.u;
+        y: (176px + Math.floor(i / 2) * 162px) * TvUi.u;
+        base-width: 235px * TvUi.u;
+        base-height: 146px * TvUi.u;
+        brand: svc.brand;
+        is-recent: svc.is-recent;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;
+        activated => { TvUi.tile-activated(10 + i); }
+        hovered => { TvUi.tile-hovered(10 + i); }
+    }
+    } // end Group 4
+}

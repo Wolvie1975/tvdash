@@ -7,10 +7,11 @@ pub mod events;
 pub mod layout;
 pub mod models;
 pub mod secrets;
+pub mod sports_store;
 pub mod state;
 
 pub use config::{Config, LoadedConfig};
-pub use events::{AppEvent, Command};
+pub use events::{AppEvent, Command, SleepSnapshot};
 pub use layout::{Decision, Layout, LayoutSetting};
 pub use secrets::SecretKey;
 

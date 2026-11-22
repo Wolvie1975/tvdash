@@ -264,7 +264,7 @@ pub fn match_providers<'a>(site_name: &str, providers: &'a [Provider]) -> Vec<&'
             .filter(|c| c.is_alphanumeric() || c.is_whitespace())
             .collect::<String>()
             .split_whitespace()
-            .filter(|w| !matches!(*w, "the" | "tv" | "amazon" | "channel" | "with" | "ads" | "standard" | "premium"))
+            .filter(|w| !matches!(*w, "the" | "amazon" | "channel" | "with" | "ads" | "standard" | "premium"))
             .collect::<Vec<_>>()
             .join(" ")
     };
@@ -415,6 +415,8 @@ mod tests {
             duration_ms: None,
             resume_ms: None,
             poster: None,
+            summary: None,
+            extra: Default::default(),
         };
         let library = HashMap::from([((false, 2), item)]);
         let mut all = vec![
@@ -446,6 +448,7 @@ mod tests {
             p(350, "Apple TV Plus"),
             p(2, "Apple TV"),
             p(15, "Hulu"),
+            p(192, "YouTube"),
         ];
         let ids = |name| match_providers(name, &list).iter().map(|p| p.provider_id).collect::<Vec<_>>();
         assert_eq!(ids("Netflix"), [8, 1796]);
@@ -453,6 +456,8 @@ mod tests {
         assert_eq!(ids("Prime Video"), [9, 2100]);
         assert_eq!(ids("Apple TV+"), [350]);
         assert_eq!(ids("Hulu"), [15]);
+        assert_eq!(ids("YouTube"), [192]);
+        assert!(ids("YouTube TV").is_empty());
         assert!(ids("").is_empty());
     }
 }

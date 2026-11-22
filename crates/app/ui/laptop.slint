@@ -1,60 +1,57 @@
 import { Theme } from "theme.slint";
-import { HomePage } from "home.slint";
-import { LibraryPage } from "library.slint";
-import { SettingsPage } from "settings.slint";
-import { SetupPage } from "setup.slint";
-import { Dash, Nav, SiteEditor } from "state.slint";
+import { ArtworkPicker } from "artwork_picker.slint";
+import { Artwork, Dash, Display, SiteEditor, SleepState, SportsAlertState, TvUi } from "state.slint";
 import { SiteEditorDialog } from "site_editor.slint";
-import { WatchPage } from "watch.slint";
+import { SleepPicker, SleepWarning } from "shared/sleep.slint";
+import { SportsAlertCard } from "shared/sports_alert.slint";
 import { TvShell } from "tv/shell.slint";
+import { V3Theme } from "v3/theme.slint";
+import { V3Shell } from "v3/shell.slint";
 
-// The main window. Two screens: the laptop dashboard pages. TV only
-// (Nav.layout == "tv"): the 10-foot shell, full screen on the TV.
+// The main window. Renders either Classic (TvShell) or Blades (V3Shell) based on
+// Display.dashboard-ui ("classic" | "blades").
 export component LaptopWindow inherits Window {
     title: "tvdash";
-    background: Theme.bg;
-    default-font-family: Theme.font;
+    background: Display.dashboard-ui == "blades" ? V3Theme.bg : Theme.bg;
+    default-font-family: Display.dashboard-ui == "blades" ? V3Theme.font : Theme.font;
     preferred-width: 1600px;
     preferred-height: 1000px;
-    // Small enough for a 1080p panel at 200% (960 × 540); the page scrolls.
+    // Small enough for a 1080p panel at 200% (960 × 540); TvShell/V3Shell scale via TvUi.u.
     min-width: 800px;
     min-height: 480px;
 
-    // Scroll back to the top whenever the page changes.
-    property <string> current-page: Nav.page;
-    changed current-page => { scroller.content-y = 0; }
-
-    // Scrolls vertically if the panel is shorter than the content.
-    scroller := Flickable {
-        visible: Nav.layout == "dual";
-        content-height: max(self.height, body.preferred-height);
-        body := VerticalLayout {
-            width: scroller.width;
-            height: scroller.content-height;
-            if Nav.page == "home": HomePage { }
-            if Nav.page == "library": LibraryPage { }
-            if Nav.page == "watch": WatchPage { }
-            if Nav.page == "settings": SettingsPage { }
-            if Nav.page == "setup": SetupPage { }
-        }
-    }
-
-    if Nav.layout == "tv": TvShell { width: root.width; height: root.height; }
+    if Display.dashboard-ui != "blades": TvShell { width: root.width; height: root.height; }
+    if Display.dashboard-ui == "blades": V3Shell { width: root.width; height: root.height; }
 
     if SiteEditor.open: SiteEditorDialog { width: root.width; height: root.height; }
 
+    if Artwork.open: ArtworkPicker { width: root.width; height: root.height; }
+
+    SleepPicker { width: root.width; height: root.height; }
+
+    SleepWarning {
+        x: parent.width - self.width - 48px;
+        y: parent.height - self.height - 48px;
+    }
+
+    SportsAlertCard {
+        x: parent.width - self.width - 96px * TvUi.u - (SportsAlertState.visible ? 0px : -24px * TvUi.u);
+        y: parent.height - self.height - (TvUi.hud-open ? 250px : 120px) * TvUi.u;
+        animate x { duration: 180ms; easing: ease-out; }
+    }
+
     if Dash.toast != "": Rectangle {
         x: (parent.width - self.width) / 2;
-        y: parent.height - self.height - 110px;
-        width: min(toast-text.preferred-width + 48px, parent.width - 80px);
-        height: Nav.layout == "tv" ? 84px : 56px;
+        y: parent.height - self.height - 110px * TvUi.u;
+        width: min(toast-text.preferred-width + 48px * TvUi.u, parent.width - 80px);
+        height: 84px * TvUi.u;
         border-radius: 12px;
         background: Theme.surface-raised;
         border-width: 1px;
         border-color: Theme.border;
         toast-text := Text {
             text: Dash.toast;
-            font-size: Nav.layout == "tv" ? 32px : Theme.body-size;
+            font-size: 32px * TvUi.u;
             color: Theme.text-primary;
             overflow: elide;
         }

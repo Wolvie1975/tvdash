@@ -49,7 +49,14 @@ playing behind it); Home's card has Pause, Full screen and Stop. Slint is asked 
 OpenGL, since GLES rules out mpv's VAAPI hardware decoding. No libmpv, or a render context that
 fails, means mpv's own window (as in two screens), resuming where it was.
 
-**Next:** Search on the TV; the phone remote (v3) and HDMI-CEC; night-mode Dark (needs v2).
+**Step 3 (built):**
+- **Search (`SearchScreen` + `WatchDetailOverlay`):** 6×6 on-screen keyboard (`A`–`Z`, `0`–`9`), physical keyboard typing, Where to Watch results, and 10-foot detail view.
+- **Library parity (`LibraryScreen` + `ShowDetailOverlay`):** `TV Shows` / `Movies` / `Browse All` tabs, 5-column poster grid, smart shelves, and 10-foot seasons/episodes detail view.
+- **Player HUD controls:** `Audio`, `Subs`, `Vol −`, and `Vol +` in the floating HUD plus `a` / `s` / `-` / `+` shortcuts.
+- **Night mode:** `[display] night_mode`, `night_start`, and `night_end` force Dark theme on the TV during night hours.
+- **Phone remote (`remote.rs`):** Local HTTP remote on port `8765` (`http://<host>:8765/`) with D-pad, Back/Home, media controls, and Search-on-TV.
+
+**Optional / Later:** HDMI-CEC remote (`cec-client` listener forwarding TV remote keys).
 
 ## 1. What it is
 
@@ -182,16 +189,17 @@ On `home`: quit mpv over IPC or close the browser via the DevTools protocol, the
 
 ## 10. Done when
 
-- [ ] `layout = "tv"` starts one full-screen window on the TV; `layout = "dual"` still works unchanged.
-- [ ] Every Home screen item is reachable with arrows + OK only.
-- [ ] Rail opens and closes as specified; theme switch works from both rail states.
-- [ ] Home returns to the home screen from mpv and from a streaming site, via phone remote and via the keyboard shortcut.
-- [ ] Playback overlay appears on OK and hides after 5 s.
-- [ ] Night-mode hours force Dark on the TV.
+- [x] `layout = "tv"` starts one full-screen window on the TV; `layout = "dual"` still works unchanged.
+- [x] Every Home screen item is reachable with arrows + OK only.
+- [x] Rail opens and closes as specified; theme switch works from both rail states.
+- [x] Home returns to the home screen from mpv and from a streaming site, via phone remote and via the keyboard shortcut.
+- [x] Playback overlay appears on OK and hides after 5 s.
+- [x] Night-mode hours force Dark on the TV.
 
 ---
 
-## 11. Open questions
+## 11. Optional / Later
 
-- [ ] Search: an on-screen keyboard, or rely on typing from the phone remote?
-- [ ] Ambient idle screen (Concept 2) after ~5 min on Home: in or out?
+- [ ] **HDMI-CEC remote:** `cec-client` listener process forwarding TV remote keys (arrow/OK/Back/Home/media) to `tvdash`.
+- [x] Search: on-screen keyboard + phone remote typing (both implemented).
+- [x] Ambient idle screen after ~5 min on Home (implemented).

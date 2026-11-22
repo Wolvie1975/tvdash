@@ -1,0 +1,904 @@
+// Blades UI (v3) — Library panel (1600 x 1032 design space).
+
+import { Icon } from "../icons.slint";
+import { Dash, Library, LibraryLanding, Nav, RankedTileData, TvUi } from "../state.slint";
+import { SleepChip } from "../shared/sleep.slint";
+import { V3Theme } from "theme.slint";
+
+component V3RankedShelf inherits Rectangle {
+    in property <string> title;
+    in property <string> count-text;
+    in property <[RankedTileData]> items;
+    in property <int> base-tile;
+
+    height: 248px * TvUi.u;
+    background: transparent;
+
+    Text {
+        x: 40px * TvUi.u;
+        y: 0px;
+        text: root.title;
+        font-family: V3Theme.font;
+        font-size: 20px * TvUi.u;
+        font-weight: 700;
+        color: V3Theme.text-primary;
+    }
+
+    if root.count-text != "": Text {
+        x: parent.width - 40px * TvUi.u - self.preferred-width;
+        y: 2px * TvUi.u;
+        text: root.count-text;
+        font-family: V3Theme.font;
+        font-size: 16px * TvUi.u;
+        color: V3Theme.text-muted;
+    }
+
+    for item[i] in root.items: Rectangle {
+        visible: i < 6;
+        property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == root.base-tile + i;
+
+        x: (40px + i * 256px) * TvUi.u;
+        y: 36px * TvUi.u;
+        width: 242px * TvUi.u;
+        height: 202px * TvUi.u;
+        background: transparent;
+
+        Image {
+            x: 0;
+            y: 8px * TvUi.u;
+            width: 120px * TvUi.u;
+            height: 190px * TvUi.u;
+            source: item.rank == 1 ? @image-url("../../../../assets/rank/1.svg")
+                : item.rank == 2 ? @image-url("../../../../assets/rank/2.svg")
+                : item.rank == 3 ? @image-url("../../../../assets/rank/3.svg")
+                : item.rank == 4 ? @image-url("../../../../assets/rank/4.svg")
+                : item.rank == 5 ? @image-url("../../../../assets/rank/5.svg")
+                : @image-url("../../../../assets/rank/6.svg");
+            image-fit: contain;
+        }
+
+        Rectangle {
+            x: 108px * TvUi.u;
+            y: 0;
+            width: 134px * TvUi.u;
+            height: 200px * TvUi.u;
+            border-radius: 12px * TvUi.u;
+            clip: true;
+            background: V3Theme.surface;
+            border-width: parent.is-foc ? 4px : 1px;
+            border-color: parent.is-foc ? V3Theme.focus-ring : V3Theme.border;
+
+            if item.has-poster: Image {
+                source: item.poster;
+                width: 100%;
+                height: 100%;
+                image-fit: cover;
+            }
+
+            if !item.has-poster: Text {
+                x: 10px * TvUi.u;
+                y: parent.height - self.preferred-height - 10px * TvUi.u;
+                width: parent.width - 20px * TvUi.u;
+                text: item.title;
+                font-family: V3Theme.font;
+                font-size: 16px * TvUi.u;
+                font-weight: 700;
+                color: V3Theme.text-primary;
+                wrap: word-wrap;
+            }
+
+            ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { TvUi.tile-activated(root.base-tile + i); }
+                changed has-hover => { if self.has-hover { TvUi.tile-hovered(root.base-tile + i); } }
+            }
+        }
+    }
+}
+
+export component V3Library inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+
+    property <[string]> letters: [
+        "All", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
+        "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "#"
+    ];
+
+    property <int> s1-n: LibraryLanding.shelf1.length;
+    property <int> s2-n: LibraryLanding.shelf2.length;
+    property <int> s3-n: LibraryLanding.shelf3.length;
+    property <float> s2-label-y: root.s1-n > 0 ? 316.0 : 10.0;
+    property <float> s3-label-y: root.s2-label-y + (root.s2-n > 0 ? 276.0 : 0.0);
+
+    // ── Header: Title + Sub-pills + Watching now + Weather/Clock ─────────────
+    Text {
+        x: 40px * TvUi.u;
+        y: 30px * TvUi.u;
+        text: "Library";
+        font-family: V3Theme.font;
+        font-size: 38px * TvUi.u;
+        font-weight: 700;
+        color: V3Theme.text-primary;
+    }
+
+    // 0..2: TV Series | Movies | Browse all segmented pill group
+    Rectangle {
+        x: 204px * TvUi.u;
+        y: 34px * TvUi.u;
+        width: 382px * TvUi.u;
+        height: 44px * TvUi.u;
+        border-radius: 22px * TvUi.u;
+        background: V3Theme.surface;
+        border-width: 1px;
+        border-color: V3Theme.border;
+
+        for tab[i] in [
+            { id: 0, label: "TV Series", active: !Library.browse-all && Library.media-tab == "tv", x: 4px, w: 126px },
+            { id: 1, label: "Movies", active: !Library.browse-all && Library.media-tab == "movies", x: 132px, w: 112px },
+            { id: 2, label: "Browse all", active: Library.browse-all, x: 246px, w: 132px },
+        ]: Rectangle {
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == tab.id;
+            x: tab.x * TvUi.u;
+            y: 4px * TvUi.u;
+            width: tab.w * TvUi.u;
+            height: 36px * TvUi.u;
+            border-radius: 18px * TvUi.u;
+            background: tab.active ? V3Theme.accent : (t-ta.has-hover ? V3Theme.surface-raised : transparent);
+            border-width: self.is-foc ? 3px : 0px;
+            border-color: V3Theme.focus-ring;
+
+            Text {
+                text: tab.label;
+                font-family: V3Theme.font;
+                font-size: 16px * TvUi.u;
+                font-weight: tab.active ? 700 : 600;
+                color: tab.active ? V3Theme.on-accent : V3Theme.text-primary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            t-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { TvUi.tile-activated(tab.id); }
+            }
+        }
+    }
+
+    // 3: Watching now pill
+    Rectangle {
+        property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 3;
+        x: 610px * TvUi.u;
+        y: 34px * TvUi.u;
+        width: wn-row.preferred-width + 28px * TvUi.u;
+        height: 44px * TvUi.u;
+        border-radius: 22px * TvUi.u;
+        background: wn-ta.has-hover ? V3Theme.surface-raised : V3Theme.surface;
+        border-width: self.is-foc ? 3px : 1px;
+        border-color: self.is-foc ? V3Theme.focus-ring : V3Theme.border;
+
+        wn-row := HorizontalLayout {
+            x: 14px * TvUi.u;
+            height: parent.height;
+            spacing: 8px * TvUi.u;
+
+            Rectangle {
+                width: 8px * TvUi.u;
+                height: 8px * TvUi.u;
+                y: (parent.height - self.height) / 2;
+                border-radius: 4px * TvUi.u;
+                background: LibraryLanding.watching-now-count > 0 ? V3Theme.alert : V3Theme.text-muted;
+            }
+
+            Text {
+                text: LibraryLanding.watching-now-count > 0
+                    ? "Watching now · " + LibraryLanding.watching-now-count
+                    : "Nothing streaming";
+                font-family: V3Theme.font;
+                font-size: 16px * TvUi.u;
+                font-weight: 600;
+                color: V3Theme.text-primary;
+                vertical-alignment: center;
+            }
+        }
+
+        wn-ta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { TvUi.tile-activated(3); }
+        }
+    }
+
+    HorizontalLayout {
+        x: parent.width - 40px * TvUi.u - self.preferred-width;
+        y: 38px * TvUi.u;
+        spacing: 20px * TvUi.u;
+        alignment: end;
+
+        SleepChip {
+            ink: V3Theme.accent;
+            clickable: Nav.layout == "dual";
+            y: (parent.height - self.height) / 2;
+        }
+
+        if Dash.weather-on: Text {
+            text: Dash.weather-temp;
+            font-family: V3Theme.font;
+            font-size: 20px * TvUi.u;
+            font-weight: 600;
+            color: V3Theme.text-primary;
+        }
+        Text {
+            text: Dash.clock-hh + ":" + Dash.clock-mm + (Dash.clock-ampm != "" ? " " + Dash.clock-ampm : "");
+            font-family: V3Theme.font;
+            font-size: 20px * TvUi.u;
+            font-weight: 600;
+            color: V3Theme.text-primary;
+        }
+    }
+
+    // ── Landing View ─────────────────────────────────────────────────────────
+    if !Library.browse-all: Rectangle {
+        x: 0;
+        y: 96px * TvUi.u;
+        width: parent.width;
+        height: parent.height - 96px * TvUi.u;
+        background: transparent;
+
+        // Top-right rounded backdrop
+        Rectangle {
+            x: parent.width - 40px * TvUi.u - 820px * TvUi.u;
+            y: 4px * TvUi.u;
+            width: 820px * TvUi.u;
+            height: 330px * TvUi.u;
+            border-radius: 18px * TvUi.u;
+            clip: true;
+            background: @linear-gradient(135deg, LibraryLanding.focus.tint-poster 0%, LibraryLanding.focus.tint-card 100%);
+            border-width: 1px;
+            border-color: V3Theme.border;
+
+            if LibraryLanding.has-backdrop: Image {
+                source: LibraryLanding.backdrop-a;
+                width: 100%;
+                height: 100%;
+                image-fit: cover;
+                opacity: LibraryLanding.backdrop-show-b ? 0 : 1;
+                animate opacity { duration: 250ms; easing: ease-in-out; }
+            }
+
+            if LibraryLanding.has-backdrop: Image {
+                source: LibraryLanding.backdrop-b;
+                width: 100%;
+                height: 100%;
+                image-fit: cover;
+                opacity: LibraryLanding.backdrop-show-b ? 1 : 0;
+                animate opacity { duration: 250ms; easing: ease-in-out; }
+            }
+        }
+
+        // Top-left FocusInfo
+        VerticalLayout {
+            x: 40px * TvUi.u;
+            y: 22px * TvUi.u;
+            width: 680px * TvUi.u;
+            spacing: 10px * TvUi.u;
+            alignment: start;
+
+            Text {
+                text: LibraryLanding.focus.kicker;
+                font-family: V3Theme.font;
+                font-size: 14px * TvUi.u;
+                font-weight: 700;
+                letter-spacing: 1.2px;
+                color: V3Theme.accent;
+                overflow: elide;
+            }
+
+            Text {
+                text: LibraryLanding.focus.title;
+                font-family: V3Theme.font;
+                font-size: 52px * TvUi.u;
+                font-weight: 700;
+                color: V3Theme.text-primary;
+                overflow: elide;
+            }
+
+            if LibraryLanding.focus.meta != "": Text {
+                text: LibraryLanding.focus.meta;
+                font-family: V3Theme.font;
+                font-size: 17px * TvUi.u;
+                font-weight: 600;
+                color: V3Theme.text-secondary;
+                overflow: elide;
+            }
+
+            Text {
+                width: 640px * TvUi.u;
+                height: 82px * TvUi.u;
+                text: LibraryLanding.focus.summary;
+                font-family: V3Theme.font;
+                font-size: 18px * TvUi.u;
+                color: V3Theme.text-secondary;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+        }
+
+        // Scrollable Shelves
+        Rectangle {
+            x: 0;
+            y: 356px * TvUi.u;
+            width: parent.width;
+            height: parent.height - 356px * TvUi.u;
+            clip: true;
+            background: transparent;
+
+            TouchArea {
+                scroll-event(event) => {
+                    TvUi.scroll-panorama(event.delta-y);
+                    accept
+                }
+            }
+
+            Rectangle {
+                x: 0;
+                y: -TvUi.lib-scroll * TvUi.u;
+                width: parent.width;
+                height: (root.s3-label-y + (root.s3-n > 0 ? 260.0 : 0.0)) * 1px * TvUi.u;
+                background: transparent;
+                animate y { duration: 150ms; easing: ease-out; }
+
+                if root.s1-n > 0: Text {
+                    x: 40px * TvUi.u;
+                    y: 4px * TvUi.u;
+                    text: LibraryLanding.shelf1-title;
+                    font-family: V3Theme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-primary;
+                }
+
+                for item[i] in LibraryLanding.shelf1: Rectangle {
+                    visible: i < 4;
+                    property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 4 + i;
+                    x: (40px + i * 384px) * TvUi.u;
+                    y: 40px * TvUi.u;
+                    width: 368px * TvUi.u;
+                    height: 262px * TvUi.u;
+                    background: transparent;
+
+                    Rectangle {
+                        x: 0;
+                        y: 0;
+                        width: parent.width;
+                        height: 206px * TvUi.u;
+                        border-radius: 14px * TvUi.u;
+                        clip: true;
+                        background: V3Theme.surface;
+                        border-width: parent.is-foc ? 4px : 1px;
+                        border-color: parent.is-foc ? V3Theme.focus-ring : V3Theme.border;
+
+                        if item.has-art: Image {
+                            source: item.art;
+                            width: 100%;
+                            height: 100%;
+                            image-fit: cover;
+                        }
+
+                        if item.segments > 1: HorizontalLayout {
+                            x: 12px * TvUi.u;
+                            y: parent.height - 14px * TvUi.u;
+                            width: parent.width - 24px * TvUi.u;
+                            height: 6px * TvUi.u;
+                            spacing: 5px * TvUi.u;
+
+                            for seg[si] in item.segments: Rectangle {
+                                horizontal-stretch: 1;
+                                height: 100%;
+                                border-radius: 3px * TvUi.u;
+                                background: si < item.watched-segments ? V3Theme.accent : #FFFFFF44;
+                            }
+                        }
+
+                        if item.segments <= 1 && item.progress > 0.0: Rectangle {
+                            x: 12px * TvUi.u;
+                            y: parent.height - 14px * TvUi.u;
+                            width: parent.width - 24px * TvUi.u;
+                            height: 6px * TvUi.u;
+                            border-radius: 3px * TvUi.u;
+                            background: #FFFFFF33;
+
+                            Rectangle {
+                                width: parent.width * clamp(item.progress, 0.0, 1.0);
+                                height: 100%;
+                                border-radius: 3px * TvUi.u;
+                                background: V3Theme.accent;
+                            }
+                        }
+                    }
+
+                    Text {
+                        x: 2px * TvUi.u;
+                        y: 214px * TvUi.u;
+                        width: parent.width - 4px * TvUi.u;
+                        text: item.title;
+                        font-family: V3Theme.font;
+                        font-size: 18px * TvUi.u;
+                        font-weight: 700;
+                        color: V3Theme.text-primary;
+                        overflow: elide;
+                    }
+
+                    if item.right-label != "": Text {
+                        x: 2px * TvUi.u;
+                        y: 238px * TvUi.u;
+                        width: parent.width - 4px * TvUi.u;
+                        text: item.right-label;
+                        font-family: V3Theme.font;
+                        font-size: 14px * TvUi.u;
+                        color: V3Theme.text-secondary;
+                        overflow: elide;
+                    }
+
+                    s1-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { TvUi.tile-activated(4 + i); }
+                        changed has-hover => { if self.has-hover { TvUi.tile-hovered(4 + i); } }
+                    }
+                }
+
+                if root.s2-n > 0: V3RankedShelf {
+                    x: 0;
+                    y: root.s2-label-y * 1px * TvUi.u;
+                    width: parent.width;
+                    title: LibraryLanding.shelf2-title;
+                    count-text: LibraryLanding.shelf2-count;
+                    items: LibraryLanding.shelf2;
+                    base-tile: 4 + root.s1-n;
+                }
+
+                if root.s3-n > 0: V3RankedShelf {
+                    x: 0;
+                    y: root.s3-label-y * 1px * TvUi.u;
+                    width: parent.width;
+                    title: LibraryLanding.shelf3-title;
+                    count-text: LibraryLanding.shelf3-count;
+                    items: LibraryLanding.shelf3;
+                    base-tile: 4 + root.s1-n + root.s2-n;
+                }
+            }
+        }
+    }
+
+    // ── Browse All View ──────────────────────────────────────────────────────
+    if Library.browse-all: Rectangle {
+        x: 0;
+        y: 96px * TvUi.u;
+        width: parent.width;
+        height: parent.height - 96px * TvUi.u;
+        background: transparent;
+
+        // Letter pill bar (4..31) + Movies/TV Series toggle on right
+        Rectangle {
+            x: 40px * TvUi.u;
+            y: 6px * TvUi.u;
+            width: 1260px * TvUi.u;
+            height: 44px * TvUi.u;
+            border-radius: 12px * TvUi.u;
+            background: V3Theme.surface;
+            border-width: 1px;
+            border-color: V3Theme.border;
+
+            for ltr[i] in root.letters: Rectangle {
+                property <bool> is-on: (ltr == "All" && Library.browse-letter == "")
+                    || (ltr != "All" && Library.browse-letter == ltr);
+                property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 4 + i;
+
+                x: (8px + i * 44px) * TvUi.u;
+                y: 4px * TvUi.u;
+                width: 40px * TvUi.u;
+                height: 36px * TvUi.u;
+                border-radius: 8px * TvUi.u;
+                background: self.is-on ? V3Theme.accent : (l-ta.has-hover ? V3Theme.surface-raised : transparent);
+                border-width: self.is-foc ? 3px : 0px;
+                border-color: V3Theme.focus-ring;
+
+                Text {
+                    text: ltr;
+                    font-family: V3Theme.font;
+                    font-size: 16px * TvUi.u;
+                    font-weight: parent.is-on ? 700 : 600;
+                    color: parent.is-on ? V3Theme.on-accent : V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                l-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { TvUi.tile-activated(4 + i); }
+                }
+            }
+        }
+
+        // Movies | TV Series switch on the right of the A-Z bar
+        Rectangle {
+            x: parent.width - 40px * TvUi.u - 216px * TvUi.u;
+            y: 6px * TvUi.u;
+            width: 216px * TvUi.u;
+            height: 44px * TvUi.u;
+            border-radius: 12px * TvUi.u;
+            background: V3Theme.surface;
+            border-width: 1px;
+            border-color: V3Theme.border;
+
+            Rectangle {
+                x: 4px * TvUi.u;
+                y: 4px * TvUi.u;
+                width: 96px * TvUi.u;
+                height: 36px * TvUi.u;
+                border-radius: 8px * TvUi.u;
+                background: Library.media-tab == "movies" ? V3Theme.surface-raised : transparent;
+                Text {
+                    text: "Movies";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: Library.media-tab == "movies" ? 700 : 500;
+                    color: V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Library.set-media-tab("movies"); }
+                }
+            }
+
+            Rectangle {
+                x: 104px * TvUi.u;
+                y: 4px * TvUi.u;
+                width: 108px * TvUi.u;
+                height: 36px * TvUi.u;
+                border-radius: 8px * TvUi.u;
+                background: Library.media-tab == "tv" ? V3Theme.surface-raised : transparent;
+                Text {
+                    text: "TV Series";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: Library.media-tab == "tv" ? 700 : 500;
+                    color: V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Library.set-media-tab("tv"); }
+                }
+            }
+        }
+
+    // Status line ("All  First 10 of 1,284 movies, A–Z · pick a letter to see the rest") + Back to Library pill
+        if Library.browse-all: Rectangle {
+            x: parent.width - 40px * TvUi.u - 170px * TvUi.u;
+            y: 58px * TvUi.u;
+            width: 170px * TvUi.u;
+            height: 36px * TvUi.u;
+            border-radius: 18px * TvUi.u;
+            background: btl-ta.has-hover ? V3Theme.surface-raised : V3Theme.surface;
+            border-width: 1px;
+            border-color: V3Theme.border;
+
+            Text {
+                text: "‹  Back to Library";
+                font-family: V3Theme.font;
+                font-size: 15px * TvUi.u;
+                font-weight: 700;
+                color: V3Theme.text-primary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            btl-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    Library.browse-all = false;
+                    TvUi.lib-scroll = 0;
+                }
+            }
+        }
+
+        HorizontalLayout {
+            x: 40px * TvUi.u;
+            y: 64px * TvUi.u;
+            spacing: 14px * TvUi.u;
+            height: 30px * TvUi.u;
+
+            Text {
+                text: Library.browse-letter == "" ? "All" : Library.browse-letter;
+                font-family: V3Theme.font;
+                font-size: 24px * TvUi.u;
+                font-weight: 700;
+                color: V3Theme.text-primary;
+                vertical-alignment: center;
+            }
+            Text {
+                text: Library.browse-status;
+                font-family: V3Theme.font;
+                font-size: 17px * TvUi.u;
+                color: V3Theme.text-secondary;
+                vertical-alignment: center;
+            }
+        }
+
+        if Library.browse-items.length == 0: Text {
+            x: 40px * TvUi.u;
+            y: 124px * TvUi.u;
+            text: Library.browse-letter == ""
+                ? "No items in this library."
+                : "No items starting with “" + Library.browse-letter + "”.";
+            font-family: V3Theme.font;
+            font-size: 22px * TvUi.u;
+            color: V3Theme.text-secondary;
+        }
+
+        if Library.browse-items.length > 0: Rectangle {
+            x: 0;
+            y: 108px * TvUi.u;
+            width: parent.width;
+            height: parent.height - 108px * TvUi.u;
+            clip: true;
+            background: transparent;
+
+            TouchArea {
+                scroll-event(event) => {
+                    TvUi.scroll-panorama(event.delta-y);
+                    accept
+                }
+            }
+
+            Rectangle {
+                x: 0;
+                y: -TvUi.lib-scroll * TvUi.u;
+                width: parent.width;
+                height: (Math.ceil(Library.browse-items.length / 8) * 320px + 40px) * TvUi.u;
+                background: transparent;
+                animate y { duration: 150ms; easing: ease-out; }
+
+                for item[i] in Library.browse-items: Rectangle {
+                    property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 32 + i;
+                    x: (40px + Math.mod(i, 8) * 192px) * TvUi.u;
+                    y: (6px + Math.floor(i / 8) * 316px) * TvUi.u;
+                    width: 174px * TvUi.u;
+                    height: 300px * TvUi.u;
+                    background: transparent;
+
+                    Rectangle {
+                        x: 0;
+                        y: 0;
+                        width: 174px * TvUi.u;
+                        height: 248px * TvUi.u;
+                        border-radius: 14px * TvUi.u;
+                        clip: true;
+                        background: V3Theme.surface;
+                        border-width: parent.is-foc ? 4px : 1px;
+                        border-color: parent.is-foc ? V3Theme.focus-ring : V3Theme.border;
+
+                        if item.has-poster: Image {
+                            source: item.poster;
+                            width: 100%;
+                            height: 100%;
+                            image-fit: cover;
+                        }
+                    }
+
+                    Text {
+                        x: 2px * TvUi.u;
+                        y: 256px * TvUi.u;
+                        width: parent.width - 4px * TvUi.u;
+                        text: item.title;
+                        font-family: V3Theme.font;
+                        font-size: 16px * TvUi.u;
+                        font-weight: 700;
+                        color: V3Theme.text-primary;
+                        overflow: elide;
+                    }
+
+                    if item.subtitle != "": Text {
+                        x: 2px * TvUi.u;
+                        y: 278px * TvUi.u;
+                        width: parent.width - 4px * TvUi.u;
+                        text: item.subtitle;
+                        font-family: V3Theme.font;
+                        font-size: 14px * TvUi.u;
+                        color: V3Theme.text-secondary;
+                        overflow: elide;
+                    }
+
+                    br-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { TvUi.tile-activated(32 + i); }
+                        changed has-hover => { if self.has-hover { TvUi.tile-hovered(32 + i); } }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Watching Now Modal ───────────────────────────────────────────────────
+    if LibraryLanding.watching-now-open: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: 18px * TvUi.u;
+        background: #000000B8;
+
+        TouchArea {
+            clicked => { LibraryLanding.close-watching-now(); }
+        }
+
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 960px * TvUi.u;
+            height: min(720px * TvUi.u, max(240px * TvUi.u, (130px + LibraryLanding.watching-now-rows.length * 136px) * TvUi.u));
+            border-radius: 20px * TvUi.u;
+            background: V3Theme.panel;
+            border-width: 1px;
+            border-color: V3Theme.border;
+
+            TouchArea { }
+
+            VerticalLayout {
+                padding: 28px * TvUi.u;
+                spacing: 16px * TvUi.u;
+
+                HorizontalLayout {
+                    spacing: 12px * TvUi.u;
+                    Rectangle {
+                        width: 10px * TvUi.u;
+                        height: 10px * TvUi.u;
+                        y: (parent.height - self.height) / 2;
+                        border-radius: 5px * TvUi.u;
+                        background: V3Theme.alert;
+                    }
+                    Text {
+                        text: "Watching now";
+                        font-family: V3Theme.font;
+                        font-size: 28px * TvUi.u;
+                        font-weight: 700;
+                        color: V3Theme.text-primary;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        horizontal-stretch: 1;
+                        text: LibraryLanding.watching-now-count + " streams";
+                        font-family: V3Theme.font;
+                        font-size: 16px * TvUi.u;
+                        color: V3Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                    Rectangle {
+                        width: 112px * TvUi.u;
+                        height: 38px * TvUi.u;
+                        border-radius: 10px * TvUi.u;
+                        background: V3Theme.surface;
+                        border-width: 1px;
+                        border-color: V3Theme.border;
+                        Text {
+                            text: "Close  ESC";
+                            font-family: V3Theme.font;
+                            font-size: 14px * TvUi.u;
+                            font-weight: 600;
+                            color: V3Theme.text-primary;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { LibraryLanding.close-watching-now(); }
+                        }
+                    }
+                }
+
+                for sess[i] in LibraryLanding.watching-now-rows: Rectangle {
+                    height: 118px * TvUi.u;
+                    border-radius: 14px * TvUi.u;
+                    background: V3Theme.surface;
+                    border-width: TvUi.focused-tile == i ? 3px : 1px;
+                    border-color: TvUi.focused-tile == i ? V3Theme.focus-ring : V3Theme.border;
+
+                    HorizontalLayout {
+                        padding: 14px * TvUi.u;
+                        spacing: 16px * TvUi.u;
+
+                        if sess.has-poster: Rectangle {
+                            width: 150px * TvUi.u;
+                            height: 88px * TvUi.u;
+                            border-radius: 10px * TvUi.u;
+                            clip: true;
+                            Image {
+                                source: sess.poster;
+                                width: 100%;
+                                height: 100%;
+                                image-fit: cover;
+                            }
+                        }
+
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            spacing: 4px * TvUi.u;
+                            alignment: center;
+
+                            Text {
+                                text: sess.player-line;
+                                font-family: V3Theme.font;
+                                font-size: 13px * TvUi.u;
+                                font-weight: 700;
+                                color: V3Theme.text-secondary;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: sess.title;
+                                font-family: V3Theme.font;
+                                font-size: 20px * TvUi.u;
+                                font-weight: 700;
+                                color: V3Theme.text-primary;
+                                overflow: elide;
+                            }
+                            if sess.subtitle != "": Text {
+                                text: sess.subtitle;
+                                font-family: V3Theme.font;
+                                font-size: 15px * TvUi.u;
+                                color: V3Theme.text-secondary;
+                                overflow: elide;
+                            }
+                            HorizontalLayout {
+                                spacing: 12px * TvUi.u;
+                                Rectangle {
+                                    horizontal-stretch: 1;
+                                    height: 6px * TvUi.u;
+                                    y: (parent.height - self.height) / 2;
+                                    border-radius: 3px * TvUi.u;
+                                    background: V3Theme.border;
+                                    Rectangle {
+                                        width: parent.width * clamp(sess.progress, 0.0, 1.0);
+                                        height: 100%;
+                                        border-radius: 3px * TvUi.u;
+                                        background: V3Theme.accent;
+                                    }
+                                }
+                                Text {
+                                    text: sess.time-left;
+                                    font-family: V3Theme.font;
+                                    font-size: 13px * TvUi.u;
+                                    font-weight: 600;
+                                    color: V3Theme.text-secondary;
+                                }
+                            }
+                        }
+
+                        if sess.stream-badge != "": Rectangle {
+                            width: sb-txt.preferred-width + 20px * TvUi.u;
+                            height: 28px * TvUi.u;
+                            y: 8px * TvUi.u;
+                            border-radius: 8px * TvUi.u;
+                            background: sess.stream-badge == "Direct play" ? #1E6B4540 : V3Theme.accent-tint;
+                            sb-txt := Text {
+                                text: sess.stream-badge;
+                                font-family: V3Theme.font;
+                                font-size: 13px * TvUi.u;
+                                font-weight: 700;
+                                color: sess.stream-badge == "Direct play" ? V3Theme.ok : V3Theme.accent;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { LibraryLanding.select-watching-now(i); }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,792 @@
+// Blades UI (v3) — Sports panel (Competitions + Scoreboard).
+
+import { ListView } from "std-widgets.slint";
+import { Dash, Nav, Scoreboard, Sports, TvUi } from "../state.slint";
+import { SleepChip } from "../shared/sleep.slint";
+import { V3Theme } from "theme.slint";
+
+component V3TeamLogo inherits Rectangle {
+    in property <bool> has-logo;
+    in property <image> logo;
+    in property <string> initials;
+
+    width: 28px * TvUi.u;
+    height: 28px * TvUi.u;
+    border-radius: 7px * TvUi.u;
+    background: root.has-logo ? transparent : V3Theme.surface-raised;
+    border-width: root.has-logo ? 0px : 1px;
+    border-color: V3Theme.border;
+    clip: true;
+
+    if root.has-logo: Image {
+        width: 100%;
+        height: 100%;
+        source: root.logo;
+        image-fit: contain;
+    }
+
+    if !root.has-logo: Text {
+        text: root.initials;
+        font-family: V3Theme.font;
+        font-size: 11px * TvUi.u;
+        font-weight: 700;
+        color: V3Theme.text-secondary;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component V3Sports inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+
+    property <bool> schedule-menu-open: false;
+    property <bool> sb-show-menu-open: false;
+    property <bool> is-scoreboard: TvUi.sports-tab == "scoreboard";
+
+    Timer {
+        interval: 60s;
+        running: root.is-scoreboard && Scoreboard.is-today && !Scoreboard.loading;
+        triggered => { Scoreboard.load(Scoreboard.day, Scoreboard.show, Scoreboard.final-only); }
+    }
+
+    // Header: Title + Competitions/Scoreboard segmented pills + Weather/Clock
+    Text {
+        x: 40px * TvUi.u;
+        y: 30px * TvUi.u;
+        text: "Sports";
+        font-family: V3Theme.font;
+        font-size: 38px * TvUi.u;
+        font-weight: 700;
+        color: V3Theme.text-primary;
+    }
+
+    Rectangle {
+        x: 196px * TvUi.u;
+        y: 34px * TvUi.u;
+        width: 280px * TvUi.u;
+        height: 44px * TvUi.u;
+        border-radius: 22px * TvUi.u;
+        background: V3Theme.surface;
+        border-width: 1px;
+        border-color: V3Theme.border;
+
+        for tab[i] in [
+            { id: 0, label: "Competitions", active: !root.is-scoreboard, x: 4px, w: 144px },
+            { id: 1, label: "Scoreboard", active: root.is-scoreboard, x: 150px, w: 126px },
+        ]: Rectangle {
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == tab.id;
+            x: tab.x * TvUi.u;
+            y: 4px * TvUi.u;
+            width: tab.w * TvUi.u;
+            height: 36px * TvUi.u;
+            border-radius: 18px * TvUi.u;
+            background: tab.active ? V3Theme.accent : (st-ta.has-hover ? V3Theme.surface-raised : transparent);
+            border-width: self.is-foc ? 3px : 0px;
+            border-color: V3Theme.focus-ring;
+
+            Text {
+                text: tab.label;
+                font-family: V3Theme.font;
+                font-size: 16px * TvUi.u;
+                font-weight: tab.active ? 700 : 600;
+                color: tab.active ? V3Theme.on-accent : V3Theme.text-primary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            st-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { TvUi.tile-activated(tab.id); }
+            }
+        }
+    }
+
+    HorizontalLayout {
+        x: parent.width - 40px * TvUi.u - self.preferred-width;
+        y: 38px * TvUi.u;
+        spacing: 20px * TvUi.u;
+        alignment: end;
+
+        SleepChip {
+            ink: V3Theme.accent;
+            clickable: Nav.layout == "dual";
+            y: (parent.height - self.height) / 2;
+        }
+
+        if Dash.weather-on: Text {
+            text: Dash.weather-temp;
+            font-family: V3Theme.font;
+            font-size: 20px * TvUi.u;
+            font-weight: 600;
+            color: V3Theme.text-primary;
+        }
+        Text {
+            text: Dash.clock-hh + ":" + Dash.clock-mm + (Dash.clock-ampm != "" ? " " + Dash.clock-ampm : "");
+            font-family: V3Theme.font;
+            font-size: 20px * TvUi.u;
+            font-weight: 600;
+            color: V3Theme.text-primary;
+        }
+    }
+
+    // ── Competitions View ────────────────────────────────────────────────────
+    if !root.is-scoreboard: Rectangle {
+        x: 40px * TvUi.u;
+        y: 96px * TvUi.u;
+        width: parent.width - 80px * TvUi.u;
+        height: parent.height - 116px * TvUi.u;
+        background: transparent;
+
+        // Controls row
+        HorizontalLayout {
+            x: 0;
+            y: 4px * TvUi.u;
+            width: parent.width;
+            height: 44px * TvUi.u;
+            spacing: 12px * TvUi.u;
+
+            Rectangle {
+                width: 240px * TvUi.u;
+                height: 42px * TvUi.u;
+                border-radius: 12px * TvUi.u;
+                background: V3Theme.surface;
+                border-width: 1px;
+                border-color: V3Theme.border;
+                Text {
+                    x: 14px * TvUi.u;
+                    width: parent.width - 36px * TvUi.u;
+                    text: Sports.schedule-label;
+                    font-family: V3Theme.font;
+                    font-size: 16px * TvUi.u;
+                    font-weight: 600;
+                    color: V3Theme.text-primary;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                Text {
+                    x: parent.width - 26px * TvUi.u;
+                    text: "▾";
+                    font-size: 16px * TvUi.u;
+                    color: V3Theme.text-secondary;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.schedule-menu-open = !root.schedule-menu-open; }
+                }
+            }
+
+            Rectangle {
+                width: 112px * TvUi.u;
+                height: 42px * TvUi.u;
+                border-radius: 12px * TvUi.u;
+                background: ref-ta.has-hover ? V3Theme.surface-raised : V3Theme.surface;
+                border-width: 1px;
+                border-color: V3Theme.border;
+                Text {
+                    text: Sports.loading ? "Loading…" : "↻ Refresh";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 600;
+                    color: V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                ref-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Sports.load(Sports.schedule, Sports.page); }
+                }
+            }
+
+            Rectangle {
+                width: cnt-lbl.preferred-width + 24px * TvUi.u;
+                height: 42px * TvUi.u;
+                border-radius: 12px * TvUi.u;
+                background: V3Theme.accent-tint;
+                cnt-lbl := Text {
+                    text: Sports.total-count == 1 ? "1 event" : Sports.total-count + " events";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.accent;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            Rectangle { horizontal-stretch: 1; }
+
+            if Sports.last-updated != "": Text {
+                text: "Schedule last updated " + Sports.last-updated;
+                font-family: V3Theme.font;
+                font-size: 14px * TvUi.u;
+                color: V3Theme.text-muted;
+                vertical-alignment: center;
+            }
+        }
+
+        if Sports.error != "": Text {
+            x: 0;
+            y: 72px * TvUi.u;
+            text: Sports.error;
+            font-family: V3Theme.font;
+            font-size: 18px * TvUi.u;
+            color: V3Theme.alert;
+        }
+
+        if !Sports.loading && Sports.error == "" && Sports.rows.length == 0: Text {
+            x: 0;
+            y: 72px * TvUi.u;
+            text: "No events found.";
+            font-family: V3Theme.font;
+            font-size: 20px * TvUi.u;
+            color: V3Theme.text-secondary;
+        }
+
+        if Sports.rows.length > 0: ListView {
+            x: 0;
+            y: 64px * TvUi.u;
+            width: parent.width;
+            height: parent.height - (Sports.total-pages > 1 ? 124px : 70px) * TvUi.u;
+
+            for row in Sports.rows: Rectangle {
+                width: parent.width;
+                height: row.kind == "day" ? 44px * TvUi.u : row.kind == "league" ? 34px * TvUi.u : 94px * TvUi.u;
+                background: transparent;
+
+                if row.kind == "day": Text {
+                    y: 12px * TvUi.u;
+                    text: row.header-text;
+                    font-family: V3Theme.font;
+                    font-size: 22px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-primary;
+                }
+
+                if row.kind == "league": Text {
+                    y: 8px * TvUi.u;
+                    text: row.header-text;
+                    font-family: V3Theme.font;
+                    font-size: 14px * TvUi.u;
+                    font-weight: 700;
+                    letter-spacing: 1px;
+                    color: V3Theme.accent;
+                }
+
+                if row.kind == "game": Rectangle {
+                    y: 4px * TvUi.u;
+                    width: parent.width - 12px * TvUi.u;
+                    height: 84px * TvUi.u;
+                    border-radius: 14px * TvUi.u;
+                    background: V3Theme.surface;
+                    border-width: 1px;
+                    border-color: V3Theme.border;
+
+                    HorizontalLayout {
+                        padding-left: 18px * TvUi.u;
+                        padding-right: 18px * TvUi.u;
+                        spacing: 18px * TvUi.u;
+
+                        Text {
+                            width: 160px * TvUi.u;
+                            text: row.sport;
+                            font-family: V3Theme.font;
+                            font-size: 15px * TvUi.u;
+                            font-weight: 700;
+                            color: V3Theme.text-primary;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+
+                        VerticalLayout {
+                            width: 360px * TvUi.u;
+                            alignment: center;
+                            spacing: 6px * TvUi.u;
+                            HorizontalLayout {
+                                spacing: 10px * TvUi.u;
+                                V3TeamLogo {
+                                    y: (parent.height - self.height) / 2;
+                                    has-logo: row.away-has-logo;
+                                    logo: row.away-logo;
+                                    initials: row.away-initials;
+                                }
+                                Text {
+                                    horizontal-stretch: 1;
+                                    text: row.away-name + (row.away-label != "" ? " · " + row.away-label : "");
+                                    font-family: V3Theme.font;
+                                    font-size: 16px * TvUi.u;
+                                    font-weight: 700;
+                                    color: V3Theme.text-primary;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 10px * TvUi.u;
+                                V3TeamLogo {
+                                    y: (parent.height - self.height) / 2;
+                                    has-logo: row.home-has-logo;
+                                    logo: row.home-logo;
+                                    initials: row.home-initials;
+                                }
+                                Text {
+                                    horizontal-stretch: 1;
+                                    text: row.home-name + (row.home-label != "" ? " · " + row.home-label : "");
+                                    font-family: V3Theme.font;
+                                    font-size: 16px * TvUi.u;
+                                    font-weight: 700;
+                                    color: V3Theme.text-primary;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+
+                        Text {
+                            width: 160px * TvUi.u;
+                            text: row.time-text;
+                            font-family: V3Theme.font;
+                            font-size: 16px * TvUi.u;
+                            font-weight: 700;
+                            color: V3Theme.text-primary;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+
+                        Text {
+                            horizontal-stretch: 1;
+                            text: row.venue != "" ? row.city + " / " + row.venue : row.city;
+                            font-family: V3Theme.font;
+                            font-size: 14px * TvUi.u;
+                            color: V3Theme.text-secondary;
+                            vertical-alignment: center;
+                            wrap: word-wrap;
+                            overflow: elide;
+                        }
+
+                        Text {
+                            width: 220px * TvUi.u;
+                            text: row.tv != "" ? "TV: " + row.tv : (row.radio != "" ? "Radio: " + row.radio : "");
+                            font-family: V3Theme.font;
+                            font-size: 14px * TvUi.u;
+                            color: V3Theme.text-secondary;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 6px * TvUi.u;
+                            y: (parent.height - 32px * TvUi.u) / 2;
+                            height: 32px * TvUi.u;
+
+                            for act in [
+                                { lbl: "Stats", url: row.stats-url },
+                                { lbl: "Video", url: row.stream-url },
+                                { lbl: "Audio", url: row.audio-url },
+                                { lbl: "Details", url: row.details-url },
+                            ]: Rectangle {
+                                visible: act.url != "";
+                                width: 64px * TvUi.u;
+                                height: 32px * TvUi.u;
+                                border-radius: 8px * TvUi.u;
+                                background: V3Theme.surface-raised;
+                                border-width: 1px;
+                                border-color: V3Theme.border;
+                                Text {
+                                    text: act.lbl;
+                                    font-family: V3Theme.font;
+                                    font-size: 13px * TvUi.u;
+                                    font-weight: 600;
+                                    color: V3Theme.text-primary;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => { Sports.open-url(act.lbl, act.url); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if Sports.total-pages > 1: HorizontalLayout {
+            x: (parent.width - self.preferred-width) / 2;
+            y: parent.height - 46px * TvUi.u;
+            spacing: 16px * TvUi.u;
+
+            Rectangle {
+                width: 112px * TvUi.u;
+                height: 38px * TvUi.u;
+                border-radius: 19px * TvUi.u;
+                background: V3Theme.surface;
+                opacity: Sports.page > 0 ? 1.0 : 0.4;
+                Text {
+                    text: "← Earlier";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 600;
+                    color: V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: Sports.page > 0 ? pointer : default;
+                    clicked => { if Sports.page > 0 { Sports.load(Sports.schedule, Sports.page - 1); } }
+                }
+            }
+            Text {
+                text: "Page " + (Sports.page + 1) + " of " + Sports.total-pages;
+                font-family: V3Theme.font;
+                font-size: 15px * TvUi.u;
+                font-weight: 600;
+                color: V3Theme.text-primary;
+                vertical-alignment: center;
+            }
+            Rectangle {
+                width: 112px * TvUi.u;
+                height: 38px * TvUi.u;
+                border-radius: 19px * TvUi.u;
+                background: V3Theme.surface;
+                opacity: Sports.page + 1 < Sports.total-pages ? 1.0 : 0.4;
+                Text {
+                    text: "Later →";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 600;
+                    color: V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: Sports.page + 1 < Sports.total-pages ? pointer : default;
+                    clicked => { if Sports.page + 1 < Sports.total-pages { Sports.load(Sports.schedule, Sports.page + 1); } }
+                }
+            }
+        }
+
+        if root.schedule-menu-open: Rectangle {
+            x: 0;
+            y: 52px * TvUi.u;
+            width: 300px * TvUi.u;
+            height: min(400px * TvUi.u, Sports.choices.length * 42px * TvUi.u + 16px * TvUi.u);
+            border-radius: 14px * TvUi.u;
+            background: V3Theme.panel;
+            border-width: 1px;
+            border-color: V3Theme.border;
+
+            ListView {
+                x: 8px * TvUi.u;
+                y: 8px * TvUi.u;
+                width: parent.width - 16px * TvUi.u;
+                height: parent.height - 16px * TvUi.u;
+
+                for ch in Sports.choices: Rectangle {
+                    height: 40px * TvUi.u;
+                    border-radius: 8px * TvUi.u;
+                    background: ch.value == Sports.schedule ? V3Theme.accent : transparent;
+                    Text {
+                        x: 12px * TvUi.u;
+                        text: ch.label;
+                        font-family: V3Theme.font;
+                        font-size: 15px * TvUi.u;
+                        font-weight: ch.value == Sports.schedule ? 700 : 500;
+                        color: ch.value == Sports.schedule ? V3Theme.on-accent : V3Theme.text-primary;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.schedule-menu-open = false;
+                            Sports.load(ch.value, 0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Scoreboard View ──────────────────────────────────────────────────────
+    if root.is-scoreboard: Rectangle {
+        x: 40px * TvUi.u;
+        y: 96px * TvUi.u;
+        width: parent.width - 80px * TvUi.u;
+        height: parent.height - 116px * TvUi.u;
+        background: transparent;
+
+        HorizontalLayout {
+            x: 0;
+            y: 4px * TvUi.u;
+            width: parent.width;
+            height: 44px * TvUi.u;
+            spacing: 10px * TvUi.u;
+
+            if Scoreboard.prev-day != "": Rectangle {
+                width: 42px * TvUi.u;
+                height: 42px * TvUi.u;
+                border-radius: 12px * TvUi.u;
+                background: V3Theme.surface;
+                border-width: 1px;
+                border-color: V3Theme.border;
+                Text { text: "‹"; font-size: 20px * TvUi.u; color: V3Theme.text-primary; horizontal-alignment: center; vertical-alignment: center; }
+                TouchArea { mouse-cursor: pointer; clicked => { Scoreboard.load(Scoreboard.prev-day, Scoreboard.show, Scoreboard.final-only); } }
+            }
+
+            Rectangle {
+                width: 240px * TvUi.u;
+                height: 42px * TvUi.u;
+                border-radius: 12px * TvUi.u;
+                background: V3Theme.surface;
+                border-width: 1px;
+                border-color: V3Theme.border;
+                Text {
+                    text: Scoreboard.day-label;
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            if Scoreboard.next-day != "": Rectangle {
+                width: 42px * TvUi.u;
+                height: 42px * TvUi.u;
+                border-radius: 12px * TvUi.u;
+                background: V3Theme.surface;
+                border-width: 1px;
+                border-color: V3Theme.border;
+                Text { text: "›"; font-size: 20px * TvUi.u; color: V3Theme.text-primary; horizontal-alignment: center; vertical-alignment: center; }
+                TouchArea { mouse-cursor: pointer; clicked => { Scoreboard.load(Scoreboard.next-day, Scoreboard.show, Scoreboard.final-only); } }
+            }
+
+            Rectangle {
+                width: 112px * TvUi.u;
+                height: 42px * TvUi.u;
+                border-radius: 12px * TvUi.u;
+                background: Scoreboard.final-only ? V3Theme.accent : V3Theme.surface;
+                border-width: 1px;
+                border-color: V3Theme.border;
+                Text {
+                    text: Scoreboard.final-only ? "Final only" : "All statuses";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 600;
+                    color: Scoreboard.final-only ? V3Theme.on-accent : V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Scoreboard.load(Scoreboard.day, Scoreboard.show, !Scoreboard.final-only); }
+                }
+            }
+
+            Rectangle {
+                width: 112px * TvUi.u;
+                height: 42px * TvUi.u;
+                border-radius: 12px * TvUi.u;
+                background: V3Theme.surface;
+                border-width: 1px;
+                border-color: V3Theme.border;
+                Text {
+                    text: Scoreboard.loading ? "Loading…" : "↻ Refresh";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 600;
+                    color: V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Scoreboard.load(Scoreboard.day, Scoreboard.show, Scoreboard.final-only); }
+                }
+            }
+        }
+
+        ListView {
+            x: 0;
+            y: 64px * TvUi.u;
+            width: parent.width;
+            height: parent.height - 70px * TvUi.u;
+
+            for row in Scoreboard.rows: Rectangle {
+                width: parent.width;
+                height: row.kind == "group" ? 44px * TvUi.u : 136px * TvUi.u;
+                background: transparent;
+
+                if row.kind == "group": Text {
+                    y: 12px * TvUi.u;
+                    text: row.group-title + (row.group-subtitle != "" ? " · " + row.group-subtitle : "");
+                    font-family: V3Theme.font;
+                    font-size: 16px * TvUi.u;
+                    font-weight: 700;
+                    letter-spacing: 1px;
+                    color: V3Theme.accent;
+                }
+
+                if row.kind == "game": Rectangle {
+                    property <bool> is-foc: !TvUi.bar-focused && row.focus-id >= 0 && TvUi.focused-tile == row.focus-id;
+                    y: 4px * TvUi.u;
+                    width: parent.width - 12px * TvUi.u;
+                    height: 126px * TvUi.u;
+                    border-radius: 14px * TvUi.u;
+                    background: V3Theme.surface;
+                    border-width: self.is-foc ? 3px : 1px;
+                    border-color: self.is-foc ? V3Theme.focus-ring : (row.is-live ? V3Theme.alert : V3Theme.border);
+
+                    VerticalLayout {
+                        padding-left: 18px * TvUi.u;
+                        padding-right: 18px * TvUi.u;
+                        padding-top: 12px * TvUi.u;
+                        padding-bottom: 12px * TvUi.u;
+                        spacing: 8px * TvUi.u;
+
+                        // Separate top line for event type (league-label) + status
+                        HorizontalLayout {
+                            spacing: 12px * TvUi.u;
+                            Text {
+                                horizontal-stretch: 1;
+                                text: row.league-label;
+                                font-family: V3Theme.font;
+                                font-size: 13px * TvUi.u;
+                                font-weight: 700;
+                                letter-spacing: 0.4px;
+                                color: V3Theme.accent;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: row.status;
+                                font-family: V3Theme.font;
+                                font-size: 13px * TvUi.u;
+                                font-weight: 700;
+                                color: row.is-live ? V3Theme.alert : V3Theme.text-secondary;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 24px * TvUi.u;
+
+                            VerticalLayout {
+                                width: 440px * TvUi.u;
+                                alignment: center;
+                                spacing: 6px * TvUi.u;
+                                HorizontalLayout {
+                                    spacing: 10px * TvUi.u;
+                                    V3TeamLogo {
+                                        y: (parent.height - self.height) / 2;
+                                        has-logo: row.away-has-logo;
+                                        logo: row.away-logo;
+                                        initials: row.away-initials;
+                                    }
+                                    Text {
+                                        horizontal-stretch: 1;
+                                        text: row.away-name;
+                                        font-family: V3Theme.font;
+                                        font-size: 17px * TvUi.u;
+                                        font-weight: row.away-winner ? 700 : 500;
+                                        color: V3Theme.text-primary;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: row.away-score;
+                                        font-family: V3Theme.font;
+                                        font-size: 19px * TvUi.u;
+                                        font-weight: 700;
+                                        color: row.away-winner ? V3Theme.text-primary : V3Theme.text-secondary;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 10px * TvUi.u;
+                                    V3TeamLogo {
+                                        y: (parent.height - self.height) / 2;
+                                        has-logo: row.home-has-logo;
+                                        logo: row.home-logo;
+                                        initials: row.home-initials;
+                                    }
+                                    Text {
+                                        horizontal-stretch: 1;
+                                        text: row.home-name;
+                                        font-family: V3Theme.font;
+                                        font-size: 17px * TvUi.u;
+                                        font-weight: row.home-winner ? 700 : 500;
+                                        color: V3Theme.text-primary;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: row.home-score;
+                                        font-family: V3Theme.font;
+                                        font-size: 19px * TvUi.u;
+                                        font-weight: 700;
+                                        color: row.home-winner ? V3Theme.text-primary : V3Theme.text-secondary;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+
+                            Text {
+                                horizontal-stretch: 1;
+                                text: row.details-text;
+                                font-family: V3Theme.font;
+                                font-size: 14px * TvUi.u;
+                                color: V3Theme.text-secondary;
+                                vertical-alignment: center;
+                                wrap: word-wrap;
+                                overflow: elide;
+                            }
+                            if row.is-following: Rectangle {
+                                y: (parent.height - self.height) / 2;
+                                height: 32px * TvUi.u;
+                                width: v3-fl.preferred-width + 20px * TvUi.u;
+                                border-radius: 16px * TvUi.u;
+                                background: V3Theme.accent-tint;
+                                v3-fl := Text {
+                                    text: "★ Following";
+                                    font-family: V3Theme.font;
+                                    font-size: 13px * TvUi.u;
+                                    font-weight: 700;
+                                    color: V3Theme.accent;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                            if !row.is-following && row.event-id != "": Rectangle {
+                                y: (parent.height - self.height) / 2;
+                                height: 32px * TvUi.u;
+                                width: v3-st.preferred-width + 20px * TvUi.u;
+                                border-radius: 16px * TvUi.u;
+                                background: row.is-starred ? V3Theme.accent : (v3-st-ta.has-hover ? V3Theme.surface-raised : V3Theme.surface);
+                                border-width: 1px;
+                                border-color: row.is-starred ? V3Theme.accent : V3Theme.border;
+                                v3-st := Text {
+                                    text: row.is-starred ? "★ Starred" : "☆ Star";
+                                    font-family: V3Theme.font;
+                                    font-size: 13px * TvUi.u;
+                                    font-weight: 700;
+                                    color: row.is-starred ? V3Theme.on-accent : V3Theme.text-primary;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                v3-st-ta := TouchArea {
+                                    width: 100%;
+                                    height: 100%;
+                                    mouse-cursor: pointer;
+                                    clicked => { Scoreboard.toggle-star(row.event-id); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

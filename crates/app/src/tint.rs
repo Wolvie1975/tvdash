@@ -67,6 +67,28 @@ pub fn card_tint(hue: Hue, mode: ThemeMode) -> Tint {
             edge: hsl(h, 0.1 + 0.15 * k, 0.66),
             on_accent: rgb(0xFFFFFF),
         }
+    } else if mode == ThemeMode::Ku {
+        Tint {
+            card: rgb(0x0D203B),
+            poster: rgb(0x142D52),
+            accent: rgb(0xFF4D5A),
+            sec: rgb(0xB8CBE6),
+            track: rgb(0x163259),
+            btn: rgb(0x142D52),
+            edge: rgb(0x21467A),
+            on_accent: rgb(0x0B0D10),
+        }
+    } else if mode == ThemeMode::KuLight {
+        Tint {
+            card: rgb(0xE8EFF9),
+            poster: rgb(0xD8E4F5),
+            accent: rgb(0xC8000B),
+            sec: rgb(0x1E3D6E),
+            track: rgb(0xC2D4EC),
+            btn: rgb(0xFFFFFF),
+            edge: rgb(0xAEC4E2),
+            on_accent: rgb(0xFFFFFF),
+        }
     } else {
         Tint {
             card: hsl(h, 0.12 + 0.33 * k, 0.11),
@@ -194,11 +216,12 @@ mod tests {
     #[test]
     fn text_on_every_tint_passes_aa() {
         let text = |m: ThemeMode| match m {
-            ThemeMode::Dark => rgb(0xE8EAED),
+            ThemeMode::Dark | ThemeMode::Aubergine | ThemeMode::Ku | ThemeMode::FollowSystem => rgb(0xE8EAED),
             ThemeMode::Stone => rgb(0x1F1D1A),
             ThemeMode::Mist => rgb(0x1A1E23),
+            ThemeMode::KuLight => rgb(0x0B192E),
         };
-        for mode in [ThemeMode::Dark, ThemeMode::Stone, ThemeMode::Mist] {
+        for mode in [ThemeMode::Dark, ThemeMode::Aubergine, ThemeMode::Ku, ThemeMode::KuLight, ThemeMode::Stone, ThemeMode::Mist] {
             for deg in (0..360).step_by(10) {
                 for sat in [0.0, 0.5, 1.0] {
                     let t = card_tint(Hue { degrees: deg as f32, saturation: sat }, mode);

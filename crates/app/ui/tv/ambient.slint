@@ -1,0 +1,259 @@
+import { AmbientState, Dash, SleepState, TvUi } from "../state.slint";
+
+component PosterWall inherits Rectangle {
+    in property <image> wall;
+    in property <bool> has-wall;
+    in property <length> repeat-height;
+    property <length> offset: 0px;
+
+    width: 100%;
+    height: 100%;
+    clip: true;
+    background: #050608;
+
+    // Oversized (2700 x 2300) rotated -10deg so edges never show during drift
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 2700px * TvUi.u;
+        height: 2300px * TvUi.u;
+        clip: true;
+        transform-rotation: -10deg;
+
+        if root.has-wall: Image {
+            source: root.wall;
+            x: 0px;
+            y: -Math.mod(root.offset / 1px, root.repeat-height / 1px) * 1px * TvUi.u;
+            width: parent.width;
+            height: root.repeat-height * 2 * TvUi.u;
+            image-fit: cover;
+        }
+    }
+
+    Timer {
+        interval: 33ms;
+        running: root.has-wall;
+        triggered => {
+            if root.offset >= root.repeat-height {
+                root.offset -= root.repeat-height;
+            }
+            root.offset += 0.4px;
+        }
+    }
+}
+
+export component TvAmbient inherits Rectangle {
+    width: 1920px * TvUi.u;
+    height: 1080px * TvUi.u;
+    background: #050608;
+    clip: true;
+
+    PosterWall {
+        wall: AmbientState.wall;
+        has-wall: AmbientState.has-wall;
+        repeat-height: AmbientState.repeat-height;
+    }
+
+    // Vignette 1 behind clock (1300 x 900 at 22% / 82%)
+    Rectangle {
+        x: (1920px * 0.22 - 650px) * TvUi.u;
+        y: (1080px * 0.82 - 450px) * TvUi.u;
+        width: 1300px * TvUi.u;
+        height: 900px * TvUi.u;
+        background: @radial-gradient(circle, #050608F2 0%, #050608B0 45%, #05060840 100%);
+    }
+
+    // Vignette 2 behind Up next (1000 x 700 at 80% / 86%)
+    Rectangle {
+        x: (1920px * 0.80 - 500px) * TvUi.u;
+        y: (1080px * 0.86 - 350px) * TvUi.u;
+        width: 1000px * TvUi.u;
+        height: 700px * TvUi.u;
+        background: @radial-gradient(circle, #050608E0 0%, #05060880 50%, transparent 100%);
+    }
+
+    // Bottom fade over bottom 34%
+    Rectangle {
+        x: 0px;
+        y: parent.height * 0.66;
+        width: parent.width;
+        height: parent.height * 0.34;
+        background: @linear-gradient(180deg, transparent 0%, #050608 100%);
+    }
+
+    // Foreground with burn-in random walk (±8 px, 1 step/min)
+    Rectangle {
+        x: Dash.screensaver-dx * 1px * TvUi.u;
+        y: Dash.screensaver-dy * 1px * TvUi.u;
+        width: parent.width;
+        height: parent.height;
+        background: transparent;
+
+        // Clock + Date/weather (x = 120, bottom = 150)
+        VerticalLayout {
+            x: 120px * TvUi.u;
+            y: parent.height - 150px * TvUi.u - self.preferred-height;
+            width: self.preferred-width;
+            height: self.preferred-height;
+            spacing: 12px * TvUi.u;
+
+            HorizontalLayout {
+                width: self.preferred-width;
+                height: self.preferred-height;
+                spacing: 16px * TvUi.u;
+                alignment: start;
+
+                Text {
+                    text: Dash.clock-hh + ":" + Dash.clock-mm;
+                    font-size: 260px * TvUi.u;
+                    font-weight: 200;
+                    letter-spacing: -8px * TvUi.u;
+                    color: #E8EAED;
+                    animate opacity { duration: 400ms; easing: ease-out; }
+                }
+
+                if Dash.clock-ampm != "": VerticalLayout {
+                    alignment: end;
+                    padding-bottom: 36px * TvUi.u;
+
+                    Text {
+                        text: Dash.clock-ampm;
+                        font-size: 52px * TvUi.u;
+                        font-weight: 300;
+                        color: #A0A6AF;
+                    }
+                }
+            }
+
+            Text {
+                text: Dash.weather-on && Dash.weather-temp != "—" && Dash.weather-temp != ""
+                    ? (Dash.weather-condition != ""
+                        ? (Dash.weekday + ", " + Dash.date-text + " · " + Dash.weather-temp + " and " + Dash.weather-condition)
+                        : (Dash.weekday + ", " + Dash.date-text + " · " + Dash.weather-temp))
+                    : (Dash.weekday + ", " + Dash.date-text);
+                font-size: 32px * TvUi.u;
+                font-weight: 300;
+                color: #C9CDD3;
+            }
+        }
+
+        // Up next block (right = 120, bottom = 150)
+        if AmbientState.up-next-title != "": HorizontalLayout {
+            x: parent.width - 120px * TvUi.u - self.preferred-width;
+            y: parent.height - 150px * TvUi.u - 180px * TvUi.u;
+            height: 180px * TvUi.u;
+            spacing: 32px * TvUi.u;
+
+            // Poster: 120 x 180, radius 6, shadow 0 16 40 #000A
+            Rectangle {
+                width: 120px * TvUi.u;
+                height: 180px * TvUi.u;
+                border-radius: 6px * TvUi.u;
+                background: #14171C;
+                drop-shadow-blur: 40px * TvUi.u;
+                drop-shadow-offset-y: 16px * TvUi.u;
+                drop-shadow-color: #000000AA;
+                clip: true;
+
+                if AmbientState.up-next-has-poster: Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: AmbientState.up-next-poster;
+                    image-fit: cover;
+                }
+            }
+
+            // Text stack
+            VerticalLayout {
+                width: 560px * TvUi.u;
+                spacing: 12px * TvUi.u;
+                alignment: center;
+
+                HorizontalLayout {
+                    spacing: 10px * TvUi.u;
+                    alignment: start;
+
+                    Rectangle {
+                        width: 10px * TvUi.u;
+                        height: 10px * TvUi.u;
+                        y: 7px * TvUi.u;
+                        border-radius: 5px * TvUi.u;
+                        background: AmbientState.up-next-accent;
+                    }
+
+                    Text {
+                        text: AmbientState.up-next-label;
+                        font-size: 20px * TvUi.u;
+                        font-weight: 500;
+                        letter-spacing: 1.4px * TvUi.u;
+                        color: AmbientState.up-next-accent;
+                    }
+                }
+
+                Text {
+                    text: AmbientState.up-next-title;
+                    font-size: 56px * TvUi.u;
+                    font-weight: 400;
+                    color: #E8EAED;
+                    overflow: elide;
+                }
+
+                Text {
+                    text: AmbientState.up-next-line;
+                    font-size: 26px * TvUi.u;
+                    color: #A0A6AF;
+                    overflow: elide;
+                }
+
+                if AmbientState.up-next-has-bar: Rectangle {
+                    width: 560px * TvUi.u;
+                    height: 5px * TvUi.u;
+                    border-radius: 3px * TvUi.u;
+                    background: #FFFFFF1A;
+
+                    Rectangle {
+                        x: 0px;
+                        y: 0px;
+                        width: parent.width * AmbientState.up-next-progress;
+                        height: parent.height;
+                        border-radius: 3px * TvUi.u;
+                        background: AmbientState.up-next-accent;
+                    }
+                }
+            }
+        }
+
+        // Footer (left 128 / right 120, bottom 64)
+        Rectangle {
+            x: 128px * TvUi.u;
+            y: parent.height - 64px * TvUi.u;
+            width: parent.width - 248px * TvUi.u;
+            height: 36px * TvUi.u;
+            background: transparent;
+
+            Rectangle {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: 1px;
+                background: #FFFFFF14;
+            }
+
+            Text {
+                x: 0px;
+                y: 12px * TvUi.u;
+                width: parent.width;
+                text: AmbientState.footer-line + (SleepState.active ? " · Sleep in " + SleepState.label : "");
+                font-size: 20px * TvUi.u;
+                color: #6E747D;
+                horizontal-alignment: right;
+            }
+        }
+    }
+
+    // Wake on click or pointer move (swallows the waking press)
+    TouchArea {
+        clicked => { TvUi.key("Escape"); }
+        moved => { TvUi.key("Escape"); }
+    }
+}

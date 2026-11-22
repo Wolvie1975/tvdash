@@ -8,6 +8,7 @@
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 use crate::models::{
     AccountStatus, Geometry, MediaItem, PlayState, RgbaImage, Session, SignInState, SourceKind, WatchHit, Weather,
@@ -32,11 +33,20 @@ pub enum Service {
     Keyring,
     Player,
     Browser,
+    Events,
 }
 
 impl Service {
-    pub const ALL: [Service; 7] =
-        [Self::Jellyfin, Self::Plex, Self::Tmdb, Self::Weather, Self::Keyring, Self::Player, Self::Browser];
+    pub const ALL: [Service; 8] = [
+        Self::Jellyfin,
+        Self::Plex,
+        Self::Tmdb,
+        Self::Weather,
+        Self::Keyring,
+        Self::Player,
+        Self::Browser,
+        Self::Events,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -47,6 +57,7 @@ impl Service {
             Self::Keyring => "GNOME Keyring",
             Self::Player => "mpv",
             Self::Browser => "Streaming browser",
+            Self::Events => "Sports (SQL Server)",
         }
     }
 }
@@ -76,6 +87,12 @@ pub enum AppEvent {
         item_id: String,
         image: RgbaImage,
     },
+    /// 16:9 backdrop (or blurred poster fallback) for Library Option C.
+    Backdrop {
+        source: SourceKind,
+        item_id: String,
+        image: RgbaImage,
+    },
     /// `None`: no location configured.
     Weather(Option<Weather>),
     /// Local playback changed; `None` means the TV is back to idle.
@@ -94,6 +111,8 @@ pub enum AppEvent {
     Server(SourceKind, Option<String>),
     /// Site name → last opened, for the setup and Accounts screens.
     Streaming(BTreeMap<String, DateTime<Utc>>),
+    /// Last 3 recently opened streaming services (TV-only v2).
+    RecentServices(Vec<crate::config::RecentService>),
     /// Show the first-run setup (nothing is connected yet).
     ShowSetup,
     /// Places matching a search (Settings › Display › Location).
@@ -150,6 +169,124 @@ pub enum AppEvent {
     TvConnected(bool),
     /// Display configuration changed (after debounce); UI thread should re-check monitors.
     DisplaysChanged,
+    /// Desktop portal `org.freedesktop.appearance color-scheme` (`true` = dark).
+    SystemColorScheme(bool),
+    /// Tautulli account status (URL + whether an API key is stored).
+    Tautulli {
+        configured: bool,
+        url: String,
+    },
+    /// Library C smart shelves payload.
+    LibraryShelves(crate::models::LibraryShelves),
+    /// Show page data.
+    ShowDetail(Result<crate::models::ShowDetail, String>),
+    /// Episodes for one season on the Show page.
+    SeasonEpisodes {
+        season_key: String,
+        result: Result<Vec<crate::models::EpisodeInfo>, String>,
+    },
+    /// Prompt to continue to the next episode after an episode finishes.
+    NextEpisodePrompt(Option<MediaItem>),
+    /// Collection page data.
+    CollectionDetail(Result<crate::models::CollectionDetail, String>),
+    /// Sports / Competitions page data.
+    SportsEvents(Result<crate::models::SportsEventsPage, String>),
+    /// Downloaded team logo for the Sports tab.
+    SportsLogo {
+        url: String,
+        image: RgbaImage,
+    },
+    /// Whether the SQL Server password is stored in the keyring.
+    EventsPasswordConfigured(bool),
+    /// Sports → Scoreboard page data.
+    Scoreboard(Result<crate::models::ScoreboardPage, String>),
+    /// Current sleep timer state for UI and status endpoints.
+    Sleep(SleepSnapshot),
+    /// Newly evaluated sports alerts to enqueue on the UI thread.
+    SportsAlerts(Vec<SportsAlertDto>),
+    /// Full Sports Alerts settings, followed teams, starred games, and health state.
+    SportsAlertsStatus(SportsAlertsStatusSnapshot),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsAlertSideDto {
+    pub name: String,
+    pub initials: String,
+    pub color: String,
+    pub logo_url: Option<String>,
+    pub right: String,
+    pub winner: bool,
+    pub muted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsAlertDto {
+    pub key: String,
+    /// `"soon"` | `"final"`
+    pub kind: String,
+    pub event_id: String,
+    pub start: Option<i64>,
+    pub queued_at: i64,
+    pub kicker: String,
+    pub kicker_final: bool,
+    pub why: String,
+    pub away: SportsAlertSideDto,
+    pub home: SportsAlertSideDto,
+    pub meta: String,
+    pub primary: Option<String>,
+    pub source_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FollowedTeamInfo {
+    pub league: String,
+    pub id: String,
+    pub name: String,
+    pub league_label: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StarredGameInfo {
+    pub event_id: String,
+    pub matchup: String,
+    pub meta: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsAlertsStatusSnapshot {
+    pub config: crate::config::SportsAlertsConfig,
+    pub followed: Vec<FollowedTeamInfo>,
+    pub follows_updated_at: Option<i64>,
+    pub follows_error: Option<String>,
+    pub unmapped_count: usize,
+    pub starred: Vec<StarredGameInfo>,
+    pub held: bool,
+    pub last_poll_at: Option<i64>,
+    pub last_poll_error: Option<String>,
+    pub stale_minutes: Option<i64>,
+    pub next_eligible: Option<String>,
+}
+
+/// Snapshot of the sleep timer sent to the UI on change / each tick.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SleepSnapshot {
+    pub active: bool,
+    /// `"off" | "counting" | "warn" | "end_of_item"`
+    pub phase: String,
+    /// Short label for chip/hints: `"42 min"`, `"1 h 05 min"`, `"End of episode"`, `"Paused · on a call"`, `"0:58"`, or `"Off"`.
+    pub label: String,
+    /// Formatted end time, e.g. `"11:42 PM"` or `""`.
+    pub ends_at: String,
+    /// Seconds left (for warning countdown & `/sleep` API).
+    pub left: i64,
+    /// Total warning duration in seconds (for countdown bar progress).
+    pub warn_total: i64,
+    /// True when End of episode/movie was triggered (episode finished).
+    pub episode_finished: bool,
+    /// True when a call (`hold_sleep_timer`) is holding the timer.
+    pub held: bool,
+    /// Last-used preset in minutes (or config default) for initial picker focus.
+    pub default_minutes: i64,
 }
 
 /// Requests from the UI, handled by background tasks.
@@ -160,9 +297,19 @@ pub enum Command {
     Resume,
     /// Relative seek in seconds (negative = back).
     Seek(i64),
+    /// Absolute seek in seconds (e.g. `0` to start from the beginning).
+    SeekTo(u64),
     Stop,
+    /// Cycle audio track, cycle subtitle track, or adjust volume (relative %).
+    CycleAudio,
+    CycleSub,
+    VolumeDelta(i64),
+    PreviousEpisode,
+    NextEpisode,
     /// Open `config.streaming[index]` on the TV.
     OpenSite(usize),
+    /// Clear the last-3 recent streaming services list.
+    ClearRecentServices,
     /// Add (`index: None`) or replace a streaming site. Already validated.
     SaveSite {
         index: Option<usize>,
@@ -184,6 +331,19 @@ pub enum Command {
         label: String,
         url: String,
     },
+    /// Fetch Sports / Competitions from SQL Server.
+    LoadSportsEvents {
+        schedule: String,
+        page: u32,
+    },
+    /// Save or clear the Sports SQL Server password in the keyring.
+    SetEventsPassword(Option<String>),
+    /// Fetch Sports → Scoreboard from SQL Server.
+    LoadScoreboard {
+        day: String,
+        show: String,
+        final_only: bool,
+    },
     /// Search TMDB and rank by availability.
     WhereToWatch(String),
     /// Scan the whole Plex library or one section from the Server page.
@@ -194,6 +354,8 @@ pub enum Command {
         refresh_libraries: bool,
     },
     ServerRefreshActivities,
+    RefreshSessions,
+    PrefetchBackdrop(MediaItem),
     ServerCancelActivity(String),
     ServerTerminate {
         session_id: String,
@@ -227,6 +389,8 @@ pub enum Command {
     Refresh,
     /// Where the TV output is, once the windows know (used to place the browser).
     TvGeometry(Geometry),
+    /// Detected connector name of the TV output (e.g. `HDMI-1`, `DP-1`).
+    TvOutput(String),
     /// Forget a media server's sign-in (keyring token + config).
     SignOut(SourceKind),
     /// Use this Jellyfin server address (setup lets you change it before signing in).
@@ -254,6 +418,8 @@ pub enum Command {
     SetLayout(crate::config::Layout),
     /// User changed Settings › Display › Layout (`auto` | `dual` | `tv`).
     SetLayoutSetting(crate::layout::LayoutSetting),
+    /// User changed Settings › Display › Dashboard UI (`classic` | `blades`).
+    SetDashboardUi(crate::config::DashboardUi),
     /// Remember the laptop theme picked in the header.
     SetTheme(crate::config::ThemeMode),
     /// Settings › Display: temperature units, clock format, seconds.
@@ -262,4 +428,63 @@ pub enum Command {
         clock: crate::config::ClockFormat,
         seconds: bool,
     },
+    /// Save Tautulli URL + API key.
+    SetTautulli {
+        url: String,
+        api_key: String,
+    },
+    /// Remove Tautulli URL + API key.
+    ClearTautulli,
+    /// Load Library C smart shelves.
+    LoadLibraryShelves {
+        is_tv: bool,
+        sort: crate::models::LibrarySort,
+        popular_days: u32,
+    },
+    /// Open Show page for `rating_key`.
+    OpenShow(String),
+    /// Load episodes for `season_key`.
+    LoadSeasonEpisodes(String),
+    /// Open Collection page for `rating_key`.
+    OpenCollection(String),
+    /// Play a specific Plex item by `rating_key` (optionally resuming).
+    PlayRatingKey {
+        rating_key: String,
+        resume: bool,
+    },
+    /// Set sleep timer in minutes (1–480).
+    SleepSetMinutes(i64),
+    /// Set sleep timer to end of the current Plex item.
+    SleepSetEndOfItem,
+    /// Turn off the sleep timer.
+    SleepOff,
+    /// Extend sleep timer ("Keep watching").
+    SleepExtend,
+    /// Sleep immediately ("Sleep now").
+    SleepNow,
+    /// Play next episode and turn off the sleep timer (when End of episode finished).
+    SleepPlayNext,
+    /// Change Sleep warning duration ("30s" | "60s" | "2m") in Settings › Display.
+    SetSleepWarnBefore(String),
+    /// Fetch posters for visible Browse-all items that aren't cached yet.
+    FetchPosters(Vec<MediaItem>),
+    /// Enqueue a sample sports alert (`"soon"` | `"final"`).
+    SportsAlertTest(String),
+    /// Mark a sports alert key as shown (persisted to `sports-alerts.json`).
+    SportsAlertShown(String),
+    /// Execute the primary action of a sports alert (`"soon"` → YouTube TV, `"final"` → Recap URL).
+    SportsAlertPrimary {
+        kind: String,
+        source_url: Option<String>,
+    },
+    /// Update Sports Alerts settings (`[sports.alerts]`).
+    SetSportsAlertsConfig(crate::config::SportsAlertsConfig),
+    /// Toggle star on a Scoreboard game (`EventId`).
+    ToggleStarGame(String),
+    /// Remove a starred game (`EventId`).
+    UnstarGame(String),
+    /// Refresh followed teams from `dbo.ResultFollows` (e.g. when Settings › Sports opens).
+    RefreshSportsFollows,
+    /// Enable or disable the startup intro animation (`[startup] intro = "on" | "off"`).
+    SetStartupIntro(bool),
 }

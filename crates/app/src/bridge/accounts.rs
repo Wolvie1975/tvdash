@@ -1,4 +1,4 @@
-//! Settings › Accounts (Plex, Jellyfin, TMDB) and Streaming rows, the site
+//! Settings › Accounts (Plex, TMDB) and Streaming rows, the site
 //! editor's TMDB lookups, and first-run setup.
 
 use chrono::{DateTime, Utc};
@@ -146,35 +146,40 @@ fn tmdb_row(s: &UiState) -> AccountRow {
 fn media_account_row(s: &UiState, kind: SourceKind) -> AccountRow {
     let server = s.servers.get(&kind).cloned().unwrap_or_default();
     let sign_out = ("Sign out", "sign-out");
-    let row = |status: String, detail: String, state, primary, secondary| Row {
-        id: source_id(kind),
-        name: kind.label(),
-        status,
-        detail,
-        state,
-        primary,
-        secondary,
+    let edit_url = if kind == SourceKind::Jellyfin { ("Server URL", "edit") } else { NONE };
+    let input_hint = if kind == SourceKind::Jellyfin { "http://host:8096".into() } else { String::new() };
+    let row = |status: String, detail: String, state, primary, secondary| AccountRow {
+        input_hint: input_hint.clone().into(),
+        ..Row {
+            id: source_id(kind),
+            name: kind.label(),
+            status,
+            detail,
+            state,
+            primary,
+            secondary,
+        }
+        .into()
     };
     match (s.sign_in.get(&kind), s.accounts.get(&kind)) {
         (Some(SignInState::Starting), _) => {
-            row("Contacting the server…".into(), String::new(), "busy", ("Cancel", "cancel"), NONE)
+            row("Contacting the server…".into(), server, "busy", ("Cancel", "cancel"), NONE)
         }
         (Some(SignInState::Code(code)), _) => {
             row(format!("Code {code}"), code_instructions(kind).into(), "busy", ("Cancel", "cancel"), NONE)
         }
         (Some(SignInState::Failed(e)), _) => {
-            row(format!("Sign-in failed: {e}"), String::new(), "warn", ("Try again", "sign-in"), NONE)
+            row(format!("Sign-in failed: {e}"), server, "warn", ("Try again", "sign-in"), edit_url)
         }
-        (_, Some(AccountStatus::Connected)) => row("Connected".into(), server, "ok", NONE, sign_out),
+        (_, Some(AccountStatus::Connected)) => row("Connected".into(), server, "ok", edit_url, sign_out),
         (_, Some(AccountStatus::Expired)) => {
             row("Sign-in expired".into(), server, "warn", ("Reconnect", "sign-in"), sign_out)
         }
         (_, Some(AccountStatus::Unreachable(e))) => {
             row("Can't reach the server".into(), e.clone(), "warn", ("Retry", "retry"), sign_out)
         }
-        _ => row("Not connected".into(), String::new(), "off", ("Sign in", "sign-in"), NONE),
+        _ => row("Not connected".into(), server, "off", ("Sign in", "sign-in"), edit_url),
     }
-    .into()
 }
 
 fn site_status(opened: Option<&DateTime<Utc>>) -> String {
@@ -188,12 +193,80 @@ fn site_status(opened: Option<&DateTime<Utc>>) -> String {
     }
 }
 
+fn tautulli_row(s: &UiState) -> AccountRow {
+    let input_hint = "http://host:8181 | API_KEY".into();
+    if s.tautulli_configured {
+        AccountRow {
+            input_hint,
+            ..Row {
+                id: "tautulli",
+                name: "Tautulli · Popular on server",
+                status: "Connected".into(),
+                detail: s.tautulli_url.clone(),
+                state: "ok",
+                primary: ("Change", "edit"),
+                secondary: ("Remove", "remove"),
+            }
+            .into()
+        }
+    } else {
+        AccountRow {
+            input_hint,
+            ..Row {
+                id: "tautulli",
+                name: "Tautulli · Popular on server",
+                status: "Not set up".into(),
+                detail: "Add your Tautulli URL and API key for Popular on Republic City".into(),
+                state: "off",
+                primary: ("Set up", "edit"),
+                secondary: NONE,
+            }
+            .into()
+        }
+    }
+}
+
+fn events_row(s: &UiState) -> AccountRow {
+    let input_hint = "SQL Server password".into();
+    if s.events_password_configured {
+        AccountRow {
+            input_hint,
+            ..Row {
+                id: "events",
+                name: "Sports · SQL Server",
+                status: "Password saved".into(),
+                detail: "Reads upcoming games from WebScraper".into(),
+                state: "ok",
+                primary: ("Change", "edit"),
+                secondary: ("Remove", "remove"),
+            }
+            .into()
+        }
+    } else {
+        AccountRow {
+            input_hint,
+            ..Row {
+                id: "events",
+                name: "Sports · SQL Server",
+                status: "Not set up".into(),
+                detail: "Add the read-only SQL Server password for the Sports tab".into(),
+                state: "off",
+                primary: ("Set up", "edit"),
+                secondary: NONE,
+            }
+            .into()
+        }
+    }
+}
+
 /// Rebuild Settings › Accounts and Settings › Streaming (and setup, if it's showing).
 pub(super) fn refresh(s: &UiState, laptop: &LaptopWindow) {
     s.account_rows.set_vec(vec![
         media_account_row(s, SourceKind::Plex),
         media_account_row(s, SourceKind::Jellyfin),
         tmdb_row(s),
+        tautulli_row(s),
+        events_row(s),
     ]);
     let sites: Vec<SiteRow> = s
         .sites

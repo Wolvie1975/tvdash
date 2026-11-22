@@ -23,7 +23,7 @@ Either way, the steps after installing (players, codecs, sign-ins, screens) are 
 | Linux desktop, GNOME on Wayland (Fedora 44+ Workstation is what tvdash is built for) | Windows, keyring, display placement | `echo $XDG_SESSION_TYPE` → `wayland` |
 | x86-64 (for a bundle) | The bundle is built for x86-64 | `uname -m` → `x86_64` |
 | glibc 2.39 or newer (for a bundle) | The bundle is built against it | `ldd --version` → 2.39 or higher (Fedora 40+, Ubuntu 24.04+, Debian 13+) |
-| GNOME Keyring | Keeps the Plex, Jellyfin and TMDB sign-ins | Comes with GNOME |
+| GNOME Keyring | Keeps the Plex, TMDB and Tautulli sign-ins | Comes with GNOME |
 | HDMI to the TV | Playback | — |
 
 ---
@@ -36,7 +36,7 @@ On the machine you build on (here, or in the dev container):
 
 ```bash
 cd ~/Development/Environment/Rust_Projects/tvdash
-cargo build --release
+cargo build --release -j 2
 packaging/bundle.sh
 ```
 
@@ -52,6 +52,26 @@ tvdash-0.1.0-x86_64/install.sh              # or: install.sh --autostart to star
 No root is needed: it installs to `~/.local/bin/tvdash` plus an app-menu entry, for that user
 only. The installer then lists anything missing (mpv, Brave, the keyring service).
 
+#### Fedora `.rpm` package (alternative to the tarball)
+
+If both the build machine and destination are on Fedora, you can build a native `.rpm` instead
+(one-time tool install: `cargo install cargo-generate-rpm`):
+
+```bash
+cargo build --release -j 2
+packaging/rpm.sh
+```
+
+That writes `dist/tvdash-0.1.0-1.x86_64.rpm`, which declares `mpv` and `mpv-libs` as dependencies.
+Install it on the destination machine with:
+
+```bash
+sudo dnf install ./tvdash-0.1.0-1.x86_64.rpm
+```
+
+You still need RPM Fusion's full `ffmpeg` and Brave (step 3 below) for H.264/HEVC video and
+Widevine DRM.
+
 ### B. Build on the new machine
 
 ```bash
@@ -59,7 +79,7 @@ sudo dnf install git gcc fontconfig-devel
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh    # then open a new terminal
 git clone <your copy of the repo> tvdash      # or copy the project folder over
 cd tvdash
-cargo build --release
+cargo build --release -j 2
 packaging/install.sh                          # or --autostart
 ```
 
@@ -111,7 +131,7 @@ tvdash's files on the old machine:
 | What | Where | Copy it? |
 |---|---|---|
 | Settings | `~/.config/tvdash/config.toml` | **Yes, with one change** (below) |
-| Plex, Jellyfin and TMDB sign-ins | GNOME Keyring (service `tvdash`) | **No**: keyrings don't move. Sign in again (step 5) |
+| Plex, TMDB and Tautulli sign-ins | GNOME Keyring (service `tvdash`) | **No**: keyrings don't move. Sign in again (step 5) |
 | Streaming sign-ins | `~/.local/share/tvdash/browser` | **No**: Brave encrypts them with a key in the old machine's keyring, so they won't open on the new one. Sign in again on the TV |
 | "Opened N days ago", setup done | `~/.local/share/tvdash/state.toml` | Optional |
 | Where to watch cache | `~/.local/share/tvdash/cache.db` | No, it refills itself |
@@ -144,6 +164,23 @@ Start **tvdash** from the app menu. With nothing signed in, first-time setup ope
 
 Then, for Where to watch and the service logos: **Settings › Accounts › TMDB**, paste your
 TMDB API Read Access Token. (Or from a terminal: `tvdash --set-secret tmdb_api_key`.)
+
+For the **Sports** tab (Competitions & Scoreboard from SQL Server), save the read-only SQL password in the keyring:
+
+```bash
+tvdash --set-secret events_sql_password
+```
+
+(Or set it in **Settings › Accounts › Sports · SQL Server**.) Connection settings live under `[events]` in `~/.config/tvdash/config.toml` (defaults to `192.168.1.100:1433`, database `WebScraper`, user `mynewspaper_web`, `trust_cert = true`).
+
+To switch an existing **Crunchyroll** tile to **YouTube Music** on a machine that already has `~/.config/tvdash/config.toml`, either edit it in **Settings › Sites** or replace the `[[streaming]]` block in `~/.config/tvdash/config.toml`:
+
+```toml
+[[streaming]]
+name = "YouTube Music"
+url = "https://music.youtube.com"
+tmdb_providers = []
+```
 
 Check the keyring is working: `tvdash --check-keyring` should say `write/read/delete OK`.
 

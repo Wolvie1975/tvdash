@@ -1,0 +1,68 @@
+import { Theme } from "../theme.slint";
+import { Library, TvUi } from "../state.slint";
+import { MediaTile } from "tile.slint";
+
+export component TvCollections inherits Rectangle {
+    width: 1920px * TvUi.u;
+    height: 1080px * TvUi.u;
+    background: transparent;
+
+    Text {
+        x: 96px * TvUi.u;
+        y: 136px * TvUi.u;
+        text: "MOVIE COLLECTIONS";
+        font-size: 22px * TvUi.u;
+        font-weight: 500;
+        letter-spacing: 1.2px;
+        color: Theme.text-secondary;
+    }
+
+    if Library.collections.length == 0: Text {
+        x: 96px * TvUi.u;
+        y: 200px * TvUi.u;
+        text: "No movie collections found.";
+        font-size: 26px * TvUi.u;
+        color: Theme.text-secondary;
+    }
+
+    if Library.collections.length > 0: Rectangle {
+        x: 0;
+        y: 180px * TvUi.u;
+        width: 1920px * TvUi.u;
+        height: 824px * TvUi.u;
+        clip: true;
+        background: transparent;
+
+        TouchArea {
+            scroll-event(event) => {
+                TvUi.scroll-panorama(event.delta-y);
+                accept
+            }
+        }
+
+        Rectangle {
+            x: 0;
+            y: -TvUi.lib-scroll * TvUi.u;
+            width: 1920px * TvUi.u;
+            height: (Math.ceil(Library.collections.length / 5) * 320px + 40px) * TvUi.u;
+            background: transparent;
+            animate y { duration: 180ms; easing: ease-out; }
+
+            // 5-column vertical grid of 332 x 300 tiles with 16 px gaps
+            for col[i] in Library.collections: MediaTile {
+                x: (96px + Math.mod(i, 5) * 348px) * TvUi.u;
+                y: (8px + Math.floor(i / 5) * 320px) * TvUi.u;
+                base-width: 332px * TvUi.u;
+                base-height: 300px * TvUi.u;
+                art: col.poster;
+                has-art: col.has-poster;
+                title: col.title;
+                subtitle: col.detail;
+                progress: col.progress;
+                focused: !TvUi.bar-focused && TvUi.focused-tile == i;
+                activated => { TvUi.tile-activated(i); }
+                hovered => { TvUi.tile-hovered(i); }
+            }
+        }
+    }
+}

@@ -1,0 +1,175 @@
+// Blades UI (v3) — Search panel.
+
+import { TvUi, Watch } from "../state.slint";
+import { V3Theme } from "theme.slint";
+
+export component V3Search inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+
+    property <[string]> keys: [
+        "A", "B", "C", "D", "E", "F",
+        "G", "H", "I", "J", "K", "L",
+        "M", "N", "O", "P", "Q", "R",
+        "S", "T", "U", "V", "W", "X",
+        "Y", "Z", "0", "1", "2", "3",
+        "4", "5", "6", "7", "8", "9",
+    ];
+
+    // Query input display
+    Rectangle {
+        x: 40px * TvUi.u;
+        y: 108px * TvUi.u;
+        width: 486px * TvUi.u;
+        height: 62px * TvUi.u;
+        border-radius: 14px * TvUi.u;
+        background: V3Theme.surface;
+        border-width: 1px;
+        border-color: V3Theme.border;
+
+        Text {
+            x: 18px * TvUi.u;
+            width: parent.width - 36px * TvUi.u;
+            height: parent.height;
+            text: Watch.query != "" ? Watch.query : "Search movies & shows…";
+            font-family: V3Theme.font;
+            font-size: 24px * TvUi.u;
+            color: Watch.query != "" ? V3Theme.text-primary : V3Theme.text-muted;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    // 0..35: 6x6 on-screen keyboard
+    for k[i] in root.keys: Rectangle {
+        property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == i;
+        x: (40px + Math.mod(i, 6) * 82px) * TvUi.u;
+        y: (190px + Math.floor(i / 6) * 80px) * TvUi.u;
+        width: 72px * TvUi.u;
+        height: 70px * TvUi.u;
+        border-radius: 12px * TvUi.u;
+        background: self.is-foc ? V3Theme.surface-raised : V3Theme.surface;
+        border-width: self.is-foc ? 4px : 1px;
+        border-color: self.is-foc ? V3Theme.focus-ring : V3Theme.border;
+
+        Text {
+            text: k;
+            font-family: V3Theme.font;
+            font-size: 24px * TvUi.u;
+            font-weight: 700;
+            color: V3Theme.text-primary;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { TvUi.tile-activated(i); }
+        }
+    }
+
+    // 36..38: Space, Delete, Clear
+    for act[i] in [
+        { id: 36, label: "Space", x: 40px },
+        { id: 37, label: "Delete", x: 206px },
+        { id: 38, label: "Clear", x: 372px },
+    ]: Rectangle {
+        property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == act.id;
+        x: act.x * TvUi.u;
+        y: 682px * TvUi.u;
+        width: 154px * TvUi.u;
+        height: 58px * TvUi.u;
+        border-radius: 12px * TvUi.u;
+        background: V3Theme.surface-raised;
+        border-width: self.is-foc ? 4px : 1px;
+        border-color: self.is-foc ? V3Theme.focus-ring : V3Theme.border;
+
+        Text {
+            text: act.label;
+            font-family: V3Theme.font;
+            font-size: 20px * TvUi.u;
+            font-weight: 600;
+            color: V3Theme.text-primary;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { TvUi.tile-activated(act.id); }
+        }
+    }
+
+    // Results (right column)
+    Text {
+        x: 568px * TvUi.u;
+        y: 112px * TvUi.u;
+        text: Watch.included.length > 0
+            ? "RESULTS (" + Watch.included.length + ")"
+            : (Watch.searching ? "SEARCHING…" : (Watch.message != "" ? Watch.message : "RESULTS"));
+        font-family: V3Theme.font;
+        font-size: 16px * TvUi.u;
+        font-weight: 700;
+        letter-spacing: 1px;
+        color: V3Theme.text-secondary;
+    }
+
+    for item[i] in Watch.included: Rectangle {
+        visible: i < 12;
+        property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 39 + i;
+        x: (568px + Math.mod(i, 4) * 238px) * TvUi.u;
+        y: (148px + Math.floor(i / 4) * 268px) * TvUi.u;
+        width: 222px * TvUi.u;
+        height: 252px * TvUi.u;
+        background: transparent;
+
+        Rectangle {
+            x: 0;
+            y: 0;
+            width: 222px * TvUi.u;
+            height: 196px * TvUi.u;
+            border-radius: 14px * TvUi.u;
+            clip: true;
+            background: V3Theme.surface;
+            border-width: parent.is-foc ? 4px : 1px;
+            border-color: parent.is-foc ? V3Theme.focus-ring : V3Theme.border;
+
+            if item.has-poster: Image {
+                source: item.poster;
+                width: 100%;
+                height: 100%;
+                image-fit: cover;
+            }
+        }
+
+        Text {
+            x: 2px * TvUi.u;
+            y: 204px * TvUi.u;
+            width: parent.width - 4px * TvUi.u;
+            text: item.title;
+            font-family: V3Theme.font;
+            font-size: 16px * TvUi.u;
+            font-weight: 700;
+            color: V3Theme.text-primary;
+            overflow: elide;
+        }
+
+        if item.line != "": Text {
+            x: 2px * TvUi.u;
+            y: 226px * TvUi.u;
+            width: parent.width - 4px * TvUi.u;
+            text: item.line;
+            font-family: V3Theme.font;
+            font-size: 13px * TvUi.u;
+            color: V3Theme.text-secondary;
+            overflow: elide;
+        }
+
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { TvUi.tile-activated(39 + i); }
+            changed has-hover => { if self.has-hover { TvUi.tile-hovered(39 + i); } }
+        }
+    }
+}

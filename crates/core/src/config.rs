@@ -34,8 +34,14 @@ pub struct Config {
     pub general: GeneralConfig,
     pub plex: PlexConfig,
     pub jellyfin: JellyfinConfig,
+    pub tautulli: TautulliConfig,
+    pub events: EventsConfig,
     pub browser: BrowserConfig,
     pub player: PlayerConfig,
+    pub tv: TvConfig,
+    pub sleep: SleepConfig,
+    pub sports: SportsConfig,
+    pub startup: StartupConfig,
     /// Kept last: TOML arrays of tables must follow plain tables.
     pub streaming: Vec<StreamingSite>,
 }
@@ -53,6 +59,70 @@ pub struct DisplayConfig {
     pub layout: LayoutSetting,
     /// Switch layout automatically while running when screens turn on/off (only used when `layout = "auto"`).
     pub switch_while_running: bool,
+    /// Force Dark theme on the TV during night-mode hours.
+    #[serde(default)]
+    pub night_mode: bool,
+    /// Start of night-mode hours in `HH:MM` 24-hour format (default `"22:00"`).
+    #[serde(default = "default_night_start")]
+    pub night_start: String,
+    /// End of night-mode hours in `HH:MM` 24-hour format (default `"07:00"`).
+    #[serde(default = "default_night_end")]
+    pub night_end: String,
+    /// Dashboard UI skin (`"classic"` or `"blades"`).
+    #[serde(default)]
+    pub dashboard_ui: DashboardUi,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DashboardUi {
+    #[default]
+    Classic,
+    Blades,
+}
+
+impl DashboardUi {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Classic => "classic",
+            Self::Blades => "blades",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "blades" => Self::Blades,
+            _ => Self::Classic,
+        }
+    }
+}
+
+fn default_night_start() -> String {
+    "22:00".into()
+}
+
+fn default_night_end() -> String {
+    "07:00".into()
+}
+
+impl DisplayConfig {
+    /// True when `night_mode` is enabled and `now` falls inside `[night_start, night_end)`.
+    pub fn is_night_now(&self, now: chrono::NaiveTime) -> bool {
+        if !self.night_mode {
+            return false;
+        }
+        let Ok(start) = chrono::NaiveTime::parse_from_str(&self.night_start, "%H:%M") else {
+            return false;
+        };
+        let Ok(end) = chrono::NaiveTime::parse_from_str(&self.night_end, "%H:%M") else {
+            return false;
+        };
+        if start <= end {
+            now >= start && now < end
+        } else {
+            now >= start || now < end
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -72,10 +142,18 @@ pub enum ClockFormat {
 
 /// Laptop window colours. The TV always stays dark.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 pub enum ThemeMode {
+    #[serde(alias = "system")]
+    FollowSystem,
     #[default]
     Dark,
+    /// Deep plum dark theme.
+    Aubergine,
+    /// University of Kansas (Crimson & Blue) dark theme.
+    Ku,
+    /// University of Kansas (Blue & Crimson) light theme.
+    KuLight,
     /// Warm grey light theme.
     Stone,
     /// Cool blue-grey light theme.
@@ -84,7 +162,21 @@ pub enum ThemeMode {
 
 impl ThemeMode {
     pub fn is_light(self) -> bool {
-        self != Self::Dark
+        matches!(self, Self::KuLight | Self::Stone | Self::Mist)
+    }
+
+    /// Resolve `FollowSystem` into a concrete theme given the desktop preference.
+    pub fn resolve(self, system_dark: bool) -> Self {
+        match self {
+            Self::FollowSystem => {
+                if system_dark {
+                    Self::Dark
+                } else {
+                    Self::Stone
+                }
+            }
+            other => other,
+        }
     }
 }
 
@@ -151,6 +243,24 @@ pub struct JellyfinConfig {
     pub device_id: String,
 }
 
+impl Default for JellyfinConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            server_url: "http://republic-city:8096".into(),
+            user_id: String::new(),
+            device_id: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TautulliConfig {
+    /// Tautulli base URL (used for Popular on Republic City).
+    pub url: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct BrowserConfig {
@@ -179,6 +289,167 @@ pub struct PlayerConfig {
     pub mpv: String,
 }
 
+/// TV-only hub state persisted in `config.toml` (`[tv]`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TvConfig {
+    /// Last 3 distinct streaming services opened, newest first.
+    pub recent: Vec<RecentService>,
+}
+
+/// Sleep timer settings (`[sleep]`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SleepConfig {
+    /// Preset durations in minutes for picker tiles 1–6.
+    pub presets: Vec<i64>,
+    /// Default preset (minutes) focused when the timer is off and there is no last-used value.
+    pub default: i64,
+    /// Focus the last-used preset next time the picker opens.
+    pub remember_last: bool,
+    /// Warning duration before sleep (`"30s"`, `"60s"`, `"2m"`).
+    pub warn_before: String,
+    /// Extension added by "Keep watching" (`"30m"`).
+    pub extend_by: String,
+    /// Audio fade-out duration before stopping mpv (`"20s"`).
+    pub fade: String,
+}
+
+impl Default for SleepConfig {
+    fn default() -> Self {
+        Self {
+            presets: vec![15, 30, 45, 60, 90, 120],
+            default: 60,
+            remember_last: true,
+            warn_before: "60s".into(),
+            extend_by: "30m".into(),
+            fade: "20s".into(),
+        }
+    }
+}
+
+impl SleepConfig {
+    /// Parse a short human duration like `"30s"`, `"60s"`, `"2m"`, `"30m"`, `"1h"` into seconds.
+    pub fn parse_duration_secs(raw: &str) -> Option<i64> {
+        let s = raw.trim();
+        if s.is_empty() {
+            return None;
+        }
+        if let Some(n) = s.strip_suffix('s') {
+            n.trim().parse::<i64>().ok().filter(|&v| v > 0)
+        } else if let Some(n) = s.strip_suffix('m') {
+            n.trim().parse::<i64>().ok().filter(|&v| v > 0).map(|v| v * 60)
+        } else if let Some(n) = s.strip_suffix('h') {
+            n.trim().parse::<i64>().ok().filter(|&v| v > 0).map(|v| v * 3600)
+        } else {
+            s.parse::<i64>().ok().filter(|&v| v > 0)
+        }
+    }
+
+    pub fn warn_secs(&self) -> i64 {
+        Self::parse_duration_secs(&self.warn_before).unwrap_or(60)
+    }
+
+    pub fn extend_minutes(&self) -> i64 {
+        (Self::parse_duration_secs(&self.extend_by).unwrap_or(30 * 60) / 60).max(1)
+    }
+
+    pub fn fade_duration(&self) -> std::time::Duration {
+        let secs = Self::parse_duration_secs(&self.fade).unwrap_or(20).max(0) as u64;
+        std::time::Duration::from_secs(secs)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct StartupConfig {
+    /// `"on"` | `"off"`
+    pub intro: String,
+    /// Longest the logo waits for first Home data (seconds).
+    pub max_hold_secs: u64,
+}
+
+impl StartupConfig {
+    pub fn intro_on(&self) -> bool {
+        !self.intro.trim().eq_ignore_ascii_case("off")
+    }
+}
+
+impl Default for StartupConfig {
+    fn default() -> Self {
+        Self {
+            intro: "on".into(),
+            max_hold_secs: 6,
+        }
+    }
+}
+
+/// SQL Server connection for the Sports / Competitions tab. Password lives in the keyring.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EventsConfig {
+    pub host: String,
+    pub port: u16,
+    pub database: String,
+    pub user: String,
+    pub trust_cert: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SportsConfig {
+    pub alerts: SportsAlertsConfig,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DuringVideo {
+    #[default]
+    Show,
+    Hold,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SportsAlertsConfig {
+    pub enabled: bool,
+    /// Minutes before start to show "Starting soon" (`0` = off).
+    pub soon_minutes: u32,
+    #[serde(rename = "final")]
+    pub final_on: bool,
+    pub during_video: DuringVideo,
+}
+
+impl Default for SportsAlertsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            soon_minutes: 15,
+            final_on: true,
+            during_video: DuringVideo::Show,
+        }
+    }
+}
+
+impl Default for EventsConfig {
+    fn default() -> Self {
+        Self {
+            host: "192.168.1.100".into(),
+            port: 1433,
+            database: "WebScraper".into(),
+            user: "mynewspaper_web".into(),
+            trust_cert: true,
+        }
+    }
+}
+
+/// A recently opened streaming service entry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecentService {
+    pub id: String,
+    pub at: i64,
+}
+
 /// A Watch on TV tile. Array order in the config = tile order.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct StreamingSite {
@@ -198,6 +469,9 @@ pub struct StreamingSite {
     /// Tile logo to use instead of TMDB's: a PNG, JPEG or WebP file (`~/` allowed).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logo: Option<String>,
+    /// Hold the sleep timer while this site is open (e.g. Google Meet).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hold_sleep_timer: bool,
 }
 
 impl StreamingSite {
@@ -260,8 +534,14 @@ impl Default for Config {
             general: GeneralConfig::default(),
             plex: PlexConfig::default(),
             jellyfin: JellyfinConfig::default(),
+            tautulli: TautulliConfig::default(),
+            events: EventsConfig::default(),
             browser: BrowserConfig::default(),
             player: PlayerConfig::default(),
+            tv: TvConfig::default(),
+            sleep: SleepConfig::default(),
+            sports: SportsConfig::default(),
+            startup: StartupConfig::default(),
             streaming: default_streaming_sites(),
         }
     }
@@ -272,8 +552,12 @@ impl Default for DisplayConfig {
         Self {
             tv_output: "HDMI-A-1".into(),
             laptop_output: "eDP-1".into(),
-            layout: LayoutSetting::Auto,
+            layout: LayoutSetting::Tv,
             switch_while_running: true,
+            night_mode: false,
+            night_start: default_night_start(),
+            night_end: default_night_end(),
+            dashboard_ui: DashboardUi::Classic,
         }
     }
 }
@@ -304,17 +588,6 @@ impl Default for PlexConfig {
     }
 }
 
-impl Default for JellyfinConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            server_url: "http://republic-city:8096".into(),
-            user_id: String::new(),
-            device_id: String::new(),
-        }
-    }
-}
-
 impl Default for BrowserConfig {
     fn default() -> Self {
         Self {
@@ -335,12 +608,16 @@ impl Default for PlayerConfig {
 
 fn default_streaming_sites() -> Vec<StreamingSite> {
     [
-        ("Netflix", "https://www.netflix.com"),
+        ("YouTube TV", "https://tv.youtube.com"),
+        ("YouTube", "https://www.youtube.com"),
         ("Disney+", "https://www.disneyplus.com"),
         ("Hulu", "https://www.hulu.com"),
+        ("Apple TV", "https://tv.apple.com"),
+        ("Netflix", "https://www.netflix.com"),
+        ("Fandango at Home", "https://athome.fandango.com"),
         ("Prime Video", "https://www.primevideo.com"),
-        ("Apple TV+", "https://tv.apple.com"),
-        ("YouTube TV", "https://tv.youtube.com"),
+        ("YouTube Music", "https://music.youtube.com"),
+        ("Tubi", "https://tubitv.com"),
     ]
     .into_iter()
     .map(|(name, url)| StreamingSite { name: name.into(), url: url.into(), ..Default::default() })
@@ -349,7 +626,7 @@ fn default_streaming_sites() -> Vec<StreamingSite> {
 
 const HEADER: &str = "\
 # tvdash configuration.
-# Plex and Jellyfin tokens are kept in GNOME Keyring, not here.
+# Plex, TMDB and Tautulli tokens are kept in GNOME Keyring, not here.
 # Output names: run tvdash once and check the log for \"available monitor\" lines.
 
 ";
@@ -458,8 +735,7 @@ mod tests {
         assert!(loaded.created);
         assert!(path.exists());
         assert!(!loaded.config.plex.client_id.is_empty());
-        assert!(!loaded.config.jellyfin.device_id.is_empty());
-        assert_eq!(loaded.config.streaming.len(), 6);
+        assert_eq!(loaded.config.streaming.len(), 10);
 
         // Second load reads the same file and keeps the same IDs.
         let again = Config::load_or_create_at(&path).unwrap();
@@ -552,5 +828,23 @@ mod tests {
         let p = expand_home("~/.local/share/tvdash/browser");
         assert!(!p.starts_with("~"));
         assert_eq!(expand_home("/abs/path"), PathBuf::from("/abs/path"));
+    }
+
+    #[test]
+    fn night_mode_window() {
+        let mut d = DisplayConfig::default();
+        let t = |h, m| chrono::NaiveTime::from_hms_opt(h, m, 0).unwrap();
+        assert!(!d.is_night_now(t(23, 0)), "disabled by default");
+        d.night_mode = true;
+        // Overnight window: 22:00..07:00
+        assert!(d.is_night_now(t(22, 0)));
+        assert!(d.is_night_now(t(2, 30)));
+        assert!(!d.is_night_now(t(7, 0)));
+        assert!(!d.is_night_now(t(15, 0)));
+        // Same-day window: 01:00..05:00
+        d.night_start = "01:00".into();
+        d.night_end = "05:00".into();
+        assert!(d.is_night_now(t(3, 0)));
+        assert!(!d.is_night_now(t(23, 0)));
     }
 }

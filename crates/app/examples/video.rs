@@ -67,7 +67,7 @@ fn main() -> anyhow::Result<()> {
 
     let slot = VideoSlot::new();
     let (cmd_tx, mut cmd_rx) = mpsc::unbounded_channel();
-    video::install(&win, slot.clone(), cmd_tx);
+    video::install(&win, None, slot.clone(), cmd_tx);
     rt.spawn(async move {
         while let Some(c) = cmd_rx.recv().await {
             println!("the window asked: {c:?}");

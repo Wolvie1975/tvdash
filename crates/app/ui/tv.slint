@@ -1,5 +1,8 @@
 import { Theme } from "theme.slint";
 import { Clock } from "components.slint";
+import { SleepWarning } from "shared/sleep.slint";
+import { SportsAlertCard } from "shared/sports_alert.slint";
+import { SportsAlertState, TvUi } from "state.slint";
 
 // TV (HDMI) window. No input — everything is driven from the laptop.
 export component TvWindow inherits Window {
@@ -16,6 +19,8 @@ export component TvWindow inherits Window {
     in property <string> date-text;
     // Replaces "Ready…" while something is starting ("Opening Netflix…").
     in property <string> message;
+    in property <image> video;
+    in property <bool> video-on: false;
 
     // Burn-in protection: the idle screen drifts a few pixels every few minutes.
     property <int> shift-step: 0;
@@ -65,5 +70,30 @@ export component TvWindow inherits Window {
             font-size: Theme.tv-body-size;
             color: Theme.text-muted.with-alpha(0.5);
         }
+    }
+
+    // ── In-window video when playing in two-screen mode ──────────────
+    if root.video-on: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #000000;
+
+        Image {
+            source: root.video;
+            width: 100%;
+            height: 100%;
+            image-fit: contain;
+        }
+    }
+
+    SleepWarning {
+        x: parent.width - self.width - 48px;
+        y: parent.height - self.height - 48px;
+    }
+
+    SportsAlertCard {
+        x: parent.width - self.width - 96px - (SportsAlertState.visible ? 0px : -24px);
+        y: parent.height - self.height - (TvUi.hud-open ? 250px : 120px);
+        animate x { duration: 180ms; easing: ease-out; }
     }
 }

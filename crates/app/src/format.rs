@@ -123,7 +123,7 @@ mod tests {
     fn status(state: PlayState) -> PlayerStatus {
         PlayerStatus {
             item: MediaItem {
-                source: SourceKind::Jellyfin,
+                source: SourceKind::Plex,
                 id: "1".into(),
                 kind: MediaKind::Episode,
                 title: "Some Show".into(),
@@ -132,6 +132,8 @@ mod tests {
                 duration_ms: Some(2_700_000),
                 resume_ms: None,
                 poster: None,
+                summary: None,
+                extra: Default::default(),
             },
             state,
             position_ms: 754_000,

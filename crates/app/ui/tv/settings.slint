@@ -1,0 +1,1463 @@
+import { ListView } from "std-widgets.slint";
+import { Theme, UiTheme } from "../theme.slint";
+import { Accounts, Dash, Diagnostics, Display, Server, SiteEditor, SleepState, SportsAlertsSettings, TvUi } from "../state.slint";
+import { Intro } from "../shared/intro.slint";
+import { SubTabs } from "tabs.slint";
+import { Tile, ValueTile } from "tile.slint";
+
+component ServerGraphTile inherits Rectangle {
+    in property <string> label;
+    in property <string> line-a;
+    in property <string> line-b;
+    in property <string> scale;
+
+    border-radius: 6px;
+    background: Theme.surface;
+
+    Text {
+        x: 20px * TvUi.u;
+        y: 16px * TvUi.u;
+        width: parent.width - 40px * TvUi.u;
+        text: root.label + (root.scale != "" ? " · " + root.scale : "");
+        font-size: 20px * TvUi.u;
+        font-weight: 400;
+        color: Theme.text-secondary;
+        overflow: elide;
+    }
+
+    Path {
+        x: 16px * TvUi.u;
+        y: 52px * TvUi.u;
+        width: parent.width - 32px * TvUi.u;
+        height: parent.height - 68px * TvUi.u;
+        viewbox-width: 300;
+        viewbox-height: 100;
+        commands: root.line-a;
+        stroke: Theme.accent;
+        stroke-width: 3px * TvUi.u;
+    }
+
+    Path {
+        x: 16px * TvUi.u;
+        y: 52px * TvUi.u;
+        width: parent.width - 32px * TvUi.u;
+        height: parent.height - 68px * TvUi.u;
+        viewbox-width: 300;
+        viewbox-height: 100;
+        commands: root.line-b;
+        stroke: Theme.text-secondary;
+        stroke-width: 3px * TvUi.u;
+    }
+}
+
+export component TvSettings inherits Rectangle {
+    width: 1920px * TvUi.u;
+    height: 1080px * TvUi.u;
+    background: transparent;
+
+    property <int> tab-idx: TvUi.settings-tab == "accounts" ? 1
+        : TvUi.settings-tab == "sites" ? 2
+        : TvUi.settings-tab == "sports" ? 3
+        : TvUi.settings-tab == "server" ? 4
+        : TvUi.settings-tab == "diagnostics" ? 5
+        : TvUi.settings-tab == "changelog" ? 6 : 0;
+
+    Timer {
+        interval: 5s;
+        running: root.tab-idx == 4;
+        triggered => { Server.refresh(); }
+    }
+
+    Timer {
+        interval: 2s;
+        running: root.tab-idx == 4;
+        triggered => { Server.refresh-activities(); }
+    }
+
+    SubTabs {
+        x: 96px * TvUi.u;
+        y: 122px * TvUi.u;
+        labels: ["Display", "Accounts", "Sites", "Sports", "Server", "Diagnostics", "What's new"];
+        active: root.tab-idx;
+        focused: !TvUi.bar-focused && TvUi.focused-tile >= 0 && TvUi.focused-tile < 7;
+        focused-index: (!TvUi.bar-focused && TvUi.focused-tile >= 0 && TvUi.focused-tile < 7)
+            ? TvUi.focused-tile : -1;
+        selected(i) => { TvUi.tile-activated(i); }
+    }
+
+    // ── Tab 0: Display ───────────────────────────────────────────────────────
+    if root.tab-idx == 0: Rectangle {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: transparent;
+
+        // 6: Layout
+        ValueTile {
+            x: 96px * TvUi.u;
+            y: 184px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 220px * TvUi.u;
+            fill: Theme.surface;
+            label: "Display layout";
+            value: "TV only";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
+            activated => { TvUi.tile-activated(7); }
+            hovered => { TvUi.tile-hovered(7); }
+        }
+
+        // 8: Theme
+        ValueTile {
+            x: 528px * TvUi.u;
+            y: 184px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 220px * TvUi.u;
+            fill: Theme.surface;
+            label: "Theme";
+            value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.ku-light ? "Kansas Light" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
+            activated => { TvUi.tile-activated(8); }
+            hovered => { TvUi.tile-hovered(8); }
+        }
+
+        // 9: Temperature units
+        ValueTile {
+            x: 960px * TvUi.u;
+            y: 184px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 220px * TvUi.u;
+            fill: Theme.surface;
+            label: "Temperature";
+            value: Display.celsius ? "Celsius (°C)" : "Fahrenheit (°F)";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 9;
+            activated => { TvUi.tile-activated(9); }
+            hovered => { TvUi.tile-hovered(9); }
+        }
+
+        // 10: Clock format
+        ValueTile {
+            x: 1392px * TvUi.u;
+            y: 184px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 220px * TvUi.u;
+            fill: Theme.surface;
+            label: "Clock";
+            value: Display.h12 ? "12-hour" : "24-hour";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 10;
+            activated => { TvUi.tile-activated(10); }
+            hovered => { TvUi.tile-hovered(10); }
+        }
+
+        // 11: Recent services
+        ValueTile {
+            x: 96px * TvUi.u;
+            y: 420px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 220px * TvUi.u;
+            fill: Theme.surface;
+            label: "Recent services";
+            value: "Clear list";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 11;
+            activated => { TvUi.tile-activated(11); }
+            hovered => { TvUi.tile-hovered(11); }
+        }
+
+        // 12: Quit
+        ValueTile {
+            x: 528px * TvUi.u;
+            y: 420px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 220px * TvUi.u;
+            fill: TvUi.confirm-quit ? #5C1E1E : Theme.surface;
+            label: "Application";
+            value: TvUi.confirm-quit ? "Confirm quit?" : "Quit tvdash";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 12;
+            activated => { TvUi.tile-activated(12); }
+            hovered => { TvUi.tile-hovered(12); }
+        }
+
+        // 13: Dashboard UI
+        ValueTile {
+            x: 96px * TvUi.u;
+            y: 656px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 220px * TvUi.u;
+            fill: Theme.surface;
+            label: "Dashboard UI";
+            value: Display.dashboard-ui == "blades" ? "Blades · side tabs" : "Classic · top tabs";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 13;
+            activated => { TvUi.tile-activated(13); }
+            hovered => { TvUi.tile-hovered(13); }
+        }
+
+        // 14: Sleep warning
+        ValueTile {
+            x: 528px * TvUi.u;
+            y: 656px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 220px * TvUi.u;
+            fill: Theme.surface;
+            label: "Sleep warning";
+            value: SleepState.warn-before == "30s" ? "30 s" : SleepState.warn-before == "2m" ? "2 min" : "60 s";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 14;
+            activated => { TvUi.tile-activated(14); }
+            hovered => { TvUi.tile-hovered(14); }
+        }
+
+        // 19: Startup animation
+        ValueTile {
+            x: 960px * TvUi.u;
+            y: 656px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 220px * TvUi.u;
+            fill: Theme.surface;
+            label: "Startup animation";
+            value: Intro.enabled ? "On" : "Off";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 19;
+            activated => { TvUi.tile-activated(19); }
+            hovered => { TvUi.tile-hovered(19); }
+        }
+
+        // 20: Preview startup animation
+        ValueTile {
+            x: 1392px * TvUi.u;
+            y: 656px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 220px * TvUi.u;
+            fill: Theme.surface;
+            label: "Startup animation";
+            value: "Preview";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 20;
+            activated => { TvUi.tile-activated(20); }
+            hovered => { TvUi.tile-hovered(20); }
+        }
+
+        // Weather location lookup card
+        Rectangle {
+            x: 960px * TvUi.u;
+            y: 420px * TvUi.u;
+            width: 848px * TvUi.u;
+            height: 220px * TvUi.u;
+            border-radius: 6px;
+            background: Theme.surface;
+
+            VerticalLayout {
+                padding: 20px * TvUi.u;
+                spacing: 10px * TvUi.u;
+
+                Text {
+                    text: "WEATHER LOCATION";
+                    font-size: 18px * TvUi.u;
+                    font-weight: 500;
+                    letter-spacing: 1.2px;
+                    color: Theme.text-secondary;
+                }
+
+                Text {
+                    text: Display.location-name != "" ? Display.location-name : "Not set — search for a city to enable weather & time zone";
+                    font-size: 24px * TvUi.u;
+                    font-weight: 400;
+                    color: Display.location-name != "" ? Theme.text-primary : Theme.text-muted;
+                    overflow: elide;
+                }
+
+                HorizontalLayout {
+                    spacing: 12px * TvUi.u;
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 52px * TvUi.u;
+                        border-radius: 6px;
+                        background: Theme.bg;
+                        border-width: 1px;
+                        border-color: place-input.has-focus ? Theme.accent : Theme.border;
+
+                        if place-input.text == "": Text {
+                            x: 16px * TvUi.u;
+                            y: 0;
+                            width: parent.width - 32px * TvUi.u;
+                            height: parent.height;
+                            text: "Search for a city…";
+                            font-size: 22px * TvUi.u;
+                            color: Theme.text-muted;
+                            vertical-alignment: center;
+                        }
+
+                        place-input := TextInput {
+                            x: 16px * TvUi.u;
+                            y: 0;
+                            width: parent.width - 32px * TvUi.u;
+                            height: parent.height;
+                            text <=> Display.place-query;
+                            font-size: 22px * TvUi.u;
+                            color: Theme.text-primary;
+                            vertical-alignment: center;
+                            accepted => { Display.find-place(self.text); }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 132px * TvUi.u;
+                        height: 52px * TvUi.u;
+                        border-radius: 6px;
+                        background: search-ta.has-hover ? Theme.accent : Theme.surface-raised;
+                        border-width: 1px;
+                        border-color: Theme.border;
+
+                        Text {
+                            text: "Search";
+                            font-size: 22px * TvUi.u;
+                            font-weight: 500;
+                            color: search-ta.has-hover ? #0B0D10 : Theme.text-primary;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        search-ta := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Display.find-place(place-input.text); }
+                        }
+                    }
+                }
+
+                if Display.place-searching: Text {
+                    text: "Looking it up…";
+                    font-size: 18px * TvUi.u;
+                    color: Theme.accent;
+                }
+
+                if !Display.place-searching && Display.place-message != "": Text {
+                    text: Display.place-message;
+                    font-size: 18px * TvUi.u;
+                    color: Theme.warn;
+                    overflow: elide;
+                }
+            }
+        }
+
+        // Location search results (up to 4)
+        for p[i] in Display.places: Tile {
+            visible: i < 4;
+            x: 960px * TvUi.u;
+            y: (656px + i * 64px) * TvUi.u;
+            base-width: 848px * TvUi.u;
+            base-height: 54px * TvUi.u;
+            fill: Theme.surface;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 15 + i;
+            activated => { TvUi.tile-activated(15 + i); }
+            hovered => { TvUi.tile-hovered(15 + i); }
+
+            Text {
+                x: 20px * TvUi.u;
+                y: 0;
+                width: parent.width - 40px * TvUi.u;
+                height: parent.height;
+                text: p;
+                font-size: 22px * TvUi.u;
+                color: Theme.text-primary;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        Text {
+            x: 96px * TvUi.u;
+            y: 940px * TvUi.u;
+            text: "tvdash " + Dash.version;
+            font-size: 22px * TvUi.u;
+            color: Theme.text-muted;
+        }
+    }
+
+    // ── Tab 1: Accounts ──────────────────────────────────────────────────────
+    if root.tab-idx == 1: Rectangle {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: transparent;
+
+        if Dash.cw-state == "code": Rectangle {
+            x: 96px * TvUi.u;
+            y: 184px * TvUi.u;
+            width: 1728px * TvUi.u;
+            height: 112px * TvUi.u;
+            border-radius: 6px;
+            background: Theme.surface-raised;
+            border-width: 2px;
+            border-color: Theme.accent;
+
+            HorizontalLayout {
+                padding-left: 28px * TvUi.u;
+                padding-right: 28px * TvUi.u;
+                spacing: 32px * TvUi.u;
+
+                Text {
+                    text: Dash.signin-code;
+                    font-size: 56px * TvUi.u;
+                    font-weight: 600;
+                    letter-spacing: 12px;
+                    color: Theme.text-primary;
+                    vertical-alignment: center;
+                }
+
+                Text {
+                    text: Dash.cw-message;
+                    font-size: 24px * TvUi.u;
+                    color: Theme.text-secondary;
+                    wrap: word-wrap;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+            }
+        }
+
+        if Dash.cw-state == "busy": Text {
+            x: 96px * TvUi.u;
+            y: 184px * TvUi.u;
+            text: "Connecting…";
+            font-size: 22px * TvUi.u;
+            color: Theme.accent;
+        }
+
+        for a[i] in Accounts.accounts: Tile {
+            x: (96px + Math.mod(i, 2) * 872px) * TvUi.u;
+            y: (Dash.cw-state == "code" ? 316px : 184px) * TvUi.u + Math.floor(i / 2) * 152px * TvUi.u;
+            base-width: 856px * TvUi.u;
+            base-height: 136px * TvUi.u;
+            fill: Theme.surface;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 7 + i;
+            activated => { TvUi.tile-activated(7 + i); }
+            hovered => { TvUi.tile-hovered(7 + i); }
+
+            HorizontalLayout {
+                padding-left: 24px * TvUi.u;
+                padding-right: 24px * TvUi.u;
+                spacing: 18px * TvUi.u;
+
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 14px * TvUi.u;
+                        height: 14px * TvUi.u;
+                        border-radius: 7px * TvUi.u;
+                        background: a.state == "ok" ? Theme.ok
+                            : a.state == "warn" ? Theme.warn
+                            : a.state == "busy" ? Theme.accent
+                            : Theme.text-muted;
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 4px * TvUi.u;
+                    horizontal-stretch: 1;
+
+                    HorizontalLayout {
+                        spacing: 12px * TvUi.u;
+                        Text {
+                            text: a.name;
+                            font-size: 26px * TvUi.u;
+                            font-weight: 500;
+                            color: Theme.text-primary;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: a.status;
+                            font-size: 22px * TvUi.u;
+                            color: Theme.text-secondary;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
+
+                    if a.detail != "": Text {
+                        text: a.detail;
+                        font-size: 18px * TvUi.u;
+                        color: Theme.text-muted;
+                        overflow: elide;
+                    }
+                }
+
+                if (a.primary != "" || a.secondary != ""): HorizontalLayout {
+                    spacing: 10px * TvUi.u;
+                    alignment: center;
+
+                    if a.primary != "": VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: pri-lbl.preferred-width + 24px * TvUi.u;
+                            height: 44px * TvUi.u;
+                            border-radius: 6px;
+                            background: pri-ta.has-hover ? Theme.accent : Theme.surface-raised;
+                            border-width: 1px;
+                            border-color: Theme.border;
+
+                            pri-lbl := Text {
+                                text: a.primary;
+                                font-size: 18px * TvUi.u;
+                                font-weight: 500;
+                                color: pri-ta.has-hover ? #0B0D10 : Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            pri-ta := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    if a.primary-id == "edit" {
+                                        Accounts.edit-error = "";
+                                        Accounts.editing = a.id;
+                                    } else {
+                                        Accounts.action(a.id, a.primary-id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if a.secondary != "": VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: sec-lbl.preferred-width + 24px * TvUi.u;
+                            height: 44px * TvUi.u;
+                            border-radius: 6px;
+                            background: sec-ta.has-hover ? Theme.accent : Theme.surface-raised;
+                            border-width: 1px;
+                            border-color: Theme.border;
+
+                            sec-lbl := Text {
+                                text: a.secondary;
+                                font-size: 18px * TvUi.u;
+                                font-weight: 500;
+                                color: sec-ta.has-hover ? #0B0D10 : Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            sec-ta := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    if a.secondary-id == "edit" {
+                                        Accounts.edit-error = "";
+                                        Accounts.editing = a.id;
+                                    } else {
+                                        Accounts.action(a.id, a.secondary-id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if Accounts.editing != "": Rectangle {
+            x: 96px * TvUi.u;
+            y: 780px * TvUi.u;
+            width: 1728px * TvUi.u;
+            height: 132px * TvUi.u;
+            border-radius: 6px;
+            background: Theme.surface-raised;
+            border-width: 1px;
+            border-color: Theme.accent;
+
+            VerticalLayout {
+                padding: 18px * TvUi.u;
+                spacing: 10px * TvUi.u;
+
+                HorizontalLayout {
+                    spacing: 14px * TvUi.u;
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 52px * TvUi.u;
+                        border-radius: 6px;
+                        background: Theme.bg;
+                        border-width: 1px;
+                        border-color: Theme.border;
+
+                        token-input := TextInput {
+                            x: 16px * TvUi.u;
+                            y: 0;
+                            width: parent.width - 32px * TvUi.u;
+                            height: parent.height;
+                            font-size: 22px * TvUi.u;
+                            color: Theme.text-primary;
+                            vertical-alignment: center;
+                            accepted => { Accounts.submit(Accounts.editing, self.text); }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 120px * TvUi.u;
+                        height: 52px * TvUi.u;
+                        border-radius: 6px;
+                        background: Theme.accent;
+
+                        Text {
+                            text: "Save";
+                            font-size: 22px * TvUi.u;
+                            font-weight: 500;
+                            color: #0B0D10;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Accounts.submit(Accounts.editing, token-input.text); }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 130px * TvUi.u;
+                        height: 52px * TvUi.u;
+                        border-radius: 6px;
+                        background: Theme.surface;
+                        border-width: 1px;
+                        border-color: Theme.border;
+
+                        Text {
+                            text: "Cancel";
+                            font-size: 22px * TvUi.u;
+                            color: Theme.text-primary;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Accounts.editing = ""; }
+                        }
+                    }
+                }
+
+                if Accounts.edit-error != "": Text {
+                    text: Accounts.edit-error;
+                    font-size: 18px * TvUi.u;
+                    color: Theme.warn;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+
+    // ── Tab 2: Sites ─────────────────────────────────────────────────────────
+    if root.tab-idx == 2: Rectangle {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: transparent;
+
+        Text {
+            x: 96px * TvUi.u;
+            y: 188px * TvUi.u;
+            text: "STREAMING SITES";
+            font-size: 22px * TvUi.u;
+            font-weight: 500;
+            letter-spacing: 1.2px;
+            color: Theme.text-secondary;
+        }
+
+        // 6: Add site
+        Tile {
+            x: 1604px * TvUi.u;
+            y: 180px * TvUi.u;
+            base-width: 220px * TvUi.u;
+            base-height: 52px * TvUi.u;
+            fill: Theme.accent;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
+            activated => { TvUi.tile-activated(7); }
+            hovered => { TvUi.tile-hovered(7); }
+
+            Text {
+                text: "+ Add site";
+                font-size: 22px * TvUi.u;
+                font-weight: 500;
+                color: #FFFFFF;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        Flickable {
+            x: 96px * TvUi.u;
+            y: 252px * TvUi.u;
+            width: 1728px * TvUi.u;
+            height: 732px * TvUi.u;
+            interactive: true;
+            content-height: sites-col.preferred-height + 24px * TvUi.u;
+
+            sites-col := VerticalLayout {
+                width: 1728px * TvUi.u;
+                spacing: 12px * TvUi.u;
+
+                for site[i] in Accounts.sites: Tile {
+                    base-width: 1728px * TvUi.u;
+                    base-height: 84px * TvUi.u;
+                    fill: Theme.surface;
+                    focused: !TvUi.bar-focused && TvUi.focused-tile == 8 + i;
+                    activated => { TvUi.tile-activated(8 + i); }
+                    hovered => { TvUi.tile-hovered(8 + i); }
+
+                    HorizontalLayout {
+                        x: 20px * TvUi.u;
+                        y: 0;
+                        width: parent.width - 40px * TvUi.u;
+                        height: parent.height;
+                        spacing: 16px * TvUi.u;
+
+                        Rectangle {
+                            width: 48px * TvUi.u;
+                            height: 48px * TvUi.u;
+                            border-radius: 8px;
+                            background: site.bg;
+                            Text {
+                                text: site.monogram;
+                                font-size: 20px * TvUi.u;
+                                font-weight: 600;
+                                color: site.fg;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 2px * TvUi.u;
+                            horizontal-stretch: 1;
+
+                            HorizontalLayout {
+                                spacing: 10px * TvUi.u;
+                                Text {
+                                    text: site.name;
+                                    font-size: 24px * TvUi.u;
+                                    font-weight: 500;
+                                    color: site.hidden ? Theme.text-muted : Theme.text-primary;
+                                    overflow: elide;
+                                }
+                                if site.hidden: Text {
+                                    text: "Hidden";
+                                    font-size: 18px * TvUi.u;
+                                    color: Theme.text-muted;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            Text {
+                                text: site.status != "" ? site.url + " · " + site.status : site.url;
+                                font-size: 18px * TvUi.u;
+                                color: Theme.text-secondary;
+                                overflow: elide;
+                            }
+                        }
+
+                        // Edit
+                        Rectangle {
+                            width: 96px * TvUi.u;
+                            height: 44px * TvUi.u;
+                            border-radius: 6px;
+                            background: edit-ta.has-hover ? Theme.surface-raised : Theme.bg;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            Text {
+                                text: "Edit";
+                                font-size: 20px * TvUi.u;
+                                color: Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            edit-ta := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { SiteEditor.edit(site.index); }
+                            }
+                        }
+
+                        // Hide / Show
+                        Rectangle {
+                            width: 112px * TvUi.u;
+                            height: 44px * TvUi.u;
+                            border-radius: 6px;
+                            background: hide-ta.has-hover ? Theme.surface-raised : Theme.bg;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            Text {
+                                text: site.hidden ? "Show" : "Hide";
+                                font-size: 20px * TvUi.u;
+                                color: Theme.text-secondary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            hide-ta := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { SiteEditor.set-hidden(site.index, !site.hidden); }
+                            }
+                        }
+
+                        // Move up
+                        Rectangle {
+                            width: 56px * TvUi.u;
+                            height: 44px * TvUi.u;
+                            border-radius: 6px;
+                            background: up-ta.has-hover && i > 0 ? Theme.surface-raised : Theme.bg;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            opacity: i > 0 ? 1.0 : 0.35;
+                            Text {
+                                text: "↑";
+                                font-size: 22px * TvUi.u;
+                                color: Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            up-ta := TouchArea {
+                                mouse-cursor: i > 0 ? pointer : default;
+                                clicked => { if i > 0 { SiteEditor.move(site.index, site.index - 1); } }
+                            }
+                        }
+
+                        // Move down
+                        Rectangle {
+                            width: 56px * TvUi.u;
+                            height: 44px * TvUi.u;
+                            border-radius: 6px;
+                            background: dn-ta.has-hover && i + 1 < Accounts.sites.length ? Theme.surface-raised : Theme.bg;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            opacity: i + 1 < Accounts.sites.length ? 1.0 : 0.35;
+                            Text {
+                                text: "↓";
+                                font-size: 22px * TvUi.u;
+                                color: Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            dn-ta := TouchArea {
+                                mouse-cursor: i + 1 < Accounts.sites.length ? pointer : default;
+                                clicked => { if i + 1 < Accounts.sites.length { SiteEditor.move(site.index, site.index + 1); } }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Tab 3: Sports ────────────────────────────────────────────────────────
+    if root.tab-idx == 3: Rectangle {
+        x: 96px * TvUi.u;
+        y: 184px * TvUi.u;
+        width: 1728px * TvUi.u;
+        height: 820px * TvUi.u;
+        background: transparent;
+
+        // Left: Followed teams (read-only)
+        Rectangle {
+            x: 0;
+            y: 0;
+            width: 720px * TvUi.u;
+            height: parent.height;
+            border-radius: 8px;
+            background: Theme.surface;
+
+            VerticalLayout {
+                padding: 24px * TvUi.u;
+                spacing: 12px * TvUi.u;
+
+                Text {
+                    text: "Followed teams";
+                    font-size: 24px * TvUi.u;
+                    font-weight: 700;
+                    color: Theme.text-primary;
+                }
+                Text {
+                    text: SportsAlertsSettings.follows-note;
+                    font-size: 16px * TvUi.u;
+                    color: SportsAlertsSettings.follows-error ? Theme.warn : Theme.text-secondary;
+                    wrap: word-wrap;
+                }
+                if SportsAlertsSettings.followed-teams.length == 0: Text {
+                    text: "No followed teams. Follow teams in MyNewsFeed.";
+                    font-size: 18px * TvUi.u;
+                    color: Theme.text-secondary;
+                    wrap: word-wrap;
+                }
+                ListView {
+                    vertical-stretch: 1;
+                    for t in SportsAlertsSettings.followed-teams: Rectangle {
+                        height: 62px * TvUi.u;
+                        HorizontalLayout {
+                            spacing: 14px * TvUi.u;
+                            Rectangle {
+                                y: (parent.height - self.height) / 2;
+                                width: 42px * TvUi.u;
+                                height: 42px * TvUi.u;
+                                border-radius: 10px * TvUi.u;
+                                background: t.color;
+                                Text {
+                                    text: t.initials;
+                                    color: #FFFFFF;
+                                    font-size: 14px * TvUi.u;
+                                    font-weight: 900;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: t.name;
+                                    font-size: 20px * TvUi.u;
+                                    font-weight: 700;
+                                    color: Theme.text-primary;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: t.league-label;
+                                    font-size: 15px * TvUi.u;
+                                    color: Theme.text-secondary;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Right: Alerts + Starred games
+        VerticalLayout {
+            x: 744px * TvUi.u;
+            y: 0;
+            width: parent.width - 744px * TvUi.u;
+            height: parent.height;
+            spacing: 20px * TvUi.u;
+
+            Rectangle {
+                height: 230px * TvUi.u;
+                border-radius: 8px;
+                background: Theme.surface;
+
+                VerticalLayout {
+                    padding: 24px * TvUi.u;
+                    spacing: 16px * TvUi.u;
+
+                    Text {
+                        text: "Alerts";
+                        font-size: 24px * TvUi.u;
+                        font-weight: 700;
+                        color: Theme.text-primary;
+                    }
+                    HorizontalLayout {
+                        spacing: 10px * TvUi.u;
+                        Text {
+                            text: "Starting soon";
+                            font-size: 18px * TvUi.u;
+                            color: Theme.text-primary;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                        }
+                        for opt in [
+                            { m: 0, lbl: "Off" },
+                            { m: 5, lbl: "5" },
+                            { m: 10, lbl: "10" },
+                            { m: 15, lbl: "15" },
+                            { m: 30, lbl: "30 min" },
+                        ]: Rectangle {
+                            height: 40px * TvUi.u;
+                            width: tv-soon-t.preferred-width + 28px * TvUi.u;
+                            border-radius: 20px * TvUi.u;
+                            background: SportsAlertsSettings.soon-minutes == opt.m ? Theme.accent : Theme.surface-raised;
+                            tv-soon-t := Text {
+                                text: opt.lbl;
+                                font-size: 16px * TvUi.u;
+                                font-weight: 700;
+                                color: SportsAlertsSettings.soon-minutes == opt.m ? #0B0D10 : Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { SportsAlertsSettings.set-soon-minutes(opt.m); }
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 10px * TvUi.u;
+                        Text {
+                            text: "Final score";
+                            font-size: 18px * TvUi.u;
+                            color: Theme.text-primary;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                        }
+                        for opt in [
+                            { on: true, lbl: "On" },
+                            { on: false, lbl: "Off" },
+                        ]: Rectangle {
+                            height: 40px * TvUi.u;
+                            width: tv-fin-t.preferred-width + 32px * TvUi.u;
+                            border-radius: 20px * TvUi.u;
+                            background: SportsAlertsSettings.final-on == opt.on ? Theme.accent : Theme.surface-raised;
+                            tv-fin-t := Text {
+                                text: opt.lbl;
+                                font-size: 16px * TvUi.u;
+                                font-weight: 700;
+                                color: SportsAlertsSettings.final-on == opt.on ? #0B0D10 : Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { SportsAlertsSettings.set-final-on(opt.on); }
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 10px * TvUi.u;
+                        Text {
+                            text: "During video";
+                            font-size: 18px * TvUi.u;
+                            color: Theme.text-primary;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                        }
+                        for opt in [
+                            { val: "show", lbl: "Show" },
+                            { val: "hold", lbl: "Hold" },
+                        ]: Rectangle {
+                            height: 40px * TvUi.u;
+                            width: tv-vid-t.preferred-width + 32px * TvUi.u;
+                            border-radius: 20px * TvUi.u;
+                            background: SportsAlertsSettings.during-video == opt.val ? Theme.accent : Theme.surface-raised;
+                            tv-vid-t := Text {
+                                text: opt.lbl;
+                                font-size: 16px * TvUi.u;
+                                font-weight: 700;
+                                color: SportsAlertsSettings.during-video == opt.val ? #0B0D10 : Theme.text-primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { SportsAlertsSettings.set-during-video(opt.val); }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                vertical-stretch: 1;
+                border-radius: 8px;
+                background: Theme.surface;
+
+                VerticalLayout {
+                    padding: 24px * TvUi.u;
+                    spacing: 12px * TvUi.u;
+
+                    Text {
+                        text: "Starred games";
+                        font-size: 24px * TvUi.u;
+                        font-weight: 700;
+                        color: Theme.text-primary;
+                    }
+                    if SportsAlertsSettings.starred-games.length == 0: Text {
+                        text: "No starred games. Star a game on Scoreboard to get alerts.";
+                        font-size: 18px * TvUi.u;
+                        color: Theme.text-secondary;
+                        wrap: word-wrap;
+                    }
+                    ListView {
+                        vertical-stretch: 1;
+                        for g in SportsAlertsSettings.starred-games: Rectangle {
+                            height: 62px * TvUi.u;
+                            HorizontalLayout {
+                                spacing: 12px * TvUi.u;
+                                Text {
+                                    text: "★";
+                                    color: Theme.accent;
+                                    font-size: 22px * TvUi.u;
+                                    vertical-alignment: center;
+                                }
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    alignment: center;
+                                    Text {
+                                        text: g.matchup;
+                                        font-size: 18px * TvUi.u;
+                                        font-weight: 700;
+                                        color: Theme.text-primary;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: g.meta;
+                                        font-size: 15px * TvUi.u;
+                                        color: Theme.text-secondary;
+                                        overflow: elide;
+                                    }
+                                }
+                                Rectangle {
+                                    y: (parent.height - self.height) / 2;
+                                    width: 100px * TvUi.u;
+                                    height: 38px * TvUi.u;
+                                    border-radius: 19px * TvUi.u;
+                                    background: Theme.surface-raised;
+                                    Text {
+                                        text: "Unstar";
+                                        font-size: 15px * TvUi.u;
+                                        font-weight: 700;
+                                        color: Theme.text-primary;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                    TouchArea {
+                                        mouse-cursor: pointer;
+                                        clicked => { SportsAlertsSettings.unstar-game(g.event-id); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Tab 4: Server ────────────────────────────────────────────────────────
+    if root.tab-idx == 4: Rectangle {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        background: transparent;
+
+        Text {
+            x: 96px * TvUi.u;
+            y: 188px * TvUi.u;
+            width: 1460px * TvUi.u;
+            text: Server.name + " · " + Server.status;
+            font-size: 28px * TvUi.u;
+            font-weight: 400;
+            color: Theme.text-primary;
+            overflow: elide;
+        }
+
+        // 6: Scan all tile
+        Tile {
+            x: 1604px * TvUi.u;
+            y: 180px * TvUi.u;
+            base-width: 220px * TvUi.u;
+            base-height: 52px * TvUi.u;
+            fill: Theme.surface;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
+            activated => { TvUi.tile-activated(7); }
+            hovered => { TvUi.tile-hovered(7); }
+
+            Text {
+                text: "Scan all";
+                font-size: 22px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        // 5 metric cards
+        ValueTile {
+            x: 96px * TvUi.u;
+            y: 256px * TvUi.u;
+            base-width: 332px * TvUi.u;
+            base-height: 148px * TvUi.u;
+            fill: Theme.surface;
+            label: "Streams";
+            value: Server.streams;
+        }
+
+        ValueTile {
+            x: 444px * TvUi.u;
+            y: 256px * TvUi.u;
+            base-width: 332px * TvUi.u;
+            base-height: 148px * TvUi.u;
+            fill: Theme.surface;
+            label: "Transcodes";
+            value: Server.transcodes;
+        }
+
+        ValueTile {
+            x: 792px * TvUi.u;
+            y: 256px * TvUi.u;
+            base-width: 332px * TvUi.u;
+            base-height: 148px * TvUi.u;
+            fill: Theme.surface;
+            label: "Bandwidth";
+            value: Server.bandwidth + " Mb/s";
+        }
+
+        ValueTile {
+            x: 1140px * TvUi.u;
+            y: 256px * TvUi.u;
+            base-width: 332px * TvUi.u;
+            base-height: 148px * TvUi.u;
+            fill: Theme.surface;
+            label: "CPU";
+            value: Server.cpu + "%";
+        }
+
+        ValueTile {
+            x: 1488px * TvUi.u;
+            y: 256px * TvUi.u;
+            base-width: 336px * TvUi.u;
+            base-height: 148px * TvUi.u;
+            fill: Theme.surface;
+            label: "RAM";
+            value: Server.ram + "%";
+        }
+
+        if Server.plex-pass: ServerGraphTile {
+            x: 96px * TvUi.u;
+            y: 420px * TvUi.u;
+            width: 565px * TvUi.u;
+            height: 210px * TvUi.u;
+            label: "CPU · Host / Plex";
+            line-a: Server.cpu-host-path;
+            line-b: Server.cpu-process-path;
+        }
+
+        if Server.plex-pass: ServerGraphTile {
+            x: 677px * TvUi.u;
+            y: 420px * TvUi.u;
+            width: 565px * TvUi.u;
+            height: 210px * TvUi.u;
+            label: "RAM · Host / Plex";
+            line-a: Server.ram-host-path;
+            line-b: Server.ram-process-path;
+        }
+
+        if Server.plex-pass: ServerGraphTile {
+            x: 1258px * TvUi.u;
+            y: 420px * TvUi.u;
+            width: 566px * TvUi.u;
+            height: 210px * TvUi.u;
+            label: "Bandwidth · LAN / WAN";
+            line-a: Server.bandwidth-lan-path;
+            line-b: Server.bandwidth-wan-path;
+            scale: Server.bandwidth-scale + " Mb/s";
+        }
+
+        Text {
+            x: 96px * TvUi.u;
+            y: (Server.plex-pass ? 656px : 432px) * TvUi.u;
+            text: "ACTIVITY";
+            font-size: 20px * TvUi.u;
+            font-weight: 500;
+            letter-spacing: 1.2px;
+            color: Theme.text-secondary;
+        }
+
+        if Server.activity.length == 0: Text {
+            x: 96px * TvUi.u;
+            y: (Server.plex-pass ? 696px : 472px) * TvUi.u;
+            text: "Nothing running on the server.";
+            font-size: 24px * TvUi.u;
+            color: Theme.text-muted;
+        }
+
+        for act[i] in Server.activity: Rectangle {
+            visible: i < 3;
+            x: 96px * TvUi.u;
+            y: ((Server.plex-pass ? 696px : 472px) + i * 72px) * TvUi.u;
+            width: 1728px * TvUi.u;
+            height: 60px * TvUi.u;
+            border-radius: 6px;
+            background: Theme.surface;
+
+            HorizontalLayout {
+                padding-left: 20px * TvUi.u;
+                padding-right: 20px * TvUi.u;
+                spacing: 16px * TvUi.u;
+
+                Text {
+                    text: act.title + " · " + act.subtitle;
+                    font-size: 22px * TvUi.u;
+                    color: Theme.text-primary;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                }
+
+                Text {
+                    text: Math.round(act.progress) + "%";
+                    font-size: 22px * TvUi.u;
+                    font-weight: 500;
+                    color: Theme.accent;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+
+    // ── Tab 5: Diagnostics ───────────────────────────────────────────────────
+    if root.tab-idx == 5: Flickable {
+        x: 96px * TvUi.u;
+        y: 184px * TvUi.u;
+        width: 1728px * TvUi.u;
+        height: 800px * TvUi.u;
+        interactive: true;
+        content-height: diag-col.preferred-height + 24px * TvUi.u;
+
+        diag-col := VerticalLayout {
+            width: 1728px * TvUi.u;
+            spacing: 20px * TvUi.u;
+
+            Rectangle {
+                border-radius: 6px;
+                background: Theme.surface;
+                height: svc-col.preferred-height + 40px * TvUi.u;
+
+                svc-col := VerticalLayout {
+                    x: 24px * TvUi.u;
+                    y: 20px * TvUi.u;
+                    width: parent.width - 48px * TvUi.u;
+                    spacing: 16px * TvUi.u;
+
+                    Text {
+                        text: "SERVICES";
+                        font-size: 20px * TvUi.u;
+                        font-weight: 500;
+                        letter-spacing: 1.2px;
+                        color: Theme.text-secondary;
+                    }
+
+                    for row[i] in Diagnostics.rows: VerticalLayout {
+                        spacing: 16px * TvUi.u;
+                        if i > 0: Rectangle { height: 1px; background: Theme.border; }
+                        HorizontalLayout {
+                            spacing: 16px * TvUi.u;
+                            Rectangle {
+                                width: 14px * TvUi.u;
+                                height: 14px * TvUi.u;
+                                border-radius: 7px * TvUi.u;
+                                background: row.state == "ok" ? Theme.ok : row.state == "warn" ? Theme.warn : Theme.text-muted;
+                            }
+                            VerticalLayout {
+                                spacing: 4px * TvUi.u;
+                                horizontal-stretch: 1;
+                                HorizontalLayout {
+                                    spacing: 12px * TvUi.u;
+                                    Text {
+                                        text: row.name;
+                                        font-size: 22px * TvUi.u;
+                                        font-weight: 500;
+                                        color: Theme.text-primary;
+                                    }
+                                    if row.last-ok != "": Text {
+                                        text: row.last-ok;
+                                        font-size: 20px * TvUi.u;
+                                        color: Theme.text-secondary;
+                                        horizontal-stretch: 1;
+                                        overflow: elide;
+                                    }
+                                }
+                                if row.last-error != "": Text {
+                                    text: row.last-error;
+                                    font-size: 18px * TvUi.u;
+                                    color: Theme.warn;
+                                    wrap: word-wrap;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                border-radius: 6px;
+                background: Theme.surface;
+                height: files-col.preferred-height + 40px * TvUi.u;
+
+                files-col := VerticalLayout {
+                    x: 24px * TvUi.u;
+                    y: 20px * TvUi.u;
+                    width: parent.width - 48px * TvUi.u;
+                    spacing: 12px * TvUi.u;
+
+                    Text {
+                        text: "FILES";
+                        font-size: 20px * TvUi.u;
+                        font-weight: 500;
+                        letter-spacing: 1.2px;
+                        color: Theme.text-secondary;
+                    }
+
+                    for line in Diagnostics.paths: Text {
+                        text: line;
+                        font-size: 19px * TvUi.u;
+                        color: Theme.text-secondary;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Tab 6: What's new ────────────────────────────────────────────────────
+    if root.tab-idx == 6: Flickable {
+        x: 96px * TvUi.u;
+        y: 184px * TvUi.u;
+        width: 1728px * TvUi.u;
+        height: 800px * TvUi.u;
+        interactive: true;
+        content-height: cl-col.preferred-height + 24px * TvUi.u;
+
+        cl-col := VerticalLayout {
+            width: 1728px * TvUi.u;
+            spacing: 16px * TvUi.u;
+
+            for entry in Dash.changelog: Rectangle {
+                border-radius: 6px;
+                background: Theme.surface;
+                height: entry-col.preferred-height + 36px * TvUi.u;
+
+                entry-col := VerticalLayout {
+                    x: 24px * TvUi.u;
+                    y: 18px * TvUi.u;
+                    width: parent.width - 48px * TvUi.u;
+                    spacing: 10px * TvUi.u;
+
+                    HorizontalLayout {
+                        spacing: 14px * TvUi.u;
+
+                        Text {
+                            text: entry.version;
+                            font-size: 26px * TvUi.u;
+                            font-weight: 500;
+                            color: Theme.text-primary;
+                            vertical-alignment: center;
+                        }
+
+                        Rectangle { horizontal-stretch: 1; }
+
+                        if entry.date != "": Text {
+                            text: entry.date;
+                            font-size: 20px * TvUi.u;
+                            color: Theme.text-muted;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    Text {
+                        text: entry.notes;
+                        font-size: 20px * TvUi.u;
+                        color: Theme.text-secondary;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+    }
+}

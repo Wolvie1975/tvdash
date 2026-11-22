@@ -10,6 +10,7 @@ use std::{
     time::Duration,
 };
 
+use chrono::Datelike;
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
     task::JoinHandle,
@@ -45,7 +46,7 @@ const PROGRESS_EVERY: Duration = Duration::from_secs(10);
 const POSTER_HEIGHT: u32 = 480;
 const QUICK_CONNECT_POLL: Duration = Duration::from_secs(2);
 const QUICK_CONNECT_TIMEOUT: Duration = Duration::from_secs(10 * 60);
-const SESSIONS_EVERY: Duration = Duration::from_secs(15);
+const SESSIONS_EVERY: Duration = Duration::from_secs(10);
 const PLEX_PIN_POLL: Duration = Duration::from_secs(2);
 const RECENTLY_ADDED: u32 = 20;
 
@@ -61,7 +62,7 @@ pub enum Internal {
     FillProviders(Vec<(String, Vec<u32>)>),
 }
 
-/// What plays a Plex/Jellyfin item: mpv in its own window, or libmpv drawing
+/// What plays a Plex item: mpv in its own window, or libmpv drawing
 /// inside the tvdash window (TV-only layout).
 enum Player {
     Window(Mpv),
@@ -87,6 +88,41 @@ impl Player {
         match self {
             Self::Window(m) => m.seek(secs).await.map_err(|e| e.to_string()),
             Self::InWindow(e) => e.seek(secs).map_err(|e| e.to_string()),
+        }
+    }
+
+    async fn seek_to(&mut self, secs: u64) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.seek_to(secs).await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.seek_to(secs).map_err(|e| e.to_string()),
+        }
+    }
+
+    async fn cycle_audio(&mut self) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.cycle_audio().await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.cycle_audio().map_err(|e| e.to_string()),
+        }
+    }
+
+    async fn cycle_sub(&mut self) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.cycle_sub().await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.cycle_sub().map_err(|e| e.to_string()),
+        }
+    }
+
+    async fn add_volume(&mut self, delta: i64) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.add_volume(delta).await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.add_volume(delta).map_err(|e| e.to_string()),
+        }
+    }
+
+    async fn set_volume(&mut self, volume: f64) -> Result<(), String> {
+        match self {
+            Self::Window(m) => m.set_volume(volume).await.map_err(|e| e.to_string()),
+            Self::InWindow(e) => e.set_volume(volume).map_err(|e| e.to_string()),
         }
     }
 
@@ -117,6 +153,8 @@ struct Playback {
     last_emitted_sec: Option<u64>,
     /// The "can't decode" hint was already shown for this item (frame errors repeat).
     decode_hint_shown: bool,
+    /// True when playback reached natural end-of-file (rather than user stop).
+    ended_eof: bool,
 }
 
 pub struct Controller {
@@ -127,13 +165,19 @@ pub struct Controller {
     internal: UnboundedSender<Internal>,
     jellyfin: Option<Arc<JellyfinClient>>,
     plex: Option<Arc<PlexClient>>,
+    tautulli: Option<tvdash_media::tautulli::TautulliClient>,
+    tautulli_cache: Option<Arc<tvdash_discover::cache::Cache>>,
     sign_in: HashMap<SourceKind, JoinHandle<()>>,
     playback: Option<Playback>,
     browser: Option<Browser>,
+    inhibit: Option<crate::portal::IdleInhibit>,
     tv_geometry: Option<Geometry>,
+    tv_output: Option<String>,
     state: AppState,
     state_path: Option<PathBuf>,
     posters_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
+    backdrops_requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
+    sports_logos_requested: Arc<Mutex<HashSet<String>>>,
     server_sections: Arc<Mutex<Vec<ServerLibrary>>>,
     /// Where to watch (TMDB) and service logos.
     pub(crate) watch: Watch,
@@ -145,6 +189,13 @@ pub struct Controller {
     layout: Layout,
     /// In-window drawing failed this run: use mpv's window from now on.
     video_failed: bool,
+    sleep: crate::sleep::Sleep,
+    sleep_tx: Option<tokio::sync::watch::Sender<crate::home_cmd::SleepHttpState>>,
+    sleep_episode_finished: bool,
+    sleep_finished_key: Option<String>,
+    sleep_held: bool,
+    sleep_last_key: String,
+    sports_tx: Option<UnboundedSender<crate::sports_watch::WatcherMsg>>,
 }
 
 enum Step {
@@ -155,6 +206,7 @@ enum Step {
     Refresh,
     Sessions,
     Progress,
+    SleepTick,
     Shutdown,
 }
 
@@ -166,6 +218,12 @@ impl Controller {
         events: UnboundedSender<AppEvent>,
     ) -> (Self, UnboundedReceiver<Internal>) {
         let (internal, internal_rx) = unbounded_channel();
+        let state_path = tvdash_core::state::default_path();
+        let cache_path = state_path.as_ref().map(|p| p.with_file_name("cache.db"));
+        let tautulli_cache = cache_path
+            .as_deref()
+            .and_then(|p| tvdash_discover::cache::Cache::open(p).ok())
+            .map(Arc::new);
         let mut c = Self {
             config,
             config_path,
@@ -174,22 +232,40 @@ impl Controller {
             internal,
             jellyfin: None,
             plex: None,
+            tautulli: None,
+            tautulli_cache,
             sign_in: HashMap::new(),
             playback: None,
             browser: None,
+            inhibit: None,
             tv_geometry: None,
+            tv_output: None,
             state: AppState::default(),
-            state_path: tvdash_core::state::default_path(),
+            state_path,
             posters_requested: Arc::default(),
+            backdrops_requested: Arc::default(),
+            sports_logos_requested: Arc::default(),
             server_sections: Arc::default(),
             general_tx: None,
             video: None,
             layout: Layout::Dual,
             video_failed: false,
-            watch: Watch::new(events.clone(), tvdash_core::state::default_path().map(|p| p.with_file_name("cache.db"))),
+            watch: Watch::new(events.clone(), cache_path),
+            sleep: crate::sleep::Sleep::default(),
+            sleep_tx: None,
+            sleep_episode_finished: false,
+            sleep_finished_key: None,
+            sleep_held: false,
+            sleep_last_key: String::new(),
+            sports_tx: None,
         };
         c.watch.set_internal(c.internal.clone());
         (c, internal_rx)
+    }
+
+    pub fn set_sleep_tx(&mut self, tx: tokio::sync::watch::Sender<crate::home_cmd::SleepHttpState>) {
+        self.sleep_tx = Some(tx);
+        self.emit_sleep();
     }
 
     /// Play inside the tvdash window (through `slot`) whenever the layout is TV only.
@@ -230,6 +306,10 @@ impl Controller {
         sessions.set_missed_tick_behavior(MissedTickBehavior::Skip);
         sessions.tick().await; // init already polled once
 
+        let mut sleep_tick = interval(Duration::from_secs(1));
+        sleep_tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        sleep_tick.tick().await;
+
         loop {
             let step = {
                 let (playback, browser) = (self.playback.as_mut(), self.browser.as_mut());
@@ -253,12 +333,13 @@ impl Controller {
                     _ = refresh.tick() => Step::Refresh,
                     _ = progress.tick() => Step::Progress,
                     _ = sessions.tick() => Step::Sessions,
+                    _ = sleep_tick.tick() => Step::SleepTick,
                 }
             };
             match step {
                 Step::Command(c) => self.on_command(c).await,
                 Step::Mpv(e) => self.on_mpv(e).await,
-                Step::BrowserExited => self.on_browser_exited(),
+                Step::BrowserExited => self.on_browser_exited().await,
                 Step::Internal(Internal::JellyfinSignedIn(auth)) => {
                     self.on_jellyfin_signed_in(auth).await;
                     self.watch.refresh_library(self.sources(), true);
@@ -274,6 +355,7 @@ impl Controller {
                 }
                 Step::Sessions => self.poll_sessions(),
                 Step::Progress => self.report_tick(),
+                Step::SleepTick => self.on_sleep_tick().await,
                 Step::Shutdown => break,
             }
         }
@@ -293,9 +375,16 @@ impl Controller {
         self.emit(AppEvent::Streaming(self.state.streaming_opened.clone()));
         self.emit_sites();
         self.watch.init(&self.config.streaming).await;
+        self.init_tautulli().await;
+        self.init_events().await;
+        self.sports_tx = Some(crate::sports_watch::spawn(
+            self.config.events.clone(),
+            self.config.sports.alerts.clone(),
+            self.events.clone(),
+        ));
         self.watch.refresh_library(self.sources(), true);
-        if let Some(j) = &self.jellyfin {
-            self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(j.base_url().to_owned())));
+        if !self.config.jellyfin.server_url.is_empty() {
+            self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(self.config.jellyfin.server_url.clone())));
         }
         if self.plex.is_some() {
             self.emit(AppEvent::Server(SourceKind::Plex, Some(self.config.plex.server_url.clone())));
@@ -326,7 +415,8 @@ impl Controller {
             rt.browser_pid = b.pid();
             rt.browser_site = Some(b.site.clone());
         }
-        if rt.mpv_socket.is_none() && rt.browser_pid.is_none() {
+        rt.sleep = self.sleep.clone();
+        if rt.mpv_socket.is_none() && rt.browser_pid.is_none() && !rt.sleep.is_active() {
             crate::instance::RuntimeState::clear(&path);
         } else {
             rt.save(&path);
@@ -362,6 +452,8 @@ impl Controller {
                         duration_ms: None,
                         resume_ms: None,
                         poster: None,
+                        summary: None,
+                        extra: Default::default(),
                     });
                     let (reporter, _) = match self.source_for(item.source) {
                         Some(src) => (spawn_reporter(src, item.clone()), true),
@@ -380,6 +472,7 @@ impl Controller {
                         reporter,
                         last_emitted_sec: None,
                         decode_hint_shown: false,
+                        ended_eof: false,
                     });
                     info!(socket = %sock, "reconnected to running mpv");
                 }
@@ -396,6 +489,11 @@ impl Controller {
                 self.emit(AppEvent::Browser(Some(site)));
                 info!(pid, "reattached to running browser");
             }
+        }
+
+        if rt.sleep.is_active() {
+            self.sleep = rt.sleep;
+            self.emit_sleep();
         }
 
         self.save_runtime_state();
@@ -464,13 +562,61 @@ impl Controller {
                     warn!(error = %e, "mpv seek failed");
                 }
             }
+            Command::SeekTo(secs) => {
+                if let Some(p) = self.playback.as_mut()
+                    && let Err(e) = p.player.seek_to(secs).await
+                {
+                    warn!(error = %e, "mpv seek_to failed");
+                }
+            }
+            Command::CycleAudio => {
+                if let Some(p) = self.playback.as_mut()
+                    && let Err(e) = p.player.cycle_audio().await
+                {
+                    warn!(error = %e, "mpv cycle audio failed");
+                }
+            }
+            Command::CycleSub => {
+                if let Some(p) = self.playback.as_mut()
+                    && let Err(e) = p.player.cycle_sub().await
+                {
+                    warn!(error = %e, "mpv cycle sub failed");
+                }
+            }
+            Command::VolumeDelta(delta) => {
+                if let Some(p) = self.playback.as_mut()
+                    && let Err(e) = p.player.add_volume(delta).await
+                {
+                    warn!(error = %e, "mpv volume failed");
+                }
+            }
+            Command::PreviousEpisode | Command::NextEpisode => {
+                let next = matches!(cmd, Command::NextEpisode);
+                if let Some(item) = self.playback.as_ref().map(|p| p.status.item.clone())
+                    && item.kind == tvdash_core::models::MediaKind::Episode
+                    && item.source == SourceKind::Plex
+                    && let Some(plex) = &self.plex
+                {
+                    match plex.adjacent_episode(&item.id, next).await {
+                        Ok(Some(mut ep)) => {
+                            ep.resume_ms = None;
+                            self.play(ep).await;
+                        }
+                        Ok(None) => self.emit(AppEvent::Toast(if next { "No next episode." } else { "No previous episode." }.into())),
+                        Err(e) => warn!(error = %e, "adjacent episode lookup failed"),
+                    }
+                }
+            }
             Command::Stop => self.clear_tv().await,
             Command::Home => {
                 // Video inside the window keeps playing behind Home; mpv's own window would cover it.
                 if !self.playback.as_ref().is_some_and(|p| p.player.in_window()) {
                     self.stop_playback().await;
                 }
-                self.close_browser().await;
+                if let Some(site) = self.browser.as_ref().map(|b| b.site.clone()) {
+                    self.close_browser().await;
+                    self.toast(format!("Closed {site} · back on Home"));
+                }
             }
             Command::Overlay => self.show_overlay(Some(5000)).await,
             Command::VideoFailed(reason) => self.video_failed(reason).await,
@@ -504,6 +650,11 @@ impl Controller {
             }
             Command::Refresh => self.refresh(),
             Command::OpenSite(i) => self.open_site(i).await,
+            Command::ClearRecentServices => {
+                self.update_config(|c| c.tv.recent.clear());
+                self.emit(AppEvent::RecentServices(Vec::new()));
+                self.toast("Recent services cleared");
+            }
             Command::SaveSite { index, site } => self.save_site(index, site),
             Command::RemoveSite { index, clear_cookies } => self.remove_site(index, clear_cookies).await,
             Command::MoveSite { from, to } => {
@@ -547,10 +698,20 @@ impl Controller {
                 debug!(?g, "TV geometry");
                 self.tv_geometry = Some(g);
             }
+            Command::TvOutput(name) => {
+                debug!(%name, "TV output");
+                self.tv_output = (!name.is_empty()).then_some(name);
+            }
             Command::Search(query) => self.search(query),
             Command::ServerScan { index } => self.server_scan(index).await,
             Command::ServerRefresh { refresh_libraries } => self.poll_server_summary(refresh_libraries),
             Command::ServerRefreshActivities => self.poll_server_activities(),
+            Command::RefreshSessions => self.poll_sessions(),
+            Command::PrefetchBackdrop(item) => {
+                if let Some(source) = self.source_for(item.source) {
+                    fetch_backdrops(source, vec![item], self.backdrops_requested.clone(), self.events.clone());
+                }
+            }
             Command::ServerCancelActivity(uuid) => self.server_cancel_activity(&uuid).await,
             Command::ServerTerminate { session_id, reason } => self.server_terminate(&session_id, &reason).await,
             Command::RefreshMetadata(item) => self.refresh_metadata(item).await,
@@ -561,12 +722,18 @@ impl Controller {
                 let url = url.trim().trim_end_matches('/').to_owned();
                 if !url.is_empty() && url != self.config.jellyfin.server_url {
                     info!(%url, "Jellyfin server address changed");
-                    self.update_config(|c| c.jellyfin.server_url = url);
+                    self.update_config(|c| c.jellyfin.server_url = url.clone());
+                    self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(url)));
+                    if self.jellyfin.is_some() {
+                        self.init_jellyfin().await;
+                        self.refresh();
+                    }
                 }
             }
             Command::JellyfinPassword { username, password } => self.jellyfin_password(username, password),
             Command::ClearBrowserProfile => self.clear_browser_profile().await,
             Command::SetTheme(mode) => self.update_config(|c| c.general.theme = mode),
+            Command::SetDashboardUi(ui) => self.update_config(|c| c.display.dashboard_ui = ui),
             Command::FindPlace(query) => {
                 let events = self.events.clone();
                 tokio::spawn(async move {
@@ -632,7 +799,615 @@ impl Controller {
                 self.state.setup_complete = true;
                 self.save_state();
             }
+            Command::SetTautulli { url, api_key } => {
+                self.set_tautulli(url, api_key).await;
+            }
+            Command::ClearTautulli => {
+                self.clear_tautulli().await;
+            }
+            Command::LoadSportsEvents { schedule, page } => {
+                self.load_sports_events(schedule, page);
+            }
+            Command::SetEventsPassword(pw) => {
+                self.set_events_password(pw).await;
+            }
+            Command::LoadScoreboard { day, show, final_only } => {
+                self.load_scoreboard(day, show, final_only);
+            }
+            Command::LoadLibraryShelves { is_tv, sort, popular_days } => {
+                self.refresh();
+                self.load_library_shelves(is_tv, sort, popular_days);
+            }
+            Command::OpenShow(rating_key) => {
+                self.open_show(rating_key);
+            }
+            Command::LoadSeasonEpisodes(season_key) => {
+                self.load_season_episodes(season_key);
+            }
+            Command::OpenCollection(rating_key) => {
+                self.open_collection(rating_key);
+            }
+            Command::PlayRatingKey { rating_key, resume } => {
+                if let Some(plex) = &self.plex
+                    && let Ok(Some(mut item)) = plex.item(&rating_key).await
+                {
+                    if !resume {
+                        item.resume_ms = None;
+                    }
+                    self.play(item).await;
+                }
+            }
+            Command::SleepSetMinutes(mins) => {
+                let mins = mins.clamp(1, 480);
+                let now = crate::sleep::now_unix();
+                self.sleep.set_minutes(mins, now);
+                if !self.config.sleep.remember_last {
+                    self.sleep.last_minutes = None;
+                }
+                self.sleep_episode_finished = false;
+                self.sleep_finished_key = None;
+                self.save_runtime_state();
+                self.emit_sleep();
+                let use_24h = self.config.general.clock == tvdash_core::config::ClockFormat::H24;
+                let ends = crate::sleep::format_ends_at(now + mins * 60, use_24h);
+                let dur = crate::sleep::label(mins * 60);
+                self.toast(format!("Sleep in {dur} · ends {ends}"));
+            }
+            Command::SleepSetEndOfItem => {
+                if let Some(p) = &self.playback
+                    && p.status.item.source == SourceKind::Plex
+                {
+                    let key = p.status.item.id.clone();
+                    let is_movie = p.status.item.kind == tvdash_core::models::MediaKind::Movie;
+                    self.sleep.set_end_of_item(&key);
+                    self.sleep_episode_finished = false;
+                    self.sleep_finished_key = None;
+                    self.save_runtime_state();
+                    self.emit_sleep();
+                    self.toast(if is_movie { "Sleeping after this movie" } else { "Sleeping after this episode" });
+                } else {
+                    self.toast("End of episode is only available during Plex playback");
+                }
+            }
+            Command::SleepOff => {
+                self.sleep.off();
+                self.sleep_episode_finished = false;
+                self.sleep_finished_key = None;
+                self.save_runtime_state();
+                self.emit_sleep();
+            }
+            Command::SleepExtend => {
+                let ext = self.config.sleep.extend_minutes();
+                let now = crate::sleep::now_unix();
+                self.sleep.set_minutes(ext, now);
+                self.sleep_episode_finished = false;
+                self.sleep_finished_key = None;
+                self.save_runtime_state();
+                self.emit_sleep();
+                let use_24h = self.config.general.clock == tvdash_core::config::ClockFormat::H24;
+                let ends = crate::sleep::format_ends_at(now + ext * 60, use_24h);
+                self.toast(format!("Sleep extended · ends {ends}"));
+            }
+            Command::SleepNow => {
+                self.sleep_now().await;
+            }
+            Command::SleepPlayNext => {
+                let key = self.sleep_finished_key.take();
+                self.sleep.off();
+                self.sleep_episode_finished = false;
+                self.save_runtime_state();
+                self.emit_sleep();
+                if let Some(id) = key
+                    && let Some(plex) = &self.plex
+                    && let Ok(Some(mut ep)) = plex.adjacent_episode(&id, true).await
+                {
+                    ep.resume_ms = None;
+                    self.play(ep).await;
+                }
+            }
+            Command::SetSleepWarnBefore(val) => {
+                self.update_config(|c| c.sleep.warn_before = val);
+                self.emit_sleep();
+            }
+            Command::FetchPosters(items) => {
+                let (plex_items, jf_items): (Vec<_>, Vec<_>) =
+                    items.into_iter().partition(|i| i.source == SourceKind::Plex);
+                if !plex_items.is_empty()
+                    && let Some(plex) = &self.plex
+                {
+                    fetch_posters(plex.clone(), plex_items, self.posters_requested.clone(), self.events.clone());
+                }
+                if !jf_items.is_empty()
+                    && let Some(jf) = &self.jellyfin
+                {
+                    fetch_posters(jf.clone(), jf_items, self.posters_requested.clone(), self.events.clone());
+                }
+            }
+            Command::SportsAlertTest(kind) => {
+                if let Some(tx) = &self.sports_tx {
+                    let _ = tx.send(crate::sports_watch::WatcherMsg::EnqueueTest(kind));
+                }
+            }
+            Command::SportsAlertShown(key) => {
+                if let Some(tx) = &self.sports_tx {
+                    let _ = tx.send(crate::sports_watch::WatcherMsg::AlertShown(key));
+                }
+            }
+            Command::SportsAlertPrimary { kind, source_url } => {
+                if kind == "soon" {
+                    if let Some(idx) = self
+                        .config
+                        .streaming
+                        .iter()
+                        .position(|s| s.name.to_ascii_lowercase().contains("youtube tv"))
+                    {
+                        self.open_site(idx).await;
+                    } else {
+                        self.toast("YouTube TV isn't configured in Sites");
+                    }
+                } else if kind == "final"
+                    && let Some(url) = source_url
+                {
+                    self.clear_tv().await;
+                    self.launch_browser("ESPN Recap", &url).await;
+                }
+            }
+            Command::SetSportsAlertsConfig(cfg) => {
+                self.update_config(|c| c.sports.alerts = cfg.clone());
+                if let Some(tx) = &self.sports_tx {
+                    let _ = tx.send(crate::sports_watch::WatcherMsg::UpdateAlertsConfig(cfg));
+                }
+            }
+            Command::ToggleStarGame(event_id) => {
+                if let Some(tx) = &self.sports_tx {
+                    let _ = tx.send(crate::sports_watch::WatcherMsg::ToggleStar(event_id));
+                }
+            }
+            Command::UnstarGame(event_id) => {
+                if let Some(tx) = &self.sports_tx {
+                    let _ = tx.send(crate::sports_watch::WatcherMsg::Unstar(event_id));
+                }
+            }
+            Command::RefreshSportsFollows => {
+                if let Some(tx) = &self.sports_tx {
+                    let _ = tx.send(crate::sports_watch::WatcherMsg::RefreshFollows);
+                }
+            }
+            Command::SetStartupIntro(on) => {
+                self.update_config(|c| c.startup.intro = if on { "on".into() } else { "off".into() });
+            }
         }
+    }
+
+    async fn init_tautulli(&mut self) {
+        let url = self.config.tautulli.url.trim().to_owned();
+        if url.is_empty() {
+            self.tautulli = None;
+            self.emit(AppEvent::Tautulli { configured: false, url: String::new() });
+            return;
+        }
+        let key = tokio::task::spawn_blocking(|| secrets::get(SecretKey::TautulliApiKey))
+            .await
+            .ok()
+            .and_then(|r| r.ok())
+            .flatten()
+            .unwrap_or_default();
+        self.tautulli = tvdash_media::tautulli::TautulliClient::new(&url, &key).ok();
+        self.emit(AppEvent::Tautulli { configured: self.tautulli.is_some(), url });
+    }
+
+    async fn set_tautulli(&mut self, url: String, api_key: String) {
+        let url = url.trim().trim_end_matches('/').to_owned();
+        let api_key = api_key.trim().to_owned();
+        self.update_config(|c| c.tautulli.url = url.clone());
+        if !api_key.is_empty() {
+            let k = api_key.clone();
+            let _ = tokio::task::spawn_blocking(move || secrets::set(SecretKey::TautulliApiKey, &k)).await;
+        }
+        self.init_tautulli().await;
+        self.init_events().await;
+        self.sports_tx = Some(crate::sports_watch::spawn(
+            self.config.events.clone(),
+            self.config.sports.alerts.clone(),
+            self.events.clone(),
+        ));
+        self.toast(if self.tautulli.is_some() { "Tautulli saved" } else { "Tautulli URL saved (API key needed)" });
+    }
+
+    async fn clear_tautulli(&mut self) {
+        self.tautulli = None;
+        self.update_config(|c| c.tautulli.url.clear());
+        let _ = tokio::task::spawn_blocking(|| secrets::delete(SecretKey::TautulliApiKey)).await;
+        self.emit(AppEvent::Tautulli { configured: false, url: String::new() });
+        self.toast("Tautulli disconnected");
+    }
+
+    async fn init_events(&self) {
+        let configured = tokio::task::spawn_blocking(|| secrets::get(SecretKey::EventsSqlPassword))
+            .await
+            .ok()
+            .and_then(|r| r.ok())
+            .flatten()
+            .is_some_and(|s| !s.trim().is_empty());
+        self.emit(AppEvent::EventsPasswordConfigured(configured));
+    }
+
+    async fn set_events_password(&self, pw: Option<String>) {
+        match pw {
+            Some(password) => {
+                let res = tokio::task::spawn_blocking(move || {
+                    secrets::set(SecretKey::EventsSqlPassword, &password)
+                })
+                .await;
+                match res {
+                    Ok(Ok(())) => {
+                        self.emit(AppEvent::EventsPasswordConfigured(true));
+                        self.toast("Sports SQL password saved");
+                    }
+                    Ok(Err(e)) => self.toast(format!("Couldn't save password: {e}")),
+                    Err(e) => self.toast(format!("Keyring task failed: {e}")),
+                }
+            }
+            None => {
+                let _ = tokio::task::spawn_blocking(|| secrets::delete(SecretKey::EventsSqlPassword)).await;
+                self.emit(AppEvent::EventsPasswordConfigured(false));
+                self.toast("Sports SQL password removed");
+            }
+        }
+    }
+
+    fn load_sports_events(&self, schedule: String, page: u32) {
+        let cfg = self.config.events.clone();
+        let events = self.events.clone();
+        let logos_req = self.sports_logos_requested.clone();
+        tokio::spawn(async move {
+            let pw = tokio::task::spawn_blocking(|| secrets::get(SecretKey::EventsSqlPassword))
+                .await
+                .ok()
+                .and_then(|r| r.ok())
+                .flatten()
+                .unwrap_or_default();
+            let res = tvdash_events::fetch_page(&cfg, &pw, &schedule, page).await;
+            match res {
+                Ok(data) => {
+                    let count = data.total_count;
+                    let _ = events.send(AppEvent::Health {
+                        service: Service::Events,
+                        result: Ok(format!("{count} upcoming")),
+                    });
+                    let mut logo_urls = Vec::new();
+                    for day in &data.days {
+                        for lg in &day.leagues {
+                            for g in &lg.games {
+                                if let Some(u) = &g.away_logo_url {
+                                    logo_urls.push(u.clone());
+                                }
+                                if let Some(u) = &g.home_logo_url {
+                                    logo_urls.push(u.clone());
+                                }
+                            }
+                        }
+                    }
+                    let _ = events.send(AppEvent::SportsEvents(Ok(data)));
+                    Self::spawn_sports_logos(logo_urls, logos_req, events);
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    let _ = events.send(AppEvent::Health {
+                        service: Service::Events,
+                        result: Err(msg.clone()),
+                    });
+                    let _ = events.send(AppEvent::SportsEvents(Err(msg)));
+                }
+            }
+        });
+    }
+
+    fn load_scoreboard(&self, day: String, show: String, final_only: bool) {
+        let cfg = self.config.events.clone();
+        let events = self.events.clone();
+        let logos_req = self.sports_logos_requested.clone();
+        tokio::spawn(async move {
+            let pw = tokio::task::spawn_blocking(|| secrets::get(SecretKey::EventsSqlPassword))
+                .await
+                .ok()
+                .and_then(|r| r.ok())
+                .flatten()
+                .unwrap_or_default();
+            let res = tvdash_events::scoreboard::fetch_scoreboard(&cfg, &pw, &day, &show, final_only).await;
+            match res {
+                Ok(data) => {
+                    let count: usize = data.groups.iter().map(|g| g.games.len()).sum();
+                    let _ = events.send(AppEvent::Health {
+                        service: Service::Events,
+                        result: Ok(format!("{count} scoreboard games")),
+                    });
+                    let mut logo_urls = Vec::new();
+                    for grp in &data.groups {
+                        for g in &grp.games {
+                            if let Some(u) = &g.away_logo_url {
+                                logo_urls.push(u.clone());
+                            }
+                            if let Some(u) = &g.home_logo_url {
+                                logo_urls.push(u.clone());
+                            }
+                        }
+                    }
+                    let _ = events.send(AppEvent::Scoreboard(Ok(data)));
+                    Self::spawn_sports_logos(logo_urls, logos_req, events);
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    let _ = events.send(AppEvent::Health {
+                        service: Service::Events,
+                        result: Err(msg.clone()),
+                    });
+                    let _ = events.send(AppEvent::Scoreboard(Err(msg)));
+                }
+            }
+        });
+    }
+
+    fn spawn_sports_logos(
+        urls: Vec<String>,
+        requested: Arc<Mutex<HashSet<String>>>,
+        events: UnboundedSender<AppEvent>,
+    ) {
+        let todo: Vec<String> = {
+            let mut guard = requested.lock().unwrap();
+            urls.into_iter().filter(|u| guard.insert(u.clone())).collect()
+        };
+        if todo.is_empty() {
+            return;
+        }
+        tokio::spawn(async move {
+            let client = match reqwest::Client::builder().timeout(Duration::from_secs(8)).build() {
+                Ok(c) => c,
+                Err(_) => return,
+            };
+            for url in todo {
+                let Ok(resp) = client.get(&url).send().await else { continue };
+                if !resp.status().is_success() {
+                    continue;
+                }
+                let Ok(bytes) = resp.bytes().await else { continue };
+                if let Some(image) = tokio::task::spawn_blocking(move || {
+                    let img = image::load_from_memory(&bytes).ok()?;
+                    let rgba = img.to_rgba8();
+                    Some(RgbaImage { width: rgba.width(), height: rgba.height(), pixels: rgba.into_raw() })
+                })
+                .await
+                .ok()
+                .flatten()
+                {
+                    let _ = events.send(AppEvent::SportsLogo { url, image });
+                }
+            }
+        });
+    }
+
+    fn load_library_shelves(&self, is_tv: bool, sort: tvdash_core::models::LibrarySort, popular_days: u32) {
+        let Some(plex) = self.plex.clone() else { return };
+        let tautulli = self.tautulli.clone();
+        let cache = self.tautulli_cache.clone();
+        let events = self.events.clone();
+        let requested = self.posters_requested.clone();
+        let backdrops_req = self.backdrops_requested.clone();
+        let days = if popular_days == 7 { 7 } else { 30 };
+
+        tokio::spawn(async move {
+            let shelves_key = format!("plex:shelves:v5:{is_tv}:{}:{days}", sort.plex_sort());
+            if let Some(cached_shelves) =
+                cache.as_ref().and_then(|c| c.get::<tvdash_core::models::LibraryShelves>(&shelves_key, Duration::from_secs(300)))
+            {
+                let source: Arc<dyn MediaSource> = plex;
+                fetch_posters(source.clone(), cached_shelves.added_this_week.clone(), requested.clone(), events.clone());
+                fetch_posters(source.clone(), cached_shelves.recently_released.clone(), requested.clone(), events.clone());
+                fetch_posters(source.clone(), cached_shelves.watch_again.clone(), requested.clone(), events.clone());
+                fetch_posters(source.clone(), collection_poster_items(&cached_shelves.collections), requested.clone(), events.clone());
+                let browse_sample: Vec<_> = cached_shelves.browse_items.iter().take(48).cloned().collect();
+                fetch_posters(source.clone(), browse_sample, requested.clone(), events.clone());
+                fetch_posters(source.clone(), crate::bridge::start_watching(&cached_shelves.browse_items), requested, events.clone());
+                let bd_items: Vec<_> = cached_shelves
+                    .finish_season
+                    .iter()
+                    .map(|f| f.item.clone())
+                    .chain(cached_shelves.continue_watching.iter().cloned())
+                    .chain(cached_shelves.added_this_week.iter().cloned())
+                    .chain(cached_shelves.recently_released.iter().cloned())
+                    .take(16)
+                    .collect();
+                fetch_backdrops(source, bd_items, backdrops_req, events.clone());
+                let _ = events.send(AppEvent::LibraryShelves(cached_shelves));
+                return;
+            }
+
+            let mut shelves = tvdash_core::models::LibraryShelves { is_tv, ..Default::default() };
+            let target_type = if is_tv { "show" } else { "movie" };
+            let sections = plex.sections().await.unwrap_or_default();
+            let movie_sections: Vec<_> = sections.iter().filter(|s| s.kind == "movie").cloned().collect();
+            let section = sections.into_iter().find(|s| s.kind == target_type);
+
+            if let Some(sec) = section {
+                // Start of current week (Monday 00:00 local).
+                let today = chrono::Local::now().date_naive();
+                let days_from_mon = today.weekday().num_days_from_monday() as i64;
+                let monday = today - chrono::TimeDelta::days(days_from_mon);
+                let since_epoch = monday
+                    .and_hms_opt(0, 0, 0)
+                    .and_then(|dt| dt.and_local_timezone(chrono::Local).single())
+                    .map(|dt| dt.timestamp())
+                    .unwrap_or(0);
+
+                if is_tv {
+                    shelves.genres = plex.section_genres(&sec.key).await.unwrap_or_default();
+                    shelves.added_this_week = plex.added_since(&sec.key, since_epoch, sort, 6).await.unwrap_or_default();
+                } else {
+                    for m_sec in &movie_sections {
+                        match plex.collections(&m_sec.key).await {
+                            Ok(cols) => shelves.collections.extend(cols),
+                            Err(e) => warn!(section = %m_sec.key, error = %e, "collections fetch failed"),
+                        }
+                    }
+                    shelves.added_this_week = plex
+                        .section_items(&sec.key, tvdash_core::models::LibrarySort::RecentlyAdded, None, 6)
+                        .await
+                        .unwrap_or_default();
+                }
+                shelves.recently_released = plex.recently_released(&sec.key, is_tv, 6).await.unwrap_or_default();
+                shelves.watch_again = plex.watch_again(&sec.key, is_tv, sort, 6).await.unwrap_or_default();
+                shelves.browse_items = plex.section_items(&sec.key, sort, None, 1000).await.unwrap_or_default();
+                let source: Arc<dyn MediaSource> = plex;
+                fetch_posters(source.clone(), shelves.added_this_week.clone(), requested.clone(), events.clone());
+                fetch_posters(source.clone(), shelves.recently_released.clone(), requested.clone(), events.clone());
+                fetch_posters(source.clone(), shelves.watch_again.clone(), requested.clone(), events.clone());
+                fetch_posters(source.clone(), collection_poster_items(&shelves.collections), requested.clone(), events.clone());
+                let browse_sample: Vec<_> = shelves.browse_items.iter().take(48).cloned().collect();
+                fetch_posters(source.clone(), browse_sample, requested.clone(), events.clone());
+                fetch_posters(source.clone(), crate::bridge::start_watching(&shelves.browse_items), requested, events.clone());
+                let bd_items: Vec<_> = shelves
+                    .finish_season
+                    .iter()
+                    .map(|f| f.item.clone())
+                    .chain(shelves.continue_watching.iter().cloned())
+                    .chain(shelves.added_this_week.iter().cloned())
+                    .chain(shelves.recently_released.iter().cloned())
+                    .take(16)
+                    .collect();
+                fetch_backdrops(source, bd_items, backdrops_req, events.clone());
+            }
+
+            let stat_id = if is_tv { "top_tv" } else { "top_movies" };
+            let cache_key = format!("tautulli:{stat_id}:{days}");
+            let cached = cache
+                .as_ref()
+                .and_then(|c| c.get::<Vec<tvdash_core::models::PopularItem>>(&cache_key, Duration::from_secs(3600)));
+            if let Some(items) = cached {
+                shelves.popular = items;
+            } else if let Some(t) = tautulli
+                && let Ok(items) = t.home_stats(stat_id, days, 12).await
+            {
+                if let Some(c) = &cache {
+                    c.put(&cache_key, &items);
+                }
+                shelves.popular = items;
+            }
+
+            if let Some(c) = &cache {
+                c.put(&shelves_key, &shelves);
+            }
+            let _ = events.send(AppEvent::LibraryShelves(shelves));
+        });
+    }
+
+    fn open_show(&self, rating_key: String) {
+        let Some(plex) = self.plex.clone() else { return };
+        let events = self.events.clone();
+        let requested = self.posters_requested.clone();
+        let backdrops_req = self.backdrops_requested.clone();
+        tokio::spawn(async move {
+            let res = async {
+                let show_key = plex.show_key_for(&rating_key).await.unwrap_or(rating_key);
+                let item = plex
+                    .item(&show_key)
+                    .await
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| "Show not found".to_string())?;
+                let seasons = plex.show_seasons(&show_key).await.map_err(|e| e.to_string())?;
+                let on_deck = plex.show_on_deck(&show_key).await.ok().flatten();
+                let up_next_season_key = on_deck
+                    .as_ref()
+                    .and_then(|ep| seasons.iter().find(|s| s.index == ep.season_index))
+                    .or_else(|| seasons.first())
+                    .map(|s| s.rating_key.clone());
+                Ok(tvdash_core::models::ShowDetail {
+                    item,
+                    seasons,
+                    up_next_season_key,
+                    up_next_episode: on_deck,
+                })
+            }
+            .await;
+            let initial_season = res.as_ref().ok().and_then(|d| d.up_next_season_key.clone());
+            if let Ok(detail) = &res {
+                let source: Arc<dyn MediaSource> = plex.clone();
+                fetch_backdrops(source.clone(), vec![detail.item.clone()], backdrops_req, events.clone());
+                let season_items: Vec<MediaItem> = detail
+                    .seasons
+                    .iter()
+                    .filter(|s| s.thumb.is_some())
+                    .map(|s| MediaItem {
+                        source: SourceKind::Plex,
+                        id: s.rating_key.clone(),
+                        kind: tvdash_core::models::MediaKind::Other,
+                        title: s.title.clone(),
+                        subtitle: None,
+                        episode_label: None,
+                        duration_ms: None,
+                        resume_ms: None,
+                        poster: s.thumb.clone(),
+                        summary: None,
+                        extra: Default::default(),
+                    })
+                    .collect();
+                fetch_posters(source, season_items, requested.clone(), events.clone());
+            }
+            let _ = events.send(AppEvent::ShowDetail(res));
+            if let Some(season_key) = initial_season {
+                fetch_season_episodes(plex, season_key, requested, events).await;
+            }
+        });
+    }
+
+    fn load_season_episodes(&self, season_key: String) {
+        let Some(plex) = self.plex.clone() else { return };
+        let events = self.events.clone();
+        let requested = self.posters_requested.clone();
+        tokio::spawn(fetch_season_episodes(plex, season_key, requested, events));
+    }
+
+    fn open_collection(&self, rating_key: String) {
+        let Some(plex) = self.plex.clone() else { return };
+        let events = self.events.clone();
+        let requested = self.posters_requested.clone();
+        tokio::spawn(async move {
+            let res = async {
+                let sections = plex.sections().await.unwrap_or_default();
+                let mut info = None;
+                for sec in sections.into_iter().filter(|s| s.kind == "movie") {
+                    if let Ok(cols) = plex.collections(&sec.key).await
+                        && let Some(found) = cols.into_iter().find(|c| c.rating_key == rating_key)
+                    {
+                        info = Some(found);
+                        break;
+                    }
+                }
+                let collection = info.unwrap_or(tvdash_core::models::CollectionInfo {
+                    rating_key: rating_key.clone(),
+                    title: "Collection".into(),
+                    child_count: 0,
+                    watched_count: 0,
+                    smart: false,
+                    thumb: None,
+                    summary: None,
+                    min_year: None,
+                    max_year: None,
+                    total_duration_ms: 0,
+                });
+                let (items, watched_keys) =
+                    plex.collection_entries(&rating_key).await.map_err(|e| e.to_string())?;
+                fetch_posters(plex.clone(), items.clone(), requested, events.clone());
+                let up_next_key = items
+                    .iter()
+                    .find(|i| i.resume_ms.is_some())
+                    .or_else(|| items.iter().find(|i| !watched_keys.contains(&i.id)))
+                    .or_else(|| items.first())
+                    .map(|i| i.id.clone());
+                Ok(tvdash_core::models::CollectionDetail { collection, items, watched_keys, up_next_key })
+            }
+            .await;
+            let _ = events.send(AppEvent::CollectionDetail(res));
+        });
     }
 
     // ── Accounts ────────────────────────────────────────────────────
@@ -878,6 +1653,7 @@ impl Controller {
         for source in self.sources() {
             let events = self.events.clone();
             let requested = self.posters_requested.clone();
+            let backdrops_req = self.backdrops_requested.clone();
             tokio::spawn(async move {
                 let kind = source.kind();
                 match source.continue_watching().await {
@@ -886,6 +1662,9 @@ impl Controller {
                         let _ = events.send(AppEvent::Health { service: kind.into(), result: Ok(note) });
                         let _ = events.send(AppEvent::Account(kind, AccountStatus::Connected));
                         let _ = events.send(AppEvent::ContinueWatching(kind, items.clone()));
+                        if let Some(hero) = items.first().cloned() {
+                            fetch_backdrops(source.clone(), vec![hero], backdrops_req.clone(), events.clone());
+                        }
                         fetch_posters(source.clone(), items, requested.clone(), events.clone());
                     }
                     Err(e) => {
@@ -907,6 +1686,30 @@ impl Controller {
     }
 
     // ── Sign-in ─────────────────────────────────────────────────────
+
+    async fn on_jellyfin_signed_in(&mut self, auth: Auth) {
+        self.sign_in.remove(&SourceKind::Jellyfin);
+        let token = auth.token.clone();
+        let stored = tokio::task::spawn_blocking(move || secrets::set(SecretKey::JellyfinToken, &token)).await;
+        if !matches!(stored, Ok(Ok(()))) {
+            error!(?stored, "couldn't store the Jellyfin token in the keyring");
+            self.toast("Signed in, but the token couldn't be saved to the keyring");
+        }
+        let user_id = auth.user_id.clone();
+        self.update_config(|c| c.jellyfin.user_id = user_id);
+        let cfg = &self.config.jellyfin;
+        match JellyfinClient::new(&cfg.server_url, &cfg.device_id, Some(auth)) {
+            Ok(c) => {
+                self.jellyfin = Some(Arc::new(c));
+                info!("Jellyfin signed in");
+                self.emit(AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Done));
+                self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(self.config.jellyfin.server_url.clone())));
+                self.emit(AppEvent::Account(SourceKind::Jellyfin, AccountStatus::Connected));
+                self.refresh();
+            }
+            Err(e) => self.emit(AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Failed(e.to_string()))),
+        }
+    }
 
     async fn on_plex_signed_in(&mut self, account_token: String, server: DiscoveredServer) {
         self.sign_in.remove(&SourceKind::Plex);
@@ -934,30 +1737,6 @@ impl Controller {
                 self.refresh();
             }
             Err(e) => self.emit(AppEvent::SignIn(SourceKind::Plex, SignInState::Failed(e.to_string()))),
-        }
-    }
-
-    async fn on_jellyfin_signed_in(&mut self, auth: Auth) {
-        self.sign_in.remove(&SourceKind::Jellyfin);
-        let token = auth.token.clone();
-        let stored = tokio::task::spawn_blocking(move || secrets::set(SecretKey::JellyfinToken, &token)).await;
-        if !matches!(stored, Ok(Ok(()))) {
-            error!(?stored, "couldn't store the Jellyfin token in the keyring");
-            self.toast("Signed in, but the token couldn't be saved to the keyring");
-        }
-        let user_id = auth.user_id.clone();
-        self.update_config(|c| c.jellyfin.user_id = user_id);
-        let cfg = &self.config.jellyfin;
-        match JellyfinClient::new(&cfg.server_url, &cfg.device_id, Some(auth)) {
-            Ok(c) => {
-                self.jellyfin = Some(Arc::new(c));
-                info!("Jellyfin signed in");
-                self.emit(AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Done));
-                self.emit(AppEvent::Server(SourceKind::Jellyfin, Some(self.config.jellyfin.server_url.clone())));
-                self.emit(AppEvent::Account(SourceKind::Jellyfin, AccountStatus::Connected));
-                self.refresh();
-            }
-            Err(e) => self.emit(AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Failed(e.to_string()))),
         }
     }
 
@@ -1199,8 +1978,29 @@ impl Controller {
 
     // ── Playback ────────────────────────────────────────────────────
 
-    async fn play(&mut self, item: MediaItem) {
+    async fn play(&mut self, mut item: MediaItem) {
         self.clear_tv().await;
+        if item.kind == tvdash_core::models::MediaKind::Series
+            && let Some(plex) = &self.plex
+        {
+            let ep_key = match plex.show_on_deck(&item.id).await.ok().flatten() {
+                Some(ep) => Some(ep.rating_key),
+                None => match plex.show_seasons(&item.id).await.ok().and_then(|s| s.into_iter().next()) {
+                    Some(season) => plex
+                        .season_episodes(&season.rating_key)
+                        .await
+                        .ok()
+                        .and_then(|eps| eps.into_iter().next())
+                        .map(|ep| ep.rating_key),
+                    None => None,
+                },
+            };
+            if let Some(key) = ep_key
+                && let Ok(Some(resolved)) = plex.item(&key).await
+            {
+                item = resolved;
+            }
+        }
         let Some(source) = self.source_for(item.source) else {
             self.toast(format!("{} isn't connected", item.source.label()));
             return;
@@ -1217,13 +2017,16 @@ impl Controller {
         };
         let opts = MpvOptions {
             binary: self.config.player.mpv.clone(),
-            screen_name: Some(self.config.display.tv_output.clone()).filter(|s| !s.is_empty()),
+            screen_name: self
+                .tv_output
+                .clone()
+                .or_else(|| Some(self.config.display.tv_output.clone()).filter(|s| !s.is_empty())),
             title: format::item_line(&item),
             start_ms: item.resume_ms,
             fullscreen: !self.windowed,
         };
         let in_window = match &self.video {
-            Some(slot) if self.layout == Layout::Tv && !self.video_failed => match Embedded::spawn(&opts, &url) {
+            Some(slot) if !self.video_failed => match Embedded::spawn(&opts, &url) {
                 Ok(e) => {
                     slot.attach(e.handle());
                     Some(Player::InWindow(e))
@@ -1256,9 +2059,17 @@ impl Controller {
         let _ = reporter.send((start, PlayState::Playing));
         let status =
             PlayerStatus { duration_ms: item.duration_ms, item, state: PlayState::Playing, position_ms: start };
+        self.emit(AppEvent::NextEpisodePrompt(None));
         self.emit(AppEvent::Player(Some(status.clone())));
-        self.playback = Some(Playback { status, player, reporter, last_emitted_sec: None, decode_hint_shown: false });
+        self.playback =
+            Some(Playback { status, player, reporter, last_emitted_sec: None, decode_hint_shown: false, ended_eof: false });
         self.save_runtime_state();
+        self.update_inhibit().await;
+        let internal = self.internal.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            let _ = internal.send(Internal::Refresh);
+        });
     }
 
     // ── Streaming browser ───────────────────────────────────────────
@@ -1361,6 +2172,7 @@ impl Controller {
             Ok(b) => {
                 self.browser = Some(b);
                 self.save_runtime_state();
+                self.update_inhibit().await;
                 self.emit(AppEvent::Browser(Some(label.to_owned())));
                 self.health(Service::Browser, Ok(format!("opened {label}")));
                 true
@@ -1393,6 +2205,10 @@ impl Controller {
         if !self.launch_browser(&site.name, &site.url).await {
             return;
         }
+        let service_id = crate::brand::service_id(&site.name);
+        let now = chrono::Utc::now().timestamp();
+        self.update_config(|c| crate::recent::push_recent(&mut c.tv.recent, &service_id, now));
+        self.emit(AppEvent::RecentServices(self.config.tv.recent.clone()));
         let opts = self.browser_options();
 
         if self.state.mark_opened(&site.name, chrono::Utc::now()) {
@@ -1425,13 +2241,15 @@ impl Controller {
         if let Some(b) = self.browser.take() {
             b.close().await;
             self.save_runtime_state();
+            self.update_inhibit().await;
             self.emit(AppEvent::Browser(None));
         }
     }
 
-    fn on_browser_exited(&mut self) {
+    async fn on_browser_exited(&mut self) {
         let Some(b) = self.browser.take() else { return };
         self.save_runtime_state();
+        self.update_inhibit().await;
         self.emit(AppEvent::Browser(None));
         if b.exited_immediately() {
             warn!(site = %b.site, "browser exited at once; another instance probably owns the profile");
@@ -1447,7 +2265,7 @@ impl Controller {
             let _ = p.reporter.send((p.status.position_ms, PlayState::Stopped));
             self.detach_video(&p.player);
             p.player.quit().await;
-            self.after_playback();
+            self.after_playback().await;
         }
     }
 
@@ -1481,14 +2299,168 @@ impl Controller {
         self.play(item).await;
     }
 
-    fn after_playback(&self) {
+    async fn update_inhibit(&mut self) {
+        let active = self.playback.is_some() || self.browser.is_some();
+        if active && self.inhibit.is_none() {
+            self.inhibit = crate::portal::IdleInhibit::acquire("Video playing on TV").await;
+        } else if !active && let Some(inh) = self.inhibit.take() {
+            inh.release().await;
+        }
+    }
+
+    async fn after_playback(&mut self) {
         self.save_runtime_state();
+        self.update_inhibit().await;
         self.emit(AppEvent::Player(None));
+        self.emit_sleep();
         // Give the server a moment to record the stop before re-reading resume points.
         let internal = self.internal.clone();
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_secs(2)).await;
             let _ = internal.send(Internal::Refresh);
+        });
+    }
+
+    fn is_sleep_held(&self) -> bool {
+        let Some(b) = &self.browser else { return false };
+        if b.site.eq_ignore_ascii_case("Google Meet") {
+            return true;
+        }
+        self.config.streaming.iter().any(|s| s.hold_sleep_timer && s.name.eq_ignore_ascii_case(&b.site))
+    }
+
+    fn sleep_snapshot(&self, now: i64) -> tvdash_core::SleepSnapshot {
+        let warn_total = self.config.sleep.warn_secs();
+        let default_minutes = if self.config.sleep.remember_last {
+            self.sleep.last_minutes.unwrap_or(self.config.sleep.default)
+        } else {
+            self.config.sleep.default
+        };
+        let use_24h = self.config.general.clock == tvdash_core::config::ClockFormat::H24;
+        let held = self.sleep_held;
+        let active = self.sleep.is_active();
+        let phase = self.sleep.phase().to_owned();
+        let (left, ends_at, label) = match &self.sleep.timer {
+            crate::sleep::SleepTimer::Off => (0, String::new(), "Off".into()),
+            crate::sleep::SleepTimer::EndOfItem { .. } => {
+                let is_movie = self
+                    .playback
+                    .as_ref()
+                    .is_some_and(|p| p.status.item.kind == tvdash_core::models::MediaKind::Movie);
+                (0, String::new(), if is_movie { "End of movie".into() } else { "End of episode".into() })
+            }
+            crate::sleep::SleepTimer::At { deadline } => {
+                let left = (*deadline - now).max(0);
+                let ends = crate::sleep::format_ends_at(*deadline, use_24h);
+                let lbl = if held {
+                    "Paused · on a call".into()
+                } else {
+                    crate::sleep::label(left)
+                };
+                (left, ends, lbl)
+            }
+        };
+        tvdash_core::SleepSnapshot {
+            active,
+            phase,
+            label,
+            ends_at,
+            left,
+            warn_total,
+            episode_finished: self.sleep_episode_finished,
+            held,
+            default_minutes,
+        }
+    }
+
+    fn emit_sleep(&mut self) {
+        let now = crate::sleep::now_unix();
+        let snap = self.sleep_snapshot(now);
+        let plex_playing = self.playback.as_ref().is_some_and(|p| p.status.item.source == SourceKind::Plex);
+        if let Some(tx) = &self.sleep_tx {
+            let _ = tx.send(crate::home_cmd::SleepHttpState::from_snapshot(&snap, plex_playing));
+        }
+        let key = format!(
+            "{}|{}|{}|{}|{}|{}",
+            snap.phase,
+            snap.label,
+            snap.ends_at,
+            if snap.phase == "warn" { snap.left } else { 0 },
+            snap.episode_finished,
+            snap.held
+        );
+        if key != self.sleep_last_key {
+            self.sleep_last_key = key;
+            self.emit(AppEvent::Sleep(snap));
+        }
+    }
+
+    async fn on_sleep_tick(&mut self) {
+        let now = crate::sleep::now_unix();
+        let warn = self.config.sleep.warn_secs();
+        let held = self.is_sleep_held();
+        if held != self.sleep_held
+            && let Some(tx) = &self.sports_tx
+        {
+            let _ = tx.send(crate::sports_watch::WatcherMsg::SetHeld(held));
+        }
+        self.sleep_held = held;
+        if held {
+            if self.sleep.hold(now, warn) {
+                self.save_runtime_state();
+            }
+            self.emit_sleep();
+            return;
+        }
+        match self.sleep.tick(now, warn) {
+            crate::sleep::Tick::Idle => {}
+            crate::sleep::Tick::Counting(_) => {
+                self.emit_sleep();
+            }
+            crate::sleep::Tick::Warn(_) => {
+                self.emit_sleep();
+            }
+            crate::sleep::Tick::Fire => {
+                self.sleep_now().await;
+            }
+        }
+    }
+
+    async fn sleep_now(&mut self) {
+        self.toast("Going to sleep · saving your place");
+        self.sleep.off();
+        self.sleep_episode_finished = false;
+        self.sleep_finished_key = None;
+
+        if let Some(mut p) = self.playback.take() {
+            self.detach_video(&p.player);
+            let fade = self.config.sleep.fade_duration();
+            let steps = 20u32;
+            let step_wait = fade / steps;
+            for _ in 0..steps {
+                let _ = p.player.add_volume(-5).await;
+                if !step_wait.is_zero() {
+                    tokio::time::sleep(step_wait).await;
+                }
+            }
+            let _ = p.player.set_pause(true).await;
+            let _ = p.reporter.send((p.status.position_ms, PlayState::Stopped));
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            let _ = p.player.set_volume(100.0).await;
+            p.player.quit().await;
+        }
+
+        if let Some(b) = self.browser.take() {
+            b.close().await;
+        }
+
+        if let Some(inh) = self.inhibit.take() {
+            inh.release().await;
+        }
+        crate::instance::RuntimeState::clear(&crate::instance::runtime_state_path());
+        tracing::info!("sleep timer fired");
+        let _ = slint::invoke_from_event_loop(|| {
+            let _ = slint::quit_event_loop();
         });
     }
 
@@ -1523,6 +2495,12 @@ impl Controller {
             }
             Some(MpvEvent::Ended { reason }) => {
                 info!(reason, "mpv playback ended");
+                if reason == "eof" {
+                    p.ended_eof = true;
+                    if let Some(dur) = p.status.item.duration_ms {
+                        p.status.position_ms = dur;
+                    }
+                }
                 return;
             }
             Some(MpvEvent::Error { prefix, text }) => {
@@ -1541,9 +2519,45 @@ impl Controller {
             Some(MpvEvent::Exited) | None => {
                 let p = self.playback.take().expect("checked above");
                 self.detach_video(&p.player);
-                let _ = p.reporter.send((p.status.position_ms, PlayState::Stopped));
+                let final_pos = if p.ended_eof {
+                    p.status.item.duration_ms.unwrap_or(p.status.position_ms)
+                } else {
+                    p.status.position_ms
+                };
+                let _ = p.reporter.send((final_pos, PlayState::Stopped));
                 info!("mpv exited; TV back to idle");
-                self.after_playback();
+                self.after_playback().await;
+                if p.ended_eof {
+                    let now = crate::sleep::now_unix();
+                    let warn = self.config.sleep.warn_secs();
+                    if self.sleep.item_finished(&p.status.item.id, now, warn) {
+                        self.sleep_episode_finished = true;
+                        self.sleep_finished_key = Some(p.status.item.id);
+                        self.save_runtime_state();
+                        self.emit_sleep();
+                        return;
+                    }
+                } else if self.sleep.item_stopped() {
+                    self.save_runtime_state();
+                    self.emit_sleep();
+                    self.toast("Sleep timer off · playback stopped");
+                }
+                if p.ended_eof
+                    && p.status.item.kind == tvdash_core::models::MediaKind::Episode
+                    && p.status.item.source == SourceKind::Plex
+                    && let Some(plex) = self.plex.clone()
+                {
+                    let item_id = p.status.item.id;
+                    let events = self.events.clone();
+                    let requested = self.posters_requested.clone();
+                    tokio::spawn(async move {
+                        if let Ok(Some(mut next_ep)) = plex.adjacent_episode(&item_id, true).await {
+                            next_ep.resume_ms = None;
+                            fetch_posters(plex, vec![next_ep.clone()], requested, events.clone());
+                            let _ = events.send(AppEvent::NextEpisodePrompt(Some(next_ep)));
+                        }
+                    });
+                }
                 return;
             }
         }
@@ -1666,7 +2680,7 @@ async fn fetch_server_summary(
             device: session.device.clone(),
             detail: format!(
                 "{} · {} · {} · {}",
-                if session.source == SourceKind::Plex { "Plex" } else { "Jellyfin" },
+                "Plex",
                 if session.transcoding { "Transcode" } else { "Direct play" },
                 if session.state == PlayState::Paused { "Paused" } else { "Playing" },
                 format::duration(session.position_ms),
@@ -1892,12 +2906,65 @@ fn spawn_reporter(source: Arc<dyn MediaSource>, item: MediaItem) -> UnboundedSen
     tx
 }
 
+async fn fetch_season_episodes(
+    plex: Arc<PlexClient>,
+    season_key: String,
+    requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
+    events: UnboundedSender<AppEvent>,
+) {
+    let result = plex.season_episodes(&season_key).await.map_err(|e| e.to_string());
+    if let Ok(ref eps) = result {
+        let thumb_items: Vec<tvdash_core::models::MediaItem> = eps
+            .iter()
+            .filter(|ep| ep.thumb.is_some())
+            .map(|ep| tvdash_core::models::MediaItem {
+                source: SourceKind::Plex,
+                id: ep.rating_key.clone(),
+                kind: tvdash_core::models::MediaKind::Episode,
+                title: ep.title.clone(),
+                subtitle: None,
+                episode_label: None,
+                duration_ms: ep.duration_ms,
+                resume_ms: ep.view_offset_ms,
+                poster: ep.thumb.clone(),
+                summary: None,
+                extra: Default::default(),
+            })
+            .collect();
+        fetch_posters(plex, thumb_items, requested, events.clone());
+    }
+    let _ = events.send(AppEvent::SeasonEpisodes { season_key, result });
+}
+
+fn collection_poster_items(collections: &[tvdash_core::models::CollectionInfo]) -> Vec<MediaItem> {
+    collections
+        .iter()
+        .filter(|c| c.thumb.is_some())
+        .map(|c| MediaItem {
+            source: SourceKind::Plex,
+            id: c.rating_key.clone(),
+            kind: tvdash_core::models::MediaKind::Other,
+            title: c.title.clone(),
+            subtitle: None,
+            episode_label: None,
+            duration_ms: None,
+            resume_ms: None,
+            poster: c.thumb.clone(),
+            summary: None,
+            extra: Default::default(),
+        })
+        .collect()
+}
+
 fn fetch_posters(
     source: Arc<dyn MediaSource>,
     items: Vec<MediaItem>,
     requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
     events: UnboundedSender<AppEvent>,
 ) {
+    static POSTER_SEM: std::sync::LazyLock<tokio::sync::Semaphore> =
+        std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(4));
+
     for item in items.into_iter().filter(|i| i.poster.is_some()) {
         let key = (item.source, item.id.clone());
         if !requested.lock().unwrap().insert(key.clone()) {
@@ -1905,6 +2972,7 @@ fn fetch_posters(
         }
         let (source, requested, events) = (source.clone(), requested.clone(), events.clone());
         tokio::spawn(async move {
+            let Ok(_permit) = POSTER_SEM.acquire().await else { return };
             let decoded = match source.poster(&item, POSTER_HEIGHT).await {
                 Ok(bytes) => tokio::task::spawn_blocking(move || decode(&bytes)).await.ok().flatten(),
                 Err(e) => {
@@ -1922,6 +2990,52 @@ fn fetch_posters(
             }
         });
     }
+}
+
+fn fetch_backdrops(
+    source: Arc<dyn MediaSource>,
+    items: Vec<MediaItem>,
+    requested: Arc<Mutex<HashSet<(SourceKind, String)>>>,
+    events: UnboundedSender<AppEvent>,
+) {
+    static BD_SEM: std::sync::LazyLock<tokio::sync::Semaphore> =
+        std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(4));
+
+    for item in items {
+        if item.extra.art.is_none() && item.poster.is_none() {
+            continue;
+        }
+        let key = (item.source, item.id.clone());
+        if !requested.lock().unwrap().insert(key.clone()) {
+            continue;
+        }
+        let (source, requested, events) = (source.clone(), requested.clone(), events.clone());
+        tokio::spawn(async move {
+            let Ok(_permit) = BD_SEM.acquire().await else { return };
+            let decoded = match source.backdrop(&item, 1300, 660).await {
+                Ok(bytes) => tokio::task::spawn_blocking(move || decode(&bytes)).await.ok().flatten(),
+                Err(_) => match source.poster(&item, 450).await {
+                    Ok(bytes) => tokio::task::spawn_blocking(move || decode_blurred(&bytes)).await.ok().flatten(),
+                    Err(_) => None,
+                },
+            };
+            match decoded {
+                Some(image) => {
+                    let _ = events.send(AppEvent::Backdrop { source: item.source, item_id: item.id, image });
+                }
+                None => {
+                    requested.lock().unwrap().remove(&key);
+                }
+            }
+        });
+    }
+}
+
+pub(crate) fn decode_blurred(bytes: &[u8]) -> Option<RgbaImage> {
+    let img = image::load_from_memory(bytes).ok()?;
+    let small = img.thumbnail(320, 320);
+    let blurred = image::imageops::blur(&small, 16.0);
+    Some(RgbaImage { width: blurred.width(), height: blurred.height(), pixels: blurred.into_raw() })
 }
 
 pub(crate) fn decode(bytes: &[u8]) -> Option<RgbaImage> {
@@ -2126,133 +3240,6 @@ mod e2e {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore = "needs python3; run with --ignored"]
-    async fn jellyfin_sign_in_continue_watching_play_pause_stop() {
-        let _serial = SERIAL.lock().await;
-        let mut h = Harness::start("fake_jellyfin.py", |c, port| {
-            c.jellyfin.server_url = format!("http://127.0.0.1:{port}");
-            c.jellyfin.device_id = "dev-e2e".into();
-            c.plex.enabled = false;
-        })
-        .await;
-
-        // Not signed in yet (and no keyring in CI) → sign-in prompt.
-        h.wait_for(|e| matches!(e, AppEvent::Account(SourceKind::Jellyfin, AccountStatus::NotSetUp)).then_some(()))
-            .await;
-
-        // Quick Connect: code shown, approved on second poll, token exchanged.
-        h.send(Command::SignIn(SourceKind::Jellyfin));
-        let code = h
-            .wait_for(|e| match e {
-                AppEvent::SignIn(_, SignInState::Code(c)) => Some(c.clone()),
-                _ => None,
-            })
-            .await;
-        assert_eq!(code, "424242");
-        h.wait_for(|e| matches!(e, AppEvent::SignIn(_, SignInState::Done)).then_some(())).await;
-        let saved = Config::load_or_create_at(&h.config_path).unwrap().config;
-        assert_eq!(saved.jellyfin.user_id, "u1", "user id persisted to config");
-
-        // Continue Watching (via the pre-10.9 fallback route) and posters.
-        let items = h
-            .wait_for(|e| match e {
-                AppEvent::ContinueWatching(SourceKind::Jellyfin, items) => Some(items.clone()),
-                _ => None,
-            })
-            .await;
-        assert_eq!(items.len(), 2);
-        assert_eq!(items[0].resume_ms, Some(600_000));
-        h.wait_posters(2).await;
-
-        h.play_pause_stop(&items[0]).await;
-
-        // What Jellyfin saw.
-        let jf = h.server_log();
-        let paths: Vec<&str> = jf.iter().map(|r| r["path"].as_str().unwrap()).collect();
-        let pos = |p: &str| paths.iter().position(|x| *x == p).unwrap_or_else(|| panic!("{p} not called: {paths:?}"));
-        assert!(pos("/UserItems/Resume") < pos("/Users/u1/Items/Resume"), "10.9 route tried first");
-        assert!(pos("/Sessions/Playing") < pos("/Sessions/Playing/Progress"));
-        assert!(pos("/Sessions/Playing/Progress") < pos("/Sessions/Playing/Stopped"));
-        let paused_report = jf
-            .iter()
-            .find(|r| r["path"] == "/Sessions/Playing/Progress" && r["body"]["IsPaused"] == true)
-            .expect("pause reported to Jellyfin");
-        assert_eq!(paused_report["body"]["ItemId"], "ep1");
-        let stopped = jf.iter().find(|r| r["path"] == "/Sessions/Playing/Stopped").unwrap();
-        assert!(stopped["body"]["PositionTicks"].as_u64().unwrap() > 6_000_000_000, "stop position past resume point");
-        assert!(jf.iter().all(|r| r["auth"].as_str().unwrap().contains(r#"DeviceId="dev-e2e""#)));
-
-        // What mpv was told.
-        let (argv, cmds) = h.mpv_log();
-        assert!(argv.contains(&"--start=600.000".into()));
-        assert!(argv.contains(&"--fs-screen-name=HDMI-A-1".into()));
-        assert!(argv.last().unwrap().contains("/Videos/ep1/stream?static=true&api_key=tok"));
-        assert_mpv_transport(&cmds);
-        let overlay = cmds.iter().find(|c| c[0] == "show-text" && c[1].as_str().unwrap().contains("Paused")).unwrap();
-        assert!(overlay[1].as_str().unwrap().starts_with("Some Show · S1 · E1 · The Pilot\nPaused · "));
-
-        // One thing on the TV at a time: opening a site stops mpv first.
-        h.send(Command::Play(items[1].clone()));
-        h.wait_for(|e| matches!(e, AppEvent::Player(Some(s)) if s.item.id == "mov1").then_some(())).await;
-        h.send(Command::OpenSite(0));
-        h.wait_for(|e| matches!(e, AppEvent::Player(None)).then_some(())).await;
-        h.wait_for(|e| matches!(e, AppEvent::Browser(Some(_))).then_some(())).await;
-        sleep(Duration::from_millis(300)).await; // progress reports are async
-        let (_, cmds) = h.mpv_log();
-        assert_eq!(cmds.iter().filter(|c| **c == json!(["quit"])).count(), 2, "second mpv was quit");
-        let stops = h.server_log().iter().filter(|r| r["path"] == "/Sessions/Playing/Stopped").count();
-        assert_eq!(stops, 2, "second playback reported stopped");
-        // ...and playing something closes the browser.
-        h.send(Command::Play(items[0].clone()));
-        h.wait_for(|e| matches!(e, AppEvent::Browser(None)).then_some(())).await;
-        h.wait_for(|e| matches!(e, AppEvent::Player(Some(_))).then_some(())).await;
-        h.send(Command::Stop);
-        h.wait_for(|e| matches!(e, AppEvent::Player(None)).then_some(())).await;
-
-        // Library: Recently Added (10.9 route) and search.
-        let recent = h
-            .find_or_wait(|e| match e {
-                AppEvent::RecentlyAdded(SourceKind::Jellyfin, items) if !items.is_empty() => Some(items.clone()),
-                _ => None,
-            })
-            .await;
-        assert_eq!(recent[0].title, "New Film");
-        h.send(Command::Search("film".into()));
-        let (query, found) = h
-            .wait_for(|e| match e {
-                AppEvent::SearchResults { query, items } => Some((query.clone(), items.clone())),
-                _ => None,
-            })
-            .await;
-        assert_eq!((query.as_str(), found.len(), found[0].title.as_str()), ("film", 1, "A Film"));
-        let search = h.server_log().into_iter().rfind(|r| r["path"] == "/Items").unwrap();
-        assert_eq!(search["query"]["includeItemTypes"][0], "Movie,Series,Episode");
-
-        // Sign out: rows cleared, account back to "not connected", config forgets the user.
-        h.send(Command::SignOut(SourceKind::Jellyfin));
-        h.wait_for(|e| matches!(e, AppEvent::Server(SourceKind::Jellyfin, None)).then_some(())).await;
-        h.wait_for(|e| matches!(e, AppEvent::ContinueWatching(SourceKind::Jellyfin, v) if v.is_empty()).then_some(()))
-            .await;
-        h.wait_for(|e| matches!(e, AppEvent::Account(SourceKind::Jellyfin, AccountStatus::NotSetUp)).then_some(()))
-            .await;
-        assert_eq!(Config::load_or_create_at(&h.config_path).unwrap().config.jellyfin.user_id, "");
-
-        // Password fallback: wrong, then right.
-        h.send(Command::JellyfinPassword { username: "me".into(), password: "nope".into() });
-        let failed = h
-            .wait_for(|e| match e {
-                AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Failed(m)) => Some(m.clone()),
-                _ => None,
-            })
-            .await;
-        assert_eq!(failed, "wrong username or password");
-        h.send(Command::JellyfinPassword { username: "me".into(), password: "pw".into() });
-        h.wait_for(|e| matches!(e, AppEvent::SignIn(SourceKind::Jellyfin, SignInState::Done)).then_some(())).await;
-        h.wait_for(|e| matches!(e, AppEvent::ContinueWatching(SourceKind::Jellyfin, v) if !v.is_empty()).then_some(()))
-            .await;
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
     #[ignore = "needs python3 and libmpv; run with --ignored"]
     async fn tv_layout_plays_in_the_window_and_falls_back() {
         let _serial = SERIAL.lock().await;
@@ -2263,11 +3250,10 @@ mod e2e {
         let slot = VideoSlot::new();
         let for_controller = slot.clone();
         let mut h = Harness::start_with(
-            "fake_jellyfin.py",
+            "fake_plex.py",
             |c, port| {
-                c.jellyfin.server_url = format!("http://127.0.0.1:{port}");
-                c.jellyfin.device_id = "dev-e2e".into();
-                c.plex.enabled = false;
+                c.plex.account_url = format!("http://127.0.0.1:{port}");
+                c.plex.client_id = "plex-client-e2e".into();
             },
             move |c, _| {
                 c.set_video(for_controller);
@@ -2275,11 +3261,11 @@ mod e2e {
             },
         )
         .await;
-        h.send(Command::SignIn(SourceKind::Jellyfin));
+        h.send(Command::SignIn(SourceKind::Plex));
         h.wait_for(|e| matches!(e, AppEvent::SignIn(_, SignInState::Done)).then_some(())).await;
         let items = h
             .wait_for(|e| match e {
-                AppEvent::ContinueWatching(SourceKind::Jellyfin, items) => Some(items.clone()),
+                AppEvent::ContinueWatching(SourceKind::Plex, items) => Some(items.clone()),
                 _ => None,
             })
             .await;
@@ -2319,7 +3305,6 @@ mod e2e {
     async fn plex_pin_discovery_sessions_play_pause_stop() {
         let _serial = SERIAL.lock().await;
         let mut h = Harness::start("fake_plex.py", |c, port| {
-            c.jellyfin.enabled = false;
             c.plex.account_url = format!("http://127.0.0.1:{port}");
             c.plex.client_id = "plex-client-e2e".into();
         })
@@ -2489,8 +3474,8 @@ mod e2e {
     async fn streaming_sites_open_switch_stop_and_handoff() {
         let _serial = SERIAL.lock().await;
         // Any fake works as the "server"; this test only uses the browser.
-        let mut h = Harness::start("fake_jellyfin.py", |c, _| {
-            c.jellyfin.enabled = false;
+        let mut h = Harness::start("fake_plex.py", |c, _| {
+            c.plex.enabled = false;
             c.plex.enabled = false;
         })
         .await;
@@ -2597,8 +3582,8 @@ mod e2e {
     #[ignore = "needs python3; run with --ignored"]
     async fn streaming_site_management() {
         let _serial = SERIAL.lock().await;
-        let mut h = Harness::start("fake_jellyfin.py", |c, _| {
-            c.jellyfin.enabled = false;
+        let mut h = Harness::start("fake_plex.py", |c, _| {
+            c.plex.enabled = false;
             c.plex.enabled = false;
         })
         .await;
@@ -2621,6 +3606,7 @@ mod e2e {
             tmdb_providers: vec![386, 387],
             hidden: false,
             logo: None,
+            ..Default::default()
         };
         h.send(Command::SaveSite { index: None, site: peacock.clone() });
         let v = h
@@ -2717,14 +3703,14 @@ mod e2e {
             tmdb_providers: ids.to_vec(),
             hidden,
             logo: None,
+            ..Default::default()
         };
         let endpoints = tvdash_discover::Endpoints { api: tmdb_url.clone(), images: format!("{tmdb_url}/t/p") };
         let mut h = Harness::start_with(
-            "fake_jellyfin.py",
+            "fake_plex.py",
             |c, port| {
-                c.jellyfin.server_url = format!("http://127.0.0.1:{port}");
-                c.jellyfin.device_id = "dev-e2e".into();
-                c.plex.enabled = false;
+                c.plex.account_url = format!("http://127.0.0.1:{port}");
+                c.plex.client_id = "plex-client-e2e".into();
                 c.streaming = vec![
                     site("Netflix", "https://www.netflix.com", &[8, 1796], false),
                     site("Hulu", "https://www.hulu.com", &[15], true),
@@ -2773,14 +3759,10 @@ mod e2e {
         assert_eq!(all[2], ("Max".to_string(), (3, 3)), "the config's file, not TMDB's");
         assert_eq!(tmdb_calls("/t/p/w92"), downloads, "saved logos aren't downloaded again");
 
-        // Sign in to Jellyfin so its library's TMDB IDs are known.
-        h.send(Command::SignIn(SourceKind::Jellyfin));
+        // Sign in to Plex so its library's TMDB IDs are known.
+        h.send(Command::SignIn(SourceKind::Plex));
         h.wait_for(|e| matches!(e, AppEvent::SignIn(_, SignInState::Done)).then_some(())).await;
         sleep(Duration::from_millis(500)).await;
-        assert!(
-            h.server_log().iter().any(|r| r["path"] == "/Items" && r["query"]["fields"][0] == "ProviderIds"),
-            "library listed with provider IDs"
-        );
 
         // Search: everything starts as "checking", then lands in its group.
         h.send(Command::WhereToWatch("matrix".into()));
@@ -2869,8 +3851,8 @@ mod e2e {
     #[ignore = "needs python3; run with --ignored"]
     async fn setting_the_location_saves_it() {
         let _serial = SERIAL.lock().await;
-        let mut h = Harness::start("fake_jellyfin.py", |c, _| {
-            c.jellyfin.enabled = false;
+        let mut h = Harness::start("fake_plex.py", |c, _| {
+            c.plex.enabled = false;
             c.plex.enabled = false;
         })
         .await;

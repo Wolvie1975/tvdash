@@ -31,14 +31,16 @@ export struct TvCard {
     // "playing" (mpv) | "streaming" (browser) | "next" (idle, top Continue Watching item) | "idle"
     mode: string,
     label: string,      // "ON THE TV" | "UP NEXT"
-    source: string,     // pill: "Jellyfin" | "Plex" | "Browser" | ""
+    source: string,     // pill: "Plex" | "Browser" | ""
     title: string,
     subtitle: string,
     note: string,       // line above the title ("Nothing on the TV. Pick up where you left off:")
     at-text: string,    // "24:10 / 52:00" | "Stopped at 31:40"
     left-text: string,  // "28 min left · ends 21:40"
+    summary: string,
     progress: float,
     paused: bool,
+    is-episode: bool,
     poster: image,
     has-poster: bool,
     monogram: string,   // shown instead of a poster (streaming site initial)
@@ -56,17 +58,26 @@ export struct SiteTileData {
 }
 
 // Control dashboard (home page) + things shared with every page.
+export struct ChangelogEntry {
+    version: string,
+    date: string,
+    notes: string,
+}
+
 export global Dash {
     // Header
     in property <string> clock-hh: "--";
     in property <string> clock-mm: "--";
     in property <string> clock-ss: "--";
+    in property <string> clock-ampm;
+    in property <string> clock-year;
     in property <bool> show-seconds: false;
     in property <string> weekday;
     in property <string> date-text;
     in property <bool> weather-on: false;
     in property <string> weather-temp: "—";
     in property <string> weather-detail;
+    in property <string> weather-condition;
     // Icon name (see icons.slint): "clear" | "partly" | "cloud" | "fog" | "rain" | "snow" | "storm"
     in property <string> weather-icon: "partly";
     // Last value is old (shown dimmed) / the last fetch failed (amber dot).
@@ -89,6 +100,12 @@ export global Dash {
     // Continue Watching: "loading" | "busy" | "code" | "prompts" | "empty" | "items"
     in property <string> cw-state: "loading";
     in property <string> cw-message;
+    in-out property <string> cw-filter: "tv"; // "tv" | "movies"
+    in-out property <bool> search-open: false;
+    in-out property <bool> screensaver-open: false;
+    in property <int> screensaver-dx: 0;
+    in property <int> screensaver-dy: 0;
+    in property <string> tv-ends-at;
     in property <string> signin-code;
     in property <string> signin-source;
     in property <[AccountPrompt]> prompts;
@@ -102,10 +119,29 @@ export global Dash {
 
     // Transient message at the bottom of the window ("" = hidden).
     in property <string> toast;
+    in property <string> version;
+    in property <[ChangelogEntry]> changelog;
+    in property <string> remote-url;
+    in property <image> remote-qr;
+    in property <bool> remote-has-qr: false;
+
+    // Next episode prompt when an episode finishes naturally.
+    in-out property <bool> next-ep-open: false;
+    in property <string> next-ep-title;
+    in property <string> next-ep-subtitle;
+    in property <image> next-ep-poster;
+    in property <bool> next-ep-has-poster;
 
     callback open-site(int);
-    callback transport(string); // "back" | "play-pause" | "forward" | "stop"
+    callback transport(string); // "back" | "forward" | "restart" | "play-pause" | "stop" | ...
     callback play-item(int);
+    callback play-item-from-start(int);
+    callback play-up-next();
+    callback play-next-ep();
+    callback dismiss-next-ep();
+    callback set-cw-filter(string);
+    callback open-screensaver();
+    callback close-screensaver();
     callback prompt-action(string, string); // (source, "sign-in" | "retry")
     callback cancel-sign-in(string);
     callback set-theme(UiTheme);
@@ -121,11 +157,94 @@ export struct DetailData {
     has-poster: bool,
     progress: float,
     can-resume: bool,
+    show-key: string,
+}
+
+export struct PopularCardData {
+    rank: int,
+    rating-key: string,
+    title: string,
+    plays: string,
+}
+
+export struct FinishSeasonRow {
+    rating-key: string,
+    title: string,
+    season: string,
+    watched: int,
+    total: int,
+}
+
+export struct GenreTileData {
+    key: string,
+    title: string,
+    count: int,
+}
+
+export struct CollectionCardData {
+    rating-key: string,
+    title: string,
+    detail: string,
+    progress: float,
+    smart: bool,
+    poster: image,
+    has-poster: bool,
+}
+
+export struct SeasonTabData {
+    rating-key: string,
+    index: int,
+    title: string,
+    progress: string,
+    fraction: float,
+}
+
+export struct SeasonColumnData {
+    rating-key: string,
+    name: string,
+    meta: string,
+    summary: string,
+    progress: float,
+    progress-label: string,
+    poster: image,
+    has-poster: bool,
+    poster-is-fallback: bool,
+    fallback-label: string,
+}
+
+export struct EpisodeRowData {
+    rating-key: string,
+    num: string,
+    title: string,
+    meta: string,
+    summary: string,
+    progress: float,
+    watched: bool,
+    can-resume: bool,
+    has-thumb: bool,
+    thumb: image,
+}
+
+export struct CollectionItemData {
+    rating-key: string,
+    num: string,
+    title: string,
+    status: string,
+    watched: bool,
+    can-resume: bool,
+    has-poster: bool,
+    poster: image,
 }
 
 export global Library {
-    // "all" | "plex" | "jellyfin"
+    // "all" | "plex"
     in-out property <string> filter: "all";
+    in-out property <string> media-tab: "tv"; // "tv" | "movies"
+    in-out property <string> sort: "recent";  // "recent" | "title_asc" | "title_desc"
+    in-out property <int> popular-days: 30;   // 7 | 30
+    in-out property <bool> browse-all: false;
+    in-out property <string> browse-letter: ""; // "" (all) | "#" | "A".."Z"
+    in property <string> browse-status;
     in-out property <string> query;
     in property <bool> searching;
     // Non-empty while showing search results ("Results for “x”").
@@ -133,6 +252,13 @@ export global Library {
     in property <[PosterCardData]> continue-watching;
     in property <[PosterCardData]> recently-added;
     in property <[PosterCardData]> results;
+    in property <[FinishSeasonRow]> finish-season;
+    in property <[PosterCardData]> added-week;
+    in property <[PosterCardData]> watch-again;
+    in property <[PosterCardData]> browse-items;
+    in property <[PopularCardData]> popular;
+    in property <[GenreTileData]> genres;
+    in property <[CollectionCardData]> collections;
     in property <bool> detail-open;
     in-out property <bool> metadata-refreshing;
     in property <DetailData> detail;
@@ -141,12 +267,145 @@ export global Library {
     in-out property <int> selected-index: -1;
 
     callback set-filter(string);
+    callback set-media-tab(string);
+    callback set-sort(string);
+    callback set-popular-days(int);
+    callback set-browse-letter(string);
+    callback open-show(string);
+    callback open-collection(string);
+    callback play-key(string, bool);
     callback search(string);
     callback clear-search();
     // section: "continue" | "recent" | "results"
     callback select(string, int);
     callback play-detail(bool); // true = from the start
     callback close-detail();
+}
+
+export struct FocusInfoData {
+    kicker: string,
+    title: string,
+    meta: string,
+    summary: string,
+    tint-accent: color,
+    tint-poster: color,
+    tint-card: color,
+}
+
+export struct Shelf1TileData {
+    rating-key: string,
+    title: string,
+    right-label: string,
+    art: image,
+    has-art: bool,
+    progress: float,
+    segments: int,
+    watched-segments: int,
+}
+
+export struct RankedTileData {
+    rating-key: string,
+    rank: int,
+    title: string,
+    poster: image,
+    has-poster: bool,
+}
+
+export struct WatchingNowRowData {
+    rating-key: string,
+    is-tv: bool,
+    title: string,
+    subtitle: string,
+    player-line: string,
+    stream-badge: string,
+    is-this-tv: bool,
+    state-text: string,
+    time-left: string,
+    progress: float,
+    poster: image,
+    has-poster: bool,
+}
+
+export global LibraryLanding {
+    in-out property <FocusInfoData> focus;
+    in property <image> backdrop-a;
+    in property <image> backdrop-b;
+    in property <bool> backdrop-show-b: false;
+    in property <bool> has-backdrop: false;
+    in property <int> watching-now-count: 0;
+    in-out property <bool> watching-now-open: false;
+    in property <[WatchingNowRowData]> watching-now-rows;
+    in property <string> shelf1-title;
+    in property <string> shelf1-count;
+    in property <[Shelf1TileData]> shelf1;
+    in property <string> shelf2-title;
+    in property <string> shelf2-count;
+    in property <[RankedTileData]> shelf2;
+    in property <string> shelf3-title;
+    in property <string> shelf3-count;
+    in property <[RankedTileData]> shelf3;
+
+    callback focus-changed(int);
+    callback open-watching-now();
+    callback close-watching-now();
+    callback select-watching-now(int);
+}
+
+export global ShowPageState {
+    in-out property <bool> open: false;
+    in property <bool> loading: false;
+    in property <string> rating-key;
+    in property <string> title;
+    in property <string> meta;
+    in property <string> summary;
+    in property <string> up-next;
+    in property <string> up-next-key;
+    in property <bool> can-resume;
+    in property <float> up-next-progress: 0.0;
+    in property <image> backdrop;
+    in property <bool> has-backdrop: false;
+    in property <[SeasonTabData]> seasons;
+    in-out property <string> selected-season;
+    in property <SeasonColumnData> season;
+    in property <string> season-summary-line;
+    in property <string> next-season-key;
+    in property <string> next-season-label;
+    in property <[EpisodeRowData]> episodes;
+    in-out property <bool> scrolled: false;
+    in-out property <EpisodeRowData> focused-episode;
+    in property <Tint> tint: {
+        card: #121F30, poster: #1C2E45, accent: #8FC1FF, sec: #AFC3DA,
+        track: #1E3048, btn: #172840, edge: #24395A, on-accent: #0B0D10,
+    };
+
+    callback select-season(string);
+    callback play-episode(string, bool);
+    callback play-from-start();
+    callback close();
+}
+
+export global CollectionPageState {
+    in-out property <bool> open: false;
+    in property <bool> loading: false;
+    in property <string> rating-key;
+    in property <string> title;
+    in property <string> meta;
+    in property <string> progress-text;
+    in property <string> summary;
+    in property <string> up-next-key;
+    in property <string> up-next-label: "Play next on TV";
+    in-out property <string> order: "collection"; // "collection" | "release" | "alpha"
+    in-out property <bool> hide-watched: false;
+    in property <[CollectionItemData]> items;
+    in property <Tint> tint: {
+        card: #121F30, poster: #1C2E45, accent: #8FC1FF, sec: #AFC3DA,
+        track: #1E3048, btn: #172840, edge: #24395A, on-accent: #0B0D10,
+    };
+
+    callback set-order(string);
+    callback set-hide-watched(bool);
+    callback play-item(string, bool);
+    callback close();
 }
 
 export struct ArtworkRow {
@@ -171,7 +430,7 @@ export global Artwork {
 }
 
 export struct AccountRow {
-    id: string,         // "plex" | "jellyfin"
+    id: string,         // "plex"
     name: string,
     status: string,
     detail: string,
@@ -360,7 +619,9 @@ export global Display {
     in-out property <bool> celsius: false;
     in-out property <bool> h12: false;
     in-out property <bool> seconds: false;
+    in property <bool> follow-system: false;
     callback changed();
+    callback set-follow-system();
 
     // Weather location.
     in property <string> location-name;     // "" = not set
@@ -369,8 +630,10 @@ export global Display {
     in property <string> place-message;     // "No place called …" / errors
     in property <[string]> places;          // matches to pick from
     in-out property <string> layout-setting: "auto"; // "auto" | "dual" | "tv"
+    in-out property <string> dashboard-ui: "classic"; // "classic" | "blades"
     callback set-layout(bool);  // true = TV only
     callback set-layout-setting(string);
+    callback set-dashboard-ui(string);
     callback find-place(string);
     callback pick-place(int);
 }
@@ -390,9 +653,38 @@ export global Diagnostics {
 
 // TV-only layout ([display] layout = "tv"). Rust owns navigation (tv_nav.rs);
 // these say what's showing and what has focus.
+import { Brand } from "shared/brand.slint";
+
+export struct TvServiceTile {
+    index: int,
+    brand: Brand,
+    is-recent: bool,
+    ago-text: string,
+}
+
 export global TvUi {
-    // "home" | "search" | "library" | "services" | "settings"
+    // "home" | "search" | "library" | "services" | "settings" | "show" | "collection"
     in-out property <string> screen: "home";
+    in-out property <float> u: 1.0; // UI scale factor from 1920x1080 design units to window size
+    in-out property <int> active-tab: 0; // 0 Home, 1 Library, 2 Services, 3 Settings
+    in-out property <bool> bar-focused: false;
+    in-out property <int> focused-tile: 1;
+    in-out property <length> cw-scroll: 0px;
+    in-out property <length> lib-scroll: 0px;
+    in-out property <length> show-scroll: 0px;
+    in-out property <length> col-scroll: 0px;
+    in property <string> hint-text: "OK Select · Back Home";
+    in property <[TvServiceTile]> services;
+    in property <[TvServiceTile]> home-services;
+    in property <string> last-played-kind; // "" | "media" | "site"
+    in property <string> last-played-title;
+    in property <string> last-played-subtitle;
+    in property <image> last-played-poster;
+    in property <bool> last-played-has-poster;
+    in property <float> last-played-progress;
+    in property <Brand> last-played-brand;
+    in-out property <string> settings-tab: "display"; // "display" | "accounts" | "server" | "changelog"
+    in-out property <string> sports-tab: "competitions"; // "competitions" | "scoreboard"
     in property <bool> rail-open;
     // What has focus: "rail" | "hero" | "prompts" | "continue" | "services" | "lib-continue"
     // | "lib-recent" | "grid" | "set-layout" | "set-theme" | "set-units" | "set-clock"
@@ -402,6 +694,8 @@ export global TvUi {
     in property <int> col;
     // Full-bleed art + clock after a few idle minutes; any key returns.
     in property <bool> ambient;
+    in-out property <bool> hud-open: false;
+    in-out property <bool> confirm-quit: false;
     // Settings › Layout shows the saved choice.
     in property <bool> layout-tv: true;
     in property <int> focus-ticket;
@@ -410,8 +704,228 @@ export global TvUi {
     in property <image> video;
     in property <bool> video-on;
     in property <bool> video-full;
+    // Home Continue Watching confirmation dialog (-1 = closed).
+    in-out property <int> confirm-cw-index: -1;
     // A key press (Slint key text); returns true when handled.
     callback key(string) -> bool;
+    // Mouse/touch click on a focusable item (row, col).
+    callback click(string, int);
+    // Mouse/touch on v2 tile index or tab index.
+    callback tile-activated(int);
+    callback tile-hovered(int);
+    callback tab-clicked(int);
+    callback back-clicked();
+    callback scroll-panorama(length);
+    callback clear-recent();
+    callback play-last-played();
     // Show the playback overlay (title, progress, end time) on the video.
     callback overlay();
+}
+
+export global AmbientState {
+    in property <image> wall;
+    in property <bool> has-wall: false;
+    in property <length> repeat-height: 1280px;
+    in property <string> up-next-label;
+    in property <string> up-next-title;
+    in property <string> up-next-line;
+    in property <float> up-next-progress: 0.0;
+    in property <bool> up-next-has-bar: false;
+    in property <image> up-next-poster;
+    in property <bool> up-next-has-poster: false;
+    in property <color> up-next-accent: #8FC1FF;
+    in property <string> footer-line;
+}
+
+export struct SportsChoiceData {
+    value: string,
+    label: string,
+}
+
+export struct SportsRowData {
+    kind: string, // "day" | "league" | "game"
+    header-text: string,
+    sport: string,
+    is-neutral: bool,
+    away-name: string,
+    away-label: string,
+    away-has-logo: bool,
+    away-logo: image,
+    away-initials: string,
+    home-name: string,
+    home-label: string,
+    home-has-logo: bool,
+    home-logo: image,
+    home-initials: string,
+    time-text: string,
+    is-tbd: bool,
+    city: string,
+    venue: string,
+    tv: string,
+    radio: string,
+    stats-url: string,
+    stream-url: string,
+    audio-url: string,
+    details-url: string,
+}
+
+export global Sports {
+    in property <bool> loading: false;
+    in property <string> error;
+    in property <string> schedule;
+    in property <string> schedule-label: "All schedules";
+    in property <[SportsChoiceData]> choices;
+    in property <int> total-count: 0;
+    in property <int> page: 0;
+    in property <int> total-pages: 1;
+    in property <string> last-updated;
+    in property <[SportsRowData]> rows;
+    callback load(string, int);
+    callback open-url(string, string);
+}
+
+export struct ScoreboardChoiceData {
+    value: string,
+    label: string,
+    group: string,
+}
+
+export struct ScoreboardRowData {
+    kind: string, // "group" | "game"
+    focus-id: int,
+    event-id: string,
+    is-starred: bool,
+    is-following: bool,
+    group-title: string,
+    group-subtitle: string,
+    is-live: bool,
+    league-label: string,
+    status: string,
+    header-text: string,
+    away-name: string,
+    away-score: string,
+    away-winner: bool,
+    away-leading: bool,
+    away-has-logo: bool,
+    away-logo: image,
+    away-initials: string,
+    home-name: string,
+    home-score: string,
+    home-winner: bool,
+    home-leading: bool,
+    home-has-logo: bool,
+    home-logo: image,
+    home-initials: string,
+    details-text: string,
+    warning-text: string,
+    source-url: string,
+}
+
+export global Scoreboard {
+    in property <bool> loading: false;
+    in property <string> error;
+    in property <string> day;
+    in property <string> day-label: "Today";
+    in property <string> prev-day;
+    in property <string> next-day;
+    in property <bool> is-today: true;
+    in property <string> show;
+    in property <string> show-label: "All sports";
+    in property <bool> final-only: false;
+    in property <[ScoreboardChoiceData]> choices;
+    in property <string> coverage-warning;
+    in property <string> empty-message;
+    in property <[ScoreboardRowData]> rows;
+    callback load(string, string, bool);
+    callback open-url(string, string);
+    callback toggle-star(string);
+}
+
+export global SleepState {
+    in-out property <bool> active: false;
+    in-out property <string> phase: "off"; // "off" | "counting" | "warn" | "end_of_item"
+    in-out property <string> label: "Off";
+    in-out property <string> ends-at: "";
+    in-out property <int> left: 0;
+    in-out property <int> warn-total: 60;
+    in-out property <string> warn-clock: "1:00";
+    in-out property <bool> episode-finished: false;
+    in-out property <bool> held: false;
+    in-out property <bool> end-of-item-ok: false;
+    in-out property <bool> is-movie: false;
+    in-out property <string> item-caption: "";
+    in-out property <int> default-minutes: 60;
+    in-out property <bool> picker-open: false;
+    in-out property <int> selected-tile: -1; // -1=none, 0..5=presets, 6=end_of_item, 7=off
+    in-out property <int> focused-tile: 3;   // 0..8 (8=Close) for TV remote focus
+    in-out property <int> warn-focus: 0;     // 0=Keep watching, 1=Sleep now, 2=Turn off
+    in-out property <string> warn-before: "60s";
+    in-out property <[string]> preset-ends: ["", "", "", "", "", ""];
+
+    callback set-minutes(int);
+    callback set-end-of-item();
+    callback off();
+    callback extend();
+    callback sleep-now();
+    callback play-next();
+    callback set-warn-before(string);
+    callback open-picker();
+    callback close-picker();
+}
+
+export struct SportsAlertSide {
+    name: string,
+    initials: string,
+    color: color,
+    logo: image,
+    has-logo: bool,
+    right: string,
+    winner: bool,
+    muted: bool,
+}
+
+export global SportsAlertState {
+    in-out property <bool> visible: false;
+    in-out property <string> alert-key: "";
+    in-out property <string> kicker: "";
+    in-out property <bool> kicker-final: false;
+    in-out property <string> why: "";
+    in-out property <SportsAlertSide> away;
+    in-out property <SportsAlertSide> home;
+    in-out property <string> meta: "";
+    in-out property <string> primary: "";
+    in-out property <int> closes-in: 12;
+    in-out property <int> focus: 0; // 0 = primary (or Dismiss when primary == ""), 1 = dismiss
+
+    callback primary-clicked();
+    callback dismiss-clicked();
+}
+
+export struct FollowedTeamRow {
+    name: string,
+    initials: string,
+    color: color,
+    league-label: string,
+}
+
+export struct StarredGameRow {
+    event-id: string,
+    matchup: string,
+    meta: string,
+}
+
+export global SportsAlertsSettings {
+    in-out property <int> soon-minutes: 15; // 0 | 5 | 10 | 15 | 30
+    in-out property <bool> final-on: true;
+    in-out property <string> during-video: "show"; // "show" | "hold"
+    in property <string> follows-note: "Managed in MyNewsFeed";
+    in property <bool> follows-error: false;
+    in property <[FollowedTeamRow]> followed-teams;
+    in property <[StarredGameRow]> starred-games;
+
+    callback set-soon-minutes(int);
+    callback set-final-on(bool);
+    callback set-during-video(string);
+    callback unstar-game(string);
+    callback refresh-follows();
 }

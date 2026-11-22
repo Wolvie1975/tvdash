@@ -1,0 +1,728 @@
+// Blades UI (v3) — Home panel (1600 x 1032 design space).
+
+import { Theme, UiTheme } from "../theme.slint";
+import { Icon } from "../icons.slint";
+import { Dash, Nav, SleepState, TvUi } from "../state.slint";
+import { SleepChip } from "../shared/sleep.slint";
+import { IntroRise } from "../shared/intro.slint";
+import { V3Theme } from "theme.slint";
+
+export component V3Home inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+
+    IntroRise {
+        width: parent.width;
+        height: parent.height;
+        delay: 1300ms;
+
+    // ── Header: "Home" left, Weather + Clock right ───────────────────────────
+    Text {
+        x: 40px * TvUi.u;
+        y: 30px * TvUi.u;
+        text: "Home";
+        font-family: V3Theme.font;
+        font-size: 40px * TvUi.u;
+        font-weight: 700;
+        color: V3Theme.text-primary;
+    }
+
+    HorizontalLayout {
+        x: parent.width - 40px * TvUi.u - self.preferred-width;
+        y: 36px * TvUi.u;
+        spacing: 20px * TvUi.u;
+        alignment: end;
+
+        SleepChip {
+            ink: V3Theme.accent;
+            clickable: Nav.layout == "dual";
+            y: (parent.height - self.height) / 2;
+        }
+
+        if Dash.weather-on: HorizontalLayout {
+            spacing: 8px * TvUi.u;
+            Icon {
+                name: Dash.weather-icon;
+                size: 22px * TvUi.u;
+                tint: V3Theme.accent;
+                y: (parent.height - self.height) / 2;
+            }
+            Text {
+                text: Dash.weather-temp;
+                font-family: V3Theme.font;
+                font-size: 20px * TvUi.u;
+                font-weight: 600;
+                color: V3Theme.text-primary;
+                vertical-alignment: center;
+            }
+        }
+
+        Text {
+            text: Dash.clock-hh + ":" + Dash.clock-mm + (Dash.clock-ampm != "" ? " " + Dash.clock-ampm : "");
+            font-family: V3Theme.font;
+            font-size: 20px * TvUi.u;
+            font-weight: 600;
+            color: V3Theme.text-primary;
+            vertical-alignment: center;
+        }
+    }
+
+    // ── Left column (x: 40..940): Hero card + Streaming 5x2 ──────────────────
+    // 1: Hero Currently Playing / Up Next card (900 x 470)
+    Rectangle {
+        x: 40px * TvUi.u;
+        y: 96px * TvUi.u;
+        width: 900px * TvUi.u;
+        height: 470px * TvUi.u;
+        border-radius: 18px * TvUi.u;
+        clip: true;
+        background: V3Theme.surface;
+        border-width: (!TvUi.bar-focused && (TvUi.focused-tile == 0 || TvUi.focused-tile == 1)) ? 4px : 1px;
+        border-color: (!TvUi.bar-focused && (TvUi.focused-tile == 0 || TvUi.focused-tile == 1))
+            ? V3Theme.focus-ring : V3Theme.border;
+
+        if Dash.tv.has-poster: Image {
+            width: parent.width;
+            height: parent.height;
+            source: Dash.tv.poster;
+            image-fit: cover;
+        }
+
+        // Scrim gradient for legibility
+        Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: @linear-gradient(180deg, #0B0D1030 0%, #0B0D10B0 55%, #0B0D10EA 100%);
+        }
+
+        // Top-right orange play/pause circle
+        Rectangle {
+            x: parent.width - 100px * TvUi.u;
+            y: 36px * TvUi.u;
+            width: 72px * TvUi.u;
+            height: 72px * TvUi.u;
+            border-radius: 36px * TvUi.u;
+            background: V3Theme.accent;
+
+            Icon {
+                x: (parent.width - self.width) / 2 + (TvUi.video-on && Dash.tv.mode != "paused" ? 0px : 2px * TvUi.u);
+                y: (parent.height - self.height) / 2;
+                name: (TvUi.video-on && Dash.tv.mode != "paused") ? "pause" : "play";
+                size: 32px * TvUi.u;
+                tint: V3Theme.on-accent;
+            }
+        }
+
+        // Bottom metadata & progress
+        VerticalLayout {
+            x: 32px * TvUi.u;
+            y: 170px * TvUi.u;
+            width: parent.width - 64px * TvUi.u;
+            height: parent.height - 196px * TvUi.u;
+            spacing: 8px * TvUi.u;
+            alignment: end;
+
+            Text {
+                text: (Dash.tv.source != "" ? Dash.tv.source + " · " : "") + Dash.tv.label;
+                font-family: V3Theme.font;
+                font-size: 15px * TvUi.u;
+                font-weight: 700;
+                letter-spacing: 1.2px;
+                color: V3Theme.accent;
+            }
+
+            Text {
+                text: Dash.tv.title != "" ? Dash.tv.title : "Nothing playing";
+                font-family: V3Theme.font;
+                font-size: 42px * TvUi.u;
+                font-weight: 700;
+                color: #FFFFFF;
+                overflow: elide;
+            }
+
+            if Dash.tv.subtitle != "": Text {
+                text: Dash.tv.subtitle;
+                font-family: V3Theme.font;
+                font-size: 20px * TvUi.u;
+                font-weight: 600;
+                color: #E8EAED;
+                overflow: elide;
+            }
+
+            if Dash.tv.summary != "": Text {
+                text: Dash.tv.summary;
+                font-family: V3Theme.font;
+                font-size: 16px * TvUi.u;
+                color: #C4C9D2;
+                wrap: word-wrap;
+                overflow: elide;
+                max-height: 46px * TvUi.u;
+            }
+
+            Rectangle { height: 6px * TvUi.u; }
+
+            HorizontalLayout {
+                spacing: 16px * TvUi.u;
+                alignment: space-between;
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 6px * TvUi.u;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 3px * TvUi.u;
+                    background: #FFFFFF30;
+
+                    Rectangle {
+                        x: 0;
+                        y: 0;
+                        width: parent.width * clamp(Dash.tv.progress, 0.0, 1.0);
+                        height: parent.height;
+                        border-radius: 3px * TvUi.u;
+                        background: V3Theme.accent;
+                    }
+                }
+
+                if Dash.tv.at-text != "" || Dash.tv.left-text != "": Text {
+                    text: Dash.tv.at-text != "" && Dash.tv.left-text != ""
+                        ? Dash.tv.at-text + " · " + Dash.tv.left-text
+                        : Dash.tv.at-text + Dash.tv.left-text;
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 600;
+                    color: #E8EAED;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { TvUi.tile-activated(1); }
+        }
+    }
+
+    // Streaming section label + 5x2 compact pills (tiles 9..18)
+    Text {
+        x: 40px * TvUi.u;
+        y: 590px * TvUi.u;
+        text: "Streaming";
+        font-family: V3Theme.font;
+        font-size: 20px * TvUi.u;
+        font-weight: 700;
+        color: V3Theme.text-primary;
+    }
+
+    for svc[i] in TvUi.services: Rectangle {
+        visible: i < 10;
+        property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;
+
+        x: (40px + Math.mod(i, 5) * 182px) * TvUi.u;
+        y: (626px + Math.floor(i / 5) * 102px) * TvUi.u;
+        width: 170px * TvUi.u;
+        height: 88px * TvUi.u;
+        border-radius: 14px * TvUi.u;
+        clip: true;
+        background: @linear-gradient(135deg, svc.brand.fill 0%, svc.brand.fill-end 100%);
+        border-width: self.is-foc ? 4px : 1px;
+        border-color: self.is-foc ? V3Theme.focus-ring : #FFFFFF20;
+
+        if svc.is-recent: Rectangle {
+            x: parent.width - self.width - 8px * TvUi.u;
+            y: 6px * TvUi.u;
+            width: rec-lbl.preferred-width + 10px * TvUi.u;
+            height: 18px * TvUi.u;
+            border-radius: 4px * TvUi.u;
+            background: #0B0D10B0;
+
+            rec-lbl := Text {
+                text: "RECENT";
+                font-family: V3Theme.font;
+                font-size: 10px * TvUi.u;
+                font-weight: 700;
+                letter-spacing: 0.6px;
+                color: #FFFFFF;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        if svc.brand.has-logo: Image {
+            x: 18px * TvUi.u;
+            y: 18px * TvUi.u;
+            width: parent.width - 36px * TvUi.u;
+            height: parent.height - 36px * TvUi.u;
+            source: svc.brand.logo;
+            image-fit: contain;
+        }
+
+        if !svc.brand.has-logo: Text {
+            x: 10px * TvUi.u;
+            width: parent.width - 20px * TvUi.u;
+            height: parent.height;
+            text: svc.brand.name;
+            font-family: V3Theme.font;
+            font-size: 18px * TvUi.u;
+            font-weight: 700;
+            color: svc.brand.ink;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { TvUi.tile-activated(10 + i); }
+        }
+    }
+
+    // ── Right column (x: 968..1560): Clock/Weather + Last Played + Quick Actions
+    // 5: Clock & Weather card (592 x 204)
+    Rectangle {
+        x: 968px * TvUi.u;
+        y: 96px * TvUi.u;
+        width: 592px * TvUi.u;
+        height: 204px * TvUi.u;
+        border-radius: 18px * TvUi.u;
+        background: V3Theme.surface;
+        border-width: (!TvUi.bar-focused && TvUi.focused-tile == 5) ? 4px : 1px;
+        border-color: (!TvUi.bar-focused && TvUi.focused-tile == 5) ? V3Theme.focus-ring : V3Theme.border;
+
+        VerticalLayout {
+            padding: 24px * TvUi.u;
+            spacing: 6px * TvUi.u;
+            alignment: space-between;
+
+            HorizontalLayout {
+                spacing: 8px * TvUi.u;
+                alignment: start;
+
+                Text {
+                    text: Dash.clock-hh + ":" + Dash.clock-mm;
+                    font-family: V3Theme.font;
+                    font-size: 64px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-primary;
+                }
+
+                if Dash.clock-ampm != "": Text {
+                    text: Dash.clock-ampm;
+                    font-family: V3Theme.font;
+                    font-size: 24px * TvUi.u;
+                    font-weight: 600;
+                    color: V3Theme.text-secondary;
+                    vertical-alignment: bottom;
+                }
+            }
+
+            Text {
+                text: Dash.clock-year != "" ? Dash.date-text + ", " + Dash.clock-year : Dash.date-text;
+                font-family: V3Theme.font;
+                font-size: 18px * TvUi.u;
+                color: V3Theme.text-secondary;
+            }
+
+            HorizontalLayout {
+                spacing: 12px * TvUi.u;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 8px * TvUi.u;
+                    Icon {
+                        name: Dash.weather-icon;
+                        size: 22px * TvUi.u;
+                        tint: V3Theme.accent;
+                        y: (parent.height - self.height) / 2;
+                    }
+                    Text {
+                        text: Dash.weather-on
+                            ? Dash.weather-temp + " · " + Dash.weather-condition
+                            : "Set location in Settings";
+                        font-family: V3Theme.font;
+                        font-size: 17px * TvUi.u;
+                        color: V3Theme.text-primary;
+                        vertical-alignment: center;
+                    }
+                }
+
+                if Dash.weather-on && Dash.weather-detail != "": Text {
+                    text: Dash.weather-detail;
+                    font-family: V3Theme.font;
+                    font-size: 16px * TvUi.u;
+                    color: V3Theme.text-secondary;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { TvUi.tile-activated(5); }
+        }
+    }
+
+    // 6: Last Played card (592 x 146)
+    Rectangle {
+        x: 968px * TvUi.u;
+        y: 318px * TvUi.u;
+        width: 592px * TvUi.u;
+        height: 146px * TvUi.u;
+        border-radius: 18px * TvUi.u;
+        background: V3Theme.surface;
+        border-width: (!TvUi.bar-focused && TvUi.focused-tile == 6) ? 4px : 1px;
+        border-color: (!TvUi.bar-focused && TvUi.focused-tile == 6) ? V3Theme.focus-ring : V3Theme.border;
+
+        HorizontalLayout {
+            padding: 18px * TvUi.u;
+            spacing: 16px * TvUi.u;
+
+            if TvUi.last-played-kind == "media" && TvUi.last-played-has-poster: Rectangle {
+                width: 66px * TvUi.u;
+                height: 100px * TvUi.u;
+                border-radius: 8px * TvUi.u;
+                clip: true;
+                y: (parent.height - self.height) / 2;
+
+                Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: TvUi.last-played-poster;
+                    image-fit: cover;
+                }
+            }
+
+            if TvUi.last-played-kind == "site" && TvUi.last-played-brand.has-logo: Rectangle {
+                width: 72px * TvUi.u;
+                height: 72px * TvUi.u;
+                border-radius: 12px * TvUi.u;
+                y: (parent.height - self.height) / 2;
+                background: TvUi.last-played-brand.fill;
+
+                Image {
+                    x: 8px * TvUi.u;
+                    y: 8px * TvUi.u;
+                    width: parent.width - 16px * TvUi.u;
+                    height: parent.height - 16px * TvUi.u;
+                    source: TvUi.last-played-brand.logo;
+                    image-fit: contain;
+                }
+            }
+
+            VerticalLayout {
+                horizontal-stretch: 1;
+                alignment: center;
+                spacing: 4px * TvUi.u;
+
+                Text {
+                    text: TvUi.last-played-kind == "site" ? "LAST PLAYED · APP" : "LAST PLAYED";
+                    font-family: V3Theme.font;
+                    font-size: 13px * TvUi.u;
+                    font-weight: 700;
+                    letter-spacing: 1px;
+                    color: V3Theme.text-muted;
+                }
+
+                Text {
+                    text: TvUi.last-played-title != "" ? TvUi.last-played-title : "Nothing yet";
+                    font-family: V3Theme.font;
+                    font-size: 22px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-primary;
+                    overflow: elide;
+                }
+
+                Text {
+                    text: TvUi.last-played-subtitle != "" ? TvUi.last-played-subtitle : "OK to resume";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    color: V3Theme.text-secondary;
+                    overflow: elide;
+                }
+
+                if TvUi.last-played-kind == "media" && TvUi.last-played-progress > 0.0: Rectangle {
+                    height: 4px * TvUi.u;
+                    border-radius: 2px * TvUi.u;
+                    background: V3Theme.border;
+                    Rectangle {
+                        x: 0;
+                        y: 0;
+                        width: parent.width * clamp(TvUi.last-played-progress, 0.0, 1.0);
+                        height: parent.height;
+                        border-radius: 2px * TvUi.u;
+                        background: V3Theme.accent;
+                    }
+                }
+            }
+        }
+
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { TvUi.tile-activated(6); }
+        }
+    }
+
+    // Quick Actions stacked list card: 2 (Search), 3 (Library), 4 (Screensaver), 7 (Settings), 8 (Theme)
+    Rectangle {
+        x: 968px * TvUi.u;
+        y: 482px * TvUi.u;
+        width: 592px * TvUi.u;
+        height: 334px * TvUi.u;
+        border-radius: 18px * TvUi.u;
+        background: V3Theme.surface;
+        border-width: 1px;
+        border-color: V3Theme.border;
+
+        for row[idx] in [
+            { id: 2, icon: "search", label: "Search", right: "" },
+            { id: 3, icon: "library", label: "Library", right: "" },
+            { id: 4, icon: "moon", label: "Screensaver", right: "" },
+            { id: 9, icon: "moon", label: "Sleep timer", right: SleepState.active ? SleepState.label : "Off" },
+            { id: 7, icon: "video", label: "Google Meet", right: "" },
+            { id: 8, icon: "sun", label: "Theme", right: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.ku-light ? "Kansas Light" : Theme.mode == UiTheme.stone ? "Stone" : "Mist" },
+        ]: Rectangle {
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == row.id;
+            x: 10px * TvUi.u;
+            y: (10px + idx * 53px) * TvUi.u;
+            width: parent.width - 20px * TvUi.u;
+            height: 50px * TvUi.u;
+            border-radius: 12px * TvUi.u;
+            background: self.is-foc ? V3Theme.surface-raised : (r-ta.has-hover ? V3Theme.surface-raised : transparent);
+            border-width: self.is-foc ? 3px : 0px;
+            border-color: V3Theme.focus-ring;
+
+            HorizontalLayout {
+                padding-left: 16px * TvUi.u;
+                padding-right: 16px * TvUi.u;
+                spacing: 14px * TvUi.u;
+
+                Icon {
+                    name: row.icon;
+                    size: 22px * TvUi.u;
+                    tint: V3Theme.text-secondary;
+                    y: (parent.height - self.height) / 2;
+                }
+
+                Text {
+                    horizontal-stretch: 1;
+                    text: row.label;
+                    font-family: V3Theme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 600;
+                    color: V3Theme.text-primary;
+                    vertical-alignment: center;
+                }
+
+                if row.right != "": Text {
+                    text: row.right;
+                    font-family: V3Theme.font;
+                    font-size: 16px * TvUi.u;
+                    color: V3Theme.text-secondary;
+                    vertical-alignment: center;
+                }
+            }
+
+            r-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { TvUi.tile-activated(row.id); }
+            }
+        }
+    }
+
+    // ── Bottom Now Playing transport bar (y: 848..936) ───────────────────────
+    Rectangle {
+        x: 40px * TvUi.u;
+        y: 848px * TvUi.u;
+        width: 1520px * TvUi.u;
+        height: 84px * TvUi.u;
+        border-radius: 18px * TvUi.u;
+        background: V3Theme.surface;
+        border-width: 1px;
+        border-color: V3Theme.border;
+
+        HorizontalLayout {
+            padding-left: 20px * TvUi.u;
+            padding-right: 20px * TvUi.u;
+            spacing: 16px * TvUi.u;
+
+            Rectangle {
+                width: 44px * TvUi.u;
+                height: 44px * TvUi.u;
+                border-radius: 10px * TvUi.u;
+                y: (parent.height - self.height) / 2;
+                background: V3Theme.accent-tint;
+                Icon {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    name: "play";
+                    size: 20px * TvUi.u;
+                    tint: V3Theme.accent;
+                }
+            }
+
+            HorizontalLayout {
+                horizontal-stretch: 1;
+                spacing: 12px * TvUi.u;
+                Text {
+                    text: Dash.tv.title != "" ? Dash.tv.title : "Ready to play";
+                    font-family: V3Theme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-primary;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                if Dash.tv.subtitle != "": Text {
+                    text: Dash.tv.subtitle;
+                    font-family: V3Theme.font;
+                    font-size: 16px * TvUi.u;
+                    color: V3Theme.text-secondary;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+
+            // Transport buttons
+            for btn in [
+                { label: "-10s", act: 0 },
+            ]: Rectangle {
+                width: 64px * TvUi.u;
+                height: 44px * TvUi.u;
+                y: (parent.height - self.height) / 2;
+                border-radius: 10px * TvUi.u;
+                background: b0.has-hover ? V3Theme.surface-raised : V3Theme.bg;
+                border-width: 1px;
+                border-color: V3Theme.border;
+                Text {
+                    text: btn.label;
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 600;
+                    color: V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                b0 := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.transport("back"); }
+                }
+            }
+
+            // Play/Pause amber circle
+            Rectangle {
+                width: 48px * TvUi.u;
+                height: 48px * TvUi.u;
+                y: (parent.height - self.height) / 2;
+                border-radius: 12px * TvUi.u;
+                background: V3Theme.accent;
+                Icon {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    name: Dash.tv.mode == "paused" || !TvUi.video-on ? "play" : "pause";
+                    size: 22px * TvUi.u;
+                    tint: V3Theme.on-accent;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        if TvUi.video-on {
+                            Dash.transport("pause");
+                        } else {
+                            TvUi.tile-activated(1);
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                width: 64px * TvUi.u;
+                height: 44px * TvUi.u;
+                y: (parent.height - self.height) / 2;
+                border-radius: 10px * TvUi.u;
+                background: b1.has-hover ? V3Theme.surface-raised : V3Theme.bg;
+                border-width: 1px;
+                border-color: V3Theme.border;
+                Text {
+                    text: "+30s";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 600;
+                    color: V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                b1 := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.transport("fwd"); }
+                }
+            }
+
+            Rectangle {
+                width: 44px * TvUi.u;
+                height: 44px * TvUi.u;
+                y: (parent.height - self.height) / 2;
+                border-radius: 10px * TvUi.u;
+                background: b2.has-hover ? V3Theme.surface-raised : V3Theme.bg;
+                border-width: 1px;
+                border-color: V3Theme.border;
+                Icon {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    name: "stop";
+                    size: 18px * TvUi.u;
+                    tint: V3Theme.text-primary;
+                }
+                b2 := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.transport("stop"); }
+                }
+            }
+
+            Rectangle {
+                width: 100px * TvUi.u;
+                height: 44px * TvUi.u;
+                y: (parent.height - self.height) / 2;
+                border-radius: 10px * TvUi.u;
+                background: b3.has-hover ? V3Theme.surface-raised : V3Theme.bg;
+                border-width: 1px;
+                border-color: V3Theme.border;
+                Text {
+                    text: "Subtitles";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 600;
+                    color: V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                b3 := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.transport("sub"); }
+                }
+            }
+
+            Rectangle {
+                width: 84px * TvUi.u;
+                height: 44px * TvUi.u;
+                y: (parent.height - self.height) / 2;
+                border-radius: 10px * TvUi.u;
+                background: b4.has-hover ? V3Theme.surface-raised : V3Theme.bg;
+                border-width: 1px;
+                border-color: V3Theme.border;
+                Text {
+                    text: "Audio";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 600;
+                    color: V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                b4 := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.transport("audio"); }
+                }
+            }
+        }
+    }
+    } // end IntroRise
+}

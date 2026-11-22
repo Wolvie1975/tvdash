@@ -10,8 +10,12 @@
 //! - [`status`]: weather, location, Settings › Diagnostics
 
 mod accounts;
+pub mod alerts;
+mod ambient;
+pub use ambient::start_ambient;
 mod home;
 mod library;
+pub use library::{ensure_library_loaded, on_season_selected, start_watching};
 mod status;
 #[cfg(test)]
 mod tests;
@@ -34,17 +38,20 @@ use tvdash_core::{
 };
 
 pub use accounts::sync_setup;
-pub use home::row;
-pub use library::{clear_search, close_detail, select, selected, set_filter, start_search};
+pub use home::{row, set_cw_filter, up_next};
+pub use library::{
+    clear_search, close_detail, missing_browse_posters, on_library_focus_changed, reorder_collection, select, selected,
+    set_browse_letter, set_filter, set_media_tab, start_search, watching_now_item,
+};
 
 use crate::{
     AccountPrompt, AccountRow, Accounts, Artwork, ArtworkRow, Dash, Diagnostics, Display, LaptopWindow, Library, Nav,
-    PosterCardData, Server, ServerActivityRow, ServerLibraryRow, ServerStreamRow, SessionRow, Setup, SiteRow, Theme,
-    TvWindow, UiTheme, tint::Hue,
+    PosterCardData, Scoreboard, ScoreboardChoiceData, ScoreboardRowData, Server, ServerActivityRow, ServerLibraryRow,
+    ServerStreamRow, SessionRow, Setup, SiteRow, SleepState, Sports, SportsChoiceData, SportsRowData, Theme, TvWindow, UiTheme, tint::Hue,
 };
 
 /// Display order for sources everywhere (rows, prompts, sessions).
-const SOURCES: [SourceKind; 2] = [SourceKind::Jellyfin, SourceKind::Plex];
+const SOURCES: [SourceKind; 2] = [SourceKind::Plex, SourceKind::Jellyfin];
 
 const TOAST_FOR: Duration = Duration::from_secs(5);
 const LONG_TOAST_FOR: Duration = Duration::from_secs(30);
@@ -56,6 +63,10 @@ pub struct UiState {
     pub clock: Option<ClockFormat>,
     units: Option<Units>,
     theme: ThemeMode,
+    system_dark: bool,
+    tv_layout: bool,
+    night_active: bool,
+    night_display: tvdash_core::config::DisplayConfig,
     /// Streaming sites in tile order, hidden ones included.
     sites: Vec<StreamingSite>,
     /// What tvdash is showing on the TV: mpv playback, or the browser's site.
@@ -63,11 +74,24 @@ pub struct UiState {
     browser: Option<String>,
     continue_watching: HashMap<SourceKind, Vec<MediaItem>>,
     recently_added: HashMap<SourceKind, Vec<MediaItem>>,
-    /// Dashboard Continue Watching rows; index = card index.
+    /// Dashboard Continue Watching rows (filtered by `cw_filter`); index = card index.
     rows: Vec<MediaItem>,
+    cw_filter: String,
     posters: HashMap<(SourceKind, String), Image>,
     /// TMDB token state.
     tmdb: Option<AccountStatus>,
+    /// Tautulli status.
+    tautulli_configured: bool,
+    tautulli_url: String,
+    events_password_configured: bool,
+    sports_page: Option<tvdash_core::models::SportsEventsPage>,
+    scoreboard_page: Option<tvdash_core::models::ScoreboardPage>,
+    sports_logos: HashMap<String, Image>,
+    collection_detail: Option<tvdash_core::models::CollectionDetail>,
+    show_detail: Option<tvdash_core::models::ShowDetail>,
+    ambient_starts: usize,
+    next_ep: Option<MediaItem>,
+    last_played: Option<LastPlayed>,
     /// Last weather and when it arrived; the last fetch error, if the latest fetch failed.
     weather: Option<(Weather, DateTime<Utc>)>,
     weather_err: Option<String>,
@@ -84,11 +108,26 @@ pub struct UiState {
     server_summary: Option<ServerSummary>,
     sign_in: HashMap<SourceKind, SignInState>,
     streaming: BTreeMap<String, DateTime<Utc>>,
+    recent: Vec<tvdash_core::config::RecentService>,
     // Library
     search: Option<(String, Vec<MediaItem>)>,
     lib_continue: Vec<MediaItem>,
     lib_recent: Vec<MediaItem>,
     lib_results: Vec<MediaItem>,
+    lib_added_week: Vec<MediaItem>,
+    lib_watch_again: Vec<MediaItem>,
+    lib_browse_all: Vec<MediaItem>,
+    lib_browse: Vec<MediaItem>,
+    lib_finish_season: Vec<tvdash_core::models::FinishSeasonItem>,
+    lib_shelf1_items: Vec<MediaItem>,
+    lib_shelf2_items: Vec<MediaItem>,
+    lib_shelf3_items: Vec<MediaItem>,
+    lib_recently_released: Vec<MediaItem>,
+    lib_focused_key: Option<(SourceKind, String)>,
+    lib_shelves_loading: bool,
+    backdrops: HashMap<(SourceKind, String), Image>,
+    backdrop_hues: HashMap<(SourceKind, String), Hue>,
+    raw_sessions: Vec<tvdash_core::models::Session>,
     selected: Option<MediaItem>,
     // Models
     cards: Rc<VecModel<PosterCardData>>,
@@ -98,9 +137,55 @@ pub struct UiState {
     lib_continue_cards: Rc<VecModel<PosterCardData>>,
     lib_recent_cards: Rc<VecModel<PosterCardData>>,
     lib_result_cards: Rc<VecModel<PosterCardData>>,
+    lib_added_week_cards: Rc<VecModel<PosterCardData>>,
+    lib_watch_again_cards: Rc<VecModel<PosterCardData>>,
+    lib_browse_cards: Rc<VecModel<PosterCardData>>,
     account_rows: Rc<VecModel<AccountRow>>,
     site_rows: Rc<VecModel<SiteRow>>,
     toast_timer: Option<Timer>,
+    sports_alerts: alerts::SportsAlertsUi,
+}
+
+impl UiState {
+    pub(super) fn effective_theme(&self) -> ThemeMode {
+        if self.tv_layout && self.night_active {
+            ThemeMode::Dark
+        } else {
+            self.theme.resolve(self.system_dark)
+        }
+    }
+}
+
+fn now_time(tz: Option<chrono_tz::Tz>) -> chrono::NaiveTime {
+    match tz {
+        Some(tz) => chrono::Utc::now().with_timezone(&tz).time(),
+        None => chrono::Local::now().time(),
+    }
+}
+
+pub fn set_tv_layout(laptop: &LaptopWindow, is_tv: bool) {
+    STATE.with_borrow_mut(|s| {
+        s.tv_layout = is_tv;
+        home::rebuild_rows(s);
+        s.night_active = s.night_display.is_night_now(now_time(s.tz));
+        apply_theme(s, laptop, s.theme);
+    });
+}
+
+pub fn set_night_config(laptop: &LaptopWindow, display: tvdash_core::config::DisplayConfig) {
+    STATE.with_borrow_mut(|s| {
+        s.night_display = display;
+        s.night_active = s.night_display.is_night_now(now_time(s.tz));
+        apply_theme(s, laptop, s.theme);
+    });
+}
+
+/// Set the initial list of last-3 recent streaming services for TV-only v2.
+pub fn set_recent_services(laptop: &LaptopWindow, recent: Vec<tvdash_core::config::RecentService>) {
+    STATE.with_borrow_mut(|s| {
+        s.recent = recent;
+        home::refresh_tiles(s, laptop);
+    });
 }
 
 thread_local! {
@@ -119,19 +204,103 @@ pub struct UiConfig {
     pub units: Units,
     pub theme: ThemeMode,
     pub layout_setting: tvdash_core::LayoutSetting,
+    pub dashboard_ui: tvdash_core::config::DashboardUi,
     pub tv_connected: bool,
     pub sites: Vec<StreamingSite>,
-    pub jellyfin_url: String,
 }
 
 /// Call once on the UI thread before the event loop starts.
+#[derive(Clone)]
+pub enum LastPlayed {
+    Media(MediaItem),
+    Site(usize),
+}
+
+pub fn set_last_played_site(laptop: &LaptopWindow, site_index: usize) {
+    STATE.with_borrow_mut(|s| {
+        s.last_played = Some(LastPlayed::Site(site_index));
+        home::refresh_last_played(s, laptop);
+    });
+}
+
+pub fn last_played() -> Option<LastPlayed> {
+    STATE.with_borrow(|s| {
+        s.last_played.clone().or_else(|| {
+            s.rows.first().cloned().map(LastPlayed::Media).or_else(|| {
+                s.recent.first().and_then(|r| {
+                    s.sites
+                        .iter()
+                        .position(|site| !site.hidden && crate::brand::service_id(&site.name) == r.id)
+                        .map(LastPlayed::Site)
+                })
+            })
+        })
+    })
+}
+
+pub(crate) fn take_next_ep() -> Option<MediaItem> {
+    STATE.with_borrow_mut(|s| s.next_ep.take())
+}
+
+pub(crate) fn clear_next_ep() {
+    STATE.with_borrow_mut(|s| s.next_ep = None);
+}
+
+fn parse_changelog(md: &str) -> Vec<crate::ChangelogEntry> {
+    let mut entries = Vec::new();
+    let mut cur: Option<(String, String, Vec<String>)> = None;
+    for raw in md.lines() {
+        let line = raw.trim();
+        if let Some(rest) = line.strip_prefix("## ") {
+            if let Some((version, date, lines)) = cur.take() {
+                entries.push(crate::ChangelogEntry {
+                    version: version.into(),
+                    date: date.into(),
+                    notes: lines.join("\n").into(),
+                });
+            }
+            let (version, date) = rest
+                .split_once(" — ")
+                .or_else(|| rest.split_once(" - "))
+                .map_or((rest, ""), |(v, d)| (v.trim(), d.trim()));
+            cur = Some((version.to_string(), date.to_string(), Vec::new()));
+        } else if let Some((_, _, ref mut lines)) = cur
+            && !line.is_empty()
+        {
+            let text = line.strip_prefix("- ").map_or_else(|| line.to_string(), |s| format!("• {s}"));
+            lines.push(text);
+        }
+    }
+    if let Some((version, date, lines)) = cur {
+        entries.push(crate::ChangelogEntry {
+            version: version.into(),
+            date: date.into(),
+            notes: lines.join("\n").into(),
+        });
+    }
+    entries
+}
+
 pub fn init(laptop: &LaptopWindow, c: UiConfig) {
     STATE.with_borrow_mut(|s| {
         s.tz = c.tz;
         s.clock = Some(c.clock);
         s.units = Some(c.units);
+        s.system_dark = true;
+        s.cw_filter = "tv".into();
         s.sites = c.sites;
         let dash = laptop.global::<Dash>();
+        dash.set_version(env!("CARGO_PKG_VERSION").into());
+        dash.set_changelog(ModelRc::new(VecModel::from(parse_changelog(include_str!(
+            "../../../../CHANGELOG.md"
+        )))));
+        if let Some(url) = crate::remote::lan_url() {
+            if let Some(qr) = crate::remote::qr_image(&url) {
+                dash.set_remote_qr(qr);
+                dash.set_remote_has_qr(true);
+            }
+            dash.set_remote_url(url.into());
+        }
         dash.set_tv_connected(c.tv_connected);
         dash.set_continue_watching(ModelRc::from(s.cards.clone()));
         dash.set_prompts(ModelRc::from(s.prompts.clone()));
@@ -141,12 +310,15 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         lib.set_continue_watching(ModelRc::from(s.lib_continue_cards.clone()));
         lib.set_recently_added(ModelRc::from(s.lib_recent_cards.clone()));
         lib.set_results(ModelRc::from(s.lib_result_cards.clone()));
+        lib.set_added_week(ModelRc::from(s.lib_added_week_cards.clone()));
+        lib.set_watch_again(ModelRc::from(s.lib_watch_again_cards.clone()));
+        lib.set_browse_items(ModelRc::from(s.lib_browse_cards.clone()));
         let acc = laptop.global::<Accounts>();
         acc.set_accounts(ModelRc::from(s.account_rows.clone()));
         acc.set_sites(ModelRc::from(s.site_rows.clone()));
-        laptop.global::<Setup>().set_jellyfin_url(c.jellyfin_url.as_str().into());
         let d = laptop.global::<Display>();
         d.set_layout_setting(c.layout_setting.as_str().into());
+        d.set_dashboard_ui(c.dashboard_ui.as_str().into());
         d.set_celsius(c.units == Units::Celsius);
         d.set_h12(c.clock == ClockFormat::H12);
         d.set_seconds(c.seconds);
@@ -181,13 +353,25 @@ pub fn set_display(laptop: &LaptopWindow, units: Units, clock: ClockFormat, seco
     });
 }
 
-/// Once a minute: ages ("updated 25 min ago"), end times.
+/// Once a minute: ages ("updated 25 min ago"), end times, screensaver burn-in drift.
 pub fn on_minute(laptop: &LaptopWindow, _tv: &TvWindow) {
-    STATE.with_borrow(|s| {
+    STATE.with_borrow_mut(|s| {
+        let night = s.night_display.is_night_now(now_time(s.tz));
+        if night != s.night_active {
+            s.night_active = night;
+            apply_theme(s, laptop, s.theme);
+        }
         status::refresh_weather(s, laptop);
         status::refresh_diagnostics(s, laptop);
         home::refresh_tv_card(s, laptop);
     });
+    let min = chrono::Local::now().format("%M").to_string().parse::<i32>().unwrap_or(0);
+    // Gentle deterministic drift (±8 px x, ±6 px y) to prevent burn-in on the screensaver.
+    let dx = ((min * 7) % 17) - 8;
+    let dy = ((min * 5) % 13) - 6;
+    let dash = laptop.global::<Dash>();
+    dash.set_screensaver_dx(dx);
+    dash.set_screensaver_dy(dy);
     crate::tv_nav::tick(laptop);
 }
 
@@ -200,7 +384,10 @@ pub fn set_theme(laptop: &LaptopWindow, mode: ThemeMode) {
 
 fn ui_theme(mode: ThemeMode) -> UiTheme {
     match mode {
-        ThemeMode::Dark => UiTheme::Dark,
+        ThemeMode::Dark | ThemeMode::FollowSystem => UiTheme::Dark,
+        ThemeMode::Aubergine => UiTheme::Aubergine,
+        ThemeMode::Ku => UiTheme::Ku,
+        ThemeMode::KuLight => UiTheme::KuLight,
         ThemeMode::Stone => UiTheme::Stone,
         ThemeMode::Mist => UiTheme::Mist,
     }
@@ -208,6 +395,9 @@ fn ui_theme(mode: ThemeMode) -> UiTheme {
 
 pub fn theme_mode(theme: UiTheme) -> ThemeMode {
     match theme {
+        UiTheme::Aubergine => ThemeMode::Aubergine,
+        UiTheme::Ku => ThemeMode::Ku,
+        UiTheme::KuLight => ThemeMode::KuLight,
         UiTheme::Stone => ThemeMode::Stone,
         UiTheme::Mist => ThemeMode::Mist,
         _ => ThemeMode::Dark,
@@ -216,7 +406,9 @@ pub fn theme_mode(theme: UiTheme) -> ThemeMode {
 
 fn apply_theme(s: &mut UiState, laptop: &LaptopWindow, mode: ThemeMode) {
     s.theme = mode;
-    laptop.global::<Theme>().set_mode(ui_theme(mode));
+    let resolved = s.effective_theme();
+    laptop.global::<Display>().set_follow_system(mode == ThemeMode::FollowSystem);
+    laptop.global::<Theme>().set_mode(ui_theme(resolved));
     home::refresh_tiles(s, laptop);
     home::rebuild_rows(s);
     library::rebuild(s, laptop);
@@ -225,12 +417,26 @@ fn apply_theme(s: &mut UiState, laptop: &LaptopWindow, mode: ThemeMode) {
 
 // ── Events ──────────────────────────────────────────────────────────
 
-pub async fn forward(mut rx: UnboundedReceiver<AppEvent>, laptop: Weak<LaptopWindow>, tv: Weak<TvWindow>) {
+pub async fn forward(
+    mut rx: UnboundedReceiver<AppEvent>,
+    laptop: Weak<LaptopWindow>,
+    tv: Weak<TvWindow>,
+    alert_http_tx: tokio::sync::watch::Sender<Option<crate::home_cmd::AlertHttpState>>,
+    alert_status_tx: tokio::sync::watch::Sender<String>,
+) {
+    {
+        let (l, t) = (laptop.clone(), tv.clone());
+        let _ = slint::invoke_from_event_loop(move || {
+            alerts::set_channels(alert_http_tx, alert_status_tx);
+            alerts::start_timer(l, t);
+        });
+    }
     while let Some(event) = rx.recv().await {
         let (laptop, tv) = (laptop.clone(), tv.clone());
         let delivered = slint::invoke_from_event_loop(move || {
             if let (Some(laptop), Some(tv)) = (laptop.upgrade(), tv.upgrade()) {
                 STATE.with_borrow_mut(|s| apply(s, &laptop, &tv, event));
+                crate::tv_nav::sync(&laptop);
             }
         });
         if delivered.is_err() {
@@ -242,6 +448,7 @@ pub async fn forward(mut rx: UnboundedReceiver<AppEvent>, laptop: Weak<LaptopWin
 #[cfg(test)]
 pub fn apply_for_test(laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent) {
     STATE.with_borrow_mut(|s| apply(s, laptop, tv, event));
+    crate::tv_nav::sync(laptop);
 }
 
 fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent) {
@@ -253,6 +460,11 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             home::update_cw_state(s, laptop);
         }
         AppEvent::Server(kind, url) => {
+            if kind == SourceKind::Jellyfin
+                && let Some(u) = &url
+            {
+                laptop.global::<Setup>().set_jellyfin_url(u.as_str().into());
+            }
             match url {
                 Some(u) => s.servers.insert(kind, u),
                 None => s.servers.remove(&kind),
@@ -266,6 +478,8 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             library::rebuild(s, laptop);
             home::update_cw_state(s, laptop);
             home::refresh_tv_card(s, laptop);
+            home::refresh_last_played(s, laptop);
+            crate::intro::mark_data_ready(laptop);
         }
         AppEvent::RecentlyAdded(kind, items) => {
             s.recently_added.insert(kind, items);
@@ -273,10 +487,38 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         }
         AppEvent::SearchResults { query, items } => library::on_results(s, laptop, query, items),
         AppEvent::Poster { source, item_id, image } => home::on_poster(s, laptop, source, item_id, &image),
-        AppEvent::Player(status) => home::on_player(s, laptop, tv, status),
+        AppEvent::Backdrop { source, item_id, image } => library::on_backdrop(s, laptop, source, item_id, &image),
+        AppEvent::Player(status) => {
+            let is_plex = status.as_ref().is_some_and(|p| p.item.source == SourceKind::Plex);
+            let is_movie = status.as_ref().is_some_and(|p| p.item.kind == tvdash_core::models::MediaKind::Movie);
+            let caption = status.as_ref().map(|p| {
+                let rem_min = p
+                    .duration_ms
+                    .or(p.item.duration_ms)
+                    .map(|d| d.saturating_sub(p.position_ms) / 60_000)
+                    .unwrap_or(0);
+                if let Some(sub) = p.item.subtitle.as_deref().filter(|s| !s.is_empty()) {
+                    format!("{sub} · {rem_min} min left")
+                } else {
+                    format!("{rem_min} min left")
+                }
+            }).unwrap_or_default();
+            for sl in [laptop.global::<SleepState>(), tv.global::<SleepState>()] {
+                sl.set_end_of_item_ok(is_plex);
+                sl.set_is_movie(is_movie);
+                sl.set_item_caption(caption.clone().into());
+            }
+            home::on_player(s, laptop, tv, status);
+        }
         AppEvent::Browser(site) => home::on_browser(s, laptop, tv, site),
-        AppEvent::NowPlaying(sessions) => home::on_sessions(s, sessions),
-        AppEvent::Weather(weather) => status::on_weather(s, laptop, weather),
+        AppEvent::NowPlaying(sessions) => {
+            library::on_sessions(s, laptop, &sessions);
+            home::on_sessions(s, sessions);
+        }
+        AppEvent::Weather(weather) => {
+            status::on_weather(s, laptop, weather);
+            crate::intro::mark_data_ready(laptop);
+        }
         AppEvent::Places { query, result } => status::on_places(s, laptop, &query, result),
         AppEvent::Location { name, timezone } => status::on_location(s, laptop, name, &timezone),
         AppEvent::Tmdb(status) => accounts::on_tmdb(s, laptop, status),
@@ -370,6 +612,120 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::DisplaysChanged => {
             crate::displays::on_displays_changed(laptop);
         }
+        AppEvent::SystemColorScheme(dark) => {
+            if s.system_dark != dark {
+                s.system_dark = dark;
+                if s.theme == ThemeMode::FollowSystem {
+                    apply_theme(s, laptop, ThemeMode::FollowSystem);
+                }
+            }
+        }
+        AppEvent::Tautulli { configured, url } => {
+            s.tautulli_configured = configured;
+            s.tautulli_url = url;
+            accounts::refresh(s, laptop);
+        }
+        AppEvent::LibraryShelves(shelves) => {
+            library::on_shelves(s, laptop, shelves);
+        }
+        AppEvent::ShowDetail(res) => {
+            library::on_show_detail(s, laptop, res);
+        }
+        AppEvent::SeasonEpisodes { season_key, result } => {
+            library::on_season_episodes(s, laptop, &season_key, result);
+        }
+        AppEvent::NextEpisodePrompt(opt) => {
+            s.next_ep = opt.clone();
+            let dash = laptop.global::<Dash>();
+            if let Some(item) = opt {
+                let poster = s.posters.get(&(item.source, item.id.clone()));
+                dash.set_next_ep_title(item.title.as_str().into());
+                dash.set_next_ep_subtitle(crate::format::item_detail(&item).into());
+                dash.set_next_ep_has_poster(poster.is_some());
+                dash.set_next_ep_poster(poster.cloned().unwrap_or_default());
+                dash.set_next_ep_open(true);
+                laptop.global::<crate::TvUi>().set_focused_tile(0);
+            } else {
+                dash.set_next_ep_open(false);
+            }
+        }
+        AppEvent::CollectionDetail(res) => {
+            library::on_collection_detail(s, laptop, res);
+        }
+        AppEvent::SportsEvents(res) => {
+            let sp = laptop.global::<Sports>();
+            sp.set_loading(false);
+            match res {
+                Ok(page) => {
+                    sp.set_error("".into());
+                    s.sports_page = Some(page);
+                    refresh_sports(s, laptop);
+                }
+                Err(msg) => {
+                    sp.set_error(msg.into());
+                }
+            }
+        }
+        AppEvent::SportsLogo { url, image } => {
+            s.sports_logos.insert(url, to_image(&image));
+            if s.sports_page.is_some() {
+                refresh_sports(s, laptop);
+            }
+            if s.scoreboard_page.is_some() {
+                refresh_scoreboard(s, laptop);
+            }
+        }
+        AppEvent::EventsPasswordConfigured(configured) => {
+            s.events_password_configured = configured;
+            accounts::refresh(s, laptop);
+        }
+        AppEvent::Scoreboard(res) => {
+            let sb = laptop.global::<Scoreboard>();
+            sb.set_loading(false);
+            match res {
+                Ok(page) => {
+                    sb.set_error("".into());
+                    s.scoreboard_page = Some(page);
+                    refresh_scoreboard(s, laptop);
+                }
+                Err(_) => {
+                    sb.set_error("Scores are temporarily unavailable. Please retry.".into());
+                }
+            }
+        }
+        AppEvent::Sleep(snap) => {
+            let clock_str = format!("{}:{:02}", (snap.left.max(0)) / 60, (snap.left.max(0)) % 60);
+            let sel = match snap.phase.as_str() {
+                "off" => 7,
+                "end_of_item" => 6,
+                _ => -1,
+            };
+            for sl in [laptop.global::<SleepState>(), tv.global::<SleepState>()] {
+                sl.set_active(snap.active);
+                sl.set_phase(snap.phase.clone().into());
+                sl.set_label(snap.label.clone().into());
+                sl.set_ends_at(snap.ends_at.clone().into());
+                sl.set_left(snap.left as i32);
+                sl.set_warn_total(snap.warn_total as i32);
+                sl.set_warn_clock(clock_str.clone().into());
+                sl.set_episode_finished(snap.episode_finished);
+                sl.set_held(snap.held);
+                sl.set_default_minutes(snap.default_minutes as i32);
+                if sel >= 0 {
+                    sl.set_selected_tile(sel);
+                }
+                if snap.phase == "warn" {
+                    sl.set_warn_focus(0);
+                }
+            }
+        }
+        AppEvent::SportsAlerts(list) => alerts::on_alerts(s, laptop, tv, list),
+        AppEvent::SportsAlertsStatus(st) => {
+            alerts::on_status(s, laptop, st);
+            if s.scoreboard_page.is_some() {
+                refresh_scoreboard(s, laptop);
+            }
+        }
         AppEvent::Sites(sites) => {
             s.sites = sites;
             home::refresh_tiles(s, laptop);
@@ -379,6 +735,10 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             s.streaming = map;
             accounts::refresh(s, laptop);
         }
+        AppEvent::RecentServices(recent) => {
+            s.recent = recent;
+            home::refresh_tiles(s, laptop);
+        }
         AppEvent::ShowSetup => {
             laptop.global::<Setup>().set_step(0);
             laptop.global::<Nav>().set_page("setup".into());
@@ -386,10 +746,177 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::Toast(msg) => show_toast(s, laptop, msg, TOAST_FOR),
         AppEvent::LongToast(msg) => show_toast(s, laptop, msg, LONG_TOAST_FOR),
     }
-    crate::tv_nav::sync(laptop);
     if on_setup(laptop) {
         accounts::refresh_setup(s, laptop);
     }
+}
+
+fn refresh_sports(s: &UiState, laptop: &LaptopWindow) {
+    let Some(page) = &s.sports_page else { return };
+    let sp = laptop.global::<Sports>();
+    let choices: Vec<SportsChoiceData> = page
+        .choices
+        .iter()
+        .map(|c| SportsChoiceData { value: c.value.as_str().into(), label: c.label.as_str().into() })
+        .collect();
+    let label = page
+        .choices
+        .iter()
+        .find(|c| c.value == page.schedule)
+        .map(|c| c.label.as_str())
+        .unwrap_or("All schedules");
+
+    let mut rows = Vec::new();
+    for day in &page.days {
+        rows.push(SportsRowData {
+            kind: "day".into(),
+            header_text: day.date_heading.as_str().into(),
+            ..Default::default()
+        });
+        for lg in &day.leagues {
+            rows.push(SportsRowData {
+                kind: "league".into(),
+                header_text: lg.league.as_str().into(),
+                ..Default::default()
+            });
+            for g in &lg.games {
+                let away_logo = g.away_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
+                let home_logo = g.home_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
+                rows.push(SportsRowData {
+                    kind: "game".into(),
+                    header_text: Default::default(),
+                    sport: g.sport.as_str().into(),
+                    is_neutral: g.is_neutral,
+                    away_name: g.away_name.as_str().into(),
+                    away_label: g.away_label.as_str().into(),
+                    away_has_logo: away_logo.is_some(),
+                    away_logo: away_logo.cloned().unwrap_or_default(),
+                    away_initials: g.away_initials.as_str().into(),
+                    home_name: g.home_name.as_str().into(),
+                    home_label: g.home_label.as_str().into(),
+                    home_has_logo: home_logo.is_some(),
+                    home_logo: home_logo.cloned().unwrap_or_default(),
+                    home_initials: g.home_initials.as_str().into(),
+                    time_text: g.time_text.as_str().into(),
+                    is_tbd: g.is_tbd,
+                    city: g.city.as_str().into(),
+                    venue: g.venue.as_str().into(),
+                    tv: g.tv.as_str().into(),
+                    radio: g.radio.as_str().into(),
+                    stats_url: g.stats_url.as_deref().unwrap_or_default().into(),
+                    stream_url: g.stream_url.as_deref().unwrap_or_default().into(),
+                    audio_url: g.audio_url.as_deref().unwrap_or_default().into(),
+                    details_url: g.details_url.as_deref().unwrap_or_default().into(),
+                });
+            }
+        }
+    }
+
+    sp.set_schedule(page.schedule.as_str().into());
+    sp.set_schedule_label(label.into());
+    sp.set_choices(ModelRc::new(VecModel::from(choices)));
+    sp.set_total_count(page.total_count as i32);
+    sp.set_page(page.page as i32);
+    sp.set_total_pages(page.total_pages as i32);
+    sp.set_last_updated(page.last_updated.as_str().into());
+    sp.set_rows(ModelRc::new(VecModel::from(rows)));
+}
+
+fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
+    let Some(page) = &s.scoreboard_page else { return };
+    let sb = laptop.global::<Scoreboard>();
+    let choices: Vec<ScoreboardChoiceData> = page
+        .choices
+        .iter()
+        .map(|c| ScoreboardChoiceData {
+            value: c.value.as_str().into(),
+            label: c.label.as_str().into(),
+            group: c.group.as_str().into(),
+        })
+        .collect();
+    let show_label = page
+        .choices
+        .iter()
+        .find(|c| c.value == page.show)
+        .map(|c| c.label.as_str())
+        .unwrap_or("All sports");
+
+    let mut rows = Vec::new();
+    let mut next_focus_id = 2i32;
+    for group in &page.groups {
+        rows.push(ScoreboardRowData {
+            kind: "group".into(),
+            focus_id: -1,
+            group_title: group.title.as_str().into(),
+            group_subtitle: group.subtitle.as_str().into(),
+            is_live: group.is_live,
+            ..Default::default()
+        });
+        for g in &group.games {
+            let away_logo = g.away_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
+            let home_logo = g.home_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
+            let away_display = match g.away_rank {
+                Some(r) => format!("#{r} {}", g.away_name),
+                None => g.away_name.clone(),
+            };
+            let home_display = match g.home_rank {
+                Some(r) => format!("#{r} {}", g.home_name),
+                None => g.home_name.clone(),
+            };
+            let is_starred = s
+                .sports_alerts
+                .status
+                .starred
+                .iter()
+                .any(|st| st.event_id == g.event_id);
+            let is_following = s.sports_alerts.status.followed.iter().any(|f| {
+                f.league == g.league && (f.id == g.away_team_id || f.id == g.home_team_id)
+            });
+            let focus_id = next_focus_id;
+            next_focus_id += 1;
+            rows.push(ScoreboardRowData {
+                kind: "game".into(),
+                focus_id,
+                event_id: g.event_id.as_str().into(),
+                is_starred,
+                is_following,
+                league_label: g.league_label.as_str().into(),
+                status: g.status.as_str().into(),
+                header_text: g.header_text.as_str().into(),
+                away_name: away_display.into(),
+                away_score: g.away_score.as_str().into(),
+                away_winner: g.away_winner,
+                away_leading: g.away_leading,
+                away_has_logo: away_logo.is_some(),
+                away_logo: away_logo.cloned().unwrap_or_default(),
+                away_initials: g.away_initials.as_str().into(),
+                home_name: home_display.into(),
+                home_score: g.home_score.as_str().into(),
+                home_winner: g.home_winner,
+                home_leading: g.home_leading,
+                home_has_logo: home_logo.is_some(),
+                home_logo: home_logo.cloned().unwrap_or_default(),
+                home_initials: g.home_initials.as_str().into(),
+                details_text: g.details_text.as_str().into(),
+                warning_text: g.warning_text.as_str().into(),
+                source_url: g.source_url.as_deref().unwrap_or_default().into(),
+                ..Default::default()
+            });
+        }
+    }
+
+    sb.set_day(page.day.as_str().into());
+    sb.set_day_label(page.day_label.as_str().into());
+    sb.set_prev_day(page.prev_day.as_str().into());
+    sb.set_next_day(page.next_day.as_str().into());
+    sb.set_is_today(page.is_today);
+    sb.set_show(page.show.as_str().into());
+    sb.set_show_label(show_label.into());
+    sb.set_final_only(page.final_only);
+    sb.set_choices(ModelRc::new(VecModel::from(choices)));
+    sb.set_coverage_warning(page.coverage_warning.as_str().into());
+    sb.set_empty_message(page.empty_message.as_str().into());
+    sb.set_rows(ModelRc::new(VecModel::from(rows)));
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────

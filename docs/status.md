@@ -1,22 +1,18 @@
 # tvdash: where things stand
 
-Last updated 2026-11-12. A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-21 (v0.1.54). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-1. **Push.** Commits `6f755a2`, `26f728c` and `8d2a071` are local only. Push from VS Code
-   (Source Control › Sync, or `git push` in a VS Code terminal). Claude's shell can't reach
-   VS Code's GitHub login, so it can't push.
-2. **Install on the TV machine.** The release build in `target/release/` is current
-   (`8d2a071`). On the Fedora host, in the project folder:
-   ```bash
-   packaging/install.sh          # warns if mpv-libs (libmpv) is missing: sudo dnf install mpv-libs
-   ```
-   Then Settings › Quit tvdash and start it again from the app menu.
-3. **Check in-window video on the real TV** (TV-only layout). It has only been seen on a
-   virtual display with Mesa's software OpenGL, not on Wayland with a real GPU. See
-   [Things to check](#things-to-check-on-the-tv-machine).
+- **TV-only v2 Tile Hub (`v0.1.54`)** is complete on branch `tv-tile-hub-v2` (ready to push/merge whenever you want).
+- Reference to build/upgrade an RPM on the TV machine:
+  ```bash
+  cargo build --release -j 2
+  ./packaging/rpm.sh
+  cp dist/tvdash-0.1.54-1.x86_64.rpm releases/
+  sudo dnf upgrade ./releases/tvdash-0.1.54-1.x86_64.rpm
+  ```
 
 ## Done
 
@@ -25,28 +21,30 @@ next, and the practical details that aren't obvious from the code.
 | v1 (M1–M6) | Built: Plex + Jellyfin sign-in, Continue Watching, mpv playback with progress sync, streaming sites in Brave, weather, first-run setup, Library |
 | Laptop redesign | Built: two columns, poster tint, Dark / Stone / Mist, touch-first, 5-column service grid with Add service and long-press edit |
 | v1.1 | Built: manage streaming sites, Where to watch (TMDB), service logos, Display settings, stale/error states, Diagnostics, pixel shift, crossfades |
-| Tile logos (2026-11-12) | TMDB logos kept on disk in `~/.local/share/tvdash/logos/`; per-site `logo = "path"` override in `[[streaming]]` |
+| Tile logos | TMDB logos kept on disk in `~/.local/share/tvdash/logos/`; per-site `logo = "path"` override in `[[streaming]]` |
 | TV-only layout, step 1 | Built: side rail, 10-foot screens, arrow/OK/Back navigation, ambient clock, `tvdash --home`, live layout switch |
-| TV-only layout, step 2 (2026-11-12) | Built: Plex/Jellyfin video plays inside the tvdash window through libmpv. Falls back to mpv's own window without libmpv or if drawing fails |
-| Cleanup (2026-11-12) | `bridge.rs` split into `bridge/` (home, library, accounts, status); repeated controller code folded |
+| TV-only layout, step 2 | Built: Plex/Jellyfin video plays inside the tvdash window through libmpv; floating player HUD and live PIP mini-player |
+| Library v0.1.3 | Built: smart shelves, full-width Browse All with A–Z filter, shelf caching |
+| TV-only step 3 (v0.1.4–v0.1.5) | Built: 10-foot Search (6×6 keyboard + physical typing + detail), Library parity (smart shelves, 8-col A–Z Browse All ignoring leading articles + Show detail), scrollable Settings + version number, Audio/Subs/Vol/Prev-Next Episode controls (also Prev/Next Ep on dashboard), Night mode forcing Dark on TV, local HTTP Phone Remote (`:8765`) |
+| Cleanup | `bridge.rs` split into `bridge/` (home, library, accounts, status); repeated controller code folded |
+| TV-only v2 Tile Hub (v0.1.13–v0.1.24) | Complete on branch `tv-tile-hub-v2`: top TabBar, spatial focus (`focus.rs`), page stack (`shell_tv.rs`), proportional 1080p→1440p/4K scaling (`TvUi.u`), Home 2×3 Continue Watching (movies + TV via `/hubs/continueWatching/items`, capped at 6) + Weather tile + Clock/Plex Up Next left tile + Hero poster with play overlay when paused (`v0.1.24`), Services 5×2 brand tiles with scaled SVGs + last-3 recent tracking (`recent.rs`), Back-to-tvdash Brave extension (`extras/back-pill`, `:47800/home`), vertical Library shelves (Finish the Season on TV, Collections on Movies, Browse All A–Z 8-col grid), 3-col vertical Show episodes + Collection panorama, Search 6×6 keyboard, Settings sub-tabs (Display + Phone Remote QR + Weather Location lookup, Accounts, Server, What's new), Player HUD with Subtitles & Audio toggles, Up Next modal (`Play Next` / `Back to Dashboard`), Ambient idle |
+| Blades, Sleep Timer & Themes (v0.1.46–v0.1.52) | Built: **Blades** (`ui/v3/`) dashboard UI with Up Next prompt, Next ep HUD control (both UIs), Accounts actions/editing, Screensaver activation, Browse-all poster fetching & `#`/`A–Z` alignment, Library Continue Watching freshness (`X-Plex-Container-Size=30`, refresh on load, 5 min shelf cache TTL), **Sleep Timer** (`sleep.rs`, picker, chip, warning card, Brave pill overlay, `tvdash --sleep` CLI, `GET/POST /sleep`, `state.json` persistence, `hold_sleep_timer` for Google Meet), and **Espresso** / **Aubergine** / **Kansas** (KU Crimson & Blue) themes |
 
 Decisions made along the way:
 - **Themes:** no "Follow system" option. Keep the three explicit themes (Dark / Stone / Mist).
 - **Favicon fallback for tile logos:** skipped. Without a logo, tiles show the name.
 - **Calendar and homelab:** removed from scope for good (2026-11-11).
 - **Two-screen layout:** keeps using mpv's own window. In-window video is TV-only.
+- **Home Hero when returning from video:** pauses playback and shows the still poster with a play-icon overlay instead of rendering minimized live video (`v0.1.24`).
 
 ## Next
 
 In the order agreed or planned (see [tv-only-plan.md](tv-only-plan.md) and
 [future-plan.md](future-plan.md)):
 
-1. Confirm in-window video on the TV machine (above).
-2. **Search on the TV.** Open question: on-screen keyboard, or typing from the phone remote?
-3. **v3:** phone remote, HDMI-CEC remote, next episode / skip intro, audio, subtitle and volume.
-4. **v2:** night mode (also forces Dark on the TV), alerts strip, severe-weather takeover,
-   headlines, richer "up next".
-5. **v4:** "What should I watch?" (Ollama), watch stats, Home Assistant, cross-service watchlist.
+1. **Optional / Later:** HDMI-CEC remote (`cec-client` listener), skip intro.
+2. **v2:** alerts strip, severe-weather takeover, headlines, richer "up next".
+3. **v4:** "What should I watch?" (Ollama), watch stats, Home Assistant, cross-service watchlist.
 
 ## Things to check on the TV machine
 

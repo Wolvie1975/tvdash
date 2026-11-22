@@ -15,7 +15,7 @@ use tracing::{debug, error, info, warn};
 use tvdash_core::Command;
 use tvdash_player::libmpv::{RenderContext, VideoSlot};
 
-use crate::{LaptopWindow, TvUi};
+use crate::{LaptopWindow, Nav, TvUi, TvWindow};
 
 /// The texture mpv draws into, at the window's size.
 struct Target {
@@ -35,92 +35,122 @@ struct Video {
     failed: Option<u64>,
 }
 
-/// Draw `slot`'s video in `laptop` (the main window). Call once at startup.
-pub fn install(laptop: &LaptopWindow, slot: Arc<VideoSlot>, commands: UnboundedSender<Command>) {
-    let weak = laptop.as_weak();
+/// Draw `slot`'s video in `laptop` (one-screen) or `tv` (two-screen). Call once at startup.
+pub fn install(
+    laptop: &LaptopWindow,
+    tv: Option<&TvWindow>,
+    slot: Arc<VideoSlot>,
+    commands: UnboundedSender<Command>,
+) {
+    let laptop_wake = laptop.as_weak();
+    let tv_wake = tv.map(|t| t.as_weak());
     let wake = move || {
-        let _ = weak.upgrade_in_event_loop(|l| l.window().request_redraw());
+        let _ = laptop_wake.upgrade_in_event_loop(|l| l.window().request_redraw());
+        if let Some(tw) = &tv_wake {
+            let _ = tw.upgrade_in_event_loop(|t| t.window().request_redraw());
+        }
     };
     slot.set_notify(wake.clone());
 
-    let weak = laptop.as_weak();
-    let mut v = Video::default();
-    let installed = laptop.window().set_rendering_notifier(move |state, api| {
-        let Some(laptop) = weak.upgrade() else { return };
+    let weak_l = laptop.as_weak();
+    let slot_l = slot.clone();
+    let wake_l = wake.clone();
+    let cmd_l = commands.clone();
+    let mut v_laptop = Video::default();
+    let installed_l = laptop.window().set_rendering_notifier(move |state, api| {
+        let Some(laptop) = weak_l.upgrade() else { return };
         match (state, api) {
             (RenderingState::BeforeRendering, GraphicsAPI::NativeOpenGL { get_proc_address }) => {
-                v.before_rendering(&laptop, &slot, get_proc_address, &wake, &commands);
+                v_laptop.before_rendering_laptop(&laptop, &slot_l, get_proc_address, &wake_l, &cmd_l);
             }
-            (RenderingState::RenderingTeardown, _) => v.teardown(),
+            (RenderingState::RenderingTeardown, _) => v_laptop.teardown(),
             _ => {}
         }
     });
-    match installed {
-        Ok(()) => debug!("in-window video ready"),
-        Err(e) => warn!(error = ?e, "no rendering notifier; videos play in mpv's own window"),
+    match installed_l {
+        Ok(()) => debug!("in-window video ready (laptop)"),
+        Err(e) => warn!(error = ?e, "no rendering notifier on laptop; videos play in mpv's own window"),
+    }
+
+    let Some(tv) = tv else { return };
+    let weak_l = laptop.as_weak();
+    let weak_t = tv.as_weak();
+    let mut v_tv = Video::default();
+    let installed_t = tv.window().set_rendering_notifier(move |state, api| {
+        let Some(tv) = weak_t.upgrade() else { return };
+        let is_dual = weak_l.upgrade().is_some_and(|l| l.global::<Nav>().get_layout() == "dual");
+        match (state, api) {
+            (RenderingState::BeforeRendering, GraphicsAPI::NativeOpenGL { get_proc_address }) => {
+                v_tv.before_rendering_tv(&tv, is_dual, &slot, get_proc_address, &wake, &commands);
+            }
+            (RenderingState::RenderingTeardown, _) => v_tv.teardown(),
+            _ => {}
+        }
+    });
+    match installed_t {
+        Ok(()) => debug!("in-window video ready (tv)"),
+        Err(e) => warn!(error = ?e, "no rendering notifier on tv; videos play in mpv's own window"),
     }
 }
 
 impl Video {
-    fn before_rendering(
+    fn ensure_gl(&mut self, get_proc_address: &dyn Fn(&std::ffi::CStr) -> *const std::ffi::c_void) -> &glow::Context {
+        self.gl.get_or_insert_with(|| {
+            // SAFETY: the GL context is current during the notifier.
+            unsafe { glow::Context::from_loader_function_cstr(|name| get_proc_address(name)) }
+        })
+    }
+
+    fn sync_slot(
         &mut self,
-        laptop: &LaptopWindow,
+        active: bool,
         slot: &VideoSlot,
         get_proc_address: &dyn Fn(&std::ffi::CStr) -> *const std::ffi::c_void,
         wake: &(impl Fn() + Send + Sync + Clone + 'static),
         commands: &UnboundedSender<Command>,
+        clear_image: impl FnOnce(),
+        on_start: impl FnOnce(),
+        on_stop: impl FnOnce(),
     ) {
-        let gl = self.gl.get_or_insert_with(|| {
-            // SAFETY: the GL context is current during the notifier.
-            unsafe { glow::Context::from_loader_function_cstr(|name| get_proc_address(name)) }
-        });
-        let ui = laptop.global::<TvUi>();
-
-        // Follow the slot: a new playback, or none.
-        let current = slot.current();
+        let current = if active { slot.current() } else { None };
         let current_id = current.as_ref().map(|(id, _)| *id);
-        if self.ctx.as_ref().map(|(id, _)| *id) != current_id {
-            let had = self.ctx.take().is_some(); // frees the render context (UI thread, as required)
-            match current {
-                Some((id, handle)) if self.failed != Some(id) => {
-                    match RenderContext::new(handle, get_proc_address, wake.clone()) {
-                        Ok(ctx) => {
-                            info!("video drawing in the window");
-                            self.ctx = Some((id, ctx));
-                            ui.set_video_on(true);
-                            ui.set_video_full(true);
-                            crate::tv_nav::sync(laptop);
-                        }
-                        Err(e) => {
-                            error!(error = %e, "couldn't draw video in the window");
-                            self.failed = Some(id);
-                            let _ = commands.send(Command::VideoFailed(e.to_string()));
-                        }
-                    }
-                }
-                _ if had => {
-                    ui.set_video_on(false);
-                    ui.set_video_full(false);
-                    ui.set_video(slint::Image::default());
-                    crate::tv_nav::sync(laptop);
-                }
-                _ => {}
+        if self.ctx.as_ref().map(|(id, _)| *id) == current_id {
+            return;
+        }
+        let had = self.ctx.take().is_some(); // frees the render context (UI thread, as required)
+        if had {
+            clear_image();
+            if let Some(gl) = &self.gl {
+                drop_target(gl, &mut self.target);
             }
         }
-        let Some((_, ctx)) = &self.ctx else { return };
-
-        // A texture the size of the window.
-        let size = laptop.window().size();
-        let (w, h) = (size.width.max(1) as i32, size.height.max(1) as i32);
-        let resized = self.target.as_ref().is_none_or(|t| (t.w, t.h) != (w, h));
-        if resized {
-            if let Some(old) = self.target.take() {
-                // SAFETY: GL context current; these objects are ours.
-                unsafe {
-                    gl.delete_framebuffer(old.fbo);
-                    gl.delete_texture(old.texture);
+        match current {
+            Some((id, handle)) if self.failed != Some(id) => {
+                match RenderContext::new(handle, get_proc_address, wake.clone()) {
+                    Ok(ctx) => {
+                        info!("video drawing in the window");
+                        self.ctx = Some((id, ctx));
+                        on_start();
+                    }
+                    Err(e) => {
+                        error!(error = %e, "couldn't draw video in the window");
+                        self.failed = Some(id);
+                        let _ = commands.send(Command::VideoFailed(e.to_string()));
+                    }
                 }
             }
+            _ if had => on_stop(),
+            _ => {}
+        }
+    }
+
+    fn render_frame(&mut self, w: i32, h: i32, set_image: impl FnOnce(slint::Image), clear_image: impl FnOnce()) {
+        let Some((_, ctx)) = &self.ctx else { return };
+        let Some(gl) = &self.gl else { return };
+        let resized = self.target.as_ref().is_none_or(|t| (t.w, t.h) != (w, h));
+        if resized {
+            clear_image();
+            drop_target(gl, &mut self.target);
             // SAFETY: GL context current.
             match unsafe { create_target(gl, w, h) } {
                 Ok(t) => {
@@ -132,7 +162,7 @@ impl Video {
                     .origin(BorrowedOpenGLTextureOrigin::TopLeft)
                     .build();
                     self.target = Some(t);
-                    ui.set_video(image);
+                    set_image(image);
                 }
                 Err(e) => {
                     error!(error = %e, "couldn't create the video texture");
@@ -178,17 +208,100 @@ impl Video {
         }
     }
 
+    fn before_rendering_laptop(
+        &mut self,
+        laptop: &LaptopWindow,
+        slot: &VideoSlot,
+        get_proc_address: &dyn Fn(&std::ffi::CStr) -> *const std::ffi::c_void,
+        wake: &(impl Fn() + Send + Sync + Clone + 'static),
+        commands: &UnboundedSender<Command>,
+    ) {
+        self.ensure_gl(get_proc_address);
+        let ui = laptop.global::<TvUi>();
+        let is_tv = laptop.global::<Nav>().get_layout() == "tv";
+        self.sync_slot(
+            is_tv,
+            slot,
+            get_proc_address,
+            wake,
+            commands,
+            || ui.set_video(slint::Image::default()),
+            || {
+                ui.set_video_on(true);
+                ui.set_video_full(true);
+                crate::tv_nav::sync(laptop);
+            },
+            || {
+                ui.set_video_on(false);
+                ui.set_video_full(false);
+                ui.set_video(slint::Image::default());
+                crate::tv_nav::sync(laptop);
+            },
+        );
+        if self.ctx.is_none() || !ui.get_video_full() {
+            return;
+        }
+        let size = laptop.window().size();
+        self.render_frame(
+            size.width.max(1) as i32,
+            size.height.max(1) as i32,
+            |img| ui.set_video(img),
+            || ui.set_video(slint::Image::default()),
+        );
+    }
+
+    fn before_rendering_tv(
+        &mut self,
+        tv: &TvWindow,
+        is_dual: bool,
+        slot: &VideoSlot,
+        get_proc_address: &dyn Fn(&std::ffi::CStr) -> *const std::ffi::c_void,
+        wake: &(impl Fn() + Send + Sync + Clone + 'static),
+        commands: &UnboundedSender<Command>,
+    ) {
+        self.ensure_gl(get_proc_address);
+        self.sync_slot(
+            is_dual,
+            slot,
+            get_proc_address,
+            wake,
+            commands,
+            || tv.set_video(slint::Image::default()),
+            || tv.set_video_on(true),
+            || {
+                tv.set_video_on(false);
+                tv.set_video(slint::Image::default());
+            },
+        );
+        if self.ctx.is_none() {
+            return;
+        }
+        let size = tv.window().size();
+        self.render_frame(
+            size.width.max(1) as i32,
+            size.height.max(1) as i32,
+            |img| tv.set_video(img),
+            || tv.set_video(slint::Image::default()),
+        );
+    }
+
     /// The GL context is going away: free everything that lives in it.
     fn teardown(&mut self) {
         self.ctx = None;
-        if let (Some(gl), Some(t)) = (&self.gl, self.target.take()) {
-            // SAFETY: still current during teardown.
-            unsafe {
-                gl.delete_framebuffer(t.fbo);
-                gl.delete_texture(t.texture);
-            }
+        if let Some(gl) = &self.gl {
+            drop_target(gl, &mut self.target);
         }
         self.gl = None;
+    }
+}
+
+fn drop_target(gl: &glow::Context, target: &mut Option<Target>) {
+    if let Some(old) = target.take() {
+        // SAFETY: GL context current; these objects are ours.
+        unsafe {
+            gl.delete_framebuffer(old.fbo);
+            gl.delete_texture(old.texture);
+        }
     }
 }
 

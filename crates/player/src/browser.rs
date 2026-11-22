@@ -79,6 +79,16 @@ pub struct BrowserOptions {
     pub fullscreen: bool,
 }
 
+fn back_pill_extension_dir() -> Option<PathBuf> {
+    for candidate in ["/usr/share/tvdash/back-pill", "extras/back-pill"] {
+        let dir = Path::new(candidate);
+        if dir.join("manifest.json").is_file() {
+            return std::fs::canonicalize(dir).ok().or_else(|| Some(dir.to_path_buf()));
+        }
+    }
+    None
+}
+
 pub fn build_args(opts: &BrowserOptions, url: &str) -> Vec<String> {
     let profile = opts.profile_dir.display();
     match BrowserKind::detect(&opts.binary) {
@@ -92,6 +102,9 @@ pub fn build_args(opts: &BrowserOptions, url: &str) -> Vec<String> {
                 "--autoplay-policy=no-user-gesture-required".into(),
                 "--class=tvdash-browser".into(),
             ];
+            if let Some(ext_dir) = back_pill_extension_dir() {
+                a.push(format!("--load-extension={}", ext_dir.display()));
+            }
             if opts.fullscreen {
                 a.push("--start-fullscreen".into());
             }
@@ -195,10 +208,11 @@ impl Browser {
         self.started.elapsed() < Duration::from_secs(3)
     }
 
-    /// SIGTERM the whole group, then SIGKILL if it hasn't gone within 5 s.
+    /// SIGTERM the main browser process so it flushes cookies and sign-ins,
+    /// then SIGKILL the process group if anything hasn't exited within 5 s.
     pub async fn close(mut self) {
         self.detached = true;
-        self.signal(libc::SIGTERM);
+        self.signal_main(libc::SIGTERM);
         if let Some(mut child) = self.child.take() {
             match tokio::time::timeout(Duration::from_secs(5), child.wait()).await {
                 Ok(_) => info!(site = %self.site, "browser closed"),
@@ -222,6 +236,16 @@ impl Browser {
         self.signal(libc::SIGKILL);
     }
 
+    fn signal_main(&self, sig: i32) {
+        if let Some(pid) = self.pgid {
+            // SAFETY: plain syscall; targets only the main browser process so
+            // it can flush cookies/storage before tearing down its helpers.
+            unsafe {
+                libc::kill(pid, sig);
+            }
+        }
+    }
+
     fn signal(&self, sig: i32) {
         if let Some(pgid) = self.pgid {
             // SAFETY: plain syscall; a negative pid targets the process group we created.
@@ -235,7 +259,7 @@ impl Browser {
 impl Drop for Browser {
     fn drop(&mut self) {
         if !self.detached {
-            self.signal(libc::SIGTERM);
+            self.signal_main(libc::SIGTERM);
         }
     }
 }

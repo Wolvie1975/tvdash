@@ -1,0 +1,211 @@
+// Concept 2 · Action card for Sports Alerts (Starting soon / Final).
+// Shown bottom-right over Home, video HUD, and ambient screensaver.
+
+import { Theme } from "../theme.slint";
+import { Display, SportsAlertSide, SportsAlertState, TvUi } from "../state.slint";
+import { V3Theme } from "../v3/theme.slint";
+
+component TeamRow inherits HorizontalLayout {
+    in property <SportsAlertSide> side;
+    in property <bool> is-final: false;
+
+    spacing: 14px * TvUi.u;
+    alignment: stretch;
+
+    // 44px team badge (logo or initials on team colour, radius 12)
+    Rectangle {
+        width: 44px * TvUi.u;
+        height: 44px * TvUi.u;
+        border-radius: 12px * TvUi.u;
+        background: root.side.has-logo ? #FFFFFF14 : root.side.color;
+        clip: true;
+
+        if root.side.has-logo: Image {
+            source: root.side.logo;
+            width: 36px * TvUi.u;
+            height: 36px * TvUi.u;
+            image-fit: contain;
+        }
+        if !root.side.has-logo: Text {
+            text: root.side.initials;
+            color: #FFFFFF;
+            font-size: 15px * TvUi.u;
+            font-weight: 900;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    Text {
+        text: root.side.name;
+        color: root.side.muted ? #A3ABB6 : #E8EAED;
+        font-size: 24px * TvUi.u;
+        font-weight: root.side.winner ? 900 : (root.side.muted ? 700 : 800);
+        vertical-alignment: center;
+        horizontal-stretch: 1;
+        overflow: elide;
+    }
+
+    Text {
+        text: root.side.right;
+        color: root.side.muted ? #A3ABB6 : #E8EAED;
+        font-size: root.is-final ? 30px * TvUi.u : 17px * TvUi.u;
+        font-weight: root.is-final ? (root.side.winner ? 900 : 700) : 800;
+        vertical-alignment: center;
+    }
+}
+
+export component SportsAlertCard inherits Rectangle {
+    in property <bool> hud-visible: false;
+
+    visible: SportsAlertState.visible;
+    width: 560px * TvUi.u;
+    height: card-col.preferred-height + 44px * TvUi.u;
+    border-radius: 26px * TvUi.u;
+    background: Display.dashboard-ui == "blades" ? #1C2026 : Theme.surface-raised;
+    border-width: 1px;
+    border-color: Display.dashboard-ui == "blades" ? #2A303A : Theme.border;
+    drop-shadow-blur: 50px;
+    drop-shadow-offset-y: 20px;
+    drop-shadow-color: #00000080;
+
+    // Slide in from right 24px + fade (180ms ease-out)
+    opacity: SportsAlertState.visible ? 1.0 : 0.0;
+    animate opacity { duration: 180ms; easing: ease-out; }
+
+    property <bool> has-primary: SportsAlertState.primary != "";
+    property <color> accent-c: Display.dashboard-ui == "blades" ? V3Theme.accent : Theme.accent;
+    property <color> on-accent-c: Display.dashboard-ui == "blades" ? V3Theme.on-accent : #0B0D10;
+
+    card-col := VerticalLayout {
+        padding-top: 22px * TvUi.u;
+        padding-bottom: 22px * TvUi.u;
+        padding-left: 24px * TvUi.u;
+        padding-right: 24px * TvUi.u;
+        spacing: 14px * TvUi.u;
+
+        // Row 1: Kicker + Reason chip
+        HorizontalLayout {
+            spacing: 12px * TvUi.u;
+            alignment: space-between;
+
+            Text {
+                text: SportsAlertState.kicker;
+                color: SportsAlertState.kicker-final ? #A3ABB6 : root.accent-c;
+                font-size: 16px * TvUi.u;
+                font-weight: 900;
+                letter-spacing: 2px;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+
+            Rectangle {
+                height: 28px * TvUi.u;
+                width: why-txt.preferred-width + 20px * TvUi.u;
+                border-radius: 9px * TvUi.u;
+                background: root.accent-c.with-alpha(0.16);
+
+                why-txt := Text {
+                    text: SportsAlertState.why;
+                    color: root.accent-c;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 900;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // Rows 2-3: Away team, then Home team
+        TeamRow {
+            side: SportsAlertState.away;
+            is-final: SportsAlertState.kicker-final;
+        }
+
+        TeamRow {
+            side: SportsAlertState.home;
+            is-final: SportsAlertState.kicker-final;
+        }
+
+        // Row 4: Meta above a 1px divider
+        if SportsAlertState.meta != "": VerticalLayout {
+            spacing: 10px * TvUi.u;
+
+            Text {
+                text: SportsAlertState.meta;
+                color: #A3ABB6;
+                font-size: 17px * TvUi.u;
+                font-weight: 700;
+                overflow: elide;
+            }
+
+            Rectangle {
+                height: 1px;
+                background: #2A303A;
+            }
+        }
+
+        // Row 5: Primary + Dismiss + Closes in N s
+        HorizontalLayout {
+            spacing: 12px * TvUi.u;
+            alignment: stretch;
+
+            if root.has-primary: Rectangle {
+                height: 56px * TvUi.u;
+                width: pri-txt.preferred-width + 44px * TvUi.u;
+                border-radius: 28px * TvUi.u;
+                background: pri-ta.has-hover ? root.accent-c.brighter(0.15) : root.accent-c;
+                border-width: SportsAlertState.focus == 0 ? 4px : 0px;
+                border-color: #FFFFFF;
+
+                pri-txt := Text {
+                    text: SportsAlertState.primary;
+                    color: root.on-accent-c;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 900;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                pri-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { SportsAlertState.primary-clicked(); }
+                }
+            }
+
+            Rectangle {
+                height: 56px * TvUi.u;
+                width: dis-txt.preferred-width + 40px * TvUi.u;
+                border-radius: 28px * TvUi.u;
+                background: dis-ta.has-hover ? #333A44 : #252A31;
+                border-width: (!root.has-primary || SportsAlertState.focus == 1) ? 4px : 0px;
+                border-color: root.accent-c;
+
+                dis-txt := Text {
+                    text: "Dismiss";
+                    color: #E8EAED;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 800;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                dis-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { SportsAlertState.dismiss-clicked(); }
+                }
+            }
+
+            Text {
+                text: "Closes in " + SportsAlertState.closes-in + " s";
+                color: #A3ABB6;
+                font-size: 16px * TvUi.u;
+                font-weight: 800;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+        }
+    }
+}

@@ -154,6 +154,7 @@ fn rebuild(laptop: &LaptopWindow) {
         w.set_none(group(WatchTier::NotStreaming));
         w.set_checking(group(WatchTier::Checking));
     });
+    crate::tv_nav::sync(laptop);
 }
 
 /// What the detail panel offers for a hit, best first.
@@ -202,6 +203,7 @@ pub fn select(laptop: &LaptopWindow, key_: &str) {
     w.set_detail_actions(ModelRc::from(Rc::new(VecModel::from(actions(&h)))));
     w.set_selected(key_.into());
     w.set_detail_open(true);
+    crate::tv_nav::sync(laptop);
 }
 
 #[cfg(test)]
@@ -254,6 +256,8 @@ mod tests {
             duration_ms: None,
             resume_ms: Some(5),
             poster: None,
+            summary: None,
+            extra: Default::default(),
         });
         assert_eq!(line(&lib), "In Plex");
         let a = actions(&lib);

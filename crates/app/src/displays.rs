@@ -21,7 +21,7 @@ use tvdash_core::{
     models::Geometry,
 };
 
-use crate::{Accounts, LaptopWindow, Library, SiteEditor, TvWindow, Watch};
+use crate::{Accounts, LaptopWindow, SiteEditor, TvWindow, Watch};
 
 const DEBOUNCE: Duration = Duration::from_secs(3);
 const POLL_FALLBACK: Duration = Duration::from_secs(5);
@@ -68,9 +68,10 @@ pub fn remember(
     }));
 }
 
-/// Query GNOME Mutter for currently active logical monitor connector names.
+/// Query GNOME Mutter for currently active logical monitor connector names
+/// and each active monitor's current pixel height.
 /// Returns `None` if Mutter D-Bus isn't available (e.g. non-GNOME session).
-pub async fn active_outputs_dbus() -> Option<Vec<String>> {
+pub async fn startup_display_state_dbus() -> Option<(Vec<String>, std::collections::HashMap<String, i32>)> {
     let conn = zbus::Connection::session().await.ok()?;
     let reply = conn
         .call_method(
@@ -90,22 +91,38 @@ pub async fn active_outputs_dbus() -> Option<Vec<String>> {
     type Monitor = (MonitorId, Vec<Mode>, std::collections::HashMap<String, zbus::zvariant::OwnedValue>);
     type LogicalMonitor = (i32, i32, f64, u32, bool, Vec<MonitorId>, std::collections::HashMap<String, zbus::zvariant::OwnedValue>);
 
-    let (_, _, logical_monitors, _): (
+    let (_, monitors, logical_monitors, _): (
         u32,
         Vec<Monitor>,
         Vec<LogicalMonitor>,
         std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
     ) = reply.body().deserialize().ok()?;
 
+    let mut heights = std::collections::HashMap::new();
+    for ((connector, _, _, _), modes, _) in monitors {
+        for (_, _, height, _, _, _, props) in modes {
+            let is_current = props.get("is-current").and_then(|v| bool::try_from(v).ok()).unwrap_or(false);
+            if is_current {
+                heights.insert(connector.clone(), height);
+                break;
+            }
+        }
+    }
+
     let mut connectors = Vec::new();
-    for (_, _, _, _, _, monitors, _) in logical_monitors {
-        for (connector, _, _, _) in monitors {
+    for (_, _, _, _, _, logical_mons, _) in logical_monitors {
+        for (connector, _, _, _) in logical_mons {
             if !connectors.contains(&connector) {
                 connectors.push(connector);
             }
         }
     }
-    Some(connectors)
+    Some((connectors, heights))
+}
+
+/// Query GNOME Mutter for currently active logical monitor connector names.
+pub async fn active_outputs_dbus() -> Option<Vec<String>> {
+    startup_display_state_dbus().await.map(|(connectors, _)| connectors)
 }
 
 #[zbus::proxy(
@@ -169,8 +186,7 @@ pub fn on_displays_changed(laptop: &LaptopWindow) {
 }
 
 fn has_unsaved_or_search(laptop: &LaptopWindow) -> bool {
-    !laptop.global::<Library>().get_query().is_empty()
-        || !laptop.global::<Watch>().get_query().is_empty()
+    !laptop.global::<Watch>().get_query().is_empty()
         || laptop.global::<SiteEditor>().get_open()
         || !laptop.global::<Accounts>().get_editing().is_empty()
 }
@@ -209,7 +225,7 @@ fn recheck_displays(laptop: &LaptopWindow, force_eval: bool) {
             );
             let _ = s.events.send(AppEvent::TvConnected(decision.tv_connected));
 
-            let target = s.cli_override.unwrap_or(decision.layout);
+            let target = s.cli_override.unwrap_or(Layout::Tv);
             let current = crate::tv_nav::current(&laptop);
             if target == current {
                 s.defer_started = None;
@@ -288,7 +304,6 @@ pub fn switch_layout(laptop: &LaptopWindow, layout: Layout) {
                     laptop.window().set_size(slint::LogicalSize::new(1920.0, 1080.0));
                 }
                 spawn_placement(laptop, "tv", s.display.tv_output.clone(), s.fullscreen, Some(s.commands.clone()));
-                crate::tv_nav::go_home(laptop);
             }
             Layout::Dual => {
                 if let Err(e) = s.tv.show() {
@@ -301,6 +316,8 @@ pub fn switch_layout(laptop: &LaptopWindow, layout: Layout) {
             }
         }
         let _ = s.commands.send(Command::SetLayout(layout));
+        laptop.window().request_redraw();
+        s.tv.window().request_redraw();
     });
 }
 
@@ -391,6 +408,9 @@ fn spawn_placement<C: ComponentHandle + 'static>(
             let g = geometry(m);
             info!(?g, "TV output geometry");
             let _ = tx.send(Command::TvGeometry(g));
+            if let Some(name) = m.name() {
+                let _ = tx.send(Command::TvOutput(name));
+            }
         }
 
         if !fullscreen {

@@ -2,8 +2,9 @@
 //!
 //! The UI only ever sees [`MediaItem`] / [`Session`]; `source` drives the badge.
 
-pub mod jellyfin; // M2
-pub mod plex; // M3
+pub mod jellyfin;
+pub mod plex;
+pub mod tautulli;
 
 use thiserror::Error;
 pub use tvdash_core::models::{MediaItem, PlayState, Session, SourceKind};
@@ -58,6 +59,9 @@ pub trait MediaSource: Send + Sync {
     async fn recently_added(&self, limit: u32) -> Result<Vec<MediaItem>>;
     async fn search(&self, query: &str) -> Result<Vec<MediaItem>>;
     async fn poster(&self, item: &MediaItem, max_h: u32) -> Result<Vec<u8>>;
+    async fn backdrop(&self, _item: &MediaItem, _w: u32, _h: u32) -> Result<Vec<u8>> {
+        Err(MediaError::NotFound)
+    }
     async fn stream_url(&self, item: &MediaItem) -> Result<String>;
     async fn report_progress(&self, item: &MediaItem, pos_ms: u64, state: PlayState) -> Result<()>;
     /// Every movie and show with its TMDB ID (for Where to watch's library matches).

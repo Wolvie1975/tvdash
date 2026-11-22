@@ -1,0 +1,101 @@
+import { Theme } from "../theme.slint";
+import { TvUi } from "../state.slint";
+
+export component TabBar inherits HorizontalLayout {
+    in property <[string]> tabs: ["Home", "Library", "Collections", "Sports", "Settings"];
+    in property <int> active: 0;
+    in property <bool> bar-focused: false;
+    callback tab-clicked(int);
+
+    spacing: 56px * TvUi.u;
+    alignment: start;
+
+    for t[i] in tabs: Rectangle {
+        width: label.preferred-width;
+        height: label.preferred-height + 10px * TvUi.u;
+        background: transparent;
+
+        label := Text {
+            x: 0;
+            y: 0;
+            text: t;
+            font-size: 54px * TvUi.u;
+            font-weight: i == root.active ? 400 : 300;
+            color: i == root.active ? Theme.text-primary : #5E646D;
+        }
+
+        // Underline only while the bar itself has focus.
+        Rectangle {
+            x: 0;
+            y: label.height + 6px * TvUi.u;
+            width: parent.width;
+            height: 4px * TvUi.u;
+            visible: root.bar-focused && i == root.active;
+            background: Theme.text-primary;
+        }
+
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.tab-clicked(i); }
+        }
+    }
+}
+
+export component SubTabs inherits HorizontalLayout {
+    in property <[string]> labels;
+    in property <int> active: 0;
+    in property <bool> focused: false;
+    in property <int> focused-index: -1;
+    callback selected(int);
+
+    spacing: 36px * TvUi.u;
+    alignment: start;
+
+    for lbl[i] in labels: Rectangle {
+        width: sub-txt.preferred-width;
+        height: sub-txt.preferred-height + 8px * TvUi.u;
+        background: transparent;
+
+        sub-txt := Text {
+            x: 0;
+            y: 0;
+            text: lbl;
+            font-size: 30px * TvUi.u;
+            font-weight: (i == root.active || (root.focused && i == root.focused-index)) ? 500 : 300;
+            color: (i == root.active || (root.focused && i == root.focused-index)) ? Theme.text-primary : Theme.text-muted;
+        }
+
+        Rectangle {
+            x: 0;
+            y: sub-txt.height + 4px * TvUi.u;
+            width: parent.width;
+            height: 3px * TvUi.u;
+            visible: i == root.active || (root.focused && i == root.focused-index);
+            background: (root.focused && (root.focused-index < 0 || i == root.focused-index)) ? Theme.text-primary : Theme.text-secondary;
+        }
+
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.selected(i); }
+        }
+    }
+}
+
+export component HintBar inherits Rectangle {
+    in property <string> text;
+    width: hint-label.preferred-width + 36px * TvUi.u;
+    height: 44px * TvUi.u;
+    border-radius: 22px * TvUi.u;
+    background: #0B0D10C7;
+    border-width: 1px;
+    border-color: #2A2F37E6;
+
+    hint-label := Text {
+        text: root.text;
+        font-size: 20px * TvUi.u;
+        font-weight: 400;
+        color: Theme.text-secondary;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}

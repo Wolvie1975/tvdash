@@ -1,0 +1,183 @@
+// Blades UI (v3) — Collection Detail panel.
+
+import { Icon } from "../icons.slint";
+import { CollectionPageState, TvUi } from "../state.slint";
+import { V3Theme } from "theme.slint";
+
+export component V3Collection inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+
+    // Left column: Title + pills + summary + Play all (tile 0)
+    VerticalLayout {
+        x: 40px * TvUi.u;
+        y: 104px * TvUi.u;
+        width: 340px * TvUi.u;
+        spacing: 14px * TvUi.u;
+        alignment: start;
+
+        Text {
+            text: CollectionPageState.title;
+            font-family: V3Theme.font;
+            font-size: 40px * TvUi.u;
+            font-weight: 700;
+            color: V3Theme.text-primary;
+            wrap: word-wrap;
+        }
+
+        Text {
+            text: CollectionPageState.meta + (CollectionPageState.progress-text != "" ? " · " + CollectionPageState.progress-text : "");
+            font-family: V3Theme.font;
+            font-size: 15px * TvUi.u;
+            font-weight: 600;
+            color: V3Theme.text-secondary;
+            wrap: word-wrap;
+        }
+
+        if CollectionPageState.summary != "": Text {
+            text: CollectionPageState.summary;
+            font-family: V3Theme.font;
+            font-size: 16px * TvUi.u;
+            color: V3Theme.text-secondary;
+            wrap: word-wrap;
+            max-height: 180px * TvUi.u;
+            overflow: elide;
+        }
+
+        // 0: Play all / Up next
+        Rectangle {
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 0;
+            width: pa-row.preferred-width + 40px * TvUi.u;
+            height: 48px * TvUi.u;
+            border-radius: 24px * TvUi.u;
+            background: V3Theme.accent;
+            border-width: self.is-foc ? 4px : 0px;
+            border-color: V3Theme.text-primary;
+
+            pa-row := HorizontalLayout {
+                x: 20px * TvUi.u;
+                height: parent.height;
+                spacing: 8px * TvUi.u;
+                Icon {
+                    name: "play";
+                    size: 16px * TvUi.u;
+                    tint: V3Theme.on-accent;
+                    y: (parent.height - self.height) / 2;
+                }
+                Text {
+                    text: CollectionPageState.up-next-label != "" ? CollectionPageState.up-next-label : "Play all";
+                    font-family: V3Theme.font;
+                    font-size: 17px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.on-accent;
+                    vertical-alignment: center;
+                }
+            }
+
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { TvUi.tile-activated(0); }
+            }
+        }
+    }
+
+    // Right column: 3-column movie grid (tiles 1..N)
+    Rectangle {
+        x: 410px * TvUi.u;
+        y: 100px * TvUi.u;
+        width: parent.width - 450px * TvUi.u;
+        height: parent.height - 116px * TvUi.u;
+        clip: true;
+        background: transparent;
+
+        TouchArea {
+            scroll-event(event) => {
+                TvUi.scroll-panorama(event.delta-y);
+                accept
+            }
+        }
+
+        Rectangle {
+            x: 0;
+            y: -TvUi.col-scroll * TvUi.u;
+            width: parent.width;
+            height: (Math.ceil(CollectionPageState.items.length / 3) * 264px + 40px) * TvUi.u;
+            background: transparent;
+            animate y { duration: 150ms; easing: ease-out; }
+
+            for item[i] in CollectionPageState.items: Rectangle {
+                property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 1 + i;
+                x: Math.mod(i, 3) * 366px * TvUi.u;
+                y: Math.floor(i / 3) * 260px * TvUi.u;
+                width: 348px * TvUi.u;
+                height: 244px * TvUi.u;
+                background: transparent;
+
+                Rectangle {
+                    x: 0;
+                    y: 0;
+                    width: 348px * TvUi.u;
+                    height: 190px * TvUi.u;
+                    border-radius: 14px * TvUi.u;
+                    clip: true;
+                    background: V3Theme.surface;
+                    border-width: parent.is-foc ? 4px : 1px;
+                    border-color: parent.is-foc ? V3Theme.focus-ring : V3Theme.border;
+
+                    if item.has-poster: Image {
+                        source: item.poster;
+                        width: 100%;
+                        height: 100%;
+                        image-fit: cover;
+                    }
+
+                    if item.watched: Rectangle {
+                        x: parent.width - 34px * TvUi.u;
+                        y: 10px * TvUi.u;
+                        width: 24px * TvUi.u;
+                        height: 24px * TvUi.u;
+                        border-radius: 12px * TvUi.u;
+                        background: #FFFFFFEE;
+                        Icon {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            name: "check";
+                            size: 14px * TvUi.u;
+                            tint: #0B0D10;
+                        }
+                    }
+                }
+
+                Text {
+                    x: 2px * TvUi.u;
+                    y: 198px * TvUi.u;
+                    width: parent.width - 4px * TvUi.u;
+                    text: item.title;
+                    font-family: V3Theme.font;
+                    font-size: 16px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-primary;
+                    overflow: elide;
+                }
+
+                if item.status != "": Text {
+                    x: 2px * TvUi.u;
+                    y: 220px * TvUi.u;
+                    width: parent.width - 4px * TvUi.u;
+                    text: item.status;
+                    font-family: V3Theme.font;
+                    font-size: 14px * TvUi.u;
+                    color: V3Theme.text-secondary;
+                    overflow: elide;
+                }
+
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { TvUi.tile-activated(1 + i); }
+                    changed has-hover => { if self.has-hover { TvUi.tile-hovered(1 + i); } }
+                }
+            }
+        }
+    }
+}

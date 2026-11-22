@@ -1,0 +1,69 @@
+// Blades (v3) startup intro: centered Wordmark + hold line.
+
+import { TvUi } from "../state.slint";
+import { Intro, IntroStage, Wordmark } from "../shared/intro.slint";
+import { V3Theme } from "theme.slint";
+
+export component BladesIntro inherits Rectangle {
+    background: V3Theme.bg;
+
+    property <bool> leaving: Intro.revealing;
+    property <bool> word-on: Intro.stage != IntroStage.idle;
+    opacity: leaving ? 0.0 : 1.0;
+
+    animate opacity {
+        duration: Intro.instant ? 0ms : 400ms;
+        easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { Intro.skip(); }
+    }
+
+    Wordmark {
+        x: (parent.width - self.preferred-width) / 2;
+        y: (parent.height - self.preferred-height) / 2;
+        ink: V3Theme.text-primary;
+        accent: V3Theme.accent;
+        opacity: word-on ? 1.0 : 0.0;
+
+        animate opacity {
+            duration: Intro.instant ? 0ms : 700ms;
+            delay: Intro.instant ? 0ms : 100ms;
+            easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+    }
+
+    // Hold: thin progress line after 1.5 s of waiting
+    Rectangle {
+        y: parent.height / 2 + 120px * TvUi.u;
+        x: (parent.width - 240px * TvUi.u) / 2;
+        width: 240px * TvUi.u;
+        height: 4px * TvUi.u;
+        border-radius: 2px * TvUi.u;
+        background: V3Theme.border;
+        clip: true;
+        opacity: Intro.stage == IntroStage.hold ? 1.0 : 0.0;
+        animate opacity {
+            duration: Intro.instant ? 0ms : 300ms;
+            delay: Intro.instant ? 0ms : 1500ms;
+        }
+
+        property <bool> sweep: false;
+        Timer {
+            interval: 1200ms;
+            running: Intro.stage == IntroStage.hold;
+            triggered => { parent.sweep = !parent.sweep; }
+        }
+        Rectangle {
+            x: parent.sweep ? (parent.width - self.width) : 0px;
+            width: 60px * TvUi.u;
+            height: parent.height;
+            border-radius: 2px * TvUi.u;
+            background: V3Theme.accent;
+            animate x { duration: 1200ms; easing: ease-in-out; }
+        }
+    }
+}

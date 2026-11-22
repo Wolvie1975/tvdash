@@ -1,0 +1,187 @@
+import { Theme } from "../theme.slint";
+import { Dash, SleepState, TvUi } from "../state.slint";
+import { IconTile } from "tile.slint";
+
+export component TvPlayerHud inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+
+    // Auto-hide after 3.5 s
+    Timer {
+        interval: 3.5s;
+        running: TvUi.hud-open;
+        triggered => { TvUi.hud-open = false; }
+    }
+
+    // Bottom scrim panel (centered 1920 x 1080 design units)
+    Rectangle {
+        x: (parent.width - 1728px * TvUi.u) / 2;
+        y: parent.height - 320px * TvUi.u;
+        width: 1728px * TvUi.u;
+        height: 266px * TvUi.u;
+        border-radius: 6px;
+        background: #0B0D10E0;
+        border-width: 1px;
+        border-color: Theme.border;
+
+        // Title & ends-at
+        Text {
+            x: 32px * TvUi.u;
+            y: 24px * TvUi.u;
+            width: 1100px * TvUi.u;
+            text: Dash.tv.title;
+            font-size: 36px * TvUi.u;
+            font-weight: 500;
+            color: #E8EAED;
+            overflow: elide;
+        }
+
+        Text {
+            x: 32px * TvUi.u;
+            y: 72px * TvUi.u;
+            width: 1100px * TvUi.u;
+            text: Dash.tv.subtitle + (Dash.tv-ends-at != "" ? " · Ends at " + Dash.tv-ends-at : "");
+            font-size: 22px * TvUi.u;
+            color: #A0A6AF;
+            overflow: elide;
+        }
+
+        // Progress bar
+        Rectangle {
+            x: 32px * TvUi.u;
+            y: 114px * TvUi.u;
+            width: 1664px * TvUi.u;
+            height: 6px * TvUi.u;
+            border-radius: 3px;
+            background: #FFFFFF26;
+
+            Rectangle {
+                x: 0px;
+                y: 0px;
+                width: parent.width * clamp(Dash.tv.progress, 0.0, 1.0);
+                height: 100%;
+                border-radius: 3px;
+                background: #E8EAED;
+            }
+        }
+
+        // 7 control tiles (0..6): -10s, Play/Pause, +30s, Stop, Home, Subtitles, Audio
+        IconTile {
+            x: 32px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 120px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "back";
+            label: "-10s";
+            focused: TvUi.focused-tile == 0;
+            activated => { Dash.transport("back"); }
+            hovered => { TvUi.focused-tile = 0; }
+        }
+
+        IconTile {
+            x: 168px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 140px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: Dash.tv.mode == "paused" ? "play" : "pause";
+            label: Dash.tv.mode == "paused" ? "Play" : "Pause";
+            focused: TvUi.focused-tile == 1;
+            activated => { Dash.transport("play-pause"); }
+            hovered => { TvUi.focused-tile = 1; }
+        }
+
+        IconTile {
+            x: 324px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 120px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "forward";
+            label: "+30s";
+            focused: TvUi.focused-tile == 2;
+            activated => { Dash.transport("forward"); }
+            hovered => { TvUi.focused-tile = 2; }
+        }
+
+        IconTile {
+            x: 460px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 120px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "stop";
+            label: "Stop";
+            focused: TvUi.focused-tile == 3;
+            activated => { Dash.transport("stop"); TvUi.hud-open = false; TvUi.video-full = false; }
+            hovered => { TvUi.focused-tile = 3; }
+        }
+
+        IconTile {
+            x: 596px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 140px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "tv";
+            label: "Home";
+            focused: TvUi.focused-tile == 4;
+            activated => { TvUi.hud-open = false; TvUi.video-full = false; }
+            hovered => { TvUi.focused-tile = 4; }
+        }
+
+        IconTile {
+            x: 752px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 156px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "sub";
+            label: "Subtitles";
+            focused: TvUi.focused-tile == 5;
+            activated => { Dash.transport("sub"); }
+            hovered => { TvUi.focused-tile = 5; }
+        }
+
+        IconTile {
+            x: 924px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 140px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "audio";
+            label: "Audio";
+            focused: TvUi.focused-tile == 6;
+            activated => { Dash.transport("audio"); }
+            hovered => { TvUi.focused-tile = 6; }
+        }
+
+        IconTile {
+            x: 1080px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 140px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "moon";
+            label: SleepState.active ? SleepState.label : "Sleep";
+            focused: TvUi.focused-tile == 7;
+            activated => { SleepState.open-picker(); }
+            hovered => { TvUi.focused-tile = 7; }
+        }
+
+        IconTile {
+            x: 1236px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 140px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "forward";
+            label: "Next ep";
+            focused: TvUi.focused-tile == 8;
+            activated => { Dash.transport("next-ep"); }
+            hovered => { TvUi.focused-tile = 8; }
+        }
+    }
+}

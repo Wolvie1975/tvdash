@@ -32,6 +32,20 @@ pub enum PlayState {
     Stopped,
 }
 
+/// Extended metadata for Library Option C (backdrop, genres, cast, counts).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MediaExtra {
+    pub art: Option<String>,
+    pub year: Option<u32>,
+    pub genres: Vec<String>,
+    pub cast: Vec<String>,
+    pub content_rating: Option<String>,
+    pub added_at: Option<i64>,
+    pub leaf_count: Option<u32>,
+    pub viewed_leaf_count: Option<u32>,
+    pub child_count: Option<u32>,
+}
+
 /// One playable (or browsable) item from a media server.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MediaItem {
@@ -48,6 +62,12 @@ pub struct MediaItem {
     pub resume_ms: Option<u64>,
     /// Server-relative poster path / tag; resolved by the source.
     pub poster: Option<String>,
+    /// Plot / episode description from the media server.
+    #[serde(default)]
+    pub summary: Option<String>,
+    /// Extended metadata (backdrop, genres, cast, rating, counts).
+    #[serde(default)]
+    pub extra: MediaExtra,
 }
 
 impl MediaItem {
@@ -226,8 +246,281 @@ pub struct WatchHit {
     pub services: Vec<(usize, String)>,
     /// Other offers, e.g. "Rent · Apple TV", "Max (not one of yours)".
     pub elsewhere: Vec<String>,
-    /// The matching Plex/Jellyfin item.
+    /// The matching Plex item.
     pub library: Option<MediaItem>,
     /// TMDB's watch page for the title.
     pub link: Option<String>,
+}
+
+/// Sort order for Library C shelves and Browse all.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LibrarySort {
+    #[default]
+    RecentlyAdded,
+    TitleAsc,
+    TitleDesc,
+}
+
+impl LibrarySort {
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "title_asc" | "titleSort" => Self::TitleAsc,
+            "title_desc" | "titleSort:desc" => Self::TitleDesc,
+            _ => Self::RecentlyAdded,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::RecentlyAdded => "recent",
+            Self::TitleAsc => "title_asc",
+            Self::TitleDesc => "title_desc",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::RecentlyAdded => "Recently added",
+            Self::TitleAsc => "A–Z",
+            Self::TitleDesc => "Z–A",
+        }
+    }
+
+    pub fn plex_sort(self) -> &'static str {
+        match self {
+            Self::RecentlyAdded => "addedAt:desc",
+            Self::TitleAsc => "titleSort",
+            Self::TitleDesc => "titleSort:desc",
+        }
+    }
+}
+
+/// A season on a TV Show page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SeasonInfo {
+    pub rating_key: String,
+    pub index: u32,
+    pub title: String,
+    pub leaf_count: u32,
+    pub viewed_leaf_count: u32,
+    pub thumb: Option<String>,
+    #[serde(default)]
+    pub summary: Option<String>,
+    #[serde(default)]
+    pub year: Option<u32>,
+}
+
+/// An episode row on a TV Show page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EpisodeInfo {
+    pub rating_key: String,
+    pub index: u32,
+    pub season_index: u32,
+    pub title: String,
+    pub summary: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub view_offset_ms: Option<u64>,
+    pub view_count: u32,
+    pub thumb: Option<String>,
+    #[serde(default)]
+    pub originally_available_at: Option<String>,
+}
+
+/// Full data for the Show page.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShowDetail {
+    pub item: MediaItem,
+    pub seasons: Vec<SeasonInfo>,
+    pub up_next_season_key: Option<String>,
+    pub up_next_episode: Option<EpisodeInfo>,
+}
+
+/// A movie collection card or header.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CollectionInfo {
+    pub rating_key: String,
+    pub title: String,
+    pub child_count: u32,
+    pub watched_count: u32,
+    pub smart: bool,
+    pub thumb: Option<String>,
+    pub summary: Option<String>,
+    pub min_year: Option<i32>,
+    pub max_year: Option<i32>,
+    pub total_duration_ms: u64,
+}
+
+/// Full data for a Collection page.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollectionDetail {
+    pub collection: CollectionInfo,
+    pub items: Vec<MediaItem>,
+    pub watched_keys: Vec<String>,
+    pub up_next_key: Option<String>,
+}
+
+/// A genre tile with item count (Library C bottom row on TV).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GenreTile {
+    pub key: String,
+    pub title: String,
+    pub count: u32,
+}
+
+/// An entry in Popular on Republic City (from Tautulli `get_home_stats`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PopularItem {
+    pub rank: u32,
+    pub rating_key: String,
+    pub title: String,
+    pub plays: u32,
+    pub thumb: Option<String>,
+}
+
+/// A "Finish a season" entry (TV big box in Library C).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FinishSeasonItem {
+    pub item: MediaItem,
+    pub season_title: String,
+    pub total_episodes: u32,
+    pub watched_episodes: u32,
+}
+
+/// Data loaded for the Library C smart-shelves view.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct LibraryShelves {
+    pub is_tv: bool,
+    pub finish_season: Vec<FinishSeasonItem>,
+    pub continue_watching: Vec<MediaItem>,
+    pub added_this_week: Vec<MediaItem>,
+    #[serde(default)]
+    pub recently_released: Vec<MediaItem>,
+    pub watch_again: Vec<MediaItem>,
+    pub browse_items: Vec<MediaItem>,
+    pub popular: Vec<PopularItem>,
+    pub genres: Vec<GenreTile>,
+    pub collections: Vec<CollectionInfo>,
+}
+
+/// One schedule filter choice (`"{provider}|{sport}"` or `""` for All schedules).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScheduleChoice {
+    pub value: String,
+    pub label: String,
+}
+
+/// A rendered sports game row (already grouped and formatted for display).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsGame {
+    pub id: i32,
+    pub sport: String,
+    pub is_neutral: bool,
+    pub away_name: String,
+    pub away_label: String,
+    pub away_logo_url: Option<String>,
+    pub away_initials: String,
+    pub home_name: String,
+    pub home_label: String,
+    pub home_logo_url: Option<String>,
+    pub home_initials: String,
+    pub time_text: String,
+    pub is_tbd: bool,
+    pub city: String,
+    pub venue: String,
+    pub tv: String,
+    pub radio: String,
+    pub stats_url: Option<String>,
+    pub stream_url: Option<String>,
+    pub audio_url: Option<String>,
+    pub details_url: Option<String>,
+}
+
+/// One league section inside a day.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsLeagueGroup {
+    pub league: String,
+    pub games: Vec<SportsGame>,
+}
+
+/// One calendar day section.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsDayGroup {
+    pub date_heading: String,
+    pub leagues: Vec<SportsLeagueGroup>,
+}
+
+/// Full payload for the Sports / Competitions tab.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SportsEventsPage {
+    pub schedule: String,
+    pub choices: Vec<ScheduleChoice>,
+    pub total_count: u32,
+    pub page: u32,
+    pub total_pages: u32,
+    pub last_updated: String,
+    pub days: Vec<SportsDayGroup>,
+}
+
+/// One Show dropdown option on the Scoreboard.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScoreboardChoice {
+    pub value: String,
+    pub label: String,
+    pub group: String, // "" | "Leagues" | "Conferences" | "Teams"
+}
+
+/// One formatted Scoreboard game card.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScoreboardGame {
+    pub key: String,
+    pub event_id: String,
+    pub league: String,
+    pub away_team_id: String,
+    pub home_team_id: String,
+    pub league_label: String,
+    pub status: String, // "live" | "delayed" | "suspended" | "upcoming" | "final" | ...
+    pub header_text: String,
+    pub away_name: String,
+    pub away_rank: Option<u8>,
+    pub away_score: String,
+    pub away_winner: bool,
+    pub away_leading: bool,
+    pub away_logo_url: Option<String>,
+    pub away_initials: String,
+    pub home_name: String,
+    pub home_rank: Option<u8>,
+    pub home_score: String,
+    pub home_winner: bool,
+    pub home_leading: bool,
+    pub home_logo_url: Option<String>,
+    pub home_initials: String,
+    pub details_text: String,
+    pub warning_text: String,
+    pub source_url: Option<String>,
+}
+
+/// One status section on the Scoreboard (Live, Upcoming, Final, or Top 25 Week).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScoreboardGroup {
+    pub title: String,
+    pub subtitle: String,
+    pub is_live: bool,
+    pub games: Vec<ScoreboardGame>,
+}
+
+/// Full payload for the Sports → Scoreboard tab.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScoreboardPage {
+    pub day: String,
+    pub day_label: String,
+    pub prev_day: String,
+    pub next_day: String,
+    pub is_today: bool,
+    pub show: String,
+    pub final_only: bool,
+    pub choices: Vec<ScoreboardChoice>,
+    pub coverage_warning: String,
+    pub empty_message: String,
+    pub groups: Vec<ScoreboardGroup>,
 }

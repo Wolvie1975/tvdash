@@ -1,0 +1,63 @@
+// Shared startup intro state, Wordmark, and IntroRise wrapper.
+
+import { TvUi } from "../state.slint";
+
+export enum IntroStage { idle, logo, hold, reveal, done }
+
+export global Intro {
+    in-out property <IntroStage> stage: IntroStage.done;
+    // true = every intro animation takes 0 ms (setup & intro = off).
+    in-out property <bool> instant: true;
+    in-out property <bool> enabled: true;
+    out property <bool> revealing: stage == IntroStage.reveal || stage == IntroStage.done;
+
+    callback set-enabled(bool);
+    callback preview();
+    callback skip();
+}
+
+// "tv" + accent "dash". Two Text runs, so no rich text is needed.
+export component Wordmark inherits HorizontalLayout {
+    in property <color> ink;
+    in property <color> accent;
+    in property <length> size: 144px * TvUi.u;
+    spacing: 0px;
+
+    Text {
+        text: "tv";
+        color: root.ink;
+        font-size: root.size;
+        font-weight: 500;
+        letter-spacing: -2px * TvUi.u;
+    }
+    Text {
+        text: "dash";
+        color: root.accent;
+        font-size: root.size;
+        font-weight: 500;
+        letter-spacing: -2px * TvUi.u;
+    }
+}
+
+// Fades in and rises 24 px. Neutral (fully shown) unless the intro is running.
+export component IntroRise inherits Rectangle {
+    in property <duration> delay: 0ms;
+    property <bool> shown: Intro.revealing;
+
+    opacity: shown ? 1.0 : 0.0;
+    property <length> dy: shown ? 0px : 24px * TvUi.u;
+
+    animate opacity, dy {
+        duration: Intro.instant ? 0ms : 500ms;
+        delay: Intro.instant ? 0ms : root.delay;
+        easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    Rectangle {
+        y: root.dy;
+        width: root.width;
+        height: root.height;
+        background: transparent;
+        @children
+    }
+}
