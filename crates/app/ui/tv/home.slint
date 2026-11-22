@@ -360,11 +360,11 @@ export component TvHome inherits Rectangle {
         }
     }
 
-    // 7: Sleep tile (356 x 230)
+    // 7: Sleep tile (240 x 230, below Screensaver)
     IconTile {
-        x: 694px * TvUi.u;
+        x: 1066px * TvUi.u;
         y: 742px * TvUi.u;
-        base-width: 356px * TvUi.u;
+        base-width: 240px * TvUi.u;
         base-height: 230px * TvUi.u;
         fill: Dash.tint.card;
         icon: "moon";
@@ -374,11 +374,11 @@ export component TvHome inherits Rectangle {
         hovered => { TvUi.tile-hovered(7); }
     }
 
-    // 8: Theme tile (240 x 230, below Screensaver)
+    // 8: Theme tile (356 x 230)
     ValueTile {
-        x: 1066px * TvUi.u;
+        x: 694px * TvUi.u;
         y: 742px * TvUi.u;
-        base-width: 240px * TvUi.u;
+        base-width: 356px * TvUi.u;
         base-height: 230px * TvUi.u;
         fill: Dash.tint.poster;
         label: "Theme";

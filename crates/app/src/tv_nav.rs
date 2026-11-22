@@ -257,21 +257,21 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             let mut rects = vec![
                 Rect { x: ox + 40.0, y: oy + 96.0, w: 900.0, h: 470.0 },  // 0: Hero
                 Rect { x: ox + 40.0, y: oy + 96.0, w: 900.0, h: 470.0 },  // 1: Hero
-                Rect { x: ox + 978.0, y: oy + 492.0, w: 572.0, h: 50.0 }, // 2: Search
-                Rect { x: ox + 978.0, y: oy + 545.0, w: 572.0, h: 50.0 }, // 3: Library
-                Rect { x: ox + 978.0, y: oy + 598.0, w: 572.0, h: 50.0 }, // 4: Screensaver
+                Rect { x: ox + 978.0, y: oy + 492.0, w: 572.0, h: 60.0 }, // 2: Search
+                Rect { x: ox + 978.0, y: oy + 555.0, w: 572.0, h: 60.0 }, // 3: Library
+                Rect { x: ox + 978.0, y: oy + 618.0, w: 572.0, h: 60.0 }, // 4: Screensaver
                 Rect { x: ox + 968.0, y: oy + 96.0, w: 592.0, h: 204.0 }, // 5: Clock/Weather
                 Rect { x: ox + 968.0, y: oy + 318.0, w: 592.0, h: 146.0 }, // 6: Last Played
-                Rect { x: ox + 978.0, y: oy + 704.0, w: 572.0, h: 50.0 }, // 7: Google Meet
-                Rect { x: ox + 978.0, y: oy + 757.0, w: 572.0, h: 50.0 }, // 8: Theme
-                Rect { x: ox + 978.0, y: oy + 651.0, w: 572.0, h: 50.0 }, // 9: Sleep timer
+                Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 },          // 7: unused (moved to Streaming)
+                Rect { x: ox + 978.0, y: oy + 744.0, w: 572.0, h: 60.0 }, // 8: Theme
+                Rect { x: ox + 978.0, y: oy + 681.0, w: 572.0, h: 60.0 }, // 9: Sleep timer
             ];
-            let n = laptop.global::<TvUi>().get_services().row_count().min(10);
+            let n = laptop.global::<TvUi>().get_services().row_count().min(12);
             for i in 0..n {
                 rects.push(Rect {
-                    x: ox + 40.0 + (i % 5) as f32 * 182.0,
-                    y: oy + 626.0 + (i / 5) as f32 * 102.0,
-                    w: 170.0,
+                    x: ox + 40.0 + (i % 6) as f32 * 152.0,
+                    y: oy + 626.0 + (i / 6) as f32 * 102.0,
+                    w: 138.0,
                     h: 88.0,
                 });
             }
@@ -571,7 +571,7 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
     match page {
         Page::Home => {
             // 0..=4: Clock, Hero, Search, Library, Screensaver
-            // 5: Weather (210 x 230), 6: Last Played (356 x 230), 7: Sleep (356 x 230), 8: Theme (240 x 230)
+            // 5: Weather (210 x 230), 6: Last Played (356 x 230), 7: Sleep (240 x 230), 8: Theme (356 x 230)
             // 10..21: 2x6 Streaming Services grid (235 x 119)
             let mut rects = vec![
                 Rect { x: 96.0, y: 136.0, w: 210.0, h: 590.0 },   // 0: Clock + Plex info
@@ -581,8 +581,8 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 Rect { x: 1066.0, y: 540.0, w: 240.0, h: 186.0 }, // 4: Screensaver
                 Rect { x: 96.0, y: 742.0, w: 210.0, h: 230.0 },   // 5: Weather
                 Rect { x: 322.0, y: 742.0, w: 356.0, h: 230.0 },  // 6: Last Played
-                Rect { x: 694.0, y: 742.0, w: 356.0, h: 230.0 },  // 7: Sleep
-                Rect { x: 1066.0, y: 742.0, w: 240.0, h: 230.0 }, // 8: Theme
+                Rect { x: 1066.0, y: 742.0, w: 240.0, h: 230.0 }, // 7: Sleep
+                Rect { x: 694.0, y: 742.0, w: 356.0, h: 230.0 },  // 8: Theme
                 Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 },  // 9: unused in Classic (Blades Sleep)
             ];
             let svcs_n = tv.get_services().row_count().min(12);

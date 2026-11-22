@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.59 — 2026-11-21
+- Updated **Blades Home** (`v3/home.slint`) to remove Google Meet from the Quick Actions box and expand the **Streaming** grid to **6×2** (`i < 12`) so Crunchyroll and Google Meet appear there.
+- Swapped the **Theme** and **Sleep** tile positions in **Classic Home** (`tv/home.slint`) so `Theme` has the wider `356×230` slot for longer theme names like `"Kansas Dark"` and `"Kansas Light"`.
+- Updated **Google Meet** tile styling (`brand.rs`, `assets/logos/google-meet.svg`) to yellow (`#FBBC04` → `#F9AB00`) with dark ink (`#1F1F1F`).
+
 ## v0.1.58 — 2026-11-21
 - Added red tile styling (`#C8102E` → `#A30B24`) and bundled SVG logo (`assets/logos/google-meet.svg`) for **Google Meet** (`brand.rs`).
 
