@@ -2,10 +2,10 @@
 
 ## 1. Install the RPM
 
-Download `tvdash-0.1.57-1.x86_64.rpm` from this folder, then install it on Fedora (`x86_64`, GNOME Wayland):
+Download `tvdash-0.1.58-1.x86_64.rpm` from this folder, then install it on Fedora (`x86_64`, GNOME Wayland):
 
 ```bash
-sudo dnf install ./tvdash-0.1.57-1.x86_64.rpm
+sudo dnf install ./tvdash-0.1.58-1.x86_64.rpm
 ```
 
 This installs `/usr/bin/tvdash`, the app-menu entry, and pulls in `mpv` and `mpv-libs` automatically.
@@ -52,7 +52,7 @@ sudo dnf install -y brave-browser
     ```
 - **Upgrade later:** Download the newer `.rpm` and run:
   ```bash
-  sudo dnf upgrade ./tvdash-0.1.57-1.x86_64.rpm
+  sudo dnf upgrade ./tvdash-0.1.58-1.x86_64.rpm
   ```
   Your settings (`~/.config/tvdash/`), browser profile (`~/.local/share/tvdash/`), and keyring sign-ins are preserved across upgrades.
 - **Uninstall:**
@@ -60,3 +60,15 @@ sudo dnf install -y brave-browser
   sudo dnf remove tvdash
   ```
   Your settings (`~/.config/tvdash/`) and app data (`~/.local/share/tvdash/`) are kept; delete those directories if you want a full wipe.
+
+
+## 4. Add to config.toml file
+[[streaming]]
+name = "Crunchyroll"
+url = "https://www.crunchyroll.com"
+tmdb_providers = [283]
+
+[[streaming]]
+name = "Google Meet"
+url = "https://meet.google.com"
+hold_sleep_timer = true

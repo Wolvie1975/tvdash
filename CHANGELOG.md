@@ -1,5 +1,8 @@
 # tvdash Changelog
 
+## v0.1.58 — 2026-11-21
+- Added red tile styling (`#C8102E` → `#A30B24`) and bundled SVG logo (`assets/logos/google-meet.svg`) for **Google Meet** (`brand.rs`).
+
 ## v0.1.57 — 2026-11-21
 - Updated **Kansas Light** (`ku-light`) to use **Jayhawk Yellow** (`#FFC82D`) background, Signature Gray panels/cards, **KU Blue** Blades navigation strips, and **Crimson** (`#E8000D`) focus/highlights across both Classic (Top Tabs) and Blades; updated **Kansas Dark** (`ku`) with Signature Gray muted text and Jayhawk Yellow warnings.
 - Centered **Tiles assemble** and **Blade swoosh** startup intro animations and started the intro timer after `laptop.show()` so the full animation plays cleanly.
