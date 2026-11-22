@@ -135,9 +135,58 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
         });
     });
 
-    let s = send.clone();
+    let (weak, s) = (laptop.as_weak(), send.clone());
     scoreboard.on_toggle_star(move |event_id| {
+        if let Some(l) = weak.upgrade() {
+            bridge::optimistic_toggle_star(&l, &event_id);
+        }
         s(Command::ToggleStarGame(event_id.to_string()));
+    });
+
+    let weak = laptop.as_weak();
+    scoreboard.on_prev_day_clicked(move || {
+        if let Some(l) = weak.upgrade() {
+            let sb = l.global::<Scoreboard>();
+            let prev = sb.get_prev_day();
+            if !prev.is_empty() {
+                sb.invoke_load(prev, sb.get_show(), false);
+            }
+        }
+    });
+
+    let weak = laptop.as_weak();
+    scoreboard.on_next_day_clicked(move || {
+        if let Some(l) = weak.upgrade() {
+            let sb = l.global::<Scoreboard>();
+            let next = sb.get_next_day();
+            if !next.is_empty() {
+                sb.invoke_load(next, sb.get_show(), false);
+            }
+        }
+    });
+
+    let weak = laptop.as_weak();
+    scoreboard.on_today_clicked(move || {
+        if let Some(l) = weak.upgrade() {
+            let sb = l.global::<Scoreboard>();
+            sb.invoke_load("".into(), sb.get_show(), false);
+        }
+    });
+
+    let weak = laptop.as_weak();
+    scoreboard.on_set_filter(move |show| {
+        if let Some(l) = weak.upgrade() {
+            let sb = l.global::<Scoreboard>();
+            sb.invoke_load(sb.get_day(), show, false);
+        }
+    });
+
+    let weak = laptop.as_weak();
+    scoreboard.on_refresh(move || {
+        if let Some(l) = weak.upgrade() {
+            let sb = l.global::<Scoreboard>();
+            sb.invoke_load(sb.get_day(), sb.get_show(), false);
+        }
     });
 
     let s = send.clone();

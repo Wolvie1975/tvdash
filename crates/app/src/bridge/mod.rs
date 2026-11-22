@@ -39,6 +39,24 @@ use tvdash_core::{
 
 pub use accounts::sync_setup;
 pub use home::{HeroAction, hero_action, row, set_cw_filter, site_index_by_id, up_next, up_next_item_by_key};
+
+pub fn optimistic_toggle_star(laptop: &LaptopWindow, event_id: &str) {
+    STATE.with_borrow_mut(|s| {
+        let list = &mut s.sports_alerts.status.starred;
+        if let Some(pos) = list.iter().position(|g| g.event_id == event_id) {
+            list.remove(pos);
+        } else {
+            list.push(tvdash_core::events::StarredGameInfo {
+                event_id: event_id.to_owned(),
+                matchup: String::new(),
+                meta: String::new(),
+            });
+        }
+        if s.scoreboard_page.is_some() {
+            refresh_scoreboard(s, laptop);
+        }
+    });
+}
 pub use library::{
     clear_search, close_detail, missing_browse_posters, on_library_focus_changed, reorder_collection, select, selected,
     set_browse_letter, set_filter, set_media_tab, start_search, watching_now_item,
@@ -921,6 +939,104 @@ fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
     sb.set_coverage_warning(page.coverage_warning.as_str().into());
     sb.set_empty_message(page.empty_message.as_str().into());
     sb.set_rows(ModelRc::new(VecModel::from(rows)));
+
+    // Build shared ScoreboardView (§10)
+    let starred_set: std::collections::HashSet<String> = s
+        .sports_alerts
+        .status
+        .starred
+        .iter()
+        .map(|st| st.event_id.clone())
+        .collect();
+    let follows_vec: Vec<(String, String)> = s
+        .sports_alerts
+        .status
+        .followed
+        .iter()
+        .map(|f| (f.league.clone(), f.id.clone()))
+        .collect();
+    let tz = s.tz.unwrap_or(chrono_tz::America::Chicago);
+    let now_local = chrono::Utc::now().with_timezone(&tz);
+    let clock = s.clock.unwrap_or(tvdash_core::config::ClockFormat::H24);
+    let view = crate::scoreboard_view::build_view(page, &starred_set, &follows_vec, &page.show, now_local, clock);
+
+    let mut pill_id = 7i32; // 0..1 tabs, 2..6 controls, 7.. card pills
+    let slint_groups: Vec<crate::ScoreGroup> = view
+        .groups
+        .into_iter()
+        .map(|grp| {
+            let cards: Vec<crate::ScoreCard> = grp
+                .cards
+                .into_iter()
+                .map(|c| {
+                    let star_focus_id = pill_id;
+                    pill_id += 1;
+                    let has_url = c.game_url.as_ref().is_some_and(|u| !u.is_empty());
+                    let game_focus_id = if has_url {
+                        let id = pill_id;
+                        pill_id += 1;
+                        id
+                    } else {
+                        -1
+                    };
+                    let to_side = |side: crate::scoreboard_view::SideView| {
+                        let logo = side.logo_url.as_ref().and_then(|u| s.sports_logos.get(u)).cloned();
+                        let periods: Vec<slint::SharedString> =
+                            side.periods.into_iter().map(Into::into).collect();
+                        crate::ScoreSide {
+                            rank: side.rank.into(),
+                            short: side.short.into(),
+                            full: side.full.into(),
+                            initials: side.initials.into(),
+                            has_logo: logo.is_some(),
+                            logo: logo.unwrap_or_default(),
+                            periods: ModelRc::new(VecModel::from(periods)),
+                            total: side.total.into(),
+                            emphasis: match side.emphasis {
+                                crate::scoreboard_view::Emphasis::Lead => crate::ScoreEmphasis::Lead,
+                                crate::scoreboard_view::Emphasis::Trail => crate::ScoreEmphasis::Trail,
+                                crate::scoreboard_view::Emphasis::Even => crate::ScoreEmphasis::Even,
+                            },
+                        }
+                    };
+                    let p_labels: Vec<slint::SharedString> =
+                        c.period_labels.into_iter().map(Into::into).collect();
+                    crate::ScoreCard {
+                        event_id: c.event_id.into(),
+                        league: c.league.into(),
+                        status: c.status.into(),
+                        tone: match c.tone {
+                            crate::scoreboard_view::StatusTone::Live => crate::ScoreTone::Live,
+                            crate::scoreboard_view::StatusTone::Upcoming => crate::ScoreTone::Upcoming,
+                            crate::scoreboard_view::StatusTone::Final => crate::ScoreTone::Final,
+                            crate::scoreboard_view::StatusTone::Muted => crate::ScoreTone::Muted,
+                        },
+                        period_labels: ModelRc::new(VecModel::from(p_labels)),
+                        away: to_side(c.away),
+                        home: to_side(c.home),
+                        meta: c.meta.into(),
+                        starred: c.starred,
+                        following: c.following,
+                        game_url: c.game_url.unwrap_or_default().into(),
+                        star_focus_id,
+                        game_focus_id,
+                    }
+                })
+                .collect();
+            crate::ScoreGroup {
+                is_live: grp.kind == crate::scoreboard_view::GroupKind::Live,
+                is_postponed: grp.kind == crate::scoreboard_view::GroupKind::Postponed,
+                title: grp.title.into(),
+                count: grp.count.into(),
+                cards: ModelRc::new(VecModel::from(cards)),
+            }
+        })
+        .collect();
+
+    sb.set_date_label(view.date_label.into());
+    sb.set_fresh(view.fresh.into());
+    sb.set_stale(view.stale);
+    sb.set_groups(ModelRc::new(VecModel::from(slint_groups)));
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────

@@ -475,11 +475,35 @@ pub struct ScoreboardChoice {
 pub struct ScoreboardGame {
     pub key: String,
     pub event_id: String,
+    #[serde(default)]
+    pub sport: String,
     pub league: String,
     pub away_team_id: String,
     pub home_team_id: String,
     pub league_label: String,
     pub status: String, // "live" | "delayed" | "suspended" | "upcoming" | "final" | ...
+    #[serde(default)]
+    pub status_text: String,
+    #[serde(default)]
+    pub period: Option<i32>,
+    #[serde(default)]
+    pub display_clock: Option<String>,
+    #[serde(default)]
+    pub starts_at_utc: Option<i64>,
+    #[serde(default)]
+    pub time_tbd: bool,
+    #[serde(default)]
+    pub neutral_site: bool,
+    #[serde(default)]
+    pub venue: String,
+    #[serde(default)]
+    pub broadcasts: String,
+    #[serde(default)]
+    pub last_observed_at_utc: Option<i64>,
+    #[serde(default)]
+    pub away_periods: Vec<String>,
+    #[serde(default)]
+    pub home_periods: Vec<String>,
     pub header_text: String,
     pub away_name: String,
     pub away_rank: Option<u8>,
@@ -522,5 +546,7 @@ pub struct ScoreboardPage {
     pub choices: Vec<ScoreboardChoice>,
     pub coverage_warning: String,
     pub empty_message: String,
+    #[serde(default)]
+    pub max_observed_at_utc: Option<i64>,
     pub groups: Vec<ScoreboardGroup>,
 }

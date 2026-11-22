@@ -15,14 +15,14 @@ Answer each row from the repo, write the answers here, and commit the table with
 
 | # | Question | Answer |
 |---|---|---|
-| S1 | Where Classic gets **period + clock** (`3rd · 3:38`): column, parsed `StatusText`, or something else | _pending_ |
-| S2 | Where Classic gets **ranks** (`#2`) | _pending_ |
-| S3 | Where Classic gets **period scores** ("Away periods: 10 · 7 · 0"): column name and format (string list? JSON?), and whether OT/shootout periods are included | _pending_ |
-| S4 | Whether a **short team name** exists (ESPN `shortDisplayName`/location, e.g. "Utah", "San Diego St"). DB F6 lists only `HomeName`/`AwayName` | _pending_ |
-| S5 | What `StatusText` / period data look like **between periods** (the build shows `2nd · 0:00` for an NHL intermission) and at halftime | _pending_ |
-| S6 | **Why Star doesn't work**: the click/OK handler, whether it reaches `sports-starred.json` (alerts spec §3.3), whether the UI reads the file back | _pending_ |
-| S7 | Where the sport/league **dropdown** options come from, and whether "Top 25" exists | _pending_ |
-| S8 | The shared data path: is there one Rust function feeding both Classic and Blades Scoreboards, or two? | _pending_ |
+| S1 | Where Classic gets **period + clock** (`3rd · 3:38`): column, parsed `StatusText`, or something else | `crates/events/src/scoreboard.rs:90, 728–742` (`format_card`): queries `g.Period` (`Option<i32>`) and `g.DisplayClock` (`Option<String>`), formats `format_period(p) · clock`, fallback `g.StatusText`, else `"Live"`. |
+| S2 | Where Classic gets **ranks** (`#2`) | `crates/events/src/scoreboard.rs:92, 357–358, 833–840`: `dbo.SportsScoreboard` columns `g.HomeRank` and `g.AwayRank` (`Option<u8>`, filtered to `1..=25`). |
+| S3 | Where Classic gets **period scores** ("Away periods: 10 · 7 · 0"): column name and format (string list? JSON?), and whether OT/shootout periods are included | `crates/events/src/scoreboard.rs:679–725` (`parse_live_details`): `g.LiveDetailsJson` (JSON) has `awayPeriods` / `homePeriods` arrays (`displayValue` / `score`), including OT/SO periods in order. |
+| S4 | Whether a **short team name** exists (ESPN `shortDisplayName`/location, e.g. "Utah", "San Diego St"). DB F6 lists only `HomeName`/`AwayName` | **Does not exist** in `dbo.SportsScoreboard` (`HomeName` / `AwayName` only). Per stop condition S4: Blades uses full name with ellipsis. |
+| S5 | What `StatusText` / period data look like **between periods** (the build shows `2nd · 0:00` for an NHL intermission) and at halftime | `g.DisplayClock` is `"0:00"` (or empty) and `g.StatusText` holds break text (`"Halftime"`, `"End of 1st"`, `"1st Intermission"`, etc.); `format_card` checked `DisplayClock` non-empty first, printing `2nd · 0:00`. |
+| S6 | **Why Star doesn't work**: the click/OK handler, whether it reaches `sports-starred.json` (alerts spec §3.3), whether the UI reads the file back | Click/OK calls `Scoreboard.toggle-star` → `Command::ToggleStarGame` → `WatcherMsg::ToggleStar` → `sports-starred.json`. Root causes: (1) `prune_starred` (`sports_watch.rs:423`) runs inside `ToggleStar`'s `fetch_and_eval()` and drops starred games if `now - start > 86_400`; (2) `fetch_and_eval()` returns early when `alerts.enabled == false`; (3) UI only updates when async `SportsAlertsStatus` arrives instead of optimistic/immediate sync, and `tv_nav.rs` focused rows instead of pills. |
+| S7 | Where the sport/league **dropdown** options come from, and whether "Top 25" exists | `crates/events/src/scoreboard.rs:424–485` (`resolve_selection`): `All sports`, `Top 25` (`"top25"` — **exists**), plus leagues/follows from `dbo.SportsCoverage` & `dbo.ResultFollows`. |
+| S8 | The shared data path: is there one Rust function feeding both Classic and Blades Scoreboards, or two? | One function: `bridge::refresh_scoreboard(s, laptop)` (`crates/app/src/bridge/mod.rs:829`) pushes to `Scoreboard` global for both `ui/tv/events.slint` and `ui/v3/events.slint`. |
 
 **Stop conditions**
 

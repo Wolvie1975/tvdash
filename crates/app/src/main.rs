@@ -15,6 +15,7 @@ mod intro;
 mod next_game;
 mod portal;
 mod recent;
+mod scoreboard_view;
 mod shell_tv;
 mod sleep;
 mod sports_alerts;

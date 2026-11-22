@@ -895,11 +895,51 @@ export struct ScoreboardRowData {
     source-url: string,
 }
 
+export enum ScoreTone { live, upcoming, final, muted }
+export enum ScoreEmphasis { lead, trail, even }
+
+export struct ScoreSide {
+    rank: string,
+    short: string,
+    full: string,
+    initials: string,
+    logo: image,
+    has-logo: bool,
+    periods: [string],
+    total: string,
+    emphasis: ScoreEmphasis,
+}
+
+export struct ScoreCard {
+    event-id: string,
+    league: string,
+    status: string,
+    tone: ScoreTone,
+    period-labels: [string],
+    away: ScoreSide,
+    home: ScoreSide,
+    meta: string,
+    starred: bool,
+    following: bool,
+    game-url: string,
+    star-focus-id: int,
+    game-focus-id: int,
+}
+
+export struct ScoreGroup {
+    is-live: bool,
+    is-postponed: bool,
+    title: string,
+    count: string,
+    cards: [ScoreCard],
+}
+
 export global Scoreboard {
     in property <bool> loading: false;
     in property <string> error;
     in property <string> day;
     in property <string> day-label: "Today";
+    in property <string> date-label;
     in property <string> prev-day;
     in property <string> next-day;
     in property <bool> is-today: true;
@@ -909,8 +949,16 @@ export global Scoreboard {
     in property <[ScoreboardChoiceData]> choices;
     in property <string> coverage-warning;
     in property <string> empty-message;
+    in property <string> fresh;
+    in property <bool> stale: false;
     in property <[ScoreboardRowData]> rows;
+    in property <[ScoreGroup]> groups;
     callback load(string, string, bool);
+    callback prev-day-clicked();
+    callback next-day-clicked();
+    callback today-clicked();
+    callback set-filter(string);
+    callback refresh();
     callback open-url(string, string);
     callback toggle-star(string);
 }

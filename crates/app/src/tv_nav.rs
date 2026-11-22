@@ -175,21 +175,37 @@ pub fn go_search(laptop: &LaptopWindow) {
     tv.set_focus_ticket(tv.get_focus_ticket() + 1);
 }
 
-pub fn go_sports_game(laptop: &LaptopWindow, _event_id: &str, date: &str) {
+pub fn go_sports_game(laptop: &LaptopWindow, event_id: &str, date: &str) {
     let tv = laptop.global::<TvUi>();
     tv.set_ambient(false);
     tv.set_video_full(false);
     tv.set_sports_tab("scoreboard".into());
     let sb = laptop.global::<Scoreboard>();
     sb.set_show("all".into());
-    sb.set_show_label("All".into());
+    sb.set_show_label("All sports".into());
     if !date.is_empty() {
         sb.set_day(date.into());
+    }
+    let mut target_tile = 7usize;
+    let groups = sb.get_groups();
+    'find: for gi in 0..groups.row_count() {
+        if let Some(grp) = groups.row_data(gi) {
+            let cards = grp.cards;
+            for ci in 0..cards.row_count() {
+                if let Some(c) = cards.row_data(ci)
+                    && c.event_id == event_id
+                    && c.star_focus_id >= 0
+                {
+                    target_tile = c.star_focus_id as usize;
+                    break 'find;
+                }
+            }
+        }
     }
     STATE.with_borrow_mut(|s| {
         s.shell.bar_focused = false;
         s.shell.switch_tab(Tab::Sports);
-        s.shell.focused_tile = 2; // First Scoreboard game row
+        s.shell.focused_tile = target_tile;
         s.last_key = Instant::now();
     });
     sync(laptop);
@@ -553,16 +569,37 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             ];
             if tv.get_sports_tab() == "scoreboard" {
                 let sb = laptop.global::<Scoreboard>();
-                let rows = sb.get_rows();
+                let offscreen = Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 };
+                rects.push(Rect { x: ox + 44.0, y: oy + 100.0, w: 44.0, h: 44.0 });   // 2: Prev
+                rects.push(Rect { x: ox + 220.0, y: oy + 100.0, w: 44.0, h: 44.0 });  // 3: Next
+                rects.push(if !sb.get_is_today() {
+                    Rect { x: ox + 280.0, y: oy + 96.0, w: 96.0, h: 52.0 }
+                } else {
+                    offscreen
+                }); // 4: Today
+                rects.push(Rect { x: ox + 388.0, y: oy + 96.0, w: 240.0, h: 52.0 }); // 5: Dropdown
+                rects.push(Rect { x: ox + 640.0, y: oy + 96.0, w: 124.0, h: 52.0 }); // 6: Refresh
+
+                let groups = sb.get_groups();
                 let mut y = oy + 170.0;
-                for i in 0..rows.row_count() {
-                    if let Some(r) = rows.row_data(i) {
-                        if r.kind == "group" {
-                            y += 44.0;
-                        } else {
-                            rects.push(Rect { x: ox + 40.0, y, w: 1500.0, h: 126.0 });
-                            y += 136.0;
+                for gi in 0..groups.row_count() {
+                    if let Some(grp) = groups.row_data(gi) {
+                        y += 46.0;
+                        let cards = grp.cards;
+                        let n = cards.row_count();
+                        for ci in 0..n {
+                            if let Some(c) = cards.row_data(ci) {
+                                let col = (ci % 3) as f32;
+                                let row = (ci / 3) as f32;
+                                let cx = ox + 40.0 + col * 490.0;
+                                let cy = y + row * 236.0;
+                                rects.push(Rect { x: cx + 260.0, y: cy + 174.0, w: 92.0, h: 38.0 });
+                                if !c.game_url.is_empty() {
+                                    rects.push(Rect { x: cx + 360.0, y: cy + 174.0, w: 92.0, h: 38.0 });
+                                }
+                            }
                         }
+                        y += n.div_ceil(3) as f32 * 236.0 + 14.0;
                     }
                 }
             }
@@ -772,16 +809,37 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             ];
             if tv.get_sports_tab() == "scoreboard" {
                 let sb = laptop.global::<Scoreboard>();
-                let rows = sb.get_rows();
-                let mut y = 248.0;
-                for i in 0..rows.row_count() {
-                    if let Some(r) = rows.row_data(i) {
-                        if r.kind == "group" {
-                            y += 54.0;
-                        } else {
-                            rects.push(Rect { x: 96.0, y, w: 1728.0, h: 122.0 });
-                            y += 130.0;
+                let offscreen = Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 };
+                rects.push(Rect { x: 96.0, y: 184.0, w: 50.0, h: 50.0 });   // 2: Prev
+                rects.push(Rect { x: 478.0, y: 184.0, w: 50.0, h: 50.0 });  // 3: Next
+                rects.push(if !sb.get_is_today() {
+                    Rect { x: 540.0, y: 184.0, w: 100.0, h: 50.0 }
+                } else {
+                    offscreen
+                }); // 4: Today
+                rects.push(Rect { x: 652.0, y: 184.0, w: 300.0, h: 50.0 }); // 5: Dropdown
+                rects.push(Rect { x: 964.0, y: 184.0, w: 128.0, h: 50.0 }); // 6: Refresh
+
+                let groups = sb.get_groups();
+                let mut y = 252.0;
+                for gi in 0..groups.row_count() {
+                    if let Some(grp) = groups.row_data(gi) {
+                        y += 48.0;
+                        let cards = grp.cards;
+                        let n = cards.row_count();
+                        for ci in 0..n {
+                            if let Some(c) = cards.row_data(ci) {
+                                let col = (ci % 2) as f32;
+                                let row = (ci / 2) as f32;
+                                let cx = 96.0 + col * 872.0;
+                                let cy = y + row * 170.0;
+                                rects.push(Rect { x: cx + 724.0, y: cy + 28.0, w: 112.0, h: 42.0 });
+                                if !c.game_url.is_empty() {
+                                    rects.push(Rect { x: cx + 724.0, y: cy + 78.0, w: 112.0, h: 42.0 });
+                                }
+                            }
                         }
+                        y += n.div_ceil(2) as f32 * 170.0 + 16.0;
                     }
                 }
             }
@@ -1569,17 +1627,51 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 }
             } else if tv.get_sports_tab() == "scoreboard" {
                 let sb = laptop.global::<Scoreboard>();
-                let rows = sb.get_rows();
-                for i in 0..rows.row_count() {
-                    if let Some(r) = rows.row_data(i)
-                        && r.kind == "game"
-                        && r.focus_id == idx as i32
-                    {
-                        if !r.is_following && !r.event_id.is_empty() {
-                            sb.invoke_toggle_star(r.event_id);
+                match idx {
+                    2 => sb.invoke_prev_day_clicked(),
+                    3 => sb.invoke_next_day_clicked(),
+                    4 => sb.invoke_today_clicked(),
+                    5 => {
+                        let choices = sb.get_choices();
+                        let cur = sb.get_show();
+                        let pos = (0..choices.row_count())
+                            .find(|&i| choices.row_data(i).is_some_and(|c| c.value == cur))
+                            .unwrap_or(0);
+                        let next_idx = if choices.row_count() > 0 {
+                            (pos + 1) % choices.row_count()
+                        } else {
+                            0
+                        };
+                        if let Some(ch) = choices.row_data(next_idx) {
+                            sb.invoke_set_filter(ch.value);
                         }
-                        break;
                     }
+                    6 => sb.invoke_refresh(),
+                    other if other >= 7 => {
+                        let groups = sb.get_groups();
+                        'outer: for gi in 0..groups.row_count() {
+                            if let Some(grp) = groups.row_data(gi) {
+                                let cards = grp.cards;
+                                for ci in 0..cards.row_count() {
+                                    if let Some(c) = cards.row_data(ci) {
+                                        if c.star_focus_id == other as i32 {
+                                            if !c.following && !c.event_id.is_empty() {
+                                                sb.invoke_toggle_star(c.event_id);
+                                            }
+                                            break 'outer;
+                                        } else if c.game_focus_id == other as i32 && !c.game_url.is_empty() {
+                                            sb.invoke_open_url(
+                                                format!("{} vs {}", c.away.full, c.home.full).into(),
+                                                c.game_url,
+                                            );
+                                            break 'outer;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
         }

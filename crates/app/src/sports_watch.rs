@@ -230,16 +230,6 @@ impl Watcher {
         let now = Utc::now().timestamp();
         self.prune_starred(now);
 
-        if !self.alerts_cfg.enabled || (self.follows.teams.is_empty() && self.starred.is_empty()) {
-            self.cached_games.clear();
-            self.cached_rows.clear();
-            self.last_fetch_error = None;
-            self.err_streak = 0;
-            self.stale_minutes = None;
-            self.next_fetch_at = now + FETCH_NORMAL_SECS as i64;
-            return;
-        }
-
         let pw = Self::read_password().await;
         if pw.trim().is_empty() {
             self.next_fetch_at = now + FETCH_NORMAL_SECS as i64;
@@ -253,66 +243,75 @@ impl Watcher {
             .map(|t| (t.league.clone(), t.id.clone()))
             .collect();
         let starred_ids: Vec<String> = self.starred.iter().map(|s| s.event_id.clone()).collect();
-
         let now_utc = Utc::now();
-        let from_utc = now_utc - ChronoDuration::hours(12);
-        let lookahead_mins = self.alerts_cfg.soon_minutes as i64 + 30;
-        let to_utc = now_utc + ChronoDuration::minutes(lookahead_mins);
 
-        match fetch_alert_games(&self.events_cfg, &pw, &teams, &starred_ids, from_utc, to_utc).await {
-            Ok(res) => {
-                self.last_fetch_at = Some(now);
-                self.last_fetch_error = None;
-                self.err_streak = 0;
-                self.stale_minutes = res.max_observed_at_utc.and_then(|obs| {
-                    let obs_ts = DateTime::<Utc>::from_naive_utc_and_offset(obs, Utc).timestamp();
-                    let mins = (now - obs_ts) / 60;
-                    (mins >= STALE_WARN_MINS).then_some(mins)
-                });
-                self.follows.enrich_names_from_games(&res.games);
-                self.cached_rows = res.games.clone();
-                self.cached_games = res.games.into_iter().map(row_to_game).collect();
+        if !self.alerts_cfg.enabled || (self.follows.teams.is_empty() && self.starred.is_empty()) {
+            self.cached_games.clear();
+            self.cached_rows.clear();
+            self.last_fetch_error = None;
+            self.err_streak = 0;
+            self.stale_minutes = None;
+            self.next_fetch_at = now + FETCH_NORMAL_SECS as i64;
+        } else {
+            let from_utc = now_utc - ChronoDuration::hours(12);
+            let lookahead_mins = self.alerts_cfg.soon_minutes as i64 + 30;
+            let to_utc = now_utc + ChronoDuration::minutes(lookahead_mins);
 
-                if !self.first_fetch_done {
-                    let rules = self.rules();
-                    seed_initial_finals(&self.cached_games, &mut self.final_seen_at, &rules, now);
-                    self.first_fetch_done = true;
+            match fetch_alert_games(&self.events_cfg, &pw, &teams, &starred_ids, from_utc, to_utc).await {
+                Ok(res) => {
+                    self.last_fetch_at = Some(now);
+                    self.last_fetch_error = None;
+                    self.err_streak = 0;
+                    self.stale_minutes = res.max_observed_at_utc.and_then(|obs| {
+                        let obs_ts = DateTime::<Utc>::from_naive_utc_and_offset(obs, Utc).timestamp();
+                        let mins = (now - obs_ts) / 60;
+                        (mins >= STALE_WARN_MINS).then_some(mins)
+                    });
+                    self.follows.enrich_names_from_games(&res.games);
+                    self.cached_rows = res.games.clone();
+                    self.cached_games = res.games.into_iter().map(row_to_game).collect();
+
+                    if !self.first_fetch_done {
+                        let rules = self.rules();
+                        seed_initial_finals(&self.cached_games, &mut self.final_seen_at, &rules, now);
+                        self.first_fetch_done = true;
+                    }
+
+                    let interval = if self.has_active_or_imminent_game(now) {
+                        FETCH_ACTIVE_SECS
+                    } else {
+                        FETCH_NORMAL_SECS
+                    };
+                    self.next_fetch_at = now + interval as i64;
+
+                    let health_res = if let Some(mins) = self.stale_minutes {
+                        Err(format!("Scoreboard data is {mins} min old"))
+                    } else {
+                        Ok(self.diagnostics_detail())
+                    };
+                    let _ = self.app_events.send(AppEvent::Health {
+                        service: Service::Events,
+                        result: health_res,
+                    });
+
+                    self.eval_cached();
                 }
-
-                let interval = if self.has_active_or_imminent_game(now) {
-                    FETCH_ACTIVE_SECS
-                } else {
-                    FETCH_NORMAL_SECS
-                };
-                self.next_fetch_at = now + interval as i64;
-
-                let health_res = if let Some(mins) = self.stale_minutes {
-                    Err(format!("Scoreboard data is {mins} min old"))
-                } else {
-                    Ok(self.diagnostics_detail())
-                };
-                let _ = self.app_events.send(AppEvent::Health {
-                    service: Service::Events,
-                    result: health_res,
-                });
-
-                self.eval_cached();
-            }
-            Err(e) => {
-                let msg = e.to_string();
-                warn!(error = %msg, "sports alert poll failed");
-                self.last_fetch_error = Some(msg.clone());
-                self.err_streak = self.err_streak.saturating_add(1);
-                let backoff_secs = match self.err_streak {
-                    1 => 60,
-                    2 => 120,
-                    _ => 300,
-                };
-                self.next_fetch_at = now + backoff_secs;
-                let _ = self.app_events.send(AppEvent::Health {
-                    service: Service::Events,
-                    result: Err(format!("Alerts: {msg}")),
-                });
+                Err(e) => {
+                    let msg = e.to_string();
+                    warn!(error = %msg, "sports alert poll failed");
+                    self.last_fetch_error = Some(msg.clone());
+                    self.err_streak = self.err_streak.saturating_add(1);
+                    let backoff_secs = match self.err_streak {
+                        1 => 60,
+                        2 => 120,
+                        _ => 300,
+                    };
+                    self.next_fetch_at = now + backoff_secs;
+                    let _ = self.app_events.send(AppEvent::Health {
+                        service: Service::Events,
+                        result: Err(format!("Alerts: {msg}")),
+                    });
+                }
             }
         }
 
@@ -430,7 +429,7 @@ impl Watcher {
                     }
                 }
                 if let Some(start) = g.start {
-                    if now - start > 86_400 {
+                    if now - start > 86_400 && now - s.starred_at > 2 * 86_400 {
                         return false;
                     }
                 }
