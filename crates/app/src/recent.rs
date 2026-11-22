@@ -2,11 +2,11 @@
 
 pub use tvdash_core::config::RecentService as Recent;
 
-/// Record a successful service launch: move `id` to the front, dedupe, cap at 3.
+/// Record a successful service launch: move `id` to the front, dedupe, cap at 12.
 pub fn push_recent(list: &mut Vec<Recent>, id: &str, now: i64) {
     list.retain(|r| r.id != id);
     list.insert(0, Recent { id: id.to_owned(), at: now });
-    list.truncate(3);
+    list.truncate(12);
 }
 
 /// Home's three service tiles: recent first (that still exist in `fixed`),
@@ -50,7 +50,7 @@ mod tests {
     }
 
     #[test]
-    fn push_recent_dedupes_moves_to_front_and_caps_at_three() {
+    fn push_recent_dedupes_moves_to_front_and_caps_at_twelve() {
         let mut list = Vec::new();
         push_recent(&mut list, "netflix", 100);
         push_recent(&mut list, "youtube", 200);
@@ -58,14 +58,14 @@ mod tests {
         push_recent(&mut list, "disney-plus", 400);
         assert_eq!(
             list.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(),
-            ["disney-plus", "hulu", "youtube"]
+            ["disney-plus", "hulu", "youtube", "netflix"]
         );
 
         // Re-opening an existing item moves it to the front without duplicating.
         push_recent(&mut list, "youtube", 500);
         assert_eq!(
             list.iter().map(|r| (r.id.as_str(), r.at)).collect::<Vec<_>>(),
-            [("youtube", 500), ("disney-plus", 400), ("hulu", 300)]
+            [("youtube", 500), ("disney-plus", 400), ("hulu", 300), ("netflix", 100)]
         );
     }
 

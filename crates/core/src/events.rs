@@ -206,6 +206,31 @@ pub enum AppEvent {
     SportsAlerts(Vec<SportsAlertDto>),
     /// Full Sports Alerts settings, followed teams, starred games, and health state.
     SportsAlertsStatus(SportsAlertsStatusSnapshot),
+    /// Home Next Game card update (`None` hides the card).
+    NextGame(Option<NextGameDto>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NextGameSideDto {
+    pub rank: String,
+    pub init: String,
+    pub logo_url: Option<String>,
+    pub color: String,
+    pub name: String,
+    pub score: String,
+    pub lead: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NextGameDto {
+    pub event_id: String,
+    pub date: String,
+    pub league: String,
+    pub state: String, // "live" | "upcoming" | "final"
+    pub state_text: String,
+    pub away: NextGameSideDto,
+    pub home: NextGameSideDto,
+    pub meta: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

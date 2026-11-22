@@ -38,7 +38,7 @@ use tvdash_core::{
 };
 
 pub use accounts::sync_setup;
-pub use home::{row, set_cw_filter, up_next};
+pub use home::{HeroAction, hero_action, row, set_cw_filter, site_index_by_id, up_next, up_next_item_by_key};
 pub use library::{
     clear_search, close_detail, missing_browse_posters, on_library_focus_changed, reorder_collection, select, selected,
     set_browse_letter, set_filter, set_media_tab, start_search, watching_now_item,
@@ -92,6 +92,9 @@ pub struct UiState {
     ambient_starts: usize,
     next_ep: Option<MediaItem>,
     last_played: Option<LastPlayed>,
+    hero_item: Option<MediaItem>,
+    up_next_items: Vec<MediaItem>,
+    next_game: Option<tvdash_core::events::NextGameDto>,
     /// Last weather and when it arrived; the last fetch error, if the latest fetch failed.
     weather: Option<(Weather, DateTime<Utc>)>,
     weather_err: Option<String>,
@@ -477,6 +480,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::RecentlyAdded(kind, items) => {
             s.recently_added.insert(kind, items);
             library::rebuild(s, laptop);
+            home::refresh_home_state(s, laptop);
         }
         AppEvent::SearchResults { query, items } => library::on_results(s, laptop, query, items),
         AppEvent::Poster { source, item_id, image } => home::on_poster(s, laptop, source, item_id, &image),
@@ -667,6 +671,9 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             if s.scoreboard_page.is_some() {
                 refresh_scoreboard(s, laptop);
             }
+            if s.next_game.is_some() {
+                home::refresh_next_game(s, laptop);
+            }
         }
         AppEvent::EventsPasswordConfigured(configured) => {
             s.events_password_configured = configured;
@@ -713,10 +720,14 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             }
         }
         AppEvent::SportsAlerts(list) => alerts::on_alerts(s, laptop, tv, list),
+        AppEvent::NextGame(dto) => home::on_next_game(s, laptop, dto),
         AppEvent::SportsAlertsStatus(st) => {
             alerts::on_status(s, laptop, st);
             if s.scoreboard_page.is_some() {
                 refresh_scoreboard(s, laptop);
+            }
+            if s.next_game.is_some() {
+                home::refresh_next_game(s, laptop);
             }
         }
         AppEvent::Sites(sites) => {

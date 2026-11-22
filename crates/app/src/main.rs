@@ -1,5 +1,6 @@
 //! tvdash: laptop control dashboard + TV playback window, one process.
 
+mod apps;
 mod brand;
 mod bridge;
 mod callbacks;
@@ -11,6 +12,7 @@ mod format;
 mod home_cmd;
 mod instance;
 mod intro;
+mod next_game;
 mod portal;
 mod recent;
 mod shell_tv;
@@ -20,9 +22,11 @@ mod sports_follows;
 mod sports_watch;
 mod tint;
 mod tv_nav;
+mod up_next;
 mod video;
 mod watch;
 mod watch_ui;
+mod whats_on;
 
 use std::{sync::Arc, time::Duration};
 

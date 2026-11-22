@@ -53,6 +53,54 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
     wire_sports_alert(laptop, send.clone());
     wire_intro(laptop, send.clone());
 
+    let home_state = laptop.global::<crate::HomeState>();
+    let s = send.clone();
+    home_state.on_launch_app(move |id| {
+        if let Some(idx) = bridge::site_index_by_id(&id) {
+            s(Command::OpenSite(idx));
+        }
+    });
+    let weak = laptop.as_weak();
+    home_state.on_open_apps_page(move || {
+        if let Some(l) = weak.upgrade() {
+            crate::tv_nav::go_apps(&l);
+        }
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    home_state.on_activate_hero(move || match bridge::hero_action() {
+        bridge::HeroAction::FocusPlayer => {
+            if let Some(l) = weak.upgrade() {
+                let tv = l.global::<crate::TvUi>();
+                tv.set_video_full(true);
+                tv.set_hud_open(true);
+            }
+        }
+        bridge::HeroAction::OpenSite(idx) => s(Command::OpenSite(idx)),
+        bridge::HeroAction::Play(item) => s(Command::Play(item)),
+        bridge::HeroAction::OpenSearch => {
+            if let Some(l) = weak.upgrade() {
+                crate::tv_nav::go_search(&l);
+            }
+        }
+    });
+    let s = send.clone();
+    home_state.on_activate_up_next(move |key| {
+        if let Some(item) = bridge::up_next_item_by_key(&key) {
+            s(Command::Play(item));
+        }
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    home_state.on_open_game(move |event_id, date| {
+        if let Some(l) = weak.upgrade() {
+            crate::tv_nav::go_sports_game(&l, &event_id, &date);
+        }
+        s(Command::LoadScoreboard {
+            day: date.to_string(),
+            show: "all".into(),
+            final_only: false,
+        });
+    });
+
     let sports = laptop.global::<Sports>();
     let (weak, s) = (laptop.as_weak(), send.clone());
     sports.on_load(move |schedule, page| {

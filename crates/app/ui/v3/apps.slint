@@ -1,0 +1,172 @@
+// Blades UI (v3) — Apps page (§9).
+
+import { AppsPage, Dash, HomeState, Nav, TvUi } from "../state.slint";
+import { SleepChip } from "../shared/sleep.slint";
+import { V3Theme } from "theme.slint";
+
+export component V3Apps inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+
+    // Header: "Apps" + count on the left, status on the right
+    HorizontalLayout {
+        x: 40px * TvUi.u;
+        y: 28px * TvUi.u;
+        spacing: 16px * TvUi.u;
+        alignment: start;
+
+        Text {
+            text: "Apps";
+            font-family: V3Theme.font;
+            font-size: 42px * TvUi.u;
+            font-weight: 900;
+            color: V3Theme.text-primary;
+            vertical-alignment: bottom;
+        }
+
+        Text {
+            text: AppsPage.apps.length + (AppsPage.apps.length == 1 ? " app" : " apps");
+            font-family: V3Theme.font;
+            font-size: 22px * TvUi.u;
+            font-weight: 700;
+            color: V3Theme.text-secondary;
+            vertical-alignment: bottom;
+            y: -4px * TvUi.u;
+        }
+    }
+
+    HorizontalLayout {
+        x: parent.width - 40px * TvUi.u - self.preferred-width;
+        y: 38px * TvUi.u;
+        spacing: 20px * TvUi.u;
+        alignment: end;
+
+        SleepChip {
+            ink: V3Theme.accent;
+            clickable: Nav.layout == "dual";
+            y: (parent.height - self.height) / 2;
+        }
+
+        if Dash.weather-on: Text {
+            text: Dash.weather-temp;
+            font-family: V3Theme.font;
+            font-size: 20px * TvUi.u;
+            font-weight: 600;
+            color: V3Theme.text-primary;
+        }
+
+        Text {
+            text: Dash.clock-hh + ":" + Dash.clock-mm + (Dash.clock-ampm != "" ? " " + Dash.clock-ampm : "");
+            font-family: V3Theme.font;
+            font-size: 20px * TvUi.u;
+            font-weight: 600;
+            color: V3Theme.text-primary;
+        }
+    }
+
+    if AppsPage.apps.length == 0: Text {
+        x: 40px * TvUi.u;
+        y: 120px * TvUi.u;
+        text: "No streaming apps configured.";
+        font-family: V3Theme.font;
+        font-size: 22px * TvUi.u;
+        color: V3Theme.text-secondary;
+    }
+
+    if AppsPage.apps.length > 0: Rectangle {
+        x: 0;
+        y: 100px * TvUi.u;
+        width: parent.width;
+        height: parent.height - 100px * TvUi.u;
+        clip: true;
+        background: transparent;
+
+        TouchArea {
+            scroll-event(event) => {
+                TvUi.scroll-panorama(event.delta-y);
+                accept
+            }
+        }
+
+        Rectangle {
+            x: 0;
+            y: -TvUi.lib-scroll * TvUi.u;
+            width: parent.width;
+            height: (Math.ceil(AppsPage.apps.length / 4) * 256px + 40px) * TvUi.u;
+            background: transparent;
+            animate y { duration: 150ms; easing: ease-out; }
+
+            for app[i] in AppsPage.apps: Rectangle {
+                property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == i;
+                x: (40px + Math.mod(i, 4) * 366px) * TvUi.u;
+                y: (6px + Math.floor(i / 4) * 256px) * TvUi.u;
+                width: 344px * TvUi.u;
+                height: 236px * TvUi.u;
+                background: transparent;
+
+                Rectangle {
+                    x: 0;
+                    y: 0;
+                    width: 344px * TvUi.u;
+                    height: 194px * TvUi.u;
+                    border-radius: 20px * TvUi.u;
+                    clip: true;
+                    background: app.color;
+                    border-width: parent.is-foc ? 4px : 1px;
+                    border-color: parent.is-foc ? V3Theme.focus-ring : V3Theme.border;
+
+                    if app.has-logo: Image {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        width: parent.width * 0.70;
+                        height: parent.height * 0.55;
+                        source: app.logo;
+                        image-fit: contain;
+                    }
+
+                    if !app.has-logo: Text {
+                        x: 16px * TvUi.u;
+                        y: 0;
+                        width: parent.width - 32px * TvUi.u;
+                        height: parent.height;
+                        text: app.name;
+                        font-family: V3Theme.font;
+                        font-size: 21px * TvUi.u;
+                        font-weight: 900;
+                        color: app.text-color;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                    }
+                }
+
+                Text {
+                    x: 4px * TvUi.u;
+                    y: 204px * TvUi.u;
+                    width: parent.width - 8px * TvUi.u;
+                    text: app.name;
+                    font-family: V3Theme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 800;
+                    color: V3Theme.text-primary;
+                    overflow: elide;
+                }
+
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { HomeState.launch-app(app.id); }
+                }
+            }
+        }
+
+        // Bottom fade when more than 12 apps
+        if AppsPage.apps.length > 12: Rectangle {
+            x: 0;
+            y: parent.height - 48px * TvUi.u;
+            width: parent.width;
+            height: 48px * TvUi.u;
+            background: @linear-gradient(180deg, transparent 0%, V3Theme.panel 100%);
+        }
+    }
+}

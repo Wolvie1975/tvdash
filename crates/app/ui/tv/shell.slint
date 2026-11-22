@@ -5,6 +5,7 @@ import { Icon } from "../icons.slint";
 import { Dash, TvUi } from "../state.slint";
 import { TabBar } from "tabs.slint";
 import { TvHome } from "home.slint";
+import { TvApps } from "apps.slint";
 import { TvCollections } from "collections.slint";
 import { TvLibrary } from "library.slint";
 import { TvShow } from "show.slint";
@@ -116,6 +117,7 @@ export component TvShell inherits Rectangle {
 
         // Pages (rendered before top chrome so backdrops never cover TabBar / Back pill)
         if TvUi.screen == "home": TvHome { }
+        if TvUi.screen == "apps": TvApps { }
         if TvUi.screen == "collections": TvCollections { }
         if TvUi.screen == "library": TvLibrary { }
         if TvUi.screen == "show": TvShow { }

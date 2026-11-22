@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, Duration as ChronoDuration, Timelike, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, TimeZone, Timelike, Utc};
 use chrono_tz::America::Chicago;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tracing::{debug, info, warn};
@@ -85,6 +85,7 @@ struct Watcher {
     err_streak: u32,
     next_fetch_at: i64,
     stale_minutes: Option<i64>,
+    last_next_game: Option<(tvdash_core::events::NextGameDto, i64)>,
 }
 
 async fn run(
@@ -125,6 +126,7 @@ async fn run(
         err_streak: 0,
         next_fetch_at: 0,
         stale_minutes: None,
+        last_next_game: None,
     };
 
     // Initial follow refresh + game fetch.
@@ -311,6 +313,45 @@ impl Watcher {
                     service: Service::Events,
                     result: Err(format!("Alerts: {msg}")),
                 });
+            }
+        }
+
+        // Next Game card (§5.2): all games from now-2h to end of tomorrow (local Chicago).
+        let local_now = now_utc.with_timezone(&Chicago);
+        let today_local = local_now.date_naive();
+        let win_from = now_utc - ChronoDuration::hours(2);
+        let tomorrow_end_local = (today_local + ChronoDuration::days(2))
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        let win_to = Chicago
+            .from_local_datetime(&tomorrow_end_local)
+            .earliest()
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|| now_utc + ChronoDuration::hours(48));
+        match tvdash_events::alerts::fetch_window_games(&self.events_cfg, &pw, win_from, win_to).await {
+            Ok(rows) => {
+                let starred_set: HashSet<String> = starred_ids.iter().cloned().collect();
+                let picked = crate::next_game::pick_next_game(
+                    &rows,
+                    &teams,
+                    &starred_set,
+                    now_utc.naive_utc(),
+                    today_local,
+                    Chicago,
+                );
+                let dto = picked.map(|g| crate::next_game::to_dto(g, today_local, Chicago));
+                if dto.as_ref().is_some_and(|d| d.state == "live") {
+                    self.next_fetch_at = self.next_fetch_at.min(now + FETCH_ACTIVE_SECS as i64);
+                }
+                self.last_next_game = dto.as_ref().map(|d| (d.clone(), now));
+                let _ = self.app_events.send(AppEvent::NextGame(dto));
+            }
+            Err(e) => {
+                warn!(error = %e, "next game poll failed");
+                if self.last_next_game.as_ref().is_some_and(|(_, ts)| now - ts >= 30 * 60) {
+                    self.last_next_game = None;
+                    let _ = self.app_events.send(AppEvent::NextGame(None));
+                }
             }
         }
     }
@@ -525,7 +566,7 @@ fn row_to_game(r: AlertGameRow) -> Game {
     }
 }
 
-fn team_badge_color(name: &str) -> String {
+pub(crate) fn team_badge_color(name: &str) -> String {
     const PALETTE: [&str; 8] = [
         "#0051BA", "#C8102E", "#1D428A", "#006BB6", "#154734", "#512888", "#CC0000", "#002D62",
     ];

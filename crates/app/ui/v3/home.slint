@@ -1,9 +1,8 @@
-// Blades UI (v3) — Home panel (1600 x 1032 design space).
+// Blades UI (v3) — Home panel (1532 x 1032 design space, §2–§8).
 
 import { Theme, UiTheme } from "../theme.slint";
 import { Icon } from "../icons.slint";
-import { Dash, Nav, SleepState, TvUi } from "../state.slint";
-import { SleepChip } from "../shared/sleep.slint";
+import { Dash, GameState, HomeState, SleepState, TvUi } from "../state.slint";
 import { IntroRise } from "../shared/intro.slint";
 import { V3Theme } from "theme.slint";
 
@@ -12,716 +11,694 @@ export component V3Home inherits Rectangle {
     height: 100%;
     background: transparent;
 
+    property <bool> has-up-next: HomeState.up-next.length > 0;
+    property <bool> has-game: HomeState.next-game.visible;
+
     IntroRise {
         width: parent.width;
         height: parent.height;
         delay: 1300ms;
 
-    // ── Header: "Home" left, Weather + Clock right ───────────────────────────
-    Text {
-        x: 40px * TvUi.u;
-        y: 30px * TvUi.u;
-        text: "Home";
-        font-family: V3Theme.font;
-        font-size: 40px * TvUi.u;
-        font-weight: 700;
-        color: V3Theme.text-primary;
-    }
-
-    HorizontalLayout {
-        x: parent.width - 40px * TvUi.u - self.preferred-width;
-        y: 36px * TvUi.u;
-        spacing: 20px * TvUi.u;
-        alignment: end;
-
-        SleepChip {
-            ink: V3Theme.accent;
-            clickable: Nav.layout == "dual";
-            y: (parent.height - self.height) / 2;
-        }
-
-        if Dash.weather-on: HorizontalLayout {
-            spacing: 8px * TvUi.u;
-            Icon {
-                name: Dash.weather-icon;
-                size: 22px * TvUi.u;
-                tint: V3Theme.accent;
-                y: (parent.height - self.height) / 2;
-            }
-            Text {
-                text: Dash.weather-temp;
-                font-family: V3Theme.font;
-                font-size: 20px * TvUi.u;
-                font-weight: 600;
-                color: V3Theme.text-primary;
-                vertical-alignment: center;
-            }
-        }
-
+        // ── Header: "Home" left (no right status — Clock card shows it) ──────
         Text {
-            text: Dash.clock-hh + ":" + Dash.clock-mm + (Dash.clock-ampm != "" ? " " + Dash.clock-ampm : "");
+            x: 44px * TvUi.u;
+            y: 28px * TvUi.u;
+            text: "Home";
             font-family: V3Theme.font;
-            font-size: 20px * TvUi.u;
-            font-weight: 600;
+            font-size: 42px * TvUi.u;
+            font-weight: 900;
             color: V3Theme.text-primary;
-            vertical-alignment: center;
-        }
-    }
-
-    // ── Left column (x: 40..940): Hero card + Streaming 5x2 ──────────────────
-    // 1: Hero Currently Playing / Up Next card (900 x 470)
-    Rectangle {
-        x: 40px * TvUi.u;
-        y: 96px * TvUi.u;
-        width: 900px * TvUi.u;
-        height: 470px * TvUi.u;
-        border-radius: 18px * TvUi.u;
-        clip: true;
-        background: V3Theme.surface;
-        border-width: (!TvUi.bar-focused && (TvUi.focused-tile == 0 || TvUi.focused-tile == 1)) ? 4px : 1px;
-        border-color: (!TvUi.bar-focused && (TvUi.focused-tile == 0 || TvUi.focused-tile == 1))
-            ? V3Theme.focus-ring : V3Theme.border;
-
-        if Dash.tv.has-poster: Image {
-            width: parent.width;
-            height: parent.height;
-            source: Dash.tv.poster;
-            image-fit: cover;
         }
 
-        // Scrim gradient for legibility
+        // ── Left column (x: 44, w: 848): What's On hero + Up next ────────────
+        // 0: What's On hero (848 x 440, or taller centered when Up next is empty)
         Rectangle {
-            width: parent.width;
-            height: parent.height;
-            background: @linear-gradient(180deg, #0B0D1030 0%, #0B0D10B0 55%, #0B0D10EA 100%);
-        }
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 0;
+            x: 44px * TvUi.u;
+            y: 96px * TvUi.u;
+            width: 848px * TvUi.u;
+            height: (root.has-up-next ? 440px : 477px) * TvUi.u;
+            border-radius: 22px * TvUi.u;
+            clip: true;
+            background: HomeState.whats-on.is-app ? HomeState.whats-on.app-color : V3Theme.surface;
+            border-width: self.is-foc ? 4px : 1px;
+            border-color: self.is-foc ? V3Theme.focus-ring : V3Theme.border;
 
-        // Top-right orange play/pause circle
-        Rectangle {
-            x: parent.width - 100px * TvUi.u;
-            y: 36px * TvUi.u;
-            width: 72px * TvUi.u;
-            height: 72px * TvUi.u;
-            border-radius: 36px * TvUi.u;
-            background: V3Theme.accent;
-
-            Icon {
-                x: (parent.width - self.width) / 2 + (TvUi.video-on && Dash.tv.mode != "paused" ? 0px : 2px * TvUi.u);
-                y: (parent.height - self.height) / 2;
-                name: (TvUi.video-on && Dash.tv.mode != "paused") ? "pause" : "play";
-                size: 32px * TvUi.u;
-                tint: V3Theme.on-accent;
-            }
-        }
-
-        // Bottom metadata & progress
-        VerticalLayout {
-            x: 32px * TvUi.u;
-            y: 170px * TvUi.u;
-            width: parent.width - 64px * TvUi.u;
-            height: parent.height - 196px * TvUi.u;
-            spacing: 8px * TvUi.u;
-            alignment: end;
-
-            Text {
-                text: (Dash.tv.source != "" ? Dash.tv.source + " · " : "") + Dash.tv.label;
-                font-family: V3Theme.font;
-                font-size: 15px * TvUi.u;
-                font-weight: 700;
-                letter-spacing: 1.2px;
-                color: V3Theme.accent;
+            if !HomeState.whats-on.is-app && HomeState.whats-on.has-art: Image {
+                width: parent.width;
+                height: parent.height;
+                source: HomeState.whats-on.art;
+                image-fit: cover;
             }
 
-            Text {
-                text: Dash.tv.title != "" ? Dash.tv.title : "Nothing playing";
-                font-family: V3Theme.font;
-                font-size: 42px * TvUi.u;
-                font-weight: 700;
-                color: #FFFFFF;
-                overflow: elide;
+            if HomeState.whats-on.is-app && HomeState.whats-on.app-has-logo: Image {
+                x: (parent.width - self.width) / 2;
+                y: 48px * TvUi.u;
+                width: parent.width * 0.45;
+                height: parent.height * 0.35;
+                source: HomeState.whats-on.app-logo;
+                image-fit: contain;
             }
 
-            if Dash.tv.subtitle != "": Text {
-                text: Dash.tv.subtitle;
-                font-family: V3Theme.font;
-                font-size: 20px * TvUi.u;
-                font-weight: 600;
-                color: #E8EAED;
-                overflow: elide;
+            // Scrim: transparent 0% → black 35% at 30% → black 88% at 100%
+            Rectangle {
+                width: parent.width;
+                height: parent.height;
+                background: @linear-gradient(180deg, #00000000 0%, #00000059 30%, #000000E0 100%);
             }
 
-            if Dash.tv.summary != "": Text {
-                text: Dash.tv.summary;
-                font-family: V3Theme.font;
-                font-size: 16px * TvUi.u;
-                color: #C4C9D2;
-                wrap: word-wrap;
-                overflow: elide;
-                max-height: 46px * TvUi.u;
-            }
+            // Top-right decorative 84px play circle
+            Rectangle {
+                x: parent.width - 112px * TvUi.u;
+                y: 28px * TvUi.u;
+                width: 84px * TvUi.u;
+                height: 84px * TvUi.u;
+                border-radius: 42px * TvUi.u;
+                background: V3Theme.accent;
 
-            Rectangle { height: 6px * TvUi.u; }
-
-            HorizontalLayout {
-                spacing: 16px * TvUi.u;
-                alignment: space-between;
-
-                Rectangle {
-                    horizontal-stretch: 1;
-                    height: 6px * TvUi.u;
+                Icon {
+                    x: (parent.width - self.width) / 2 + 2px * TvUi.u;
                     y: (parent.height - self.height) / 2;
+                    name: "play";
+                    size: 36px * TvUi.u;
+                    tint: V3Theme.on-accent;
+                }
+            }
+
+            // Bottom-left text block (36px inset)
+            VerticalLayout {
+                x: 36px * TvUi.u;
+                y: 120px * TvUi.u;
+                width: min(760px * TvUi.u, parent.width - 72px * TvUi.u);
+                height: parent.height - 156px * TvUi.u;
+                spacing: 8px * TvUi.u;
+                alignment: end;
+
+                HorizontalLayout {
+                    spacing: 0;
+                    alignment: start;
+
+                    Text {
+                        text: "WHAT'S ON";
+                        font-family: V3Theme.font;
+                        font-size: 17px * TvUi.u;
+                        font-weight: 900;
+                        letter-spacing: 2px;
+                        color: #FFFFFFEB;
+                    }
+
+                    if HomeState.whats-on.source != "": Text {
+                        text: " · " + HomeState.whats-on.source;
+                        font-family: V3Theme.font;
+                        font-size: 17px * TvUi.u;
+                        font-weight: 900;
+                        letter-spacing: 2px;
+                        color: #FFFFFF9E;
+                    }
+                }
+
+                Text {
+                    text: HomeState.whats-on.has-item ? HomeState.whats-on.title : "Nothing on right now";
+                    font-family: V3Theme.font;
+                    font-size: 52px * TvUi.u;
+                    font-weight: 900;
+                    letter-spacing: -1px;
+                    color: #FFFFFF;
+                    overflow: elide;
+                }
+
+                if HomeState.whats-on.subtitle != "" || !HomeState.whats-on.has-item: Text {
+                    text: HomeState.whats-on.has-item ? HomeState.whats-on.subtitle : "Search or open the Library";
+                    font-family: V3Theme.font;
+                    font-size: 22px * TvUi.u;
+                    font-weight: 700;
+                    color: #FFFFFFD9;
+                    overflow: elide;
+                }
+
+                if HomeState.whats-on.plot != "": Text {
+                    text: HomeState.whats-on.plot;
+                    font-family: V3Theme.font;
+                    font-size: 19px * TvUi.u;
+                    font-weight: 400;
+                    color: #FFFFFFD9;
+                    wrap: word-wrap;
+                    overflow: elide;
+                    max-height: 56px * TvUi.u;
+                }
+
+                if HomeState.whats-on.progress >= 0.0: Rectangle {
+                    height: 6px * TvUi.u;
                     border-radius: 3px * TvUi.u;
-                    background: #FFFFFF30;
+                    background: #FFFFFF47;
 
                     Rectangle {
                         x: 0;
                         y: 0;
-                        width: parent.width * clamp(Dash.tv.progress, 0.0, 1.0);
+                        width: parent.width * clamp(HomeState.whats-on.progress, 0.0, 1.0);
                         height: parent.height;
                         border-radius: 3px * TvUi.u;
-                        background: V3Theme.accent;
+                        background: #FFFFFF;
                     }
                 }
 
-                if Dash.tv.at-text != "" || Dash.tv.left-text != "": Text {
-                    text: Dash.tv.at-text != "" && Dash.tv.left-text != ""
-                        ? Dash.tv.at-text + " · " + Dash.tv.left-text
-                        : Dash.tv.at-text + Dash.tv.left-text;
+                if HomeState.whats-on.status != "": Text {
+                    text: HomeState.whats-on.status;
                     font-family: V3Theme.font;
-                    font-size: 15px * TvUi.u;
-                    font-weight: 600;
-                    color: #E8EAED;
-                    vertical-alignment: center;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 800;
+                    color: #FFFFFF;
+                    overflow: elide;
                 }
             }
-        }
 
-        TouchArea {
-            mouse-cursor: pointer;
-            clicked => { TvUi.tile-activated(1); }
-        }
-    }
-
-    // Streaming section label + 5x2 compact pills (tiles 9..18)
-    Text {
-        x: 40px * TvUi.u;
-        y: 590px * TvUi.u;
-        text: "Streaming";
-        font-family: V3Theme.font;
-        font-size: 20px * TvUi.u;
-        font-weight: 700;
-        color: V3Theme.text-primary;
-    }
-
-    for svc[i] in TvUi.services: Rectangle {
-        visible: i < 12;
-        property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;
-
-        x: (40px + Math.mod(i, 6) * 152px) * TvUi.u;
-        y: (626px + Math.floor(i / 6) * 102px) * TvUi.u;
-        width: 138px * TvUi.u;
-        height: 88px * TvUi.u;
-        border-radius: 14px * TvUi.u;
-        clip: true;
-        background: @linear-gradient(135deg, svc.brand.fill 0%, svc.brand.fill-end 100%);
-        border-width: self.is-foc ? 4px : 1px;
-        border-color: self.is-foc ? V3Theme.focus-ring : #FFFFFF20;
-
-        if svc.is-recent: Rectangle {
-            x: parent.width - self.width - 8px * TvUi.u;
-            y: 6px * TvUi.u;
-            width: rec-lbl.preferred-width + 10px * TvUi.u;
-            height: 18px * TvUi.u;
-            border-radius: 4px * TvUi.u;
-            background: #0B0D10B0;
-
-            rec-lbl := Text {
-                text: "RECENT";
-                font-family: V3Theme.font;
-                font-size: 10px * TvUi.u;
-                font-weight: 700;
-                letter-spacing: 0.6px;
-                color: #FFFFFF;
-                horizontal-alignment: center;
-                vertical-alignment: center;
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { HomeState.activate-hero(); }
             }
         }
 
-        if svc.brand.has-logo: Image {
-            x: 18px * TvUi.u;
-            y: 18px * TvUi.u;
-            width: parent.width - 36px * TvUi.u;
-            height: parent.height - 36px * TvUi.u;
-            source: svc.brand.logo;
-            image-fit: contain;
-        }
-
-        if !svc.brand.has-logo: Text {
-            x: 10px * TvUi.u;
-            width: parent.width - 20px * TvUi.u;
-            height: parent.height;
-            text: svc.brand.name;
+        // ── Up next row (1..=4) ──────────────────────────────────────────────
+        if root.has-up-next: Text {
+            x: 44px * TvUi.u;
+            y: 556px * TvUi.u;
+            text: "Up next";
             font-family: V3Theme.font;
-            font-size: 18px * TvUi.u;
-            font-weight: 700;
-            color: svc.brand.ink;
-            horizontal-alignment: center;
-            vertical-alignment: center;
-            overflow: elide;
+            font-size: 22px * TvUi.u;
+            font-weight: 900;
+            color: V3Theme.text-primary;
         }
 
-        TouchArea {
-            mouse-cursor: pointer;
-            clicked => { TvUi.tile-activated(10 + i); }
-        }
-    }
+        for card[i] in HomeState.up-next: Rectangle {
+            visible: i < 4;
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 1 + i;
+            property <length> cx: i == 0 ? 44px * TvUi.u : (326px + (i - 1) * 193px) * TvUi.u;
+            property <length> cw: (i == 0 ? 268px : 179px) * TvUi.u;
 
-    // ── Right column (x: 968..1560): Clock/Weather + Last Played + Quick Actions
-    // 5: Clock & Weather card (592 x 204)
-    Rectangle {
-        x: 968px * TvUi.u;
-        y: 96px * TvUi.u;
-        width: 592px * TvUi.u;
-        height: 204px * TvUi.u;
-        border-radius: 18px * TvUi.u;
-        background: V3Theme.surface;
-        border-width: (!TvUi.bar-focused && TvUi.focused-tile == 5) ? 4px : 1px;
-        border-color: (!TvUi.bar-focused && TvUi.focused-tile == 5) ? V3Theme.focus-ring : V3Theme.border;
+            x: self.cx;
+            y: 596px * TvUi.u;
+            width: self.cw;
+            height: 196px * TvUi.u;
+            background: transparent;
 
-        VerticalLayout {
-            padding: 24px * TvUi.u;
-            spacing: 6px * TvUi.u;
-            alignment: space-between;
+            // Art box (124px tall)
+            Rectangle {
+                x: 0;
+                y: 0;
+                width: parent.width;
+                height: 124px * TvUi.u;
+                border-radius: 14px * TvUi.u;
+                clip: true;
+                background: V3Theme.surface;
+                border-width: parent.is-foc ? 4px : 1px;
+                border-color: parent.is-foc ? V3Theme.focus-ring : V3Theme.border;
 
-            HorizontalLayout {
-                spacing: 8px * TvUi.u;
-                alignment: start;
-
-                Text {
-                    text: Dash.clock-hh + ":" + Dash.clock-mm;
-                    font-family: V3Theme.font;
-                    font-size: 64px * TvUi.u;
-                    font-weight: 700;
-                    color: V3Theme.text-primary;
+                if card.has-thumb: Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: card.thumb;
+                    image-fit: cover;
                 }
 
-                if Dash.clock-ampm != "": Text {
-                    text: Dash.clock-ampm;
-                    font-family: V3Theme.font;
-                    font-size: 24px * TvUi.u;
-                    font-weight: 600;
-                    color: V3Theme.text-secondary;
-                    vertical-alignment: bottom;
+                // Subtle bottom scrim for progress bar legibility
+                if card.progress > 0.0: Rectangle {
+                    x: 0;
+                    y: parent.height - 32px * TvUi.u;
+                    width: parent.width;
+                    height: 32px * TvUi.u;
+                    background: @linear-gradient(180deg, #00000000 0%, #000000B0 100%);
                 }
-            }
 
-            Text {
-                text: Dash.clock-year != "" ? Dash.date-text + ", " + Dash.clock-year : Dash.date-text;
-                font-family: V3Theme.font;
-                font-size: 18px * TvUi.u;
-                color: V3Theme.text-secondary;
-            }
+                // UP NEXT badge on first card
+                if card.up-next: Rectangle {
+                    x: 10px * TvUi.u;
+                    y: 10px * TvUi.u;
+                    width: badge-txt.preferred-width + 18px * TvUi.u;
+                    height: 24px * TvUi.u;
+                    border-radius: 8px * TvUi.u;
+                    background: V3Theme.accent;
 
-            HorizontalLayout {
-                spacing: 12px * TvUi.u;
-                alignment: space-between;
-
-                HorizontalLayout {
-                    spacing: 8px * TvUi.u;
-                    Icon {
-                        name: Dash.weather-icon;
-                        size: 22px * TvUi.u;
-                        tint: V3Theme.accent;
-                        y: (parent.height - self.height) / 2;
-                    }
-                    Text {
-                        text: Dash.weather-on
-                            ? Dash.weather-temp + " · " + Dash.weather-condition
-                            : "Set location in Settings";
+                    badge-txt := Text {
+                        text: "UP NEXT";
                         font-family: V3Theme.font;
-                        font-size: 17px * TvUi.u;
-                        color: V3Theme.text-primary;
+                        font-size: 13px * TvUi.u;
+                        font-weight: 900;
+                        letter-spacing: 1.5px;
+                        color: V3Theme.on-accent;
+                        horizontal-alignment: center;
                         vertical-alignment: center;
                     }
                 }
 
-                if Dash.weather-on && Dash.weather-detail != "": Text {
-                    text: Dash.weather-detail;
-                    font-family: V3Theme.font;
-                    font-size: 16px * TvUi.u;
-                    color: V3Theme.text-secondary;
-                    vertical-alignment: center;
-                }
-            }
-        }
+                // Progress bar (5px, 10px inset)
+                if card.progress > 0.0: Rectangle {
+                    x: 10px * TvUi.u;
+                    y: parent.height - 15px * TvUi.u;
+                    width: parent.width - 20px * TvUi.u;
+                    height: 5px * TvUi.u;
+                    border-radius: 3px * TvUi.u;
+                    background: #FFFFFF4D;
 
-        TouchArea {
-            mouse-cursor: pointer;
-            clicked => { TvUi.tile-activated(5); }
-        }
-    }
-
-    // 6: Last Played card (592 x 146)
-    Rectangle {
-        x: 968px * TvUi.u;
-        y: 318px * TvUi.u;
-        width: 592px * TvUi.u;
-        height: 146px * TvUi.u;
-        border-radius: 18px * TvUi.u;
-        background: V3Theme.surface;
-        border-width: (!TvUi.bar-focused && TvUi.focused-tile == 6) ? 4px : 1px;
-        border-color: (!TvUi.bar-focused && TvUi.focused-tile == 6) ? V3Theme.focus-ring : V3Theme.border;
-
-        HorizontalLayout {
-            padding: 18px * TvUi.u;
-            spacing: 16px * TvUi.u;
-
-            if TvUi.last-played-kind == "media" && TvUi.last-played-has-poster: Rectangle {
-                width: 66px * TvUi.u;
-                height: 100px * TvUi.u;
-                border-radius: 8px * TvUi.u;
-                clip: true;
-                y: (parent.height - self.height) / 2;
-
-                Image {
-                    width: parent.width;
-                    height: parent.height;
-                    source: TvUi.last-played-poster;
-                    image-fit: cover;
-                }
-            }
-
-            if TvUi.last-played-kind == "site" && TvUi.last-played-brand.has-logo: Rectangle {
-                width: 72px * TvUi.u;
-                height: 72px * TvUi.u;
-                border-radius: 12px * TvUi.u;
-                y: (parent.height - self.height) / 2;
-                background: TvUi.last-played-brand.fill;
-
-                Image {
-                    x: 8px * TvUi.u;
-                    y: 8px * TvUi.u;
-                    width: parent.width - 16px * TvUi.u;
-                    height: parent.height - 16px * TvUi.u;
-                    source: TvUi.last-played-brand.logo;
-                    image-fit: contain;
-                }
-            }
-
-            VerticalLayout {
-                horizontal-stretch: 1;
-                alignment: center;
-                spacing: 4px * TvUi.u;
-
-                Text {
-                    text: TvUi.last-played-kind == "site" ? "LAST PLAYED · APP" : "LAST PLAYED";
-                    font-family: V3Theme.font;
-                    font-size: 13px * TvUi.u;
-                    font-weight: 700;
-                    letter-spacing: 1px;
-                    color: V3Theme.text-muted;
-                }
-
-                Text {
-                    text: TvUi.last-played-title != "" ? TvUi.last-played-title : "Nothing yet";
-                    font-family: V3Theme.font;
-                    font-size: 22px * TvUi.u;
-                    font-weight: 700;
-                    color: V3Theme.text-primary;
-                    overflow: elide;
-                }
-
-                Text {
-                    text: TvUi.last-played-subtitle != "" ? TvUi.last-played-subtitle : "OK to resume";
-                    font-family: V3Theme.font;
-                    font-size: 15px * TvUi.u;
-                    color: V3Theme.text-secondary;
-                    overflow: elide;
-                }
-
-                if TvUi.last-played-kind == "media" && TvUi.last-played-progress > 0.0: Rectangle {
-                    height: 4px * TvUi.u;
-                    border-radius: 2px * TvUi.u;
-                    background: V3Theme.border;
                     Rectangle {
                         x: 0;
                         y: 0;
-                        width: parent.width * clamp(TvUi.last-played-progress, 0.0, 1.0);
+                        width: parent.width * clamp(card.progress, 0.0, 1.0);
                         height: parent.height;
-                        border-radius: 2px * TvUi.u;
-                        background: V3Theme.accent;
+                        border-radius: 3px * TvUi.u;
+                        background: #FFFFFF;
                     }
                 }
             }
-        }
 
-        TouchArea {
-            mouse-cursor: pointer;
-            clicked => { TvUi.tile-activated(6); }
-        }
-    }
-
-    // Quick Actions stacked list card: 2 (Search), 3 (Library), 4 (Screensaver), 7 (Settings), 8 (Theme)
-    Rectangle {
-        x: 968px * TvUi.u;
-        y: 482px * TvUi.u;
-        width: 592px * TvUi.u;
-        height: 334px * TvUi.u;
-        border-radius: 18px * TvUi.u;
-        background: V3Theme.surface;
-        border-width: 1px;
-        border-color: V3Theme.border;
-
-        for row[idx] in [
-            { id: 2, icon: "search", label: "Search", right: "" },
-            { id: 3, icon: "library", label: "Library", right: "" },
-            { id: 4, icon: "screensaver", label: "Screensaver", right: "" },
-            { id: 9, icon: "moon", label: "Sleep timer", right: SleepState.active ? SleepState.label : "Off" },
-            { id: 8, icon: "sun", label: "Theme", right: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.ku-light ? "Kansas Light" : Theme.mode == UiTheme.stone ? "Stone" : "Mist" },
-        ]: Rectangle {
-            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == row.id;
-            x: 10px * TvUi.u;
-            y: (10px + idx * 63px) * TvUi.u;
-            width: parent.width - 20px * TvUi.u;
-            height: 60px * TvUi.u;
-            border-radius: 12px * TvUi.u;
-            background: self.is-foc ? V3Theme.surface-raised : (r-ta.has-hover ? V3Theme.surface-raised : transparent);
-            border-width: self.is-foc ? 3px : 0px;
-            border-color: V3Theme.focus-ring;
-
-            HorizontalLayout {
-                padding-left: 16px * TvUi.u;
-                padding-right: 16px * TvUi.u;
-                spacing: 14px * TvUi.u;
-
-                Icon {
-                    name: row.icon;
-                    size: 22px * TvUi.u;
-                    tint: V3Theme.text-secondary;
-                    y: (parent.height - self.height) / 2;
-                }
-
-                Text {
-                    horizontal-stretch: 1;
-                    text: row.label;
-                    font-family: V3Theme.font;
-                    font-size: 20px * TvUi.u;
-                    font-weight: 600;
-                    color: V3Theme.text-primary;
-                    vertical-alignment: center;
-                }
-
-                if row.right != "": Text {
-                    text: row.right;
-                    font-family: V3Theme.font;
-                    font-size: 16px * TvUi.u;
-                    color: V3Theme.text-secondary;
-                    vertical-alignment: center;
-                }
+            Text {
+                x: 2px * TvUi.u;
+                y: 132px * TvUi.u;
+                width: parent.width - 4px * TvUi.u;
+                text: card.title;
+                font-family: V3Theme.font;
+                font-size: 19px * TvUi.u;
+                font-weight: 900;
+                color: V3Theme.text-primary;
+                overflow: elide;
             }
 
-            r-ta := TouchArea {
+            if card.meta != "": Text {
+                x: 2px * TvUi.u;
+                y: 158px * TvUi.u;
+                width: parent.width - 4px * TvUi.u;
+                text: card.meta;
+                font-family: V3Theme.font;
+                font-size: 15px * TvUi.u;
+                font-weight: 700;
+                color: V3Theme.text-secondary;
+                overflow: elide;
+            }
+
+            TouchArea {
                 mouse-cursor: pointer;
-                clicked => { TvUi.tile-activated(row.id); }
+                clicked => { HomeState.activate-up-next(card.key); }
             }
         }
-    }
 
-    // ── Bottom Now Playing transport bar (y: 848..936) ───────────────────────
-    Rectangle {
-        x: 40px * TvUi.u;
-        y: 848px * TvUi.u;
-        width: 1520px * TvUi.u;
-        height: 84px * TvUi.u;
-        border-radius: 18px * TvUi.u;
-        background: V3Theme.surface;
-        border-width: 1px;
-        border-color: V3Theme.border;
+        // ── Right column (x: 920, w: 568): Clock + Next Game + Quick Actions ─
+        // Clock card (not focusable)
+        Rectangle {
+            x: 920px * TvUi.u;
+            y: 96px * TvUi.u;
+            width: 568px * TvUi.u;
+            height: 196px * TvUi.u;
+            border-radius: 22px * TvUi.u;
+            background: V3Theme.surface;
+            border-width: 1px;
+            border-color: V3Theme.border;
 
-        HorizontalLayout {
-            padding-left: 20px * TvUi.u;
-            padding-right: 20px * TvUi.u;
-            spacing: 16px * TvUi.u;
+            VerticalLayout {
+                padding-left: 26px * TvUi.u;
+                padding-right: 26px * TvUi.u;
+                padding-top: 18px * TvUi.u;
+                padding-bottom: 18px * TvUi.u;
+                spacing: 4px * TvUi.u;
+                alignment: space-between;
 
-            Rectangle {
-                width: 44px * TvUi.u;
-                height: 44px * TvUi.u;
-                border-radius: 10px * TvUi.u;
-                y: (parent.height - self.height) / 2;
-                background: V3Theme.accent-tint;
-                Icon {
-                    x: (parent.width - self.width) / 2;
-                    y: (parent.height - self.height) / 2;
-                    name: "play";
-                    size: 20px * TvUi.u;
-                    tint: V3Theme.accent;
+                HorizontalLayout {
+                    spacing: 10px * TvUi.u;
+                    alignment: start;
+
+                    Text {
+                        text: Dash.clock-hh + ":" + Dash.clock-mm;
+                        font-family: V3Theme.font;
+                        font-size: 76px * TvUi.u;
+                        font-weight: 900;
+                        color: V3Theme.text-primary;
+                    }
+
+                    if Dash.clock-ampm != "": Text {
+                        text: Dash.clock-ampm;
+                        font-family: V3Theme.font;
+                        font-size: 28px * TvUi.u;
+                        font-weight: 800;
+                        color: V3Theme.text-secondary;
+                        vertical-alignment: bottom;
+                        y: -12px * TvUi.u;
+                    }
                 }
-            }
 
-            HorizontalLayout {
-                horizontal-stretch: 1;
-                spacing: 12px * TvUi.u;
                 Text {
-                    text: Dash.tv.title != "" ? Dash.tv.title : "Ready to play";
+                    text: Dash.clock-year != "" ? Dash.date-text + ", " + Dash.clock-year : Dash.date-text;
                     font-family: V3Theme.font;
                     font-size: 20px * TvUi.u;
                     font-weight: 700;
-                    color: V3Theme.text-primary;
-                    vertical-alignment: center;
-                    overflow: elide;
-                }
-                if Dash.tv.subtitle != "": Text {
-                    text: Dash.tv.subtitle;
-                    font-family: V3Theme.font;
-                    font-size: 16px * TvUi.u;
                     color: V3Theme.text-secondary;
-                    vertical-alignment: center;
-                    overflow: elide;
                 }
-            }
 
-            // Transport buttons
-            for btn in [
-                { label: "-10s", act: 0 },
-            ]: Rectangle {
-                width: 64px * TvUi.u;
-                height: 44px * TvUi.u;
-                y: (parent.height - self.height) / 2;
-                border-radius: 10px * TvUi.u;
-                background: b0.has-hover ? V3Theme.surface-raised : V3Theme.bg;
-                border-width: 1px;
-                border-color: V3Theme.border;
-                Text {
-                    text: btn.label;
-                    font-family: V3Theme.font;
-                    font-size: 15px * TvUi.u;
-                    font-weight: 600;
-                    color: V3Theme.text-primary;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-                b0 := TouchArea {
-                    mouse-cursor: pointer;
-                    clicked => { Dash.transport("back"); }
-                }
-            }
+                HorizontalLayout {
+                    spacing: 12px * TvUi.u;
+                    alignment: space-between;
 
-            // Play/Pause amber circle
-            Rectangle {
-                width: 48px * TvUi.u;
-                height: 48px * TvUi.u;
-                y: (parent.height - self.height) / 2;
-                border-radius: 12px * TvUi.u;
-                background: V3Theme.accent;
-                Icon {
-                    x: (parent.width - self.width) / 2;
-                    y: (parent.height - self.height) / 2;
-                    name: Dash.tv.mode == "paused" || !TvUi.video-on ? "play" : "pause";
-                    size: 22px * TvUi.u;
-                    tint: V3Theme.on-accent;
-                }
-                TouchArea {
-                    mouse-cursor: pointer;
-                    clicked => {
-                        if TvUi.video-on {
-                            Dash.transport("pause");
-                        } else {
-                            TvUi.tile-activated(1);
+                    HorizontalLayout {
+                        spacing: 8px * TvUi.u;
+                        Icon {
+                            name: Dash.weather-icon;
+                            size: 22px * TvUi.u;
+                            tint: V3Theme.accent;
+                            y: (parent.height - self.height) / 2;
                         }
+                        Text {
+                            text: Dash.weather-on
+                                ? Dash.weather-temp + " · " + Dash.weather-condition
+                                : "Set location in Settings";
+                            font-family: V3Theme.font;
+                            font-size: 20px * TvUi.u;
+                            font-weight: 800;
+                            color: V3Theme.text-primary;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    if Dash.weather-on && Dash.weather-detail != "": Text {
+                        text: Dash.weather-detail;
+                        font-family: V3Theme.font;
+                        font-size: 19px * TvUi.u;
+                        font-weight: 700;
+                        color: V3Theme.text-secondary;
+                        vertical-alignment: center;
                     }
                 }
             }
+        }
 
-            Rectangle {
-                width: 64px * TvUi.u;
-                height: 44px * TvUi.u;
-                y: (parent.height - self.height) / 2;
-                border-radius: 10px * TvUi.u;
-                background: b1.has-hover ? V3Theme.surface-raised : V3Theme.bg;
-                border-width: 1px;
-                border-color: V3Theme.border;
-                Text {
-                    text: "+30s";
-                    font-family: V3Theme.font;
-                    font-size: 15px * TvUi.u;
-                    font-weight: 600;
-                    color: V3Theme.text-primary;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
+        // 5: Next Game card (visible when HomeState.next-game.visible)
+        if root.has-game: Rectangle {
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 5;
+            x: 920px * TvUi.u;
+            y: 308px * TvUi.u;
+            width: 568px * TvUi.u;
+            height: 210px * TvUi.u;
+            border-radius: 22px * TvUi.u;
+            background: V3Theme.surface;
+            border-width: self.is-foc ? 4px : 1px;
+            border-color: self.is-foc ? V3Theme.focus-ring : V3Theme.border;
+
+            VerticalLayout {
+                padding-left: 22px * TvUi.u;
+                padding-right: 22px * TvUi.u;
+                padding-top: 16px * TvUi.u;
+                padding-bottom: 14px * TvUi.u;
+                spacing: 10px * TvUi.u;
+
+                // Row 1: NEXT GAME · LEAGUE (left) + state (right)
+                HorizontalLayout {
+                    alignment: space-between;
+
+                    Text {
+                        text: "NEXT GAME · " + HomeState.next-game.league;
+                        font-family: V3Theme.font;
+                        font-size: 15px * TvUi.u;
+                        font-weight: 900;
+                        letter-spacing: 2px;
+                        color: V3Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px * TvUi.u;
+                        alignment: end;
+
+                        if HomeState.next-game.state == GameState.live: Rectangle {
+                            width: 14px * TvUi.u;
+                            height: 14px * TvUi.u;
+                            border-radius: 7px * TvUi.u;
+                            background: #E8000D40;
+                            y: (parent.height - self.height) / 2;
+
+                            Rectangle {
+                                x: 2px * TvUi.u;
+                                y: 2px * TvUi.u;
+                                width: 10px * TvUi.u;
+                                height: 10px * TvUi.u;
+                                border-radius: 5px * TvUi.u;
+                                background: #E8000D;
+                            }
+                        }
+
+                        Text {
+                            text: HomeState.next-game.state-text;
+                            font-family: V3Theme.font;
+                            font-size: 16px * TvUi.u;
+                            font-weight: 900;
+                            color: HomeState.next-game.state == GameState.live
+                                ? #E8000D
+                                : HomeState.next-game.state == GameState.upcoming
+                                    ? V3Theme.accent
+                                    : V3Theme.text-secondary;
+                            vertical-alignment: center;
+                        }
+                    }
                 }
-                b1 := TouchArea {
-                    mouse-cursor: pointer;
-                    clicked => { Dash.transport("fwd"); }
+
+                // Team rows (away, home)
+                for side in [HomeState.next-game.away, HomeState.next-game.home]: HorizontalLayout {
+                    spacing: 10px * TvUi.u;
+                    height: 36px * TvUi.u;
+
+                    Text {
+                        width: 34px * TvUi.u;
+                        text: side.rank;
+                        font-family: V3Theme.font;
+                        font-size: 15px * TvUi.u;
+                        font-weight: 900;
+                        color: V3Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 32px * TvUi.u;
+                        height: 32px * TvUi.u;
+                        border-radius: 9px * TvUi.u;
+                        background: side.has-logo ? V3Theme.surface-raised : side.color;
+                        y: (parent.height - self.height) / 2;
+
+                        if side.has-logo: Image {
+                            x: 3px * TvUi.u;
+                            y: 3px * TvUi.u;
+                            width: parent.width - 6px * TvUi.u;
+                            height: parent.height - 6px * TvUi.u;
+                            source: side.logo;
+                            image-fit: contain;
+                        }
+
+                        if !side.has-logo: Text {
+                            text: side.init;
+                            font-family: V3Theme.font;
+                            font-size: 12px * TvUi.u;
+                            font-weight: 900;
+                            color: #FFFFFF;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    Text {
+                        horizontal-stretch: 1;
+                        text: side.name;
+                        font-family: V3Theme.font;
+                        font-size: 22px * TvUi.u;
+                        font-weight: side.lead ? 900 : 700;
+                        color: side.lead ? V3Theme.text-primary : V3Theme.text-secondary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+
+                    if side.score != "": Text {
+                        text: side.score;
+                        font-family: V3Theme.font;
+                        font-size: 28px * TvUi.u;
+                        font-weight: side.lead ? 900 : 700;
+                        color: side.lead ? V3Theme.text-primary : V3Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Footer: Venue · Broadcasts
+                if HomeState.next-game.meta != "": Rectangle {
+                    height: 1px;
+                    background: V3Theme.border;
+                }
+                if HomeState.next-game.meta != "": Text {
+                    text: HomeState.next-game.meta;
+                    font-family: V3Theme.font;
+                    font-size: 16px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-secondary;
+                    overflow: elide;
                 }
             }
 
-            Rectangle {
-                width: 44px * TvUi.u;
-                height: 44px * TvUi.u;
-                y: (parent.height - self.height) / 2;
-                border-radius: 10px * TvUi.u;
-                background: b2.has-hover ? V3Theme.surface-raised : V3Theme.bg;
-                border-width: 1px;
-                border-color: V3Theme.border;
-                Icon {
-                    x: (parent.width - self.width) / 2;
-                    y: (parent.height - self.height) / 2;
-                    name: "stop";
-                    size: 18px * TvUi.u;
-                    tint: V3Theme.text-primary;
-                }
-                b2 := TouchArea {
-                    mouse-cursor: pointer;
-                    clicked => { Dash.transport("stop"); }
-                }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { HomeState.open-game(HomeState.next-game.event-id, HomeState.next-game.date); }
             }
+        }
 
-            Rectangle {
-                width: 100px * TvUi.u;
-                height: 44px * TvUi.u;
-                y: (parent.height - self.height) / 2;
-                border-radius: 10px * TvUi.u;
-                background: b3.has-hover ? V3Theme.surface-raised : V3Theme.bg;
-                border-width: 1px;
-                border-color: V3Theme.border;
-                Text {
-                    text: "Subtitles";
-                    font-family: V3Theme.font;
-                    font-size: 15px * TvUi.u;
-                    font-weight: 600;
-                    color: V3Theme.text-primary;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-                b3 := TouchArea {
-                    mouse-cursor: pointer;
-                    clicked => { Dash.transport("sub"); }
-                }
-            }
+        // Quick Actions (4 equal rows: 6 Search, 7 Screensaver, 8 Sleep timer, 9 Theme)
+        Rectangle {
+            property <length> qa-y: root.has-game ? 534px * TvUi.u : 308px * TvUi.u;
+            property <length> qa-h: root.has-game ? 262px * TvUi.u : 488px * TvUi.u;
+            property <length> row-h: (self.qa-h - 20px * TvUi.u - 18px * TvUi.u) / 4;
 
-            Rectangle {
-                width: 84px * TvUi.u;
-                height: 44px * TvUi.u;
-                y: (parent.height - self.height) / 2;
-                border-radius: 10px * TvUi.u;
-                background: b4.has-hover ? V3Theme.surface-raised : V3Theme.bg;
-                border-width: 1px;
-                border-color: V3Theme.border;
-                Text {
-                    text: "Audio";
-                    font-family: V3Theme.font;
-                    font-size: 15px * TvUi.u;
-                    font-weight: 600;
-                    color: V3Theme.text-primary;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
+            x: 920px * TvUi.u;
+            y: self.qa-y;
+            width: 568px * TvUi.u;
+            height: self.qa-h;
+            border-radius: 22px * TvUi.u;
+            background: V3Theme.surface;
+            border-width: 1px;
+            border-color: V3Theme.border;
+
+            for row[idx] in [
+                { id: 6, icon: "search", label: "Search", right: "" },
+                { id: 7, icon: "screensaver", label: "Screensaver", right: "" },
+                { id: 8, icon: "moon", label: "Sleep timer", right: SleepState.active ? SleepState.label : "Off" },
+                { id: 9, icon: "sun", label: "Theme", right: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.ku-light ? "Kansas Light" : Theme.mode == UiTheme.stone ? "Stone" : "Mist" },
+            ]: Rectangle {
+                property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == row.id;
+                x: 14px * TvUi.u;
+                y: 10px * TvUi.u + idx * (parent.row-h + 6px * TvUi.u);
+                width: parent.width - 28px * TvUi.u;
+                height: parent.row-h;
+                border-radius: 14px * TvUi.u;
+                background: self.is-foc ? V3Theme.surface-raised : (r-ta.has-hover ? V3Theme.surface-raised : transparent);
+                border-width: self.is-foc ? 3px : 0px;
+                border-color: V3Theme.focus-ring;
+
+                HorizontalLayout {
+                    padding-left: 12px * TvUi.u;
+                    padding-right: 12px * TvUi.u;
+                    spacing: 14px * TvUi.u;
+
+                    Rectangle {
+                        width: 40px * TvUi.u;
+                        height: 40px * TvUi.u;
+                        border-radius: 12px * TvUi.u;
+                        background: V3Theme.surface-raised;
+                        y: (parent.height - self.height) / 2;
+
+                        Icon {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            name: row.icon;
+                            size: 22px * TvUi.u;
+                            tint: V3Theme.text-secondary;
+                        }
+                    }
+
+                    Text {
+                        horizontal-stretch: 1;
+                        text: row.label;
+                        font-family: V3Theme.font;
+                        font-size: 22px * TvUi.u;
+                        font-weight: 800;
+                        color: V3Theme.text-primary;
+                        vertical-alignment: center;
+                    }
+
+                    if row.right != "": Text {
+                        text: row.right;
+                        font-family: V3Theme.font;
+                        font-size: 19px * TvUi.u;
+                        font-weight: 700;
+                        color: V3Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
                 }
-                b4 := TouchArea {
+
+                r-ta := TouchArea {
                     mouse-cursor: pointer;
-                    clicked => { Dash.transport("audio"); }
+                    clicked => { TvUi.tile-activated(row.id); }
                 }
             }
         }
-    }
+
+        // ── Bottom Apps bar (7 recent-first + All apps ›) ────────────────────
+        Text {
+            x: 44px * TvUi.u;
+            y: 816px * TvUi.u;
+            text: "Apps";
+            font-family: V3Theme.font;
+            font-size: 22px * TvUi.u;
+            font-weight: 900;
+            color: V3Theme.text-primary;
+        }
+
+        for app[i] in HomeState.apps-bar: Rectangle {
+            visible: i < 7;
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;
+
+            x: (44px + i * 182px) * TvUi.u;
+            y: 850px * TvUi.u;
+            width: 170px * TvUi.u;
+            height: 88px * TvUi.u;
+            border-radius: 16px * TvUi.u;
+            clip: true;
+            background: app.color;
+            border-width: self.is-foc ? 4px : 1px;
+            border-color: self.is-foc ? V3Theme.focus-ring : #FFFFFF20;
+
+            if app.has-logo: Image {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: parent.width * 0.70;
+                height: parent.height * 0.60;
+                source: app.logo;
+                image-fit: contain;
+            }
+
+            if !app.has-logo: Text {
+                x: 10px * TvUi.u;
+                width: parent.width - 20px * TvUi.u;
+                height: parent.height;
+                text: app.name;
+                font-family: V3Theme.font;
+                font-size: 21px * TvUi.u;
+                font-weight: 900;
+                color: app.text-color;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { HomeState.launch-app(app.id); }
+            }
+        }
+
+        // Tile 17: All apps ›
+        Rectangle {
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 17;
+            x: (44px + 7 * 182px) * TvUi.u;
+            y: 850px * TvUi.u;
+            width: 170px * TvUi.u;
+            height: 88px * TvUi.u;
+            border-radius: 16px * TvUi.u;
+            background: V3Theme.surface-raised;
+            border-width: self.is-foc ? 4px : 2px;
+            border-color: self.is-foc ? V3Theme.focus-ring : V3Theme.border;
+
+            Text {
+                text: "All apps ›";
+                font-family: V3Theme.font;
+                font-size: 21px * TvUi.u;
+                font-weight: 900;
+                color: V3Theme.text-primary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { HomeState.open-apps-page(); }
+            }
+        }
     } // end IntroRise
 }

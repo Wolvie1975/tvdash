@@ -665,16 +665,16 @@ export component V3Library inherits Rectangle {
 
                 for item[i] in Library.browse-items: Rectangle {
                     property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 32 + i;
-                    x: (40px + Math.mod(i, 8) * 192px) * TvUi.u;
+                    x: (40px + Math.mod(i, 8) * 184px) * TvUi.u;
                     y: (6px + Math.floor(i / 8) * 316px) * TvUi.u;
-                    width: 174px * TvUi.u;
+                    width: 168px * TvUi.u;
                     height: 300px * TvUi.u;
                     background: transparent;
 
                     Rectangle {
                         x: 0;
                         y: 0;
-                        width: 174px * TvUi.u;
+                        width: 168px * TvUi.u;
                         height: 248px * TvUi.u;
                         border-radius: 14px * TvUi.u;
                         clip: true;

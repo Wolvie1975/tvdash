@@ -5,27 +5,30 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Tab {
     Home = 0,
-    Library = 1,
-    Collections = 2,
-    Sports = 3,
-    Settings = 4,
+    Apps = 1,
+    Library = 2,
+    Collections = 3,
+    Sports = 4,
+    Settings = 5,
 }
 
 impl Tab {
     pub fn from_index(idx: usize) -> Option<Self> {
         match idx {
             0 => Some(Self::Home),
-            1 => Some(Self::Library),
-            2 => Some(Self::Collections),
-            3 => Some(Self::Sports),
-            4 => Some(Self::Settings),
+            1 => Some(Self::Apps),
+            2 => Some(Self::Library),
+            3 => Some(Self::Collections),
+            4 => Some(Self::Sports),
+            5 => Some(Self::Settings),
             _ => None,
         }
     }
 
     pub fn next(self) -> Self {
         match self {
-            Self::Home => Self::Library,
+            Self::Home => Self::Apps,
+            Self::Apps => Self::Library,
             Self::Library => Self::Collections,
             Self::Collections => Self::Sports,
             Self::Sports => Self::Settings,
@@ -36,7 +39,8 @@ impl Tab {
     pub fn prev(self) -> Self {
         match self {
             Self::Home => Self::Home,
-            Self::Library => Self::Home,
+            Self::Apps => Self::Home,
+            Self::Library => Self::Apps,
             Self::Collections => Self::Library,
             Self::Sports => Self::Collections,
             Self::Settings => Self::Sports,
@@ -46,6 +50,7 @@ impl Tab {
     pub fn page(self) -> Page {
         match self {
             Self::Home => Page::Home,
+            Self::Apps => Page::Apps,
             Self::Library => Page::Library,
             Self::Collections => Page::Collections,
             Self::Sports => Page::Sports,
@@ -57,6 +62,7 @@ impl Tab {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Page {
     Home,
+    Apps,
     Library,
     Show(String),
     Collection(String),
@@ -81,7 +87,7 @@ impl Default for ShellState {
             tab: Tab::Home,
             stack: vec![Page::Home],
             bar_focused: false,
-            focused_tile: 1, // Hero tile on Home
+            focused_tile: 0, // Hero tile on Home
             last_focus: HashMap::new(),
         }
     }

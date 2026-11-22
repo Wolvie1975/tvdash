@@ -1,0 +1,84 @@
+// Classic UI — Apps tab (§14.3).
+
+import { Theme } from "../theme.slint";
+import { AppsPage, HomeState, TvUi } from "../state.slint";
+import { Tile } from "tile.slint";
+
+export component TvApps inherits Rectangle {
+    width: 1920px * TvUi.u;
+    height: 1080px * TvUi.u;
+    background: transparent;
+
+    Text {
+        x: 96px * TvUi.u;
+        y: 132px * TvUi.u;
+        text: AppsPage.apps.length + (AppsPage.apps.length == 1 ? " app" : " apps");
+        font-size: 22px * TvUi.u;
+        font-weight: 500;
+        color: Theme.text-secondary;
+    }
+
+    if AppsPage.apps.length == 0: Text {
+        x: 96px * TvUi.u;
+        y: 190px * TvUi.u;
+        text: "No streaming apps configured.";
+        font-size: 26px * TvUi.u;
+        color: Theme.text-secondary;
+    }
+
+    if AppsPage.apps.length > 0: Rectangle {
+        x: 0;
+        y: 170px * TvUi.u;
+        width: parent.width;
+        height: parent.height - 170px * TvUi.u;
+        clip: true;
+        background: transparent;
+
+        TouchArea {
+            scroll-event(event) => {
+                TvUi.scroll-panorama(event.delta-y);
+                accept
+            }
+        }
+
+        Rectangle {
+            x: 0;
+            y: -TvUi.lib-scroll * TvUi.u;
+            width: parent.width;
+            height: (Math.ceil(AppsPage.apps.length / 5) * 212px + 48px) * TvUi.u;
+            background: transparent;
+            animate y { duration: 150ms; easing: ease-out; }
+
+            for app[i] in AppsPage.apps: Tile {
+                x: (96px + Math.mod(i, 5) * 348px) * TvUi.u;
+                y: (6px + Math.floor(i / 5) * 212px) * TvUi.u;
+                base-width: 328px * TvUi.u;
+                base-height: 184px * TvUi.u;
+                fill: app.color;
+                focused: !TvUi.bar-focused && TvUi.focused-tile == i;
+                activated => { HomeState.launch-app(app.id); }
+                hovered => { TvUi.tile-hovered(i); }
+
+                if app.has-logo: Image {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2 - 10px * TvUi.u;
+                    width: parent.width * 0.68;
+                    height: parent.height * 0.56;
+                    source: app.logo;
+                    image-fit: contain;
+                }
+
+                Text {
+                    x: 14px * TvUi.u;
+                    y: parent.height - self.height - 10px * TvUi.u;
+                    width: parent.width - 28px * TvUi.u;
+                    text: app.name;
+                    font-size: 18px * TvUi.u;
+                    font-weight: 700;
+                    color: app.text-color;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+}
