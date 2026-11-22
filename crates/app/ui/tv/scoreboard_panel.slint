@@ -471,12 +471,11 @@ export component TvScoreboardPanel inherits Rectangle {
                 for row_idx in Math.ceil(grp.cards.length / 2): HorizontalLayout {
                     spacing: 17px * TvUi.u;
 
-                    for col_idx in [0, 1]: Rectangle {
+                    for col_idx in [0, 1]: VerticalLayout {
                         horizontal-stretch: 1;
-                        background: transparent;
 
                         if (row_idx * 2 + col_idx) < grp.cards.length: TvScoreCardRow {
-                            width: 100%;
+                            vertical-stretch: 1;
                             card: grp.cards[row_idx * 2 + col_idx];
                             is-postponed: grp.is-postponed;
                         }

@@ -128,6 +128,42 @@ export component TvHome inherits Rectangle {
                 image-fit: contain;
             }
 
+            if !HomeState.whats-on.has-item && !HomeState.whats-on.is-app: VerticalLayout {
+                alignment: center;
+                spacing: 14px * TvUi.u;
+
+                Rectangle {
+                    x: (parent.width - self.width) / 2;
+                    width: 84px * TvUi.u;
+                    height: 84px * TvUi.u;
+                    border-radius: 42px * TvUi.u;
+                    background: #FFFFFF14;
+
+                    Icon {
+                        x: (parent.width - self.width) / 2 + 2px * TvUi.u;
+                        y: (parent.height - self.height) / 2;
+                        size: 36px * TvUi.u;
+                        name: "search";
+                        tint: Theme.text-secondary;
+                    }
+                }
+
+                Text {
+                    text: "Nothing on right now";
+                    font-size: 26px * TvUi.u;
+                    font-weight: 600;
+                    color: Theme.text-primary;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: "Press OK to search or browse Library";
+                    font-size: 18px * TvUi.u;
+                    color: Theme.text-secondary;
+                    horizontal-alignment: center;
+                }
+            }
+
             if TvUi.video-on: Rectangle {
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;

@@ -125,9 +125,10 @@ pub(super) fn refresh_weather(s: &UiState, laptop: &LaptopWindow) {
         Some((w, at)) => {
             let c = format::weather_chip(w, s.units.unwrap_or(Units::Fahrenheit));
             let cond = c.detail.split(" · ").next().unwrap_or("").to_lowercase();
+            let hl = c.detail.split_once(" · ").map_or(c.detail.as_str(), |(_, rest)| rest);
             dash.set_weather_on(true);
             dash.set_weather_temp(c.value.into());
-            dash.set_weather_detail(c.detail.into());
+            dash.set_weather_detail(hl.into());
             dash.set_weather_condition(cond.into());
             dash.set_weather_icon(format::weather_icon(w.code).into());
             let stale = Utc::now() - *at > WEATHER_STALE;

@@ -474,71 +474,77 @@ export component V3ScoreboardPanel inherits Rectangle {
     }
 
     // Groups + 3-column card grid
-    if Scoreboard.groups.length > 0: ListView {
+    if Scoreboard.groups.length > 0: Flickable {
         x: 0;
         y: 70px * TvUi.u;
         width: parent.width;
         height: parent.height - 70px * TvUi.u;
+        interactive: true;
+        content-height: sb-col.preferred-height + 24px * TvUi.u;
 
-        for grp[gi] in Scoreboard.groups: VerticalLayout {
+        sb-col := VerticalLayout {
             width: parent.width;
-            padding-top: gi == 0 ? 4px * TvUi.u : 16px * TvUi.u;
-            padding-bottom: 14px * TvUi.u;
             spacing: 14px * TvUi.u;
 
-            // Group heading
-            HorizontalLayout {
-                spacing: 10px * TvUi.u;
-                alignment: start;
+            for grp[gi] in Scoreboard.groups: VerticalLayout {
+                width: parent.width;
+                padding-top: gi == 0 ? 4px * TvUi.u : 16px * TvUi.u;
+                padding-bottom: 14px * TvUi.u;
+                spacing: 14px * TvUi.u;
 
-                if grp.is-live: Rectangle {
-                    width: 20px * TvUi.u;
-                    height: 20px * TvUi.u;
-                    border-radius: 10px * TvUi.u;
-                    background: #E8000D40;
-                    y: (parent.height - self.height) / 2;
+                // Group heading
+                HorizontalLayout {
+                    spacing: 10px * TvUi.u;
+                    alignment: start;
 
-                    Rectangle {
-                        x: 3px * TvUi.u;
-                        y: 3px * TvUi.u;
-                        width: 14px * TvUi.u;
-                        height: 14px * TvUi.u;
-                        border-radius: 7px * TvUi.u;
-                        background: #E8000D;
+                    if grp.is-live: Rectangle {
+                        width: 20px * TvUi.u;
+                        height: 20px * TvUi.u;
+                        border-radius: 10px * TvUi.u;
+                        background: #E8000D40;
+                        y: (parent.height - self.height) / 2;
+
+                        Rectangle {
+                            x: 3px * TvUi.u;
+                            y: 3px * TvUi.u;
+                            width: 14px * TvUi.u;
+                            height: 14px * TvUi.u;
+                            border-radius: 7px * TvUi.u;
+                            background: #E8000D;
+                        }
+                    }
+
+                    Text {
+                        text: grp.title;
+                        font-family: V3Theme.font;
+                        font-size: 26px * TvUi.u;
+                        font-weight: 900;
+                        color: V3Theme.text-primary;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: grp.count;
+                        font-family: V3Theme.font;
+                        font-size: 20px * TvUi.u;
+                        font-weight: 700;
+                        color: V3Theme.text-secondary;
+                        vertical-alignment: center;
                     }
                 }
 
-                Text {
-                    text: grp.title;
-                    font-family: V3Theme.font;
-                    font-size: 26px * TvUi.u;
-                    font-weight: 900;
-                    color: V3Theme.text-primary;
-                    vertical-alignment: center;
-                }
+                // 3-column rows
+                for row_idx in Math.ceil(grp.cards.length / 3): HorizontalLayout {
+                    spacing: 18px * TvUi.u;
 
-                Text {
-                    text: grp.count;
-                    font-family: V3Theme.font;
-                    font-size: 20px * TvUi.u;
-                    font-weight: 700;
-                    color: V3Theme.text-secondary;
-                    vertical-alignment: center;
-                }
-            }
+                    for col_idx in [0, 1, 2]: VerticalLayout {
+                        horizontal-stretch: 1;
 
-            // 3-column rows
-            for row_idx in Math.ceil(grp.cards.length / 3): HorizontalLayout {
-                spacing: 18px * TvUi.u;
-
-                for col_idx in [0, 1, 2]: Rectangle {
-                    horizontal-stretch: 1;
-                    background: transparent;
-
-                    if (row_idx * 3 + col_idx) < grp.cards.length: V3ScoreCardTile {
-                        width: 100%;
-                        card: grp.cards[row_idx * 3 + col_idx];
-                        is-postponed: grp.is-postponed;
+                        if (row_idx * 3 + col_idx) < grp.cards.length: V3ScoreCardTile {
+                            vertical-stretch: 1;
+                            card: grp.cards[row_idx * 3 + col_idx];
+                            is-postponed: grp.is-postponed;
+                        }
                     }
                 }
             }

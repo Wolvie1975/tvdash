@@ -1,5 +1,13 @@
 # tvdash Changelog
 
+## v0.1.60 — 2026-11-22
+- **Home & Apps redesign** across **Blades** and **Classic**:
+  - Added the top-level **Apps** tab (`Home · Apps · Library · Collections · Sports · Settings`) with a case-insensitive A–Z grid of configured streaming apps (`apps.rs`, `v3/apps.slint`, `tv/apps.slint`).
+  - Rebuilt **Home** around the **What's On** hero (`whats_on.rs`), **Up next** 4-card row (`up_next.rs`), **Next Game** card (`next_game.rs`), 4-row Quick Actions, and 8-tile **Apps** bar (7 recent-first via `recent.rs` + `All apps ›`), removing the Home transport bar, Last Played card, and Library quick action.
+- **Sports Scoreboard redesign** across **Blades** (3-column cards) and **Classic** (2-column rows):
+  - Shared `ScoreboardView` (`scoreboard_view.rs`) with sport-specific box score columns (`1 2 3 4 [OT]`, `1 2 3 [OT] [SO]`, `1st 2nd [OT]`, etc.), period/intermission status (`End 1st`, `Halftime`, `2nd Int`), leader emphasis, rank column, start-time ordering, simplified controls (`‹ date › · Today · filter · Refresh · freshness`), and pill D-pad focus.
+  - Fixed per-game **Star** persistence and optimistic UI updates (`sports_watch.rs`, `bridge/mod.rs`), and enabled Home Next Game step 0 for followed/starred games.
+
 ## v0.1.59 — 2026-11-21
 - Updated **Blades Home** (`v3/home.slint`) to remove Google Meet from the Quick Actions box and expand the **Streaming** grid to **6×2** (`i < 12`) so Crunchyroll and Google Meet appear there.
 - Swapped the **Theme** and **Sleep** tile positions in **Classic Home** (`tv/home.slint`) so `Theme` has the wider `356×230` slot for longer theme names like `"Kansas Dark"` and `"Kansas Light"`.
