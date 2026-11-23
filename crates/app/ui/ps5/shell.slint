@@ -1,0 +1,283 @@
+import { CollectionPageState, Dash, HomeState, LibraryLanding, ShowPageState, SleepState, TvUi } from "../state.slint";
+import { Intro, IntroStage } from "../shared/intro.slint";
+import { Theme, UiTheme } from "../theme.slint";
+import { PsTheme } from "theme.slint";
+import { PsIconButton, PsPillButton } from "buttons.slint";
+import { PsHome } from "home.slint";
+import { PsApps } from "apps.slint";
+import { PsLibrary } from "library.slint";
+import { PsShow } from "show.slint";
+import { PsSports } from "sports.slint";
+import { PsCollections } from "collections.slint";
+import { PsCollection } from "collection.slint";
+import { PsSearch } from "search.slint";
+import { PsSettings } from "settings.slint";
+import { PsIntro } from "intro.slint";
+
+// PS5 Dashboard shell (§2.3).
+// Owns full-screen backdrop + scrims, y44 header (tabs + quick actions + weather + clock),
+// active page, full-screen video, and PsIntro overlay.
+export component Ps5Shell inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: PsTheme.bg;
+
+    property <float> scale: max(0.5, min(root.width / 1920px, root.height / 1080px));
+    changed scale => { TvUi.u = self.scale; }
+    init => { TvUi.u = self.scale; }
+
+    property <int> focus-ticket: TvUi.focus-ticket;
+    changed focus-ticket => { keys.focus(); }
+
+    property <bool> is-subpage: TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search";
+    property <int> eff-tab: TvUi.screen == "apps" ? 1
+        : (TvUi.screen == "library" || TvUi.screen == "show") ? 2
+        : (TvUi.screen == "collections" || TvUi.screen == "collection") ? 3
+        : TvUi.screen == "sports" ? 4
+        : TvUi.screen == "settings" ? 5
+        : TvUi.screen == "search" ? -1
+        : 0;
+    property <bool> revealed: Intro.stage == IntroStage.reveal || Intro.stage == IntroStage.done;
+
+    // 1. Full-screen backdrop (Home / Library / Show / Collections)
+    if TvUi.screen == "home" && HomeState.whats-on.has-item && !HomeState.whats-on.is-app && HomeState.whats-on.has-art: Image {
+        source: HomeState.whats-on.art;
+        width: parent.width;
+        height: parent.height;
+        image-fit: cover;
+    }
+    if (TvUi.screen == "library" || TvUi.screen == "collections") && LibraryLanding.has-backdrop: Image {
+        source: LibraryLanding.backdrop-show-b ? LibraryLanding.backdrop-b : LibraryLanding.backdrop-a;
+        width: parent.width;
+        height: parent.height;
+        image-fit: cover;
+    }
+    if TvUi.screen == "show" && ShowPageState.has-backdrop: Image {
+        source: ShowPageState.backdrop;
+        width: parent.width;
+        height: parent.height;
+        image-fit: cover;
+    }
+
+    // Scrims
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: PsTheme.scrim-left;
+    }
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: PsTheme.scrim-bottom;
+    }
+    if TvUi.screen == "home": Rectangle {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: 360px * TvUi.u;
+        background: PsTheme.scrim-top;
+    }
+
+    // 2. Pages
+    if TvUi.screen == "home" || TvUi.screen == "": PsHome {
+        width: parent.width;
+        height: parent.height;
+        focused-hero-btn: !TvUi.bar-focused ? TvUi.focused-tile : -1;
+        open-search => { TvUi.tab-clicked(6); }
+        open-apps => { HomeState.open-apps-page(); }
+    }
+    if TvUi.screen == "apps": PsApps {
+        width: parent.width;
+        height: parent.height;
+        focused-idx: !TvUi.bar-focused ? TvUi.focused-tile : -1;
+    }
+    if TvUi.screen == "library": PsLibrary {
+        width: parent.width;
+        height: parent.height;
+        focused-idx: !TvUi.bar-focused ? TvUi.focused-tile : -1;
+    }
+    if TvUi.screen == "show": PsShow {
+        width: parent.width;
+        height: parent.height;
+        focused-idx: !TvUi.bar-focused ? TvUi.focused-tile : -1;
+    }
+    if TvUi.screen == "sports": PsSports {
+        width: parent.width;
+        height: parent.height;
+        focused-card: !TvUi.bar-focused ? TvUi.focused-tile : -1;
+    }
+    if TvUi.screen == "collections": PsCollections {
+        width: parent.width;
+        height: parent.height;
+        focused-idx: !TvUi.bar-focused ? TvUi.focused-tile : 0;
+    }
+    if TvUi.screen == "collection": PsCollection {
+        width: parent.width;
+        height: parent.height;
+        focused-idx: !TvUi.bar-focused ? TvUi.focused-tile : -1;
+    }
+    if TvUi.screen == "search": PsSearch {
+        width: parent.width;
+        height: parent.height;
+        focused-key: !TvUi.bar-focused ? TvUi.focused-tile : -1;
+    }
+    if TvUi.screen == "settings": PsSettings {
+        width: parent.width;
+        height: parent.height;
+        focused-idx: !TvUi.bar-focused ? TvUi.focused-tile : -1;
+    }
+
+    // Bottom fade on scrolling pages
+    if TvUi.screen != "home": Rectangle {
+        x: 0;
+        y: parent.height - 110px * TvUi.u;
+        width: parent.width;
+        height: 110px * TvUi.u;
+        background: PsTheme.bottom-fade;
+    }
+
+    // 3. Header (y44, x96..1824, h56)
+    Rectangle {
+        x: 96px * TvUi.u;
+        y: 44px * TvUi.u;
+        width: 1728px * TvUi.u;
+        height: 56px * TvUi.u;
+        opacity: root.revealed ? 1.0 : 0.0;
+        animate opacity { duration: Intro.instant ? 0ms : 500ms; delay: Intro.instant ? 0ms : 250ms; easing: ease-out; }
+
+        // Left: optional Back pill + 6 Tabs
+        HorizontalLayout {
+            x: 0;
+            y: 0;
+            height: parent.height;
+            spacing: 44px * TvUi.u;
+
+            if root.is-subpage: PsPillButton {
+                label: TvUi.screen == "collection" ? "‹ Collections" : TvUi.screen == "show" ? "‹ Library" : "‹ Back";
+                compact: true;
+                clicked => { TvUi.back-clicked(); }
+            }
+
+            for tab in [
+                { idx: 0, name: "Home" },
+                { idx: 1, name: "Apps" },
+                { idx: 2, name: "Library" },
+                { idx: 3, name: "Collections" },
+                { idx: 4, name: "Sports" },
+                { idx: 5, name: "Settings" },
+            ]: Rectangle {
+                property <bool> is-act: root.eff-tab == tab.idx;
+                property <bool> is-foc: TvUi.bar-focused && TvUi.focused-tile == tab.idx;
+                width: t-txt.preferred-width;
+                height: parent.height;
+
+                t-txt := Text {
+                    text: tab.name;
+                    font-family: PsTheme.font;
+                    font-size: 30px * TvUi.u;
+                    font-weight: parent.is-act ? 600 : 300;
+                    color: parent.is-act ? PsTheme.text : #E8EAEDB3;
+                    vertical-alignment: center;
+                }
+                if self.is-act || self.is-foc: Rectangle {
+                    x: 0;
+                    y: parent.height - 4px * TvUi.u;
+                    width: parent.width;
+                    height: 3px * TvUi.u;
+                    border-radius: 1.5px * TvUi.u;
+                    background: parent.is-foc ? PsTheme.accent : PsTheme.text;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { TvUi.tab-clicked(tab.idx); }
+                }
+            }
+        }
+
+        // Right: Search · Screensaver · Sleep · Theme + Weather + Clock
+        HorizontalLayout {
+            x: parent.width - self.preferred-width;
+            y: 2px * TvUi.u;
+            height: 52px * TvUi.u;
+            spacing: 18px * TvUi.u;
+
+            PsIconButton {
+                glyph: "⌕";
+                tooltip: "Search";
+                active: TvUi.screen == "search";
+                clicked => { TvUi.tab-clicked(6); }
+            }
+            PsIconButton {
+                glyph: "✦";
+                tooltip: "Screensaver";
+                clicked => { Dash.open-screensaver(); }
+            }
+            PsIconButton {
+                glyph: "☾";
+                tooltip: SleepState.active ? ("Sleep · " + SleepState.label) : "Sleep · Off";
+                active: SleepState.active;
+                clicked => { SleepState.open-picker(); }
+            }
+            PsIconButton {
+                glyph: "◐";
+                tooltip: "Theme";
+                clicked => {
+                    Dash.set-theme(
+                        Theme.mode == UiTheme.dark ? UiTheme.aubergine
+                        : Theme.mode == UiTheme.aubergine ? UiTheme.ku
+                        : Theme.mode == UiTheme.ku ? UiTheme.stone
+                        : Theme.mode == UiTheme.stone ? UiTheme.mist
+                        : UiTheme.dark
+                    );
+                }
+            }
+
+            if Dash.weather-on && Dash.weather-temp != "—" && Dash.weather-temp != "": Text {
+                text: Dash.weather-temp;
+                font-family: PsTheme.font;
+                font-size: 26px * TvUi.u;
+                font-weight: 500;
+                color: PsTheme.sub;
+                vertical-alignment: center;
+            }
+
+            Text {
+                text: Dash.clock-hh + ":" + Dash.clock-mm + (Dash.clock-ampm != "" ? (" " + Dash.clock-ampm) : "");
+                font-family: PsTheme.font;
+                font-size: 30px * TvUi.u;
+                font-weight: 500;
+                color: PsTheme.text;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    // 4. Full-screen in-window video
+    if TvUi.video-on && TvUi.video-full: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: #000000;
+        Image {
+            source: TvUi.video;
+            width: parent.width;
+            height: parent.height;
+            image-fit: contain;
+        }
+    }
+
+    // 5. Startup animation
+    PsIntro {
+        width: parent.width;
+        height: parent.height;
+    }
+
+    // Keyboard / TV remote focus
+    keys := FocusScope {
+        key-pressed(event) => {
+            if TvUi.key(event.text) {
+                return accept;
+            }
+            return reject;
+        }
+    }
+}

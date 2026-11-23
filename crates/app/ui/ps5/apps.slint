@@ -1,0 +1,95 @@
+import { AppsPage, HomeState, TvUi } from "../state.slint";
+import { PsTheme } from "theme.slint";
+
+// PS5 Apps tab (§3.6):
+// Label Apps · N; 6-column grid of 248x140 r20 brand tiles + name 22/600 below, gap 24x32.
+export component PsApps inherits Rectangle {
+    in property <int> focused-idx: -1;
+
+    Text {
+        x: 96px * TvUi.u;
+        y: 136px * TvUi.u;
+        text: "APPS · " + AppsPage.apps.length;
+        font-family: PsTheme.font;
+        font-size: 22px * TvUi.u;
+        font-weight: 600;
+        color: PsTheme.sub;
+        letter-spacing: 1.2px;
+    }
+
+    Flickable {
+        x: 0;
+        y: 184px * TvUi.u;
+        width: parent.width;
+        height: parent.height - 184px * TvUi.u;
+        content-height: Math.max(parent.height - 184px * TvUi.u, (Math.ceil(AppsPage.apps.length / 6) * 214px + 120px) * TvUi.u);
+
+        for app[i] in AppsPage.apps: Rectangle {
+            property <int> gx: Math.mod(i, 6);
+            property <int> gy: Math.floor(i / 6);
+            property <bool> is-foc: root.focused-idx == i;
+
+            x: (96px + self.gx * 272px) * TvUi.u;
+            y: (12px + self.gy * 214px) * TvUi.u;
+            width: 248px * TvUi.u;
+            height: 186px * TvUi.u;
+
+            if self.is-foc: Rectangle {
+                x: -9px * TvUi.u;
+                y: -9px * TvUi.u;
+                width: 266px * TvUi.u;
+                height: 158px * TvUi.u;
+                border-radius: 27px * TvUi.u;
+                border-width: 4px * TvUi.u;
+                border-color: PsTheme.text;
+            }
+
+            Rectangle {
+                x: 0;
+                y: 0;
+                width: 248px * TvUi.u;
+                height: 140px * TvUi.u;
+                border-radius: 20px * TvUi.u;
+                background: app.color;
+                transform-scale: parent.is-foc ? 1.08 : 1.0;
+                animate transform-scale { duration: 140ms; easing: ease-out; }
+                clip: true;
+
+                if app.has-logo: Image {
+                    source: app.logo;
+                    width: app.logo-wide ? parent.width * 0.85 : parent.width * 0.65;
+                    height: app.logo-wide ? parent.height * 0.65 : parent.height * 0.60;
+                    image-fit: contain;
+                }
+                if !app.has-logo: Text {
+                    text: app.name;
+                    font-family: PsTheme.font;
+                    font-size: 22px * TvUi.u;
+                    font-weight: 800;
+                    color: app.text-color;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    wrap: word-wrap;
+                }
+            }
+
+            Text {
+                x: 0;
+                y: 152px * TvUi.u;
+                width: 248px * TvUi.u;
+                text: app.name;
+                font-family: PsTheme.font;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: parent.is-foc ? PsTheme.text : PsTheme.sub;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { HomeState.launch-app(app.id); }
+            }
+        }
+    }
+}

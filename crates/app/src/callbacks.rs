@@ -1235,11 +1235,9 @@ fn wire_intro(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     let weak = laptop.as_weak();
     intro.on_preview(move || {
         if let Some(l) = weak.upgrade() {
-            let skin = if l.global::<Display>().get_dashboard_ui() == "blades" {
-                crate::intro::Skin::Blades
-            } else {
-                crate::intro::Skin::Tiles
-            };
+            let skin = crate::intro::Skin::from(
+                tvdash_core::config::DashboardUi::parse(&l.global::<Display>().get_dashboard_ui()),
+            );
             crate::intro::preview(&l, skin);
         }
     });

@@ -1,0 +1,339 @@
+import { ShowPageState, TvUi } from "../state.slint";
+import { PsTheme } from "theme.slint";
+import { PsPillButton } from "buttons.slint";
+import { PsSeasonPicker } from "season_picker.slint";
+
+// PS5 Show page (§5): Hub state and Scrolled Episodes state.
+export component PsShow inherits Rectangle {
+    in property <int> focused-idx: -1;
+    in-out property <bool> picker-open: false;
+
+    // ── Hub state ────────────────────────────────────────────────────────────
+    if !ShowPageState.scrolled: Rectangle {
+        width: parent.width;
+        height: parent.height;
+
+        VerticalLayout {
+            x: 96px * TvUi.u;
+            y: 170px * TvUi.u;
+            width: 1100px * TvUi.u;
+            spacing: 14px * TvUi.u;
+
+            Text {
+                text: ShowPageState.up-next != "" ? ("UP NEXT · " + ShowPageState.up-next) : "TV SERIES";
+                font-family: PsTheme.font;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.accent;
+                letter-spacing: 1.4px;
+            }
+            Text {
+                text: ShowPageState.title;
+                font-family: PsTheme.font;
+                font-size: 96px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.text;
+                letter-spacing: -2px;
+                overflow: elide;
+            }
+            Text {
+                text: ShowPageState.meta;
+                font-family: PsTheme.font;
+                font-size: 26px * TvUi.u;
+                color: PsTheme.sub;
+                overflow: elide;
+            }
+            Text {
+                height: 102px * TvUi.u;
+                text: ShowPageState.summary;
+                font-family: PsTheme.font;
+                font-size: 24px * TvUi.u;
+                color: PsTheme.sub;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+            HorizontalLayout {
+                spacing: 16px * TvUi.u;
+                PsPillButton {
+                    label: ShowPageState.can-resume ? ("▶  Resume " + ShowPageState.up-next) : ("▶  Play " + ShowPageState.up-next);
+                    primary: true;
+                    focused: root.focused-idx == 0;
+                    clicked => { ShowPageState.play-episode(ShowPageState.up-next-key, false); }
+                }
+                PsPillButton {
+                    label: "From S1 · E1";
+                    focused: root.focused-idx == 1;
+                    clicked => { ShowPageState.play-from-start(); }
+                }
+            }
+        }
+
+        // Seasons row (cards 400 x 180, max 4; 5+ -> 3 + "+N more ↓")
+        Text {
+            x: 96px * TvUi.u;
+            y: 660px * TvUi.u;
+            text: "SEASONS";
+            font-family: PsTheme.font;
+            font-size: 22px * TvUi.u;
+            font-weight: 600;
+            color: PsTheme.sub;
+            letter-spacing: 1.2px;
+        }
+        for s[i] in ShowPageState.seasons: Rectangle {
+            property <bool> show-more: ShowPageState.seasons.length > 4 && i == 3;
+            visible: i < 4;
+            x: (96px + i * 424px) * TvUi.u;
+            y: 706px * TvUi.u;
+            width: 400px * TvUi.u;
+            height: 180px * TvUi.u;
+            border-radius: 18px * TvUi.u;
+            background: s.rating-key == ShowPageState.selected-season && !self.show-more ? PsTheme.text : PsTheme.card;
+            border-width: 1px;
+            border-color: PsTheme.card-border;
+
+            Text {
+                x: 24px * TvUi.u;
+                y: 28px * TvUi.u;
+                width: parent.width - 48px * TvUi.u;
+                text: parent.show-more ? ("+" + (ShowPageState.seasons.length - 3) + " more ↓") : s.title;
+                font-family: PsTheme.font;
+                font-size: 26px * TvUi.u;
+                font-weight: 600;
+                color: s.rating-key == ShowPageState.selected-season && !parent.show-more ? PsTheme.on-light : PsTheme.text;
+            }
+            if !self.show-more: Text {
+                x: 24px * TvUi.u;
+                y: 74px * TvUi.u;
+                text: s.progress;
+                font-family: PsTheme.font;
+                font-size: 18px * TvUi.u;
+                color: s.rating-key == ShowPageState.selected-season ? #48484A : PsTheme.sub;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    if !parent.show-more {
+                        ShowPageState.select-season(s.rating-key);
+                    }
+                    ShowPageState.scrolled = true;
+                }
+            }
+        }
+
+        PsPillButton {
+            x: 96px * TvUi.u;
+            y: 930px * TvUi.u;
+            label: "↓ Episodes";
+            compact: true;
+            clicked => { ShowPageState.scrolled = true; }
+        }
+    }
+
+    // ── Episodes state ───────────────────────────────────────────────────────
+    if ShowPageState.scrolled: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: #050608C8;
+
+        // Sticky bar (y124)
+        HorizontalLayout {
+            x: 96px * TvUi.u;
+            y: 124px * TvUi.u;
+            width: 1728px * TvUi.u;
+            height: 64px * TvUi.u;
+            spacing: 16px * TvUi.u;
+
+            Text {
+                text: ShowPageState.title;
+                font-family: PsTheme.font;
+                font-size: 44px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.text;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+            PsPillButton {
+                label: "↑ Overview";
+                compact: true;
+                clicked => { ShowPageState.scrolled = false; }
+            }
+            PsPillButton {
+                label: "▶  Resume";
+                primary: true;
+                compact: true;
+                clicked => { ShowPageState.play-episode(ShowPageState.up-next-key, false); }
+            }
+        }
+
+        Flickable {
+            x: 0;
+            y: 210px * TvUi.u;
+            width: parent.width;
+            height: parent.height - 210px * TvUi.u;
+            content-height: (Math.ceil((ShowPageState.episodes.length + (ShowPageState.next-season-key != "" ? 1 : 0)) / 3) * 344px + 360px) * TvUi.u;
+
+            // Season strip (4-col 360 x 116, max 2 rows, 9+ -> 7 + All N seasons)
+            for s[i] in ShowPageState.seasons: Rectangle {
+                property <bool> is-all: ShowPageState.seasons.length > 8 && i == 7;
+                visible: i < 8;
+                property <int> gx: Math.mod(i, 4);
+                property <int> gy: Math.floor(i / 4);
+                property <bool> is-sel: !self.is-all && s.rating-key == ShowPageState.selected-season;
+
+                x: (96px + self.gx * 384px) * TvUi.u;
+                y: (12px + self.gy * 134px) * TvUi.u;
+                width: 360px * TvUi.u;
+                height: 116px * TvUi.u;
+                border-radius: 16px * TvUi.u;
+                background: self.is-sel ? PsTheme.text : PsTheme.card;
+                border-width: 1px;
+                border-color: PsTheme.card-border;
+
+                Text {
+                    x: 20px * TvUi.u;
+                    y: 22px * TvUi.u;
+                    width: parent.width - 40px * TvUi.u;
+                    text: parent.is-all ? ("All " + ShowPageState.seasons.length + " seasons") : s.title;
+                    font-family: PsTheme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 600;
+                    color: parent.is-sel ? PsTheme.on-light : PsTheme.text;
+                    overflow: elide;
+                }
+                if !self.is-all: Text {
+                    x: 20px * TvUi.u;
+                    y: 58px * TvUi.u;
+                    text: s.progress;
+                    font-family: PsTheme.font;
+                    font-size: 15px * TvUi.u;
+                    color: parent.is-sel ? #48484A : PsTheme.sub;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        if parent.is-all {
+                            root.picker-open = true;
+                        } else {
+                            ShowPageState.select-season(s.rating-key);
+                        }
+                    }
+                }
+            }
+
+            // 3-col episode grid (h320)
+            for ep[i] in ShowPageState.episodes: Rectangle {
+                property <int> gx: Math.mod(i, 3);
+                property <int> gy: Math.floor(i / 3);
+                property <bool> is-foc: root.focused-idx == 100 + i;
+                property <length> base-y: ShowPageState.seasons.length > 4 ? 304px : 170px;
+
+                x: (96px + self.gx * 584px) * TvUi.u;
+                y: self.base-y * TvUi.u + (self.gy * 344px) * TvUi.u;
+                width: 560px * TvUi.u;
+                height: 320px * TvUi.u;
+                border-radius: 18px * TvUi.u;
+                background: PsTheme.card;
+                border-width: self.is-foc ? 4px * TvUi.u : 1px;
+                border-color: self.is-foc ? PsTheme.text : PsTheme.card-border;
+                clip: true;
+
+                if ep.has-thumb: Image {
+                    source: ep.thumb;
+                    x: 0;
+                    y: 0;
+                    width: parent.width;
+                    height: 196px * TvUi.u;
+                    image-fit: cover;
+                }
+                if ep.watched: Rectangle {
+                    x: parent.width - 42px * TvUi.u;
+                    y: 12px * TvUi.u;
+                    width: 28px * TvUi.u;
+                    height: 28px * TvUi.u;
+                    border-radius: 14px * TvUi.u;
+                    background: PsTheme.green;
+                    Text { text: "✓"; font-size: 16px * TvUi.u; font-weight: 800; color: #FFFFFF; horizontal-alignment: center; vertical-alignment: center; }
+                }
+                if ep.progress > 0.0: Rectangle {
+                    x: 0;
+                    y: 191px * TvUi.u;
+                    width: parent.width;
+                    height: 5px * TvUi.u;
+                    background: #FFFFFF28;
+                    Rectangle {
+                        width: parent.width * Math.clamp(ep.progress, 0.0, 1.0);
+                        height: parent.height;
+                        background: PsTheme.accent;
+                    }
+                }
+                Text {
+                    x: 18px * TvUi.u;
+                    y: 208px * TvUi.u;
+                    width: parent.width - 36px * TvUi.u;
+                    text: ep.num + " · " + ep.title;
+                    font-family: PsTheme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.text;
+                    overflow: elide;
+                }
+                Text {
+                    x: 18px * TvUi.u;
+                    y: 238px * TvUi.u;
+                    width: parent.width - 36px * TvUi.u;
+                    height: 62px * TvUi.u;
+                    text: ep.summary;
+                    font-family: PsTheme.font;
+                    font-size: 16px * TvUi.u;
+                    color: PsTheme.sub;
+                    wrap: word-wrap;
+                    overflow: elide;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { ShowPageState.play-episode(ep.rating-key, false); }
+                }
+            }
+
+            // Continue to Season N ›
+            if ShowPageState.next-season-key != "": Rectangle {
+                property <int> idx: ShowPageState.episodes.length;
+                property <int> gx: Math.mod(self.idx, 3);
+                property <int> gy: Math.floor(self.idx / 3);
+                property <length> base-y: ShowPageState.seasons.length > 4 ? 304px : 170px;
+
+                x: (96px + self.gx * 584px) * TvUi.u;
+                y: self.base-y * TvUi.u + (self.gy * 344px) * TvUi.u;
+                width: 560px * TvUi.u;
+                height: 320px * TvUi.u;
+                border-radius: 18px * TvUi.u;
+                background: PsTheme.glass;
+                border-width: 1.5px;
+                border-color: #E8EAED40;
+
+                Text {
+                    text: ShowPageState.next-season-label + " ›";
+                    font-family: PsTheme.font;
+                    font-size: 26px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.text;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { ShowPageState.select-season(ShowPageState.next-season-key); }
+                }
+            }
+        }
+    }
+
+    PsSeasonPicker {
+        width: parent.width;
+        height: parent.height;
+        open <=> root.picker-open;
+        pick(key) => { ShowPageState.select-season(key); }
+        close => { root.picker-open = false; }
+    }
+}

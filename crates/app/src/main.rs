@@ -15,6 +15,7 @@ mod instance;
 mod intro;
 mod next_game;
 mod portal;
+mod ps5;
 mod recent;
 mod scoreboard_view;
 mod shell_tv;

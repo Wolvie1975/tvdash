@@ -1,0 +1,311 @@
+import { Accounts, Dash, Diagnostics, Display, Server, SiteEditor, SportsAlertsSettings, TvUi } from "../state.slint";
+import { Intro } from "../shared/intro.slint";
+import { Theme, UiTheme } from "../theme.slint";
+import { PsTheme } from "theme.slint";
+import { PsPillButton } from "buttons.slint";
+import { PsToggle } from "controls.slint";
+
+// PS5 Settings page (§9).
+export component PsSettings inherits Rectangle {
+    in property <int> focused-idx: -1;
+
+    property <string> theme-label: Theme.mode == UiTheme.dark ? "Kansas Dark"
+        : Theme.mode == UiTheme.aubergine ? "Aubergine"
+        : Theme.mode == UiTheme.ku ? "KU Crimson"
+        : Theme.mode == UiTheme.stone ? "Stone"
+        : "Mist";
+
+    // Backdrop glow top-right (#2A3550)
+    Rectangle {
+        x: parent.width - 700px * TvUi.u;
+        y: -200px * TvUi.u;
+        width: 900px * TvUi.u;
+        height: 700px * TvUi.u;
+        border-radius: 450px * TvUi.u;
+        background: #2A355040;
+    }
+
+    // Left (w380): section pills h74
+    VerticalLayout {
+        x: 96px * TvUi.u;
+        y: 150px * TvUi.u;
+        width: 380px * TvUi.u;
+        spacing: 10px * TvUi.u;
+
+        for item in [
+            { id: "display", name: "Display" },
+            { id: "accounts", name: "Accounts" },
+            { id: "sites", name: "Sites" },
+            { id: "sports", name: "Sports" },
+            { id: "server", name: "Server" },
+            { id: "diagnostics", name: "Diagnostics" },
+            { id: "changelog", name: "What's new" },
+        ]: Rectangle {
+            property <bool> is-sel: TvUi.settings-tab == item.id;
+            height: 74px * TvUi.u;
+            border-radius: 37px * TvUi.u;
+            background: self.is-sel ? PsTheme.text : PsTheme.card;
+            border-width: 1px;
+            border-color: PsTheme.card-border;
+
+            Text {
+                x: 28px * TvUi.u;
+                text: item.name;
+                font-family: PsTheme.font;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: parent.is-sel ? PsTheme.on-light : PsTheme.text;
+                vertical-alignment: center;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    TvUi.settings-tab = item.id;
+                    if item.id == "server" { Server.open(); }
+                }
+            }
+        }
+    }
+
+    // Right pane
+    Flickable {
+        x: 540px * TvUi.u;
+        y: 150px * TvUi.u;
+        width: 1284px * TvUi.u;
+        height: parent.height - 150px * TvUi.u;
+        content-height: 920px * TvUi.u;
+
+        // ── Display ──────────────────────────────────────────────────────────
+        if TvUi.settings-tab == "display" || TvUi.settings-tab == "": VerticalLayout {
+            width: parent.width;
+            spacing: 14px * TvUi.u;
+
+            // Dashboard UI 3 preview cards
+            Rectangle {
+                height: 220px * TvUi.u;
+                border-radius: 18px * TvUi.u;
+                background: PsTheme.card;
+                border-width: 1px;
+                border-color: PsTheme.card-border;
+
+                Text {
+                    x: 24px * TvUi.u;
+                    y: 18px * TvUi.u;
+                    text: "Dashboard UI";
+                    font-family: PsTheme.font;
+                    font-size: 22px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.text;
+                }
+
+                HorizontalLayout {
+                    x: 24px * TvUi.u;
+                    y: 58px * TvUi.u;
+                    spacing: 24px * TvUi.u;
+
+                    for opt in [
+                        { id: "classic", label: "Classic", sub: "top tabs · tile hub" },
+                        { id: "blades", label: "Blades", sub: "side tabs" },
+                        { id: "ps5", label: "PS5", sub: "header tabs · app row" },
+                    ]: Rectangle {
+                        property <bool> is-sel: Display.dashboard-ui == opt.id || (opt.id == "classic" && Display.dashboard-ui != "blades" && Display.dashboard-ui != "ps5");
+                        width: 390px * TvUi.u;
+                        height: 140px * TvUi.u;
+                        border-radius: 16px * TvUi.u;
+                        background: #050608B0;
+                        border-width: self.is-sel ? 3px * TvUi.u : 1px;
+                        border-color: self.is-sel ? PsTheme.accent : PsTheme.card-border;
+
+                        Text {
+                            x: 20px * TvUi.u;
+                            y: 26px * TvUi.u;
+                            text: opt.label;
+                            font-family: PsTheme.font;
+                            font-size: 21px * TvUi.u;
+                            font-weight: 600;
+                            color: PsTheme.text;
+                        }
+                        Text {
+                            x: 20px * TvUi.u;
+                            y: 62px * TvUi.u;
+                            text: opt.sub;
+                            font-family: PsTheme.font;
+                            font-size: 16px * TvUi.u;
+                            color: PsTheme.muted;
+                        }
+                        if self.is-sel: Text {
+                            x: parent.width - 42px * TvUi.u;
+                            y: 24px * TvUi.u;
+                            text: "✓";
+                            font-size: 22px * TvUi.u;
+                            font-weight: 700;
+                            color: PsTheme.accent;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Display.set-dashboard-ui(opt.id); }
+                        }
+                    }
+                }
+            }
+
+            // Theme row
+            Rectangle {
+                height: 76px * TvUi.u; border-radius: 18px * TvUi.u; background: PsTheme.card; border-width: 1px; border-color: PsTheme.card-border;
+                Text { x: 24px * TvUi.u; y: 14px * TvUi.u; text: "Theme"; font-family: PsTheme.font; font-size: 22px * TvUi.u; font-weight: 600; color: PsTheme.text; }
+                Text { x: 24px * TvUi.u; y: 44px * TvUi.u; text: "Accent colour in PS5"; font-family: PsTheme.font; font-size: 15px * TvUi.u; color: PsTheme.muted; }
+                Text { x: parent.width - self.preferred-width - 24px * TvUi.u; text: root.theme-label + " ›"; font-family: PsTheme.font; font-size: 20px * TvUi.u; color: PsTheme.sub; vertical-alignment: center; }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        Dash.set-theme(
+                            Theme.mode == UiTheme.dark ? UiTheme.aubergine
+                            : Theme.mode == UiTheme.aubergine ? UiTheme.ku
+                            : Theme.mode == UiTheme.ku ? UiTheme.stone
+                            : Theme.mode == UiTheme.stone ? UiTheme.mist
+                            : UiTheme.dark
+                        );
+                    }
+                }
+            }
+
+            // Time format row
+            Rectangle {
+                height: 72px * TvUi.u; border-radius: 18px * TvUi.u; background: PsTheme.card; border-width: 1px; border-color: PsTheme.card-border;
+                Text { x: 24px * TvUi.u; text: "Time format"; font-family: PsTheme.font; font-size: 22px * TvUi.u; font-weight: 600; color: PsTheme.text; vertical-alignment: center; }
+                Text { x: parent.width - self.preferred-width - 24px * TvUi.u; text: Display.h12 ? "12h ›" : "24h ›"; font-family: PsTheme.font; font-size: 20px * TvUi.u; color: PsTheme.sub; vertical-alignment: center; }
+                TouchArea { mouse-cursor: pointer; clicked => { Display.h12 = !Display.h12; Display.changed(); } }
+            }
+
+            // Weather units row
+            Rectangle {
+                height: 72px * TvUi.u; border-radius: 18px * TvUi.u; background: PsTheme.card; border-width: 1px; border-color: PsTheme.card-border;
+                Text { x: 24px * TvUi.u; text: "Weather units"; font-family: PsTheme.font; font-size: 22px * TvUi.u; font-weight: 600; color: PsTheme.text; vertical-alignment: center; }
+                Text { x: parent.width - self.preferred-width - 24px * TvUi.u; text: Display.celsius ? "°C ›" : "°F ›"; font-family: PsTheme.font; font-size: 20px * TvUi.u; color: PsTheme.sub; vertical-alignment: center; }
+                TouchArea { mouse-cursor: pointer; clicked => { Display.celsius = !Display.celsius; Display.changed(); } }
+            }
+
+            // Startup animation row
+            Rectangle {
+                height: 72px * TvUi.u; border-radius: 18px * TvUi.u; background: PsTheme.card; border-width: 1px; border-color: PsTheme.card-border;
+                Text { x: 24px * TvUi.u; text: "Startup animation"; font-family: PsTheme.font; font-size: 22px * TvUi.u; font-weight: 600; color: PsTheme.text; vertical-alignment: center; }
+                HorizontalLayout {
+                    x: parent.width - self.preferred-width - 24px * TvUi.u;
+                    y: 8px * TvUi.u;
+                    spacing: 16px * TvUi.u;
+                    PsPillButton {
+                        label: "Preview";
+                        compact: true;
+                        clicked => { Intro.preview(); }
+                    }
+                    PsToggle {
+                        y: 11px * TvUi.u;
+                        checked: Intro.enabled;
+                        toggled => { Intro.set-enabled(!Intro.enabled); }
+                    }
+                }
+            }
+
+            // Clear recent services
+            Rectangle {
+                height: 76px * TvUi.u; border-radius: 18px * TvUi.u; background: PsTheme.card; border-width: 1px; border-color: PsTheme.card-border;
+                Text { x: 24px * TvUi.u; y: 14px * TvUi.u; text: "Clear recent services"; font-family: PsTheme.font; font-size: 22px * TvUi.u; font-weight: 600; color: PsTheme.text; }
+                Text { x: 24px * TvUi.u; y: 44px * TvUi.u; text: "Resets the app row order"; font-family: PsTheme.font; font-size: 15px * TvUi.u; color: PsTheme.muted; }
+                Text { x: parent.width - self.preferred-width - 24px * TvUi.u; text: "Clear ›"; font-family: PsTheme.font; font-size: 20px * TvUi.u; color: PsTheme.sub; vertical-alignment: center; }
+                TouchArea { mouse-cursor: pointer; clicked => { TvUi.clear-recent(); } }
+            }
+        }
+
+        // ── Accounts ─────────────────────────────────────────────────────────
+        if TvUi.settings-tab == "accounts": VerticalLayout {
+            width: parent.width;
+            spacing: 12px * TvUi.u;
+            for acc in Accounts.accounts: Rectangle {
+                height: 82px * TvUi.u; border-radius: 18px * TvUi.u; background: PsTheme.card; border-width: 1px; border-color: PsTheme.card-border;
+                Text { x: 24px * TvUi.u; y: 16px * TvUi.u; text: acc.name + " · " + acc.status; font-family: PsTheme.font; font-size: 22px * TvUi.u; font-weight: 600; color: PsTheme.text; }
+                Text { x: 24px * TvUi.u; y: 46px * TvUi.u; text: acc.detail; font-family: PsTheme.font; font-size: 15px * TvUi.u; color: PsTheme.muted; }
+                if acc.primary != "": PsPillButton {
+                    x: parent.width - self.width - 24px * TvUi.u;
+                    y: 13px * TvUi.u;
+                    label: acc.primary;
+                    primary: true;
+                    compact: true;
+                    clicked => { Accounts.action(acc.id, acc.primary-id); }
+                }
+            }
+        }
+
+        // ── Sites ────────────────────────────────────────────────────────────
+        if TvUi.settings-tab == "sites": VerticalLayout {
+            width: parent.width;
+            spacing: 12px * TvUi.u;
+            HorizontalLayout {
+                PsPillButton { label: "+ Add site"; primary: true; compact: true; clicked => { SiteEditor.add(); } }
+            }
+            for site in Accounts.sites: Rectangle {
+                height: 76px * TvUi.u; border-radius: 18px * TvUi.u; background: PsTheme.card; border-width: 1px; border-color: PsTheme.card-border;
+                Text { x: 24px * TvUi.u; y: 14px * TvUi.u; text: site.name; font-family: PsTheme.font; font-size: 22px * TvUi.u; font-weight: 600; color: PsTheme.text; }
+                Text { x: 24px * TvUi.u; y: 44px * TvUi.u; text: site.url; font-family: PsTheme.font; font-size: 15px * TvUi.u; color: PsTheme.muted; }
+                PsPillButton { x: parent.width - self.width - 24px * TvUi.u; y: 10px * TvUi.u; label: "Edit"; compact: true; clicked => { SiteEditor.edit(site.index); } }
+            }
+        }
+
+        // ── Sports ───────────────────────────────────────────────────────────
+        if TvUi.settings-tab == "sports": VerticalLayout {
+            width: parent.width;
+            spacing: 12px * TvUi.u;
+            Rectangle {
+                height: 72px * TvUi.u; border-radius: 18px * TvUi.u; background: PsTheme.card; border-width: 1px; border-color: PsTheme.card-border;
+                Text { x: 24px * TvUi.u; text: "Final score alerts"; font-family: PsTheme.font; font-size: 22px * TvUi.u; font-weight: 600; color: PsTheme.text; vertical-alignment: center; }
+                PsToggle { x: parent.width - 84px * TvUi.u; y: 19px * TvUi.u; checked: SportsAlertsSettings.final-on; toggled => { SportsAlertsSettings.set-final-on(!SportsAlertsSettings.final-on); } }
+            }
+            Text { text: "Followed teams (" + SportsAlertsSettings.followed-teams.length + ")"; font-family: PsTheme.font; font-size: 20px * TvUi.u; font-weight: 600; color: PsTheme.sub; }
+            for t in SportsAlertsSettings.followed-teams: Rectangle {
+                height: 60px * TvUi.u; border-radius: 14px * TvUi.u; background: PsTheme.card; border-width: 1px; border-color: PsTheme.card-border;
+                Text { x: 24px * TvUi.u; text: t.name + " · " + t.league-label; font-family: PsTheme.font; font-size: 18px * TvUi.u; color: PsTheme.text; vertical-alignment: center; }
+            }
+        }
+
+        // ── Server ───────────────────────────────────────────────────────────
+        if TvUi.settings-tab == "server": VerticalLayout {
+            width: parent.width;
+            spacing: 14px * TvUi.u;
+            Text { text: Server.name + " · " + Server.status; font-family: PsTheme.font; font-size: 26px * TvUi.u; font-weight: 600; color: PsTheme.text; }
+            Text { text: "Streams: " + Server.streams + " · Transcodes: " + Server.transcodes + " · CPU: " + Server.cpu + "% · RAM: " + Server.ram + "%"; font-family: PsTheme.font; font-size: 20px * TvUi.u; color: PsTheme.sub; }
+            HorizontalLayout {
+                spacing: 14px * TvUi.u;
+                PsPillButton { label: "Scan all libraries"; primary: true; compact: true; clicked => { Server.scan-all(); } }
+                PsPillButton { label: "Refresh"; compact: true; clicked => { Server.refresh(); } }
+            }
+        }
+
+        // ── Diagnostics ──────────────────────────────────────────────────────
+        if TvUi.settings-tab == "diagnostics": VerticalLayout {
+            width: parent.width;
+            spacing: 12px * TvUi.u;
+            for r in Diagnostics.rows: Rectangle {
+                height: 68px * TvUi.u; border-radius: 16px * TvUi.u; background: PsTheme.card; border-width: 1px; border-color: PsTheme.card-border;
+                Text { x: 24px * TvUi.u; text: r.name + " · " + r.last-ok; font-family: PsTheme.font; font-size: 18px * TvUi.u; color: PsTheme.text; vertical-alignment: center; }
+            }
+        }
+
+        // ── What's new ───────────────────────────────────────────────────────
+        if TvUi.settings-tab == "changelog": VerticalLayout {
+            width: parent.width;
+            spacing: 12px * TvUi.u;
+            Text { text: "tvdash " + Dash.version; font-family: PsTheme.font; font-size: 28px * TvUi.u; font-weight: 600; color: PsTheme.text; }
+            for entry in Dash.changelog: Rectangle {
+                height: ce.preferred-height + 32px * TvUi.u;
+                border-radius: 16px * TvUi.u;
+                background: PsTheme.card;
+                border-width: 1px;
+                border-color: PsTheme.card-border;
+                ce := VerticalLayout {
+                    x: 24px * TvUi.u; y: 16px * TvUi.u; width: parent.width - 48px * TvUi.u; spacing: 8px * TvUi.u;
+                    Text { text: entry.version + " · " + entry.date; font-family: PsTheme.font; font-size: 20px * TvUi.u; font-weight: 600; color: PsTheme.text; }
+                    Text { text: entry.notes; font-family: PsTheme.font; font-size: 16px * TvUi.u; color: PsTheme.sub; wrap: word-wrap; }
+                }
+            }
+        }
+    }
+}

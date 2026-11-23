@@ -1,0 +1,196 @@
+import { CollectionPageState, TvUi } from "../state.slint";
+import { PsTheme } from "theme.slint";
+import { PsPillButton } from "buttons.slint";
+import { PsSegmented, PsToggle } from "controls.slint";
+
+// PS5 Collection page (§7.2). No Shuffle.
+export component PsCollection inherits Rectangle {
+    in property <int> focused-idx: -1;
+
+    // Left (w760)
+    VerticalLayout {
+        x: 96px * TvUi.u;
+        y: 160px * TvUi.u;
+        width: 760px * TvUi.u;
+        spacing: 14px * TvUi.u;
+
+        Text {
+            text: "COLLECTION · PLEX";
+            font-family: PsTheme.font;
+            font-size: 22px * TvUi.u;
+            font-weight: 600;
+            color: PsTheme.accent;
+            letter-spacing: 1.4px;
+        }
+        Text {
+            text: CollectionPageState.title;
+            font-family: PsTheme.font;
+            font-size: 80px * TvUi.u;
+            font-weight: 600;
+            color: PsTheme.text;
+            wrap: word-wrap;
+        }
+        Text {
+            text: CollectionPageState.meta;
+            font-family: PsTheme.font;
+            font-size: 24px * TvUi.u;
+            color: PsTheme.sub;
+        }
+        Text {
+            text: CollectionPageState.progress-text;
+            font-family: PsTheme.font;
+            font-size: 22px * TvUi.u;
+            font-weight: 600;
+            color: PsTheme.text;
+        }
+        Text {
+            height: 102px * TvUi.u;
+            text: CollectionPageState.summary;
+            font-family: PsTheme.font;
+            font-size: 23px * TvUi.u;
+            color: PsTheme.sub;
+            wrap: word-wrap;
+            overflow: elide;
+        }
+        HorizontalLayout {
+            spacing: 16px * TvUi.u;
+            if CollectionPageState.up-next-key != "": PsPillButton {
+                label: "▶  " + CollectionPageState.up-next-label;
+                primary: true;
+                focused: root.focused-idx == 0;
+                clicked => { CollectionPageState.play-item(CollectionPageState.up-next-key, false); }
+            }
+            if CollectionPageState.items.length > 0: PsPillButton {
+                label: "From start";
+                focused: root.focused-idx == 1;
+                clicked => { CollectionPageState.play-item(CollectionPageState.items[0].rating-key, true); }
+            }
+        }
+    }
+
+    // Right: Segmented order + Hide watched + 4-column 2:3 posters r18
+    Rectangle {
+        x: 900px * TvUi.u;
+        y: 140px * TvUi.u;
+        width: 924px * TvUi.u;
+        height: parent.height - 140px * TvUi.u;
+
+        PsSegmented {
+            x: 0;
+            y: 0;
+            options: ["Collection order", "Release date", "A–Z"];
+            current: CollectionPageState.order == "release" ? 1 : CollectionPageState.order == "alpha" ? 2 : 0;
+            selected(idx) => {
+                CollectionPageState.set-order(idx == 1 ? "release" : idx == 2 ? "alpha" : "collection");
+            }
+        }
+
+        HorizontalLayout {
+            x: parent.width - self.preferred-width;
+            y: 10px * TvUi.u;
+            spacing: 12px * TvUi.u;
+            Text {
+                text: "Hide watched";
+                font-family: PsTheme.font;
+                font-size: 20px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.sub;
+                vertical-alignment: center;
+            }
+            PsToggle {
+                checked: CollectionPageState.hide-watched;
+                toggled => { CollectionPageState.set-hide-watched(!CollectionPageState.hide-watched); }
+            }
+        }
+
+        Flickable {
+            x: 0;
+            y: 78px * TvUi.u;
+            width: parent.width;
+            height: parent.height - 78px * TvUi.u;
+            content-height: Math.max(parent.height - 78px * TvUi.u, (Math.ceil(CollectionPageState.items.length / 4) * 380px + 80px) * TvUi.u);
+
+            for item[i] in CollectionPageState.items: Rectangle {
+                property <int> gx: Math.mod(i, 4);
+                property <int> gy: Math.floor(i / 4);
+                property <bool> is-foc: root.focused-idx == 100 + i;
+
+                x: (self.gx * 234px) * TvUi.u;
+                y: (10px + self.gy * 380px) * TvUi.u;
+                width: 210px * TvUi.u;
+                height: 360px * TvUi.u;
+                opacity: item.watched ? 0.7 : 1.0;
+
+                Rectangle {
+                    width: 210px * TvUi.u;
+                    height: 300px * TvUi.u;
+                    border-radius: 18px * TvUi.u;
+                    background: PsTheme.card;
+                    border-width: parent.is-foc ? 4px * TvUi.u : 1px;
+                    border-color: parent.is-foc ? PsTheme.text : PsTheme.card-border;
+                    clip: true;
+
+                    if item.has-poster: Image {
+                        source: item.poster;
+                        width: parent.width;
+                        height: parent.height;
+                        image-fit: cover;
+                    }
+                    Rectangle {
+                        x: 10px * TvUi.u;
+                        y: 10px * TvUi.u;
+                        width: 30px * TvUi.u;
+                        height: 30px * TvUi.u;
+                        border-radius: 8px * TvUi.u;
+                        background: #050608C0;
+                        Text {
+                            text: item.num;
+                            font-family: PsTheme.font;
+                            font-size: 14px * TvUi.u;
+                            font-weight: 800;
+                            color: PsTheme.text;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    if item.watched: Rectangle {
+                        x: parent.width - 36px * TvUi.u;
+                        y: 10px * TvUi.u;
+                        width: 26px * TvUi.u;
+                        height: 26px * TvUi.u;
+                        border-radius: 13px * TvUi.u;
+                        background: PsTheme.green;
+                        Text { text: "✓"; font-size: 14px * TvUi.u; font-weight: 800; color: #FFFFFF; horizontal-alignment: center; vertical-alignment: center; }
+                    }
+                }
+
+                Text {
+                    x: 0;
+                    y: 308px * TvUi.u;
+                    width: 210px * TvUi.u;
+                    text: item.title;
+                    font-family: PsTheme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.text;
+                    overflow: elide;
+                }
+                Text {
+                    x: 0;
+                    y: 334px * TvUi.u;
+                    width: 210px * TvUi.u;
+                    text: item.status;
+                    font-family: PsTheme.font;
+                    font-size: 16px * TvUi.u;
+                    color: item.can-resume ? PsTheme.accent : PsTheme.muted;
+                    overflow: elide;
+                }
+
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { CollectionPageState.play-item(item.rating-key, false); }
+                }
+            }
+        }
+    }
+}

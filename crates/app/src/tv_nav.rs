@@ -319,6 +319,118 @@ pub fn sync(laptop: &LaptopWindow) {
     }
 }
 
+fn ps5_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
+    match page {
+        Page::Home => vec![
+            Rect { x: 96.0, y: 620.0, w: 220.0, h: 72.0 }, // 0: Primary button
+            Rect { x: 332.0, y: 620.0, w: 200.0, h: 72.0 }, // 1: From start
+            Rect { x: 548.0, y: 620.0, w: 72.0, h: 72.0 },  // 2: More
+        ],
+        Page::Apps => {
+            let n = laptop.global::<crate::AppsPage>().get_apps().row_count();
+            (0..n)
+                .map(|i| {
+                    let col = (i % 6) as f32;
+                    let row = (i / 6) as f32;
+                    Rect {
+                        x: 96.0 + col * 272.0,
+                        y: 196.0 + row * 214.0,
+                        w: 248.0,
+                        h: 186.0,
+                    }
+                })
+                .collect()
+        }
+        Page::Library => {
+            let mut rects = vec![
+                Rect { x: 96.0, y: 420.0, w: 180.0, h: 72.0 }, // 0: Play
+                Rect { x: 292.0, y: 420.0, w: 200.0, h: 72.0 }, // 1: Show / From start
+            ];
+            let ll = laptop.global::<crate::LibraryLanding>();
+            for i in 0..ll.get_shelf1().row_count().min(12) {
+                let col = (i % 6) as f32;
+                let row = (i / 6) as f32;
+                rects.push(Rect {
+                    x: 96.0 + col * 292.0,
+                    y: 570.0 + row * 240.0,
+                    w: 268.0,
+                    h: 216.0,
+                });
+            }
+            rects
+        }
+        Page::Show(_) => vec![
+            Rect { x: 96.0, y: 500.0, w: 260.0, h: 72.0 }, // 0: Resume / Play
+            Rect { x: 372.0, y: 500.0, w: 220.0, h: 72.0 }, // 1: From S1 E1
+        ],
+        Page::Collections => {
+            let n = laptop.global::<Library>().get_collections().row_count();
+            (0..n)
+                .map(|i| {
+                    let col = (i % 6) as f32;
+                    let row = (i / 6) as f32;
+                    Rect {
+                        x: 96.0 + col * 292.0,
+                        y: 478.0 + row * 440.0,
+                        w: 248.0,
+                        h: 416.0,
+                    }
+                })
+                .collect()
+        }
+        Page::Collection(_) => vec![
+            Rect { x: 96.0, y: 540.0, w: 260.0, h: 72.0 }, // 0: Resume
+            Rect { x: 372.0, y: 540.0, w: 200.0, h: 72.0 }, // 1: From start
+        ],
+        Page::Sports => {
+            let groups = laptop.global::<crate::Scoreboard>().get_groups();
+            let mut rects = Vec::new();
+            let mut y = 320.0;
+            for g in 0..groups.row_count() {
+                if let Some(grp) = groups.row_data(g) {
+                    let count = grp.cards.row_count();
+                    for ci in 0..count {
+                        let col = (ci % 3) as f32;
+                        let row = (ci / 3) as f32;
+                        rects.push(Rect {
+                            x: 96.0 + col * 582.0,
+                            y: y + row * 224.0,
+                            w: 562.0,
+                            h: 204.0,
+                        });
+                    }
+                    let rows = count.div_ceil(3) as f32;
+                    y += rows * 224.0 + 48.0;
+                }
+            }
+            if rects.is_empty() {
+                rects.push(Rect { x: 96.0, y: 208.0, w: 240.0, h: 56.0 });
+            }
+            rects
+        }
+        Page::Settings => (0..6)
+            .map(|i| Rect {
+                x: 540.0,
+                y: 150.0 + i as f32 * 88.0,
+                w: 1284.0,
+                h: 76.0,
+            })
+            .collect(),
+        Page::Search => (0..36)
+            .map(|i| {
+                let col = (i % 6) as f32;
+                let row = (i / 6) as f32;
+                Rect {
+                    x: 96.0 + col * 94.0,
+                    y: 238.0 + row * 84.0,
+                    w: 84.0,
+                    h: 74.0,
+                }
+            })
+            .collect(),
+    }
+}
+
 fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
     let tv = laptop.global::<TvUi>();
     match page {
@@ -708,8 +820,12 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             ]
         };
     }
-    if laptop.global::<Display>().get_dashboard_ui() == "blades" {
+    let ui = laptop.global::<Display>().get_dashboard_ui();
+    if ui == "blades" {
         return blades_tile_rects(laptop, page);
+    }
+    if ui == "ps5" {
+        return ps5_tile_rects(laptop, page);
     }
     let tv = laptop.global::<TvUi>();
     let dash = laptop.global::<Dash>();
@@ -1593,8 +1709,8 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                             }
                         }
                         6 => {
-                            let next = if disp.get_dashboard_ui() == "blades" { "classic" } else { "blades" };
-                            disp.invoke_set_dashboard_ui(next.into());
+                            let cur = tvdash_core::config::DashboardUi::parse(&disp.get_dashboard_ui());
+                            disp.invoke_set_dashboard_ui(cur.next().as_str().into());
                         }
                         7 => {
                             let sl = laptop.global::<SleepState>();

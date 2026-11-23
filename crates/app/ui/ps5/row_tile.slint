@@ -1,0 +1,72 @@
+import { TvUi } from "../state.slint";
+import { PsTheme } from "theme.slint";
+
+// PS5 Home row tile (§1.3): normal 132x132 r18 y:42; focused 216x216 r22 y:0.
+// Focus ring is drawn as a sibling behind the clipped tile so it isn't clipped.
+export component PsRowTile inherits Rectangle {
+    in property <bool> focused: false;
+    in property <brush> fill: PsTheme.card;
+    callback activated();
+
+    width: focused ? 216px * TvUi.u : 132px * TvUi.u;
+    height: self.width;
+    y: focused ? 0px : 42px * TvUi.u;
+
+    // Sibling focus ring behind the clipped tile
+    if root.focused: Rectangle {
+        x: -9px * TvUi.u;
+        y: -9px * TvUi.u;
+        width: parent.width + 18px * TvUi.u;
+        height: parent.height + 18px * TvUi.u;
+        border-radius: 31px * TvUi.u;
+        border-width: 4px * TvUi.u;
+        border-color: PsTheme.text;
+        drop-shadow-blur: 60px;
+        drop-shadow-offset-y: 24px;
+        drop-shadow-color: #000000A6;
+    }
+
+    tile-body := Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: root.focused ? 22px * TvUi.u : 18px * TvUi.u;
+        background: root.fill;
+        clip: true;
+        animate border-radius { duration: 160ms; easing: ease-out; }
+
+        @children
+    }
+
+    animate width, y { duration: 160ms; easing: ease-out; }
+
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.activated(); }
+    }
+}
+
+// Label shown to the right of the focused row tile (§1.3).
+export component PsRowLabel inherits VerticalLayout {
+    in property <string> title: "";
+    in property <string> subtitle: "";
+
+    width: 280px * TvUi.u;
+    spacing: 4px * TvUi.u;
+
+    Text {
+        text: root.title;
+        font-family: PsTheme.font;
+        font-size: 36px * TvUi.u;
+        font-weight: 600;
+        color: PsTheme.text;
+        overflow: elide;
+    }
+    if root.subtitle != "": Text {
+        text: root.subtitle;
+        font-family: PsTheme.font;
+        font-size: 24px * TvUi.u;
+        font-weight: 400;
+        color: PsTheme.sub;
+        overflow: elide;
+    }
+}

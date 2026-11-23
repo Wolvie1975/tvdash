@@ -1,0 +1,104 @@
+import { TvUi } from "../state.slint";
+import { PsTheme } from "theme.slint";
+
+// Segmented pill control (§1.3): glass track, selected = #E8EAED fill + #0B0D10 600.
+export component PsSegmented inherits Rectangle {
+    in property <[string]> options: [];
+    in property <int> current: 0;
+    in property <int> focused-idx: -1;
+    callback selected(int);
+
+    height: 54px * TvUi.u;
+    border-radius: 27px * TvUi.u;
+    background: PsTheme.glass;
+
+    HorizontalLayout {
+        padding: 4px * TvUi.u;
+        spacing: 4px * TvUi.u;
+        for opt[idx] in root.options: Rectangle {
+            property <bool> is-sel: idx == root.current;
+            property <bool> is-foc: idx == root.focused-idx;
+            min-width: txt.preferred-width + 40px * TvUi.u;
+            height: 46px * TvUi.u;
+            border-radius: 23px * TvUi.u;
+            background: self.is-sel ? PsTheme.text : transparent;
+            border-width: self.is-foc ? 3px * TvUi.u : 0px;
+            border-color: PsTheme.text;
+
+            txt := Text {
+                text: opt;
+                font-family: PsTheme.font;
+                font-size: 20px * TvUi.u;
+                font-weight: parent.is-sel ? 600 : 400;
+                color: parent.is-sel ? PsTheme.on-light : PsTheme.text;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.selected(idx); }
+            }
+        }
+    }
+}
+
+// Switch toggle (§1.3): 60x34 track, knob #E8EAED, on = accent track.
+export component PsToggle inherits Rectangle {
+    in property <bool> checked: false;
+    in property <bool> focused: false;
+    callback toggled();
+
+    width: 60px * TvUi.u;
+    height: 34px * TvUi.u;
+    border-radius: 17px * TvUi.u;
+    background: root.checked ? PsTheme.accent : PsTheme.glass;
+    border-width: root.focused ? 3px * TvUi.u : 0px;
+    border-color: PsTheme.text;
+    animate background { duration: 150ms; easing: ease-out; }
+
+    Rectangle {
+        x: root.checked ? parent.width - 30px * TvUi.u : 4px * TvUi.u;
+        y: 4px * TvUi.u;
+        width: 26px * TvUi.u;
+        height: 26px * TvUi.u;
+        border-radius: 13px * TvUi.u;
+        background: PsTheme.text;
+        animate x { duration: 150ms; easing: ease-out; }
+    }
+
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.toggled(); }
+    }
+}
+
+// Info/art card container (§1.1 / §1.3).
+export component PsCard inherits Rectangle {
+    in property <bool> focused: false;
+    in property <length> card-radius: 16px * TvUi.u;
+
+    if root.focused: Rectangle {
+        x: -7px * TvUi.u;
+        y: -7px * TvUi.u;
+        width: parent.width + 14px * TvUi.u;
+        height: parent.height + 14px * TvUi.u;
+        border-radius: root.card-radius + 7px * TvUi.u;
+        border-width: 4px * TvUi.u;
+        border-color: PsTheme.text;
+        drop-shadow-blur: 60px;
+        drop-shadow-offset-y: 24px;
+        drop-shadow-color: #000000A6;
+    }
+
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: root.card-radius;
+        background: PsTheme.card;
+        border-width: 1px;
+        border-color: PsTheme.card-border;
+        clip: true;
+
+        @children
+    }
+}

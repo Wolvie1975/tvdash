@@ -1,0 +1,98 @@
+import { ShowPageState, TvUi } from "../state.slint";
+import { PsTheme } from "theme.slint";
+
+// 6-across modal season picker when 9+ seasons (§5.1).
+export component PsSeasonPicker inherits Rectangle {
+    in-out property <bool> open: false;
+    in property <int> focused-idx: -1;
+    callback pick(string);
+    callback close();
+
+    visible: root.open;
+    background: #050608E0;
+
+    TouchArea {
+        clicked => { root.close(); }
+    }
+
+    Rectangle {
+        x: 96px * TvUi.u;
+        y: 110px * TvUi.u;
+        width: 1728px * TvUi.u;
+        height: 860px * TvUi.u;
+        border-radius: 24px * TvUi.u;
+        background: #14171CF5;
+        border-width: 1px;
+        border-color: PsTheme.card-border;
+
+        TouchArea { /* absorb */ }
+
+        Text {
+            x: 40px * TvUi.u;
+            y: 32px * TvUi.u;
+            text: "All " + ShowPageState.seasons.length + " seasons";
+            font-family: PsTheme.font;
+            font-size: 36px * TvUi.u;
+            font-weight: 600;
+            color: PsTheme.text;
+        }
+
+        Flickable {
+            x: 40px * TvUi.u;
+            y: 100px * TvUi.u;
+            width: parent.width - 80px * TvUi.u;
+            height: parent.height - 130px * TvUi.u;
+            content-height: Math.max(parent.height - 130px * TvUi.u, (Math.ceil(ShowPageState.seasons.length / 6) * 410px + 20px) * TvUi.u);
+
+            for s[i] in ShowPageState.seasons: sp-tile := Rectangle {
+                property <int> gx: Math.mod(i, 6);
+                property <int> gy: Math.floor(i / 6);
+                property <bool> is-sel: s.rating-key == ShowPageState.selected-season;
+                property <bool> is-foc: root.focused-idx == i;
+
+                x: (self.gx * 276px) * TvUi.u;
+                y: (self.gy * 410px) * TvUi.u;
+                width: 220px * TvUi.u;
+                height: 386px * TvUi.u;
+
+                Rectangle {
+                    width: 220px * TvUi.u;
+                    height: 330px * TvUi.u;
+                    border-radius: 18px * TvUi.u;
+                    background: sp-tile.is-sel ? PsTheme.text : PsTheme.card;
+                    border-width: sp-tile.is-foc ? 4px * TvUi.u : 1px;
+                    border-color: sp-tile.is-foc ? PsTheme.text : PsTheme.card-border;
+
+                    Text {
+                        x: 20px * TvUi.u;
+                        y: 28px * TvUi.u;
+                        width: parent.width - 40px * TvUi.u;
+                        text: s.title;
+                        font-family: PsTheme.font;
+                        font-size: 24px * TvUi.u;
+                        font-weight: 600;
+                        color: sp-tile.is-sel ? PsTheme.on-light : PsTheme.text;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        x: 20px * TvUi.u;
+                        y: parent.height - 54px * TvUi.u;
+                        width: parent.width - 40px * TvUi.u;
+                        text: s.progress;
+                        font-family: PsTheme.font;
+                        font-size: 16px * TvUi.u;
+                        color: sp-tile.is-sel ? #48484A : PsTheme.sub;
+                    }
+                }
+
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        root.pick(s.rating-key);
+                        root.close();
+                    }
+                }
+            }
+        }
+    }
+}

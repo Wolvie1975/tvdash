@@ -1,0 +1,167 @@
+import { Library, TvUi } from "../state.slint";
+import { PsTheme } from "theme.slint";
+import { PsPillButton } from "buttons.slint";
+
+// PS5 Collections landing (§7.1).
+export component PsCollections inherits Rectangle {
+    in-out property <int> focused-idx: 0;
+
+    property <bool> has-cols: Library.collections.length > 0;
+    property <int> sel: Math.clamp(root.focused-idx, 0, Math.max(Library.collections.length - 1, 0));
+
+    // Hero (x96, y150, w1000)
+    if root.has-cols: VerticalLayout {
+        x: 96px * TvUi.u;
+        y: 150px * TvUi.u;
+        width: 1000px * TvUi.u;
+        spacing: 12px * TvUi.u;
+
+        Text {
+            text: Library.collections[root.sel].smart ? "COLLECTION · PLEX · SMART" : "COLLECTION · PLEX";
+            font-family: PsTheme.font;
+            font-size: 22px * TvUi.u;
+            font-weight: 600;
+            color: PsTheme.accent;
+            letter-spacing: 1.4px;
+        }
+        Text {
+            text: Library.collections[root.sel].title;
+            font-family: PsTheme.font;
+            font-size: 72px * TvUi.u;
+            font-weight: 600;
+            color: PsTheme.text;
+            overflow: elide;
+        }
+        Text {
+            text: Library.collections[root.sel].detail;
+            font-family: PsTheme.font;
+            font-size: 24px * TvUi.u;
+            color: PsTheme.sub;
+        }
+        HorizontalLayout {
+            spacing: 16px * TvUi.u;
+            PsPillButton {
+                label: "Open collection";
+                primary: true;
+                clicked => { Library.open-collection(Library.collections[root.sel].rating-key); }
+            }
+        }
+    }
+
+    Text {
+        x: 96px * TvUi.u;
+        y: 420px * TvUi.u;
+        text: "ALL COLLECTIONS · " + Library.collections.length + " collections · something left to watch first";
+        font-family: PsTheme.font;
+        font-size: 22px * TvUi.u;
+        font-weight: 600;
+        color: PsTheme.sub;
+        letter-spacing: 1.2px;
+    }
+
+    // 6-column 2:3 posters r20
+    Flickable {
+        x: 0;
+        y: 466px * TvUi.u;
+        width: parent.width;
+        height: parent.height - 466px * TvUi.u;
+        content-height: Math.max(parent.height - 466px * TvUi.u, (Math.ceil(Library.collections.length / 6) * 440px + 80px) * TvUi.u);
+
+        for col[i] in Library.collections: Rectangle {
+            property <int> gx: Math.mod(i, 6);
+            property <int> gy: Math.floor(i / 6);
+            property <bool> is-foc: root.focused-idx == i;
+
+            x: (96px + self.gx * 292px) * TvUi.u;
+            y: (12px + self.gy * 440px) * TvUi.u;
+            width: 248px * TvUi.u;
+            height: 416px * TvUi.u;
+
+            if self.is-foc: Rectangle {
+                x: -7px * TvUi.u;
+                y: -7px * TvUi.u;
+                width: 262px * TvUi.u;
+                height: 368px * TvUi.u;
+                border-radius: 26px * TvUi.u;
+                border-width: 4px * TvUi.u;
+                border-color: PsTheme.text;
+            }
+
+            Rectangle {
+                width: 248px * TvUi.u;
+                height: 354px * TvUi.u;
+                border-radius: 20px * TvUi.u;
+                background: PsTheme.card;
+                transform-scale: parent.is-foc ? 1.03 : 1.0;
+                animate transform-scale { duration: 140ms; easing: ease-out; }
+                clip: true;
+
+                if col.has-poster: Image {
+                    source: col.poster;
+                    width: parent.width;
+                    height: parent.height;
+                    image-fit: cover;
+                }
+                if col.smart: Rectangle {
+                    x: 12px * TvUi.u;
+                    y: 12px * TvUi.u;
+                    width: 68px * TvUi.u;
+                    height: 26px * TvUi.u;
+                    border-radius: 13px * TvUi.u;
+                    background: #050608C0;
+                    Text {
+                        text: "Smart";
+                        font-family: PsTheme.font;
+                        font-size: 13px * TvUi.u;
+                        font-weight: 700;
+                        color: PsTheme.text;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+                if col.progress > 0.0: Rectangle {
+                    x: 0;
+                    y: parent.height - 6px * TvUi.u;
+                    width: parent.width;
+                    height: 6px * TvUi.u;
+                    background: #FFFFFF28;
+                    Rectangle {
+                        width: parent.width * Math.clamp(col.progress, 0.0, 1.0);
+                        height: parent.height;
+                        background: PsTheme.accent;
+                    }
+                }
+            }
+
+            Text {
+                x: 0;
+                y: 362px * TvUi.u;
+                width: 248px * TvUi.u;
+                text: col.title;
+                font-family: PsTheme.font;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.text;
+                overflow: elide;
+            }
+            Text {
+                x: 0;
+                y: 390px * TvUi.u;
+                width: 248px * TvUi.u;
+                text: col.detail;
+                font-family: PsTheme.font;
+                font-size: 18px * TvUi.u;
+                color: PsTheme.muted;
+                overflow: elide;
+            }
+
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    root.focused-idx = i;
+                    Library.open-collection(col.rating-key);
+                }
+            }
+        }
+    }
+}

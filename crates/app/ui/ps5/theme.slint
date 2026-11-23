@@ -1,0 +1,30 @@
+import { Theme } from "../theme.slint";
+
+// Visual tokens for the PS5-inspired Dashboard UI (§1.1).
+// Always dark over full-screen backdrops; accent reads Theme.accent.
+export global PsTheme {
+    out property <string> font: Theme.font;
+
+    out property <color> bg: #050608;
+    out property <color> card: #14171CDB;
+    out property <color> card-border: #E8EAED1A;
+    out property <color> glass: #E8EAED29;
+    out property <color> glass-hover: #E8EAED40;
+
+    out property <color> text: #E8EAED;
+    out property <color> sub: #C9CDD3;
+    out property <color> muted: #8A9099;
+    out property <color> on-light: #0B0D10;
+
+    out property <color> accent: Theme.accent;
+    out property <color> on-accent: #0B0D10;
+    out property <color> live: #FF4D4D;
+    out property <color> live-text: #FF6B6B;
+    out property <color> green: #30D158;
+    out property <color> plex: #E5A00D;
+
+    out property <brush> scrim-left: @linear-gradient(90deg, #050608F0 0%, #050608B3 38%, #05060800 72%);
+    out property <brush> scrim-bottom: @linear-gradient(180deg, #05060800 38%, #0506088C 60%, #050608F7 100%);
+    out property <brush> scrim-top: @linear-gradient(180deg, #050608BF 0%, #05060800 100%);
+    out property <brush> bottom-fade: @linear-gradient(180deg, #05060800 0%, #050608FF 100%);
+}

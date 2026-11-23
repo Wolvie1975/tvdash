@@ -79,6 +79,7 @@ pub enum DashboardUi {
     #[default]
     Classic,
     Blades,
+    Ps5,
 }
 
 impl DashboardUi {
@@ -86,13 +87,32 @@ impl DashboardUi {
         match self {
             Self::Classic => "classic",
             Self::Blades => "blades",
+            Self::Ps5 => "ps5",
         }
     }
 
     pub fn parse(s: &str) -> Self {
         match s {
             "blades" => Self::Blades,
+            "ps5" => Self::Ps5,
             _ => Self::Classic,
+        }
+    }
+
+    /// Settings cycle order.
+    pub fn next(self) -> Self {
+        match self {
+            Self::Classic => Self::Blades,
+            Self::Blades => Self::Ps5,
+            Self::Ps5 => Self::Classic,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Classic => "Classic · top tabs",
+            Self::Blades => "Blades · side tabs",
+            Self::Ps5 => "PS5 · header tabs · app row",
         }
     }
 }

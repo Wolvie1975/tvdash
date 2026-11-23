@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.70 — 2026-11-23
+- **PS5 Dashboard UI (`ps5`)** (`crates/core/src/config.rs`, `crates/app/src/ps5/`, `crates/app/src/intro.rs`, `crates/app/src/tv_nav.rs`, `crates/app/ui/ps5/`):
+  - Added `DashboardUi::Ps5` (`"ps5"`, `PS5 · header tabs · app row`) alongside **Classic** and **Blades** across `Settings › Display` in all UIs, `laptop.slint`, and `sports_alert.slint`.
+  - Built the PS5 shell (`Ps5Shell`, `PsTheme`, `PsRowTile`, `PsPillButton`, `PsIconButton`, `PsSegmented`, `PsToggle`, `PsIntro`), header tabs + quick actions, and full page set (`PsHome`, `PsApps`, `PsLibrary`, `PsShow` + `PsSeasonPicker` with §5.1 stacking, `PsSports` + `PsBoxScore` + `PsCompetitions`, `PsCollections` + `PsCollection`, `PsSearch`, and `PsSettings`).
+
 ## v0.1.69 — 2026-11-23
 - **Scrubbable video timeline** (`v3/player_hud.slint`, `tv/player_hud.slint`, `state.slint`, `callbacks.rs`, `bridge/home.rs`):
   - Added click/drag scrubbing on the playback HUD progress bar in both **Blades** and **Classic**, with a hover/drag scrub thumb, live bar preview, auto-hide timer pause while dragging, and `Dash.seek-fraction` → `Command::SeekTo` on release.

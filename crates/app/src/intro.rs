@@ -11,6 +11,7 @@ use crate::{Intro, IntroStage, LaptopWindow, TvUi};
 pub enum Skin {
     Tiles,
     Blades,
+    Ps5,
 }
 
 impl From<DashboardUi> for Skin {
@@ -18,6 +19,7 @@ impl From<DashboardUi> for Skin {
         match ui {
             DashboardUi::Classic => Self::Tiles,
             DashboardUi::Blades => Self::Blades,
+            DashboardUi::Ps5 => Self::Ps5,
         }
     }
 }
@@ -48,6 +50,7 @@ impl IntroGate {
         match self.skin {
             Skin::Tiles => Duration::from_millis(2400),
             Skin::Blades => Duration::from_millis(1600),
+            Skin::Ps5 => Duration::from_millis(2000),
         }
     }
 
@@ -55,6 +58,7 @@ impl IntroGate {
         match self.skin {
             Skin::Tiles => Duration::from_millis(1300),
             Skin::Blades => Duration::from_millis(2000),
+            Skin::Ps5 => Duration::from_millis(2125),
         }
     }
 
