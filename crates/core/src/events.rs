@@ -496,6 +496,12 @@ pub enum Command {
     SetSleepWarnBefore(String),
     /// Fetch posters for visible Browse-all items that aren't cached yet.
     FetchPosters(Vec<MediaItem>),
+    /// Drop evicted image keys from the controller's requested sets so they can be fetched again.
+    ForgetImages {
+        posters: Vec<(SourceKind, String)>,
+        backdrops: Vec<(SourceKind, String)>,
+        logos: Vec<String>,
+    },
     /// Enqueue a sample sports alert (`"soon"` | `"final"`).
     SportsAlertTest(String),
     /// Mark a sports alert key as shown (persisted to `sports-alerts.json`).

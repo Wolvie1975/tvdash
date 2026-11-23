@@ -82,12 +82,12 @@ pub fn card_tint(hue: Hue, mode: ThemeMode) -> Tint {
         Tint {
             card: rgb(0xE2E5E7),
             poster: rgb(0xD3D7DA),
-            accent: rgb(0xC8000B),
+            accent: rgb(0xFFC82D),
             sec: rgb(0x0051BA),
             track: rgb(0xC2C7CA),
             btn: rgb(0xF2F4F5),
             edge: rgb(0xB7BCBF),
-            on_accent: rgb(0xFFFFFF),
+            on_accent: rgb(0x0B192E),
         }
     } else {
         Tint {

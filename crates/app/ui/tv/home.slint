@@ -82,7 +82,7 @@ export component TvHome inherits Rectangle {
                     font-size: 15px * TvUi.u;
                     font-weight: 600;
                     color: Dash.tint.sec;
-                    overflow: elide;
+                    wrap: word-wrap;
                 }
 
                 if HomeState.whats-on.plot != "": Rectangle {
@@ -242,6 +242,7 @@ export component TvHome inherits Rectangle {
             fill: Dash.tint.poster;
             label: "Theme";
             value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.ku-light ? "Kansas Light" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
+            value-size: 28px * TvUi.u;
             focused: !TvUi.bar-focused && TvUi.focused-tile == 9;
             activated => { TvUi.tile-activated(9); }
             hovered => { TvUi.tile-hovered(9); }
@@ -454,9 +455,9 @@ export component TvHome inherits Rectangle {
 
             if app.has-logo: Image {
                 x: (parent.width - self.width) / 2;
-                y: 12px * TvUi.u;
-                width: parent.width * 0.65;
-                height: parent.height - 42px * TvUi.u;
+                y: (parent.height - 26px * TvUi.u - self.height) / 2;
+                width: parent.width * (app.logo-wide ? 0.88 : 0.70);
+                height: parent.height * (app.logo-wide ? 0.50 : 0.42);
                 source: app.logo;
                 image-fit: contain;
             }

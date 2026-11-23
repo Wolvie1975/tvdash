@@ -29,13 +29,15 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, Timer, VecModel, Weak};
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tvdash_core::{
-    AppEvent,
+    AppEvent, Command,
     config::{ClockFormat, StreamingSite, ThemeMode, Units},
     events::{PlayerStatus, Service},
     models::{AccountStatus, ArtworkChoice, MediaItem, RgbaImage, ServerSummary, SignInState, SourceKind, Weather},
 };
+
+use crate::image_cache::{BACKDROP_CAP, FixedImageCache, POSTER_CAP, SPORTS_LOGO_CAP};
 
 pub use accounts::sync_setup;
 pub use home::{HeroAction, hero_action, row, set_cw_filter, site_index_by_id, up_next, up_next_item_by_key};
@@ -95,7 +97,8 @@ pub struct UiState {
     /// Dashboard Continue Watching rows (filtered by `cw_filter`); index = card index.
     rows: Vec<MediaItem>,
     cw_filter: String,
-    posters: HashMap<(SourceKind, String), Image>,
+    posters: FixedImageCache<(SourceKind, String), POSTER_CAP>,
+    cmd_tx: Option<UnboundedSender<Command>>,
     /// TMDB token state.
     tmdb: Option<AccountStatus>,
     /// Tautulli status.
@@ -104,7 +107,7 @@ pub struct UiState {
     events_password_configured: bool,
     sports_page: Option<tvdash_core::models::SportsEventsPage>,
     scoreboard_page: Option<tvdash_core::models::ScoreboardPage>,
-    sports_logos: HashMap<String, Image>,
+    sports_logos: FixedImageCache<String, SPORTS_LOGO_CAP>,
     collection_detail: Option<tvdash_core::models::CollectionDetail>,
     show_detail: Option<tvdash_core::models::ShowDetail>,
     ambient_starts: usize,
@@ -146,7 +149,7 @@ pub struct UiState {
     lib_recently_released: Vec<MediaItem>,
     lib_focused_key: Option<(SourceKind, String)>,
     lib_shelves_loading: bool,
-    backdrops: HashMap<(SourceKind, String), Image>,
+    backdrops: FixedImageCache<(SourceKind, String), BACKDROP_CAP>,
     backdrop_hues: HashMap<(SourceKind, String), Hue>,
     raw_sessions: Vec<tvdash_core::models::Session>,
     selected: Option<MediaItem>,
@@ -168,6 +171,20 @@ pub struct UiState {
 }
 
 impl UiState {
+    pub(super) fn forget_images(
+        &self,
+        posters: Vec<(SourceKind, String)>,
+        backdrops: Vec<(SourceKind, String)>,
+        logos: Vec<String>,
+    ) {
+        if posters.is_empty() && backdrops.is_empty() && logos.is_empty() {
+            return;
+        }
+        if let Some(tx) = &self.cmd_tx {
+            let _ = tx.send(Command::ForgetImages { posters, backdrops, logos });
+        }
+    }
+
     pub(super) fn effective_theme(&self) -> ThemeMode {
         if self.tv_layout && self.night_active {
             ThemeMode::Dark
@@ -207,6 +224,10 @@ pub fn set_recent_services(laptop: &LaptopWindow, recent: Vec<tvdash_core::confi
         s.recent = recent;
         home::refresh_tiles(s, laptop);
     });
+}
+
+pub fn set_command_sender(tx: UnboundedSender<Command>) {
+    STATE.with_borrow_mut(|s| s.cmd_tx = Some(tx));
 }
 
 thread_local! {
@@ -657,7 +678,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
                 dash.set_next_ep_title(item.title.as_str().into());
                 dash.set_next_ep_subtitle(crate::format::item_detail(&item).into());
                 dash.set_next_ep_has_poster(poster.is_some());
-                dash.set_next_ep_poster(poster.cloned().unwrap_or_default());
+                dash.set_next_ep_poster(poster.unwrap_or_default());
                 dash.set_next_ep_open(true);
                 laptop.global::<crate::TvUi>().set_focused_tile(0);
             } else {
@@ -682,7 +703,8 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             }
         }
         AppEvent::SportsLogo { url, image } => {
-            s.sports_logos.insert(url, to_image(&image));
+            let evicted = s.sports_logos.insert(url, to_image(&image));
+            s.forget_images(Vec::new(), Vec::new(), evicted);
             if s.sports_page.is_some() {
                 refresh_sports(s, laptop);
             }
@@ -802,8 +824,8 @@ fn refresh_sports(s: &UiState, laptop: &LaptopWindow) {
                 ..Default::default()
             });
             for g in &lg.games {
-                let away_logo = g.away_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
-                let home_logo = g.home_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
+                let away_logo = g.away_logo_url.as_ref().and_then(|u| s.sports_logos.peek(u));
+                let home_logo = g.home_logo_url.as_ref().and_then(|u| s.sports_logos.peek(u));
                 rows.push(SportsRowData {
                     kind: "game".into(),
                     header_text: Default::default(),
@@ -875,8 +897,8 @@ fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
             ..Default::default()
         });
         for g in &group.games {
-            let away_logo = g.away_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
-            let home_logo = g.home_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
+            let away_logo = g.away_logo_url.as_ref().and_then(|u| s.sports_logos.peek(u));
+            let home_logo = g.home_logo_url.as_ref().and_then(|u| s.sports_logos.peek(u));
             let away_display = match g.away_rank {
                 Some(r) => format!("#{r} {}", g.away_name),
                 None => g.away_name.clone(),
@@ -980,7 +1002,7 @@ fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
                         -1
                     };
                     let to_side = |side: crate::scoreboard_view::SideView| {
-                        let logo = side.logo_url.as_ref().and_then(|u| s.sports_logos.get(u)).cloned();
+                        let logo = side.logo_url.as_ref().and_then(|u| s.sports_logos.peek(u)).cloned();
                         let periods: Vec<slint::SharedString> =
                             side.periods.into_iter().map(Into::into).collect();
                         crate::ScoreSide {

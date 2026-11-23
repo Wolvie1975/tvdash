@@ -641,14 +641,14 @@ export component V3Home inherits Rectangle {
             border-radius: 16px * TvUi.u;
             clip: true;
             background: app.color;
-            border-width: self.is-foc ? 4px : 1px;
-            border-color: self.is-foc ? V3Theme.focus-ring : #FFFFFF20;
+            border-width: (self.is-foc || app-bar-ta.has-hover) ? 4px : 1px;
+            border-color: (self.is-foc || app-bar-ta.has-hover) ? V3Theme.focus-ring : #FFFFFF20;
 
             if app.has-logo: Image {
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
-                width: parent.width * 0.70;
-                height: parent.height * 0.60;
+                width: parent.width * (app.logo-wide ? 0.88 : 0.70);
+                height: parent.height * (app.logo-wide ? 0.66 : 0.54);
                 source: app.logo;
                 image-fit: contain;
             }
@@ -667,8 +667,13 @@ export component V3Home inherits Rectangle {
                 overflow: elide;
             }
 
-            TouchArea {
+            app-bar-ta := TouchArea {
                 mouse-cursor: pointer;
+                changed has-hover => {
+                    if self.has-hover {
+                        TvUi.tile-hovered(10 + i);
+                    }
+                }
                 clicked => { HomeState.launch-app(app.id); }
             }
         }
@@ -682,8 +687,8 @@ export component V3Home inherits Rectangle {
             height: 88px * TvUi.u;
             border-radius: 16px * TvUi.u;
             background: V3Theme.surface-raised;
-            border-width: self.is-foc ? 4px : 2px;
-            border-color: self.is-foc ? V3Theme.focus-ring : V3Theme.border;
+            border-width: (self.is-foc || all-apps-ta.has-hover) ? 4px : 2px;
+            border-color: (self.is-foc || all-apps-ta.has-hover) ? V3Theme.focus-ring : V3Theme.border;
 
             Text {
                 text: "All apps ›";
@@ -695,8 +700,13 @@ export component V3Home inherits Rectangle {
                 vertical-alignment: center;
             }
 
-            TouchArea {
+            all-apps-ta := TouchArea {
                 mouse-cursor: pointer;
+                changed has-hover => {
+                    if self.has-hover {
+                        TvUi.tile-hovered(17);
+                    }
+                }
                 clicked => { HomeState.open-apps-page(); }
             }
         }

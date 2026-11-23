@@ -987,6 +987,7 @@ fn wire_site_editor(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'sta
                 tmdb_providers,
                 hidden: existing.is_some_and(|x| x.hidden),
                 logo: existing.and_then(|x| x.logo.clone()),
+                logo_box: existing.and_then(|x| x.logo_box.clone()),
                 hold_sleep_timer: existing.is_some_and(|x| x.hold_sleep_timer),
             };
             let others: Vec<&StreamingSite> =

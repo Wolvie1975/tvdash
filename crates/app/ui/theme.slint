@@ -14,7 +14,7 @@ export global Theme {
 
     out property <string> font: "Inter";
 
-    out property <color> bg: mode == UiTheme.dark ? #1B140E : mode == UiTheme.aubergine ? #1A1024 : mode == UiTheme.ku ? #071426 : mode == UiTheme.ku-light ? #FFC82D : mode == UiTheme.stone ? #CBC5BA : #C3CBD3;
+    out property <color> bg: mode == UiTheme.dark ? #1B140E : mode == UiTheme.aubergine ? #1A1024 : mode == UiTheme.ku ? #071426 : mode == UiTheme.ku-light ? #E8000D : mode == UiTheme.stone ? #CBC5BA : #C3CBD3;
     out property <color> bg-night: #050608;
     out property <color> surface: mode == UiTheme.dark ? #251C14 : mode == UiTheme.aubergine ? #241733 : mode == UiTheme.ku ? #0D203B : mode == UiTheme.ku-light ? #E2E5E7 : mode == UiTheme.stone ? #DAD5CC : #D3DAE1;
     out property <color> surface-raised: mode == UiTheme.dark ? #31261C : mode == UiTheme.aubergine ? #2F1F42 : mode == UiTheme.ku ? #142D52 : mode == UiTheme.ku-light ? #ECEDEE : mode == UiTheme.stone ? #E3DFD7 : #DEE3E8;
@@ -23,8 +23,8 @@ export global Theme {
     out property <color> text-secondary: !light ? #A0A6AF : mode == UiTheme.ku-light ? #3A4D68 : mode == UiTheme.stone ? #47433D : #3F464F;
     out property <color> text-muted: mode == UiTheme.ku ? #85898A : !light ? #8A9099 : mode == UiTheme.ku-light ? #636769 : mode == UiTheme.stone ? #4E4943 : #47505A;
     // Primary buttons and focus; darker on the light themes so white labels pass.
-    out property <color> accent: (mode == UiTheme.ku || mode == UiTheme.ku-light) ? #E8000D : light ? #194D9F : #5B9DFF;
-    out property <color> on-accent: (mode == UiTheme.ku || mode == UiTheme.ku-light) ? #FFFFFF : light ? #FFFFFF : #0B0D10;
+    out property <color> accent: mode == UiTheme.ku ? #E8000D : mode == UiTheme.ku-light ? #FFC82D : light ? #194D9F : #5B9DFF;
+    out property <color> on-accent: mode == UiTheme.ku ? #FFFFFF : mode == UiTheme.ku-light ? #0B192E : light ? #FFFFFF : #0B0D10;
     out property <color> ok: light ? #1E6B45 : #4CC38A;
     out property <color> warn: mode == UiTheme.ku ? #FFC82D : mode == UiTheme.ku-light ? #9A6F00 : light ? #7A4E00 : #E5A84B;
     out property <color> alert: light ? #9E2622 : #F0605D;

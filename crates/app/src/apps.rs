@@ -25,11 +25,17 @@ pub fn apps_bar(recent: &[String], all: &[String], n: usize) -> Vec<String> {
 pub fn app_tile(site: &StreamingSite, logos: &HashMap<String, Image>) -> AppTile {
     let id = brand::service_id(&site.name);
     let b = brand::brand_for_with_logo(&id, &site.name, logos.get(&site.name).cloned());
+    let logo_wide = site
+        .logo_box
+        .as_deref()
+        .map(|v| v.eq_ignore_ascii_case("wide"))
+        .unwrap_or_else(|| id == "tubi");
     AppTile {
         id: b.id,
         name: b.name,
         logo: b.logo,
         has_logo: b.has_logo,
+        logo_wide,
         color: b.fill,
         text_color: b.ink,
     }

@@ -1,5 +1,23 @@
 # tvdash Changelog
 
+## v0.1.62 — 2026-11-22
+- **App logos & tile sizing** (`brand.rs`, `apps.rs`, `config.rs`, `assets/logos/`):
+  - Updated cropped pre-coloured SVGs and tile colours for **YouTube TV** (`#000000` / `#FFFFFF`), **YouTube Music** (`#FF0000` / `#FFFFFF`), **Tubi** (`#7408FF` / `#FFF200`), and **Google Meet** (`#000000` / `#FBBC04`).
+  - Added `logo_box` (`"wide"` / `"glyph"`) on `StreamingSite` and `logo-wide` on `AppTile`, applying per-surface box sizing across Blades Home/Apps and Classic Home/Apps.
+- **Kansas Light theme** (`theme.slint`, `v3/theme.slint`, `tint.rs`):
+  - Replaced the Jayhawk Yellow canvas background with KU Crimson (`#E8000D`) and switched the highlight/accent/focus ring to Jayhawk Yellow (`#FFC82D`, dark `#0B192E` on-accent).
+- **Blades Apps hover**:
+  - Added hover border highlight and `TvUi.tile-hovered` sync to the **Blades** Apps page (`v3/apps.slint`) and Home Apps bar (`v3/home.slint`).
+- **Classic Home polish** (`tv/home.slint`, `tv/tile.slint`):
+  - Wrapped the **What's On** status line (`Stopped at …`) and reduced the **Theme** `ValueTile` font size (`value-size: 28px * TvUi.u`) so `"Kansas Dark"` / `"Kansas Light"` fit without eliding.
+
+## v0.1.61 — 2026-11-22
+- **Fixed memory growth: image caches are now bounded.**
+  - Replaced unbounded `HashMap` image caches with fixed-capacity LRU `ImageCache`s (`image_cache.rs`): backdrops (40), posters (300), sports logos (200, decoded at ≤128×128), and Where to watch posters (120).
+  - Added `Command::ForgetImages` so evicted keys are removed from controller `*_requested` sets and re-fetched when needed.
+- **Scoreboard layout fix** across **Blades** (`v3/scoreboard_panel.slint`) and **Classic** (`tv/scoreboard_panel.slint`):
+  - Replaced zero-height `Rectangle` column wrappers with `VerticalLayout` and switched Blades Scoreboard groups from `ListView` to `Flickable` so card backgrounds, borders, and group sections lay out without overlapping.
+
 ## v0.1.60 — 2026-11-22
 - **Home & Apps redesign** across **Blades** and **Classic**:
   - Added the top-level **Apps** tab (`Home · Apps · Library · Collections · Sports · Settings`) with a case-insensitive A–Z grid of configured streaming apps (`apps.rs`, `v3/apps.slint`, `tv/apps.slint`).

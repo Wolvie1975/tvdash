@@ -201,7 +201,7 @@ pub fn select(laptop: &LaptopWindow, section: &str, index: usize) {
             _ => &s.lib_results,
         };
         let Some(item) = list.get(index).cloned() else { return };
-        let poster = s.posters.get(&(item.source, item.id.clone())).cloned();
+        let poster = s.posters.get(&(item.source, item.id.clone()));
         let lib = laptop.global::<Library>();
         let show_key = if item.kind == MediaKind::Series { item.id.as_str() } else { "" };
         lib.set_detail(DetailData {
@@ -310,7 +310,7 @@ pub(super) fn on_shelves(s: &mut UiState, laptop: &LaptopWindow, shelves: Librar
             if c.smart {
                 detail.push_str(" · smart");
             }
-            let poster = s.posters.get(&(SourceKind::Plex, c.rating_key.clone()));
+            let poster = s.posters.peek(&(SourceKind::Plex, c.rating_key.clone()));
             CollectionCardData {
                 rating_key: c.rating_key.as_str().into(),
                 title: c.title.as_str().into(),
@@ -373,7 +373,7 @@ pub(super) fn on_show_detail(s: &mut UiState, laptop: &LaptopWindow, res: Result
 
     let bd = s.backdrops.get(&(detail.item.source, detail.item.id.clone()));
     sp.set_has_backdrop(bd.is_some());
-    sp.set_backdrop(bd.cloned().unwrap_or_default());
+    sp.set_backdrop(bd.unwrap_or_default());
 
     if let Some(ep) = &detail.up_next_episode {
         let dur = ep.duration_ms.unwrap_or(0);
@@ -439,14 +439,14 @@ fn build_season_column(
     let name = if sec.index == 0 { "Specials".to_string() } else { sec.title.clone() };
     let same_as_show = sec.thumb.is_some() && sec.thumb == detail.item.poster;
     let season_poster = if !same_as_show {
-        s.posters.get(&(detail.item.source, sec.rating_key.clone()))
+        s.posters.peek(&(detail.item.source, sec.rating_key.clone()))
     } else {
         None
     };
     let (poster, has_poster, poster_is_fallback, fallback_label) = if let Some(img) = season_poster {
         (img.clone(), true, false, String::new())
     } else {
-        let show_poster = s.posters.get(&(detail.item.source, detail.item.id.clone()));
+        let show_poster = s.posters.peek(&(detail.item.source, detail.item.id.clone()));
         let label = if sec.index == 0 {
             "SPECIALS".to_string()
         } else {
@@ -540,7 +540,7 @@ pub(super) fn refresh_show_season_poster(s: &UiState, laptop: &LaptopWindow) {
     };
     let same_as_show = sec.thumb.is_some() && sec.thumb == detail.item.poster;
     let season_poster = if !same_as_show {
-        s.posters.get(&(detail.item.source, sec.rating_key.clone()))
+        s.posters.peek(&(detail.item.source, sec.rating_key.clone()))
     } else {
         None
     };
@@ -550,7 +550,7 @@ pub(super) fn refresh_show_season_poster(s: &UiState, laptop: &LaptopWindow) {
         col.has_poster = true;
         col.poster_is_fallback = false;
         col.fallback_label = "".into();
-    } else if let Some(show_img) = s.posters.get(&(detail.item.source, detail.item.id.clone())) {
+    } else if let Some(show_img) = s.posters.peek(&(detail.item.source, detail.item.id.clone())) {
         col.poster = show_img.clone();
         col.has_poster = true;
         col.poster_is_fallback = true;
@@ -599,7 +599,7 @@ pub(super) fn on_season_episodes(
             } else {
                 format!("{:02}", ep.index)
             };
-            let thumb = s.posters.get(&(SourceKind::Plex, ep.rating_key.clone()));
+            let thumb = s.posters.peek(&(SourceKind::Plex, ep.rating_key.clone()));
             EpisodeRowData {
                 rating_key: ep.rating_key.into(),
                 num: num.into(),
@@ -676,7 +676,7 @@ pub(super) fn rebuild_collection_items(s: &UiState, laptop: &LaptopWindow) {
             } else {
                 "".into()
             };
-            let poster = s.posters.get(&(i.source, i.id.clone()));
+            let poster = s.posters.peek(&(i.source, i.id.clone()));
             CollectionItemData {
                 rating_key: i.id.as_str().into(),
                 num: format!("#{}", idx + 1).into(),
@@ -836,7 +836,7 @@ fn apply_focus_item(s: &mut UiState, laptop: &LaptopWindow, item: &MediaItem, is
     s.lib_focused_key = Some(key.clone());
     let ll = laptop.global::<LibraryLanding>();
     ll.set_focus(focus_info_for(s, item, is_shelf1, is_tv));
-    let img = s.backdrops.get(&key).or_else(|| s.posters.get(&key)).cloned();
+    let img = s.backdrops.get(&key).or_else(|| s.posters.get(&key));
     if let Some(img) = img {
         let show_b = !ll.get_backdrop_show_b();
         if show_b {
@@ -857,7 +857,7 @@ fn ranked_tiles(s: &UiState, items: &[MediaItem]) -> Vec<RankedTileData> {
         .enumerate()
         .map(|(i, item)| {
             let key = (item.source, item.id.clone());
-            let poster = s.posters.get(&key);
+            let poster = s.posters.peek(&key);
             RankedTileData {
                 rating_key: item.id.as_str().into(),
                 rank: (i + 1) as i32,
@@ -883,7 +883,7 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
                 .take(4)
                 .map(|f| {
                     let key = (f.item.source, f.item.id.clone());
-                    let art = s.backdrops.get(&key).or_else(|| s.posters.get(&key));
+                    let art = s.backdrops.peek(&key).or_else(|| s.posters.peek(&key));
                     let left = f.total_episodes.saturating_sub(f.watched_episodes);
                     let frac = if f.total_episodes > 0 {
                         f.watched_episodes as f32 / f.total_episodes as f32
@@ -909,7 +909,7 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
                 .iter()
                 .map(|item| {
                     let key = (item.source, item.id.clone());
-                    let art = s.backdrops.get(&key).or_else(|| s.posters.get(&key));
+                    let art = s.backdrops.peek(&key).or_else(|| s.posters.peek(&key));
                     Shelf1TileData {
                         rating_key: item.id.as_str().into(),
                         title: item.title.as_str().into(),
@@ -946,7 +946,7 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
             .iter()
             .map(|item| {
                 let key = (item.source, item.id.clone());
-                let art = s.backdrops.get(&key).or_else(|| s.posters.get(&key));
+                let art = s.backdrops.peek(&key).or_else(|| s.posters.peek(&key));
                 Shelf1TileData {
                     rating_key: item.id.as_str().into(),
                     title: item.title.as_str().into(),
@@ -1052,12 +1052,12 @@ pub fn on_library_focus_changed(
             let mut out = Vec::new();
             if let Some(it) = item {
                 apply_focus_item(s, &laptop, &it, is_shelf1, is_tv);
-                if !s.backdrops.contains_key(&(it.source, it.id.clone())) {
+                if !s.backdrops.contains(&(it.source, it.id.clone())) {
                     out.push(it);
                 }
             }
             for n in neighbors {
-                if !s.backdrops.contains_key(&(n.source, n.id.clone())) {
+                if !s.backdrops.contains(&(n.source, n.id.clone())) {
                     out.push(n);
                 }
             }
@@ -1081,7 +1081,11 @@ pub(super) fn on_backdrop(
     let hue = tint::poster_hue(image);
     let img = to_image(image);
     s.backdrop_hues.insert(key.clone(), hue);
-    s.backdrops.insert(key.clone(), img.clone());
+    let evicted = s.backdrops.insert(key.clone(), img.clone());
+    for k in &evicted {
+        s.backdrop_hues.remove(k);
+    }
+    s.forget_images(Vec::new(), evicted, Vec::new());
     super::home::refresh_tv_card(s, laptop);
 
     let ll = laptop.global::<LibraryLanding>();
@@ -1123,7 +1127,7 @@ pub(super) fn on_sessions(s: &mut UiState, laptop: &LaptopWindow, sessions: &[Se
         .take(6)
         .map(|sess| {
             let key = (sess.item.source, sess.item.id.clone());
-            let poster = s.posters.get(&key);
+            let poster = s.posters.peek(&key);
             let is_this_tv = s.player.as_ref().is_some_and(|p| p.item.id == sess.item.id);
             let stream_badge = if sess.transcoding { "Transcode" } else { "Direct play" };
             let state_text = if sess.state == PlayState::Paused { "Paused" } else { "Playing" };
@@ -1162,7 +1166,7 @@ pub fn missing_browse_posters() -> Vec<MediaItem> {
     STATE.with_borrow(|s| {
         s.lib_browse
             .iter()
-            .filter(|i| !s.posters.contains_key(&(i.source, i.id.clone())))
+            .filter(|i| !s.posters.contains(&(i.source, i.id.clone())))
             .cloned()
             .collect()
     })

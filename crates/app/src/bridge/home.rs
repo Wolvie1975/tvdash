@@ -62,7 +62,7 @@ pub(super) fn cards_for(s: &UiState, items: &[MediaItem]) -> Vec<PosterCardData>
         .iter()
         .map(|item| {
             let key = (item.source, item.id.clone());
-            card(item, s.posters.get(&key), s.hues.get(&key).copied(), s.effective_theme())
+            card(item, s.posters.peek(&key), s.hues.get(&key).copied(), s.effective_theme())
         })
         .collect()
 }
@@ -143,7 +143,11 @@ pub(super) fn on_poster(
         d.has_poster = true;
         lib.set_detail(d);
     }
-    s.posters.insert(key.clone(), img.clone());
+    let evicted = s.posters.insert(key.clone(), img.clone());
+    for k in &evicted {
+        s.hues.remove(k);
+    }
+    s.forget_images(evicted, Vec::new(), Vec::new());
     let sp = laptop.global::<ShowPageState>();
     if sp.get_open() {
         let eps = sp.get_episodes();
@@ -277,7 +281,7 @@ pub(super) fn refresh_last_played(s: &UiState, laptop: &LaptopWindow) {
     match target {
         Some(super::LastPlayed::Media(item)) => {
             let key = (item.source, item.id.clone());
-            let poster = s.posters.get(&key);
+            let poster = s.posters.peek(&key);
             tv.set_last_played_kind("media".into());
             tv.set_last_played_title(item.title.as_str().into());
             tv.set_last_played_subtitle(crate::format::item_detail(&item).into());
@@ -376,7 +380,7 @@ pub(super) fn refresh_home_state(s: &mut UiState, laptop: &LaptopWindow) {
 
     let art_of = |item: &MediaItem| {
         let key = (item.source, item.id.clone());
-        s.backdrops.get(&key).or_else(|| s.posters.get(&key)).cloned()
+        s.backdrops.peek(&key).or_else(|| s.posters.peek(&key)).cloned()
     };
 
     let (whats_on, hero_id, hero_is_ep) = match &pick {
@@ -548,7 +552,7 @@ pub(super) fn refresh_next_game(s: &UiState, laptop: &LaptopWindow) {
         return;
     };
     let to_side = |side: &tvdash_core::events::NextGameSideDto| {
-        let logo = side.logo_url.as_ref().and_then(|u| s.sports_logos.get(u)).cloned();
+        let logo = side.logo_url.as_ref().and_then(|u| s.sports_logos.peek(u)).cloned();
         crate::GameSide {
             rank: side.rank.as_str().into(),
             init: side.init.as_str().into(),
@@ -578,17 +582,18 @@ pub(super) fn refresh_next_game(s: &UiState, laptop: &LaptopWindow) {
     });
 }
 
-fn tv_card(s: &UiState) -> (TvCard, Hue) {
-    let poster_of = |item: &MediaItem| {
-        let key = (item.source, item.id.clone());
-        let art = s.backdrops.get(&key).or_else(|| s.posters.get(&key)).cloned();
-        (art, s.hues.get(&key).copied().unwrap_or(tint::DEFAULT))
-    };
+fn hero_art_and_hue(s: &mut UiState, item: &MediaItem) -> (Option<Image>, Hue) {
+    let key = (item.source, item.id.clone());
+    let art = s.backdrops.get(&key).or_else(|| s.posters.get(&key));
+    (art, s.hues.get(&key).copied().unwrap_or(tint::DEFAULT))
+}
+
+fn tv_card(s: &mut UiState) -> (TvCard, Hue) {
     let base = TvCard { label: "ON THE TV".into(), ..Default::default() };
-    if let Some(st) = &s.player {
-        let (poster, hue) = poster_of(&st.item);
+    if let Some(st) = s.player.clone() {
+        let (poster, hue) = hero_art_and_hue(s, &st.item);
         let now = format::now_local(s.tz);
-        let (at, left) = format::tv_times(st, now, s.clock.unwrap_or(ClockFormat::H24));
+        let (at, left) = format::tv_times(&st, now, s.clock.unwrap_or(ClockFormat::H24));
         let card = TvCard {
             mode: "playing".into(),
             source: st.item.source.label().into(),
@@ -597,7 +602,7 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
             summary: st.item.summary.as_deref().unwrap_or_default().into(),
             at_text: at.into(),
             left_text: left.into(),
-            progress: format::fraction(st),
+            progress: format::fraction(&st),
             paused: st.state == PlayState::Paused,
             is_episode: st.item.kind == MediaKind::Episode,
             has_poster: poster.is_some(),
@@ -618,18 +623,18 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
         };
         return (card, Hue { degrees: tint::site_hue(site, index), saturation: 0.7 });
     }
-    if let Some(item) = in_order(&s.continue_watching).first() {
-        let (poster, hue) = poster_of(item);
+    if let Some(item) = in_order(&s.continue_watching).into_iter().next() {
+        let (poster, hue) = hero_art_and_hue(s, &item);
         let card = TvCard {
             mode: "next".into(),
             label: "CURRENTLY PLAYING".into(),
             source: item.source.label().into(),
             note: "Nothing on the TV. Pick up where you left off:".into(),
             title: item.title.as_str().into(),
-            subtitle: format::item_detail(item).into(),
+            subtitle: format::item_detail(&item).into(),
             summary: item.summary.as_deref().unwrap_or_default().into(),
             at_text: item.resume_ms.map(|p| format!("Stopped at {}", format::duration(p))).unwrap_or_default().into(),
-            left_text: format::time_left(item).unwrap_or_default().into(),
+            left_text: format::time_left(&item).unwrap_or_default().into(),
             progress: item.progress().unwrap_or(0.0),
             has_poster: poster.is_some(),
             poster: poster.unwrap_or_default(),

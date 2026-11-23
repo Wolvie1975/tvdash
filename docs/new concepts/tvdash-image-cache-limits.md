@@ -14,10 +14,10 @@ Write the answers here and commit them with the first change.
 
 | # | Question | Answer |
 |---|---|---|
-| C1 | Baseline: VmRSS after startup, and after 10 min of scrolling Library (Movies + TV) and opening a few Show pages. Use §6 | _pending_ |
-| C2 | Every place that **reads** `s.posters`, `s.backdrops`, `s.backdrop_hues`, `s.hues`, `s.sports_logos`, `s.logos` (≈24 call sites: `bridge/home.rs`, `bridge/library.rs`, `bridge/mod.rs`, show/collection code) and what it does on a miss (request again? show a placeholder?) | _pending_ |
-| C3 | Whether anything other than these maps keeps decoded pixels alive long-term (e.g. `RgbaImage` kept in `UiState`, controller-side caches, `Vec<MediaItem>` with embedded bytes) | _pending_ |
-| C4 | Is RSS still growing after §1–§3 with images capped? If yes, find the next grower before closing (heaptrack or `valgrind --tool=massif`) | _pending_ |
+| C1 | Baseline: VmRSS after startup, and after 10 min of scrolling Library (Movies + TV) and opening a few Show pages. Use §6 | _pending host run (§6)_ |
+| C2 | Every place that **reads** `s.posters`, `s.backdrops`, `s.backdrop_hues`, `s.hues`, `s.sports_logos`, `s.logos` (≈24 call sites: `bridge/home.rs`, `bridge/library.rs`, `bridge/mod.rs`, show/collection code) and what it does on a miss (request again? show a placeholder?) | Audited all sites across `bridge/{ambient,home,library,mod}.rs` and `watch_ui.rs`. On a miss, UI rows render placeholders/initials (`has_poster: false` / `has_backdrop: false` / `has_logo: false`), while `on_library_focus_changed` (`PrefetchBackdrop`) and `missing_browse_posters` (`FetchPosters`) re-request missing keys once `ForgetImages` clears `*_requested`. |
+| C3 | Whether anything other than these maps keeps decoded pixels alive long-term (e.g. `RgbaImage` kept in `UiState`, controller-side caches, `Vec<MediaItem>` with embedded bytes) | Confirmed none: `RgbaImage` is only used transiently during decode and converted to `slint::Image` (`SharedPixelBuffer`). Controller `*_requested` sets only hold keys (`(SourceKind, String)` / `String`), and `MediaItem` only stores metadata/URLs. |
+| C4 | Is RSS still growing after §1–§3 with images capped? If yes, find the next grower before closing (heaptrack or `valgrind --tool=massif`) | _pending host run (§6)_ |
 
 **Stop condition:** if C1 shows RSS **flat** while browsing, this isn't the leak. Report back with the numbers and the next suspect instead of making these changes.
 

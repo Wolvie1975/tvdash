@@ -97,7 +97,7 @@ fn apply_up_next_item(
     let key = (item.source, item.id.clone());
     let hue = s.hues.get(&key).copied().unwrap_or(tint::DEFAULT);
     let t = tint::card_tint(hue, tvdash_core::config::ThemeMode::Dark);
-    let poster = s.posters.get(&key);
+    let poster = s.posters.peek(&key);
     amb.set_up_next_label(label.into());
     amb.set_up_next_title(item.title.as_str().into());
     amb.set_up_next_line(line.into());

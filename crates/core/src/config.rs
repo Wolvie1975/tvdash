@@ -469,6 +469,9 @@ pub struct StreamingSite {
     /// Tile logo to use instead of TMDB's: a PNG, JPEG or WebP file (`~/` allowed).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logo: Option<String>,
+    /// Logo box sizing (`"wide"` or `"glyph"`, default `"glyph"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub logo_box: Option<String>,
     /// Hold the sleep timer while this site is open (e.g. Google Meet).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hold_sleep_timer: bool,
@@ -742,7 +745,7 @@ mod tests {
         assert!(loaded.created);
         assert!(path.exists());
         assert!(!loaded.config.plex.client_id.is_empty());
-        assert_eq!(loaded.config.streaming.len(), 10);
+        assert_eq!(loaded.config.streaming.len(), 12);
 
         // Second load reads the same file and keeps the same IDs.
         let again = Config::load_or_create_at(&path).unwrap();

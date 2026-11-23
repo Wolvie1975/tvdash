@@ -220,6 +220,7 @@ export component ServiceTile inherits Tile {
 export component ValueTile inherits Tile {
     in property <string> label;
     in property <string> value;
+    in property <length> value-size: 40px * TvUi.u;
 
     Text {
         x: 20px * TvUi.u;
@@ -237,7 +238,7 @@ export component ValueTile inherits Tile {
         y: parent.height - self.preferred-height - 18px * TvUi.u;
         width: parent.width - 40px * TvUi.u;
         text: root.value;
-        font-size: 40px * TvUi.u;
+        font-size: root.value-size;
         font-weight: 300;
         color: Theme.text-primary;
         overflow: elide;

@@ -1,12 +1,15 @@
 //! UI-thread side of Where to watch: turns ranked hits into the page's groups
 //! and detail panel. Only touched from the Slint event loop.
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc, time::Duration};
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, Timer, VecModel};
 use tvdash_core::models::{MediaKind, RgbaImage, WatchHit, WatchTier};
 
-use crate::{LaptopWindow, Watch, WatchAction, WatchCard};
+use crate::{
+    LaptopWindow, Watch, WatchAction, WatchCard,
+    image_cache::{FixedImageCache, ImageCache, WATCH_POSTER_CAP},
+};
 
 const DEBOUNCE: Duration = Duration::from_millis(300);
 
@@ -14,7 +17,7 @@ const DEBOUNCE: Duration = Duration::from_millis(300);
 struct WatchUi {
     query: String,
     hits: Vec<WatchHit>,
-    posters: HashMap<(bool, u32), Image>,
+    posters: FixedImageCache<(bool, u32), WATCH_POSTER_CAP>,
     debounce: Option<Timer>,
 }
 
@@ -82,7 +85,9 @@ pub fn on_results(laptop: &LaptopWindow, query: String, hits: Vec<WatchHit>, err
 
 pub fn on_poster(laptop: &LaptopWindow, tmdb_id: u32, is_tv: bool, image: RgbaImage) {
     let buffer = SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(&image.pixels, image.width, image.height);
-    W.with_borrow_mut(|s| s.posters.insert((is_tv, tmdb_id), Image::from_rgba8(buffer)));
+    W.with_borrow_mut(|s| {
+        s.posters.insert((is_tv, tmdb_id), Image::from_rgba8(buffer));
+    });
     rebuild(laptop);
     let w = laptop.global::<Watch>();
     if w.get_detail_open() && w.get_selected() == key(is_tv, tmdb_id).as_str() {
@@ -128,8 +133,8 @@ fn tier_id(t: WatchTier) -> &'static str {
     }
 }
 
-fn card(h: &WatchHit, posters: &HashMap<(bool, u32), Image>) -> WatchCard {
-    let poster = posters.get(&(h.is_tv, h.tmdb_id));
+fn card(h: &WatchHit, posters: &ImageCache<(bool, u32)>) -> WatchCard {
+    let poster = posters.peek(&(h.is_tv, h.tmdb_id));
     WatchCard {
         key: key(h.is_tv, h.tmdb_id).into(),
         title: h.title.as_str().into(),
@@ -185,11 +190,11 @@ pub fn actions(h: &WatchHit) -> Vec<WatchAction> {
 pub fn select(laptop: &LaptopWindow, key_: &str) {
     let Some(h) = hit(key_) else { return };
     let w = laptop.global::<Watch>();
-    let posters = W.with_borrow(|s| s.posters.get(&(h.is_tv, h.tmdb_id)).cloned());
+    let posters = W.with_borrow_mut(|s| s.posters.get(&(h.is_tv, h.tmdb_id)));
     w.set_detail(WatchCard {
         has_poster: posters.is_some(),
         poster: posters.unwrap_or_default(),
-        ..card(&h, &HashMap::new())
+        ..card(&h, &ImageCache::new(0))
     });
     w.set_detail_overview(h.overview.as_str().into());
     let model = |v: Vec<slint::SharedString>| ModelRc::from(Rc::new(VecModel::from(v)));

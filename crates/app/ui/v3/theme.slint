@@ -20,8 +20,8 @@ export global V3Theme {
     out property <bool> stone: Theme.mode == UiTheme.stone;
     out property <bool> mist: Theme.mode == UiTheme.mist;
 
-    // Outer canvas & active panel (Kansas Light uses Jayhawk Yellow #FFC82D background + Signature Gray surfaces)
-    out property <color> bg: dark ? #1B140E : aubergine ? #1A1024 : ku ? #071426 : ku-light ? #FFC82D : stone ? #DFD9CE : #D6DDE4;
+    // Outer canvas & active panel (Kansas Light uses KU Crimson #E8000D background + Signature Gray surfaces)
+    out property <color> bg: dark ? #1B140E : aubergine ? #1A1024 : ku ? #071426 : ku-light ? #E8000D : stone ? #DFD9CE : #D6DDE4;
     out property <color> panel: dark ? #221A13 : aubergine ? #21152D : ku ? #0A1A30 : ku-light ? #ECEDEE : stone ? #F2EFE9 : #EDF1F5;
     out property <color> surface: dark ? #2A2018 : aubergine ? #291B38 : ku ? #0F2442 : ku-light ? #E2E5E7 : stone ? #E7E2D8 : #E2E7ED;
     out property <color> surface-raised: dark ? #36291E : aubergine ? #332245 : ku ? #163259 : ku-light ? #F4F5F6 : stone ? #DDD7CB : #D7DEE6;
@@ -37,11 +37,11 @@ export global V3Theme {
     out property <color> text-secondary: is-dark ? #A0A6AF : ku-light ? #3A4D68 : stone ? #5A544B : #4B535D;
     out property <color> text-muted: ku ? #85898A : is-dark ? #7A8291 : ku-light ? #636769 : stone ? #7A7368 : #6B737E;
 
-    // Accent & focus ring (KU Crimson for Kansas Dark & Light, Amber for Midnight/Aubergine/Light)
-    out property <color> accent: (ku || ku-light) ? #E8000D : is-dark ? #F5A524 : #B45309;
-    out property <color> on-accent: (ku || ku-light) ? #FFFFFF : is-dark ? #0B0D10 : #FFFFFF;
-    out property <color> focus-ring: (ku || ku-light) ? #E8000D : is-dark ? #F5A524 : #B45309;
-    out property <color> accent-tint: (ku || ku-light) ? #E8000D26 : is-dark ? #F5A52426 : #B4530922;
+    // Accent & focus ring (KU Crimson for Kansas Dark, Jayhawk Yellow for Kansas Light, Amber for others)
+    out property <color> accent: ku ? #E8000D : ku-light ? #FFC82D : is-dark ? #F5A524 : #B45309;
+    out property <color> on-accent: ku ? #FFFFFF : ku-light ? #0B192E : is-dark ? #0B0D10 : #FFFFFF;
+    out property <color> focus-ring: ku ? #E8000D : ku-light ? #FFC82D : is-dark ? #F5A524 : #B45309;
+    out property <color> accent-tint: ku ? #E8000D26 : ku-light ? #FFC82D33 : is-dark ? #F5A52426 : #B4530922;
 
     // Status (Jayhawk Yellow #FFC82D on Kansas Dark, darkened amber-gold on light)
     out property <color> ok: is-dark ? #4CC38A : #1E6B45;

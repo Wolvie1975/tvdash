@@ -283,3 +283,40 @@ fn expired_states_and_streaming_sites() {
     assert_eq!(sites.row_data(0).unwrap().status, "Set up · opened today");
     assert_eq!(sites.row_data(1).unwrap().status, "Not signed in yet");
 }
+
+#[test]
+fn backdrop_cache_caps_at_40_and_emits_forget_images() {
+    let (l, t) = windows();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    super::set_command_sender(tx);
+    let img = RgbaImage { width: 1, height: 1, pixels: vec![255; 4] };
+
+    for i in 0..=40 {
+        send(
+            &l,
+            &t,
+            AppEvent::Backdrop {
+                source: SourceKind::Plex,
+                item_id: format!("b{i}"),
+                image: img.clone(),
+            },
+        );
+    }
+
+    super::STATE.with_borrow(|s| {
+        assert_eq!(s.backdrops.len(), crate::image_cache::BACKDROP_CAP);
+        assert!(!s.backdrops.contains(&(SourceKind::Plex, "b0".into())));
+        assert!(!s.backdrop_hues.contains_key(&(SourceKind::Plex, "b0".into())));
+        assert!(s.backdrops.contains(&(SourceKind::Plex, "b40".into())));
+    });
+
+    match rx.try_recv().expect("expected ForgetImages command") {
+        tvdash_core::Command::ForgetImages { posters, backdrops, logos } => {
+            assert!(posters.is_empty());
+            assert_eq!(backdrops, vec![(SourceKind::Plex, "b0".into())]);
+            assert!(logos.is_empty());
+        }
+        other => panic!("unexpected command: {other:?}"),
+    }
+    assert!(rx.try_recv().is_err(), "expected exactly one ForgetImages command");
+}

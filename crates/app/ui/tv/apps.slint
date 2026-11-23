@@ -61,9 +61,9 @@ export component TvApps inherits Rectangle {
 
                 if app.has-logo: Image {
                     x: (parent.width - self.width) / 2;
-                    y: (parent.height - self.height) / 2 - 10px * TvUi.u;
-                    width: parent.width * 0.68;
-                    height: parent.height * 0.56;
+                    y: (parent.height - 28px * TvUi.u - self.height) / 2;
+                    width: parent.width * (app.logo-wide ? 0.88 : 0.70);
+                    height: parent.height * (app.logo-wide ? 0.50 : 0.42);
                     source: app.logo;
                     image-fit: contain;
                 }
