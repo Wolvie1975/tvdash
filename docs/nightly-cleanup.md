@@ -12,12 +12,13 @@ Keep the `target/` build directory from filling the HDD, without deleting the co
 
 2. **Make sure nothing is still building.** If a `cargo build`, `cargo run`, `cargo test` or `cargo watch` process is running for this project, stop it first or ask the user.
 
-3. **Record the size before cleanup:**
+3. **Record the size before cleanup** (if `target/` doesn't exist, stop and report):
    ```bash
-   du -sh target 2>/dev/null || echo "no target dir"
+   [ -d target ] || { echo "no target dir"; exit 0; }
+   du -sh target
    ```
 
-4. **Make sure cargo-sweep is installed:**
+4. **Make sure cargo-sweep is installed** (if missing and network is unavailable, ask the user to run `cargo install cargo-sweep` on the host):
    ```bash
    command -v cargo-sweep >/dev/null || cargo install cargo-sweep
    ```
@@ -25,13 +26,15 @@ Keep the `target/` build directory from filling the HDD, without deleting the co
 5. **Prune stale artifacts:**
    ```bash
    cargo sweep --installed     # artifacts from toolchains that are no longer installed
-   cargo sweep --time 14       # anything not used in the last 14 days
+   cargo sweep --time 7        # anything not used in the last 7 days
    ```
 
 6. **If `target/` is still larger than 15 GB, do a full clean:**
    ```bash
-   size_gb=$(du -s --block-size=1G target | cut -f1)
-   if [ "$size_gb" -gt 15 ]; then cargo clean; fi
+   if [ -d target ]; then
+       size_gb=$(du -s --block-size=1G target | cut -f1)
+       if [ "$size_gb" -gt 15 ]; then cargo clean; fi
+   fi
    ```
 
 7. **Record the size after cleanup** and tell the user in one line, e.g.:
