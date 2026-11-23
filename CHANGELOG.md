@@ -1,5 +1,15 @@
 # tvdash Changelog
 
+## v0.1.64 — 2026-11-22
+- **Crunchyroll logo sizing**:
+  - Cropped `assets/logos/crunchyroll.svg` (`viewBox="20 24 184 42"`) and set `crunchyroll` to `logo_wide = true` (`apps.rs`) so the icon fills tiles cleanly across both Blades and Classic.
+- **Classic Home theme alignment** (`tv/home.slint`):
+  - Switched Classic Home tiles (`WHAT'S ON`, `Search`, `Screensaver`, `Sleep`, `Theme`, `Clock`, `UP NEXT`, `Next Game`) from poster-hue tinting to `Theme.surface` / `Theme.surface-raised` so **Espresso**, **Aubergine**, **Stone**, and **Mist** match their selected theme palette.
+- **Removed Kansas Light** (`ku-light` / `KuLight`):
+  - Removed the Kansas Light theme option from Settings, theme cycling, and theme tokens (keeping `#[serde(alias = "ku-light")]` on `ThemeMode::Ku` for existing configs).
+- **Blades Library 6-item shelf margin** (`v3/library.slint`):
+  - Tuned `V3RankedShelf` (`230px` items, `244px` step) so all 6 ranked items on both TV and Movie landing pages fit cleanly within the `1532px` panel.
+
 ## v0.1.63 — 2026-11-22
 - **All-app logos & local-only tile icons**:
   - Replaced boxed TMDB provider icons with cropped, transparent, pre-coloured SVGs for **Apple TV**, **Fandango at Home**, **Hulu**, **Netflix**, **Prime Video**, and **YouTube**, plus transparent PNG for **Disney+** (`#0B2E6B`, `logo-wide = true`) in `assets/logos/` and `brand.rs`.

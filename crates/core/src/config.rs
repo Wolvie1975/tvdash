@@ -151,9 +151,8 @@ pub enum ThemeMode {
     /// Deep plum dark theme.
     Aubergine,
     /// University of Kansas (Crimson & Blue) dark theme.
+    #[serde(alias = "ku-light")]
     Ku,
-    /// University of Kansas (Blue & Crimson) light theme.
-    KuLight,
     /// Warm grey light theme.
     Stone,
     /// Cool blue-grey light theme.
@@ -162,7 +161,7 @@ pub enum ThemeMode {
 
 impl ThemeMode {
     pub fn is_light(self) -> bool {
-        matches!(self, Self::KuLight | Self::Stone | Self::Mist)
+        matches!(self, Self::Stone | Self::Mist)
     }
 
     /// Resolve `FollowSystem` into a concrete theme given the desktop preference.

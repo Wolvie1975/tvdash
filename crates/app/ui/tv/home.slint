@@ -23,7 +23,7 @@ export component TvHome inherits Rectangle {
             y: 136px * TvUi.u;
             base-width: 230px * TvUi.u;
             base-height: 590px * TvUi.u;
-            fill: Dash.tint.card;
+            fill: Theme.surface;
             focused: false;
 
             VerticalLayout {
@@ -197,7 +197,7 @@ export component TvHome inherits Rectangle {
             y: 136px * TvUi.u;
             base-width: 240px * TvUi.u;
             base-height: 135px * TvUi.u;
-            fill: Dash.tint.poster;
+            fill: Theme.surface-raised;
             icon: "search";
             label: "Search";
             focused: !TvUi.bar-focused && TvUi.focused-tile == 6;
@@ -211,7 +211,7 @@ export component TvHome inherits Rectangle {
             y: 287px * TvUi.u;
             base-width: 240px * TvUi.u;
             base-height: 135px * TvUi.u;
-            fill: Dash.tint.poster;
+            fill: Theme.surface-raised;
             icon: "screensaver";
             label: "Screensaver";
             focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
@@ -225,7 +225,7 @@ export component TvHome inherits Rectangle {
             y: 438px * TvUi.u;
             base-width: 240px * TvUi.u;
             base-height: 135px * TvUi.u;
-            fill: Dash.tint.card;
+            fill: Theme.surface;
             icon: "moon";
             label: SleepState.active ? "Sleep · " + SleepState.label : "Sleep · Off";
             focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
@@ -239,9 +239,9 @@ export component TvHome inherits Rectangle {
             y: 589px * TvUi.u;
             base-width: 240px * TvUi.u;
             base-height: 137px * TvUi.u;
-            fill: Dash.tint.poster;
+            fill: Theme.surface-raised;
             label: "Theme";
-            value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.ku-light ? "Kansas Light" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
+            value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
             value-size: 28px * TvUi.u;
             focused: !TvUi.bar-focused && TvUi.focused-tile == 9;
             activated => { TvUi.tile-activated(9); }
@@ -261,7 +261,7 @@ export component TvHome inherits Rectangle {
             y: 742px * TvUi.u;
             base-width: 230px * TvUi.u;
             base-height: 230px * TvUi.u;
-            fill: Dash.tint.card;
+            fill: Theme.surface;
             focused: false;
 
             VerticalLayout {
@@ -343,7 +343,7 @@ export component TvHome inherits Rectangle {
             y: 742px * TvUi.u;
             base-width: (i == 0 ? 310px : 202px) * TvUi.u;
             base-height: 230px * TvUi.u;
-            fill: Dash.tint.card;
+            fill: Theme.surface;
             focused: !TvUi.bar-focused && TvUi.focused-tile == 1 + i;
             activated => { HomeState.activate-up-next(card.key); }
             hovered => { TvUi.tile-hovered(1 + i); }
@@ -355,7 +355,7 @@ export component TvHome inherits Rectangle {
                 width: parent.width;
                 height: 156px * TvUi.u;
                 clip: true;
-                background: Dash.tint.poster;
+                background: Theme.surface-raised;
 
                 if card.has-thumb: Image {
                     width: parent.width;
@@ -501,7 +501,7 @@ export component TvHome inherits Rectangle {
             y: 682px * TvUi.u;
             base-width: 486px * TvUi.u;
             base-height: 290px * TvUi.u;
-            fill: Dash.tint.card;
+            fill: Theme.surface;
             focused: !TvUi.bar-focused && TvUi.focused-tile == 5;
             activated => { HomeState.open-game(HomeState.next-game.event-id, HomeState.next-game.date); }
             hovered => { TvUi.tile-hovered(5); }

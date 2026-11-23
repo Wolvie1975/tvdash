@@ -1290,8 +1290,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                     let next = match laptop.global::<crate::Theme>().get_mode() {
                         UiTheme::Dark => UiTheme::Aubergine,
                         UiTheme::Aubergine => UiTheme::Ku,
-                        UiTheme::Ku => UiTheme::KuLight,
-                        UiTheme::KuLight => UiTheme::Stone,
+                        UiTheme::Ku => UiTheme::Stone,
                         UiTheme::Stone => UiTheme::Mist,
                         UiTheme::Mist => UiTheme::Dark,
                     };
@@ -1568,8 +1567,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                             let next = match laptop.global::<crate::Theme>().get_mode() {
                                 UiTheme::Dark => UiTheme::Aubergine,
                                 UiTheme::Aubergine => UiTheme::Ku,
-                                UiTheme::Ku => UiTheme::KuLight,
-                                UiTheme::KuLight => UiTheme::Stone,
+                                UiTheme::Ku => UiTheme::Stone,
                                 UiTheme::Stone => UiTheme::Mist,
                                 UiTheme::Mist => UiTheme::Dark,
                             };

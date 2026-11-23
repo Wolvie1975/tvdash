@@ -48,7 +48,7 @@ export component Tile inherits Rectangle {
         height: body.height + 8px;
         border-radius: 9px;
         border-width: root.focused ? 4px : 0px;
-        border-color: (Theme.mode == UiTheme.ku || Theme.mode == UiTheme.ku-light) ? Theme.accent : Theme.text-primary;
+        border-color: Theme.mode == UiTheme.ku ? Theme.accent : Theme.text-primary;
     }
 
     ta := TouchArea {

@@ -78,17 +78,6 @@ pub fn card_tint(hue: Hue, mode: ThemeMode) -> Tint {
             edge: rgb(0x21467A),
             on_accent: rgb(0x0B0D10),
         }
-    } else if mode == ThemeMode::KuLight {
-        Tint {
-            card: rgb(0xE2E5E7),
-            poster: rgb(0xD3D7DA),
-            accent: rgb(0xFFC82D),
-            sec: rgb(0x0051BA),
-            track: rgb(0xC2C7CA),
-            btn: rgb(0xF2F4F5),
-            edge: rgb(0xB7BCBF),
-            on_accent: rgb(0x0B192E),
-        }
     } else {
         Tint {
             card: hsl(h, 0.12 + 0.33 * k, 0.11),
@@ -219,9 +208,8 @@ mod tests {
             ThemeMode::Dark | ThemeMode::Aubergine | ThemeMode::Ku | ThemeMode::FollowSystem => rgb(0xE8EAED),
             ThemeMode::Stone => rgb(0x1F1D1A),
             ThemeMode::Mist => rgb(0x1A1E23),
-            ThemeMode::KuLight => rgb(0x0B192E),
         };
-        for mode in [ThemeMode::Dark, ThemeMode::Aubergine, ThemeMode::Ku, ThemeMode::KuLight, ThemeMode::Stone, ThemeMode::Mist] {
+        for mode in [ThemeMode::Dark, ThemeMode::Aubergine, ThemeMode::Ku, ThemeMode::Stone, ThemeMode::Mist] {
             for deg in (0..360).step_by(10) {
                 for sat in [0.0, 0.5, 1.0] {
                     let t = card_tint(Hue { degrees: deg as f32, saturation: sat }, mode);

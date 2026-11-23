@@ -1,17 +1,17 @@
 # tvdash: where things stand
 
-Last updated 2026-11-22 (v0.1.63). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-22 (v0.1.64). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-- **All-app bundled logos, Collections overflow fix & From start HUD button (`v0.1.63`)** are complete (ready to build/push/merge whenever you want).
+- **Crunchyroll logo sizing, Classic Home theme alignment, Kansas Light removal & Blades Library shelf margin (`v0.1.64`)** are complete (ready to build/push/merge whenever you want).
 - Reference to build/upgrade an RPM on the TV machine:
   ```bash
   cargo build --release -j 2
   ./packaging/rpm.sh
-  cp dist/tvdash-0.1.63-1.x86_64.rpm releases/
-  sudo dnf upgrade ./releases/tvdash-0.1.63-1.x86_64.rpm
+  cp dist/tvdash-0.1.64-1.x86_64.rpm releases/
+  sudo dnf upgrade ./releases/tvdash-0.1.64-1.x86_64.rpm
   ```
 
 ## Done

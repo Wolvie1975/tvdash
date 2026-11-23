@@ -37,16 +37,16 @@ component V3RankedShelf inherits Rectangle {
         visible: i < 6;
         property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == root.base-tile + i;
 
-        x: (40px + i * 256px) * TvUi.u;
+        x: (40px + i * 244px) * TvUi.u;
         y: 36px * TvUi.u;
-        width: 242px * TvUi.u;
+        width: 230px * TvUi.u;
         height: 202px * TvUi.u;
         background: transparent;
 
         Image {
             x: 0;
             y: 8px * TvUi.u;
-            width: 120px * TvUi.u;
+            width: 112px * TvUi.u;
             height: 190px * TvUi.u;
             source: item.rank == 1 ? @image-url("../../../../assets/rank/1.svg")
                 : item.rank == 2 ? @image-url("../../../../assets/rank/2.svg")
@@ -58,9 +58,9 @@ component V3RankedShelf inherits Rectangle {
         }
 
         Rectangle {
-            x: 108px * TvUi.u;
+            x: 100px * TvUi.u;
             y: 0;
-            width: 134px * TvUi.u;
+            width: 130px * TvUi.u;
             height: 200px * TvUi.u;
             border-radius: 12px * TvUi.u;
             clip: true;
