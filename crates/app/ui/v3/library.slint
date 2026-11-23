@@ -37,16 +37,16 @@ component V3RankedShelf inherits Rectangle {
         visible: i < 6;
         property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == root.base-tile + i;
 
-        x: (40px + i * 256px) * TvUi.u;
+        x: (40px + i * 244px) * TvUi.u;
         y: 36px * TvUi.u;
-        width: 242px * TvUi.u;
+        width: 230px * TvUi.u;
         height: 202px * TvUi.u;
         background: transparent;
 
         Image {
             x: 0;
             y: 8px * TvUi.u;
-            width: 120px * TvUi.u;
+            width: 112px * TvUi.u;
             height: 190px * TvUi.u;
             source: item.rank == 1 ? @image-url("../../../../assets/rank/1.svg")
                 : item.rank == 2 ? @image-url("../../../../assets/rank/2.svg")
@@ -58,9 +58,9 @@ component V3RankedShelf inherits Rectangle {
         }
 
         Rectangle {
-            x: 108px * TvUi.u;
+            x: 100px * TvUi.u;
             y: 0;
-            width: 134px * TvUi.u;
+            width: 130px * TvUi.u;
             height: 200px * TvUi.u;
             border-radius: 12px * TvUi.u;
             clip: true;
@@ -361,9 +361,9 @@ export component V3Library inherits Rectangle {
                 for item[i] in LibraryLanding.shelf1: Rectangle {
                     visible: i < 4;
                     property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 4 + i;
-                    x: (40px + i * 384px) * TvUi.u;
+                    x: (40px + i * 366px) * TvUi.u;
                     y: 40px * TvUi.u;
-                    width: 368px * TvUi.u;
+                    width: 350px * TvUi.u;
                     height: 262px * TvUi.u;
                     background: transparent;
 
@@ -665,16 +665,16 @@ export component V3Library inherits Rectangle {
 
                 for item[i] in Library.browse-items: Rectangle {
                     property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 32 + i;
-                    x: (40px + Math.mod(i, 8) * 192px) * TvUi.u;
+                    x: (40px + Math.mod(i, 8) * 184px) * TvUi.u;
                     y: (6px + Math.floor(i / 8) * 316px) * TvUi.u;
-                    width: 174px * TvUi.u;
+                    width: 168px * TvUi.u;
                     height: 300px * TvUi.u;
                     background: transparent;
 
                     Rectangle {
                         x: 0;
                         y: 0;
-                        width: 174px * TvUi.u;
+                        width: 168px * TvUi.u;
                         height: 248px * TvUi.u;
                         border-radius: 14px * TvUi.u;
                         clip: true;

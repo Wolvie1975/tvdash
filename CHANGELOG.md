@@ -1,5 +1,73 @@
 # tvdash Changelog
 
+## v0.1.68 — 2026-11-23
+- **Classic Home "Just Added" fallback tile** (`tv/home.slint`, `state.slint`, `bridge/home.rs`, `callbacks.rs`, `tv_nav.rs`):
+  - When `Next Game` is not visible, the lower-right `486×290` slot on Classic Home now displays a **Just Added** card for the latest episode or movie added (`recently_added`), with poster, kind badge (`EPISODE` / `MOVIE` / `SERIES`), title, subtitle, meta, and OK/click playback.
+  - Updated `"WHAT'S ON · …"` label color in `tv/home.slint` to `Theme.text-secondary` for contrast on light themes like Stone.
+
+## v0.1.67 — 2026-11-23
+- **Classic MediaTile layout** (`tv/tile.slint`, `tv/library.slint`, `tv_nav.rs`):
+  - Updated Classic `MediaTile` to render the poster on top (without a bottom scrim) and the title + year/subtitle below the poster, matching **Blades** across Library Browse all, Collections, Collection detail, and Search.
+  - Adjusted Classic Library Browse all card height to `300px` (`316px` row pitch) and fixed `"Browse all · On"` / active letter pill text to use `Theme.on-accent`.
+
+## v0.1.66 — 2026-11-22
+- **Blades Home Apps & Quick Actions swap** (`v3/home.slint`, `tv_nav.rs`):
+  - Moved the 8-tile **Apps** area (`7` recent-first + `All apps ›`) into the right rail as a **2×4 stack** (`276px` tiles), and moved **Quick actions** (`Search`, `Screensaver`, `Sleep timer`, `Theme`) to a **1×4 bottom bar** (`349px` tiles), with updated D-pad spatial focus rects.
+- **Blades Library Continue Watching margin** (`v3/library.slint`):
+  - Adjusted `shelf1` (`Continue Watching` / `Finish the Season`) to `350px` cards at `366px` step (`1488px` right edge) so all 4 cards stay inside the `1532px` panel.
+
+## v0.1.65 — 2026-11-22
+- **Blades Apps header fix** (`v3/apps.slint`):
+  - Added explicit `height: 52px * TvUi.u` to the **Apps** header `HorizontalLayout` so it stays at the top of the panel instead of being pushed to the bottom edge.
+- **Classic Apps tile parity** (`tv/home.slint`, `tv/apps.slint`):
+  - Removed app names from inside the Classic Home **APPS** tiles and centered the logos (`88% × 66%` wide / `70% × 54%` glyph).
+  - Moved app names below each tile on the Classic **Apps** tab (`Theme.text-primary`) and centered the logos inside `328 × 164` tiles.
+
+## v0.1.64 — 2026-11-22
+- **Crunchyroll logo sizing**:
+  - Cropped `assets/logos/crunchyroll.svg` (`viewBox="20 24 184 42"`) and set `crunchyroll` to `logo_wide = true` (`apps.rs`) so the icon fills tiles cleanly across both Blades and Classic.
+- **Classic Home theme alignment** (`tv/home.slint`):
+  - Switched Classic Home tiles (`WHAT'S ON`, `Search`, `Screensaver`, `Sleep`, `Theme`, `Clock`, `UP NEXT`, `Next Game`) from poster-hue tinting to `Theme.surface` / `Theme.surface-raised` so **Espresso**, **Aubergine**, **Stone**, and **Mist** match their selected theme palette.
+- **Removed Kansas Light** (`ku-light` / `KuLight`):
+  - Removed the Kansas Light theme option from Settings, theme cycling, and theme tokens (keeping `#[serde(alias = "ku-light")]` on `ThemeMode::Ku` for existing configs).
+- **Blades Library 6-item shelf margin** (`v3/library.slint`):
+  - Tuned `V3RankedShelf` (`230px` items, `244px` step) so all 6 ranked items on both TV and Movie landing pages fit cleanly within the `1532px` panel.
+
+## v0.1.63 — 2026-11-22
+- **All-app logos & local-only tile icons**:
+  - Replaced boxed TMDB provider icons with cropped, transparent, pre-coloured SVGs for **Apple TV**, **Fandango at Home**, **Hulu**, **Netflix**, **Prime Video**, and **YouTube**, plus transparent PNG for **Disney+** (`#0B2E6B`, `logo-wide = true`) in `assets/logos/` and `brand.rs`.
+  - Removed TMDB provider logo downloads from `watch.rs` so app tiles always use the bundled SVGs/PNG (or explicit `logo` file overrides in `config.toml`).
+- **Collections layout fix** (`v3/collections.slint`, `v3/collection.slint`):
+  - Tuned 7-column Collections grid (`190px` tiles, `210px` step) and 3-column Collection Detail grid (`324px` tiles, `344px` step) so cards stay within the Blades panel without spilling over the right edge.
+- **Playback HUD "From start" button** (`v3/player_hud.slint`, `tv/player_hud.slint`, `tv_nav.rs`):
+  - Added a **From start** control (tile `9`, `Dash.transport("restart")` → `Command::SeekTo(0)`) to both Blades and Classic player HUDs with D-pad navigation.
+
+## v0.1.62 — 2026-11-22
+- **App logos & tile sizing** (`brand.rs`, `apps.rs`, `config.rs`, `assets/logos/`):
+  - Updated cropped pre-coloured SVGs and tile colours for **YouTube TV** (`#000000` / `#FFFFFF`), **YouTube Music** (`#FF0000` / `#FFFFFF`), **Tubi** (`#7408FF` / `#FFF200`), and **Google Meet** (`#000000` / `#FBBC04`).
+  - Added `logo_box` (`"wide"` / `"glyph"`) on `StreamingSite` and `logo-wide` on `AppTile`, applying per-surface box sizing across Blades Home/Apps and Classic Home/Apps.
+- **Kansas Light theme** (`theme.slint`, `v3/theme.slint`, `tint.rs`):
+  - Replaced the Jayhawk Yellow canvas background with KU Crimson (`#E8000D`) and switched the highlight/accent/focus ring to Jayhawk Yellow (`#FFC82D`, dark `#0B192E` on-accent).
+- **Blades Apps hover**:
+  - Added hover border highlight and `TvUi.tile-hovered` sync to the **Blades** Apps page (`v3/apps.slint`) and Home Apps bar (`v3/home.slint`).
+- **Classic Home polish** (`tv/home.slint`, `tv/tile.slint`):
+  - Wrapped the **What's On** status line (`Stopped at …`) and reduced the **Theme** `ValueTile` font size (`value-size: 28px * TvUi.u`) so `"Kansas Dark"` / `"Kansas Light"` fit without eliding.
+
+## v0.1.61 — 2026-11-22
+- **Fixed memory growth: image caches are now bounded.**
+  - Replaced unbounded `HashMap` image caches with fixed-capacity LRU `ImageCache`s (`image_cache.rs`): backdrops (40), posters (300), sports logos (200, decoded at ≤128×128), and Where to watch posters (120).
+  - Added `Command::ForgetImages` so evicted keys are removed from controller `*_requested` sets and re-fetched when needed.
+- **Scoreboard layout fix** across **Blades** (`v3/scoreboard_panel.slint`) and **Classic** (`tv/scoreboard_panel.slint`):
+  - Replaced zero-height `Rectangle` column wrappers with `VerticalLayout` and switched Blades Scoreboard groups from `ListView` to `Flickable` so card backgrounds, borders, and group sections lay out without overlapping.
+
+## v0.1.60 — 2026-11-22
+- **Home & Apps redesign** across **Blades** and **Classic**:
+  - Added the top-level **Apps** tab (`Home · Apps · Library · Collections · Sports · Settings`) with a case-insensitive A–Z grid of configured streaming apps (`apps.rs`, `v3/apps.slint`, `tv/apps.slint`).
+  - Rebuilt **Home** around the **What's On** hero (`whats_on.rs`), **Up next** 4-card row (`up_next.rs`), **Next Game** card (`next_game.rs`), 4-row Quick Actions, and 8-tile **Apps** bar (7 recent-first via `recent.rs` + `All apps ›`), removing the Home transport bar, Last Played card, and Library quick action.
+- **Sports Scoreboard redesign** across **Blades** (3-column cards) and **Classic** (2-column rows):
+  - Shared `ScoreboardView` (`scoreboard_view.rs`) with sport-specific box score columns (`1 2 3 4 [OT]`, `1 2 3 [OT] [SO]`, `1st 2nd [OT]`, etc.), period/intermission status (`End 1st`, `Halftime`, `2nd Int`), leader emphasis, rank column, start-time ordering, simplified controls (`‹ date › · Today · filter · Refresh · freshness`), and pill D-pad focus.
+  - Fixed per-game **Star** persistence and optimistic UI updates (`sports_watch.rs`, `bridge/mod.rs`), and enabled Home Next Game step 0 for followed/starred games.
+
 ## v0.1.59 — 2026-11-21
 - Updated **Blades Home** (`v3/home.slint`) to remove Google Meet from the Quick Actions box and expand the **Streaming** grid to **6×2** (`i < 12`) so Crunchyroll and Google Meet appear there.
 - Swapped the **Theme** and **Sleep** tile positions in **Classic Home** (`tv/home.slint`) so `Theme` has the wider `356×230` slot for longer theme names like `"Kansas Dark"` and `"Kansas Light"`.

@@ -108,16 +108,16 @@ export component V3Collection inherits Rectangle {
 
             for item[i] in CollectionPageState.items: Rectangle {
                 property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 1 + i;
-                x: Math.mod(i, 3) * 366px * TvUi.u;
+                x: Math.mod(i, 3) * 344px * TvUi.u;
                 y: Math.floor(i / 3) * 260px * TvUi.u;
-                width: 348px * TvUi.u;
+                width: 324px * TvUi.u;
                 height: 244px * TvUi.u;
                 background: transparent;
 
                 Rectangle {
                     x: 0;
                     y: 0;
-                    width: 348px * TvUi.u;
+                    width: 324px * TvUi.u;
                     height: 190px * TvUi.u;
                     border-radius: 14px * TvUi.u;
                     clip: true;

@@ -281,6 +281,10 @@ WHERE (   (g.ScoreboardDate = @P1 AND (g.TimeTbd = 1 OR (g.StartsAtUtc >= @P3 AN
     };
 
     let now_utc = Utc::now().naive_utc();
+    let max_observed_at_utc = raw_games
+        .iter()
+        .map(|g| Utc.from_utc_datetime(&g.last_observed_at_utc).timestamp())
+        .max();
     let coverage_warning = compute_coverage_warning(&coverage, &selection);
     let groups = build_groups(raw_games, top25_week, &selection, today, now_utc);
     let empty_message = if groups.is_empty() {
@@ -306,6 +310,7 @@ WHERE (   (g.ScoreboardDate = @P1 AND (g.TimeTbd = 1 OR (g.StartsAtUtc >= @P3 AN
         choices,
         coverage_warning,
         empty_message,
+        max_observed_at_utc,
         groups,
     })
 }
@@ -676,6 +681,35 @@ fn format_period(p: i32) -> String {
     }
 }
 
+fn parse_period_scores(json_str: Option<&str>, key: &str) -> Vec<String> {
+    let Some(raw) = json_str.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Vec::new();
+    };
+    let Ok(Value::Object(map)) = serde_json::from_str::<Value>(raw) else {
+        return Vec::new();
+    };
+    let Some(arr) = map.get(key).and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+    arr.iter()
+        .take(40)
+        .filter_map(|item| {
+            item.get("displayValue")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .or_else(|| {
+                    item.get("score").and_then(|v| v.as_f64()).map(|f| {
+                        if f.fract() == 0.0 {
+                            format!("{}", f as i64)
+                        } else {
+                            f.to_string()
+                        }
+                    })
+                })
+        })
+        .collect()
+}
+
 pub fn parse_live_details(json_str: Option<&str>) -> Vec<String> {
     let Some(raw) = json_str.map(str::trim).filter(|s| !s.is_empty()) else {
         return Vec::new();
@@ -819,14 +853,29 @@ fn format_card(g: RawScoreboardGame, today: NaiveDate, now_utc: NaiveDateTime) -
         _ => {}
     }
 
+    let away_periods = parse_period_scores(g.live_details_json.as_deref(), "awayPeriods");
+    let home_periods = parse_period_scores(g.live_details_json.as_deref(), "homePeriods");
+
     ScoreboardGame {
         key: format!("{}|{}|{}|{}", g.provider, g.sport, g.league, g.event_id),
         event_id: g.event_id,
+        sport: g.sport.clone(),
         league: g.league.clone(),
         away_team_id: g.away_team_id.unwrap_or_default(),
         home_team_id: g.home_team_id.unwrap_or_default(),
         league_label: competition_label(&g.sport, &g.league),
         status: g.status,
+        status_text: g.status_text.unwrap_or_default(),
+        period: g.period,
+        display_clock: g.display_clock,
+        starts_at_utc: g.starts_at_utc.map(|dt| Utc.from_utc_datetime(&dt).timestamp()),
+        time_tbd: g.time_tbd,
+        neutral_site: g.neutral_site,
+        venue: g.venue.unwrap_or_default(),
+        broadcasts: g.broadcasts.unwrap_or_default(),
+        last_observed_at_utc: Some(Utc.from_utc_datetime(&g.last_observed_at_utc).timestamp()),
+        away_periods,
+        home_periods,
         header_text,
         away_initials: team_initials(&g.away_name),
         away_logo_url: safe_logo_url(g.away_logo_url.as_deref()),

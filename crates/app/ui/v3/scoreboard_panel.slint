@@ -1,0 +1,607 @@
+// Blades UI (v3) — Scoreboard panel (§5).
+
+import { ListView } from "std-widgets.slint";
+import { Scoreboard, ScoreCard, ScoreEmphasis, ScoreSide, ScoreTone, TvUi } from "../state.slint";
+import { V3Theme } from "theme.slint";
+
+component V3ScoreSideRow inherits HorizontalLayout {
+    in property <ScoreSide> side;
+    in property <bool> is-upcoming: false;
+    in property <bool> is-postponed: false;
+
+    spacing: 8px * TvUi.u;
+    height: 34px * TvUi.u;
+
+    Text {
+        width: 34px * TvUi.u;
+        text: root.side.rank;
+        font-family: V3Theme.font;
+        font-size: 15px * TvUi.u;
+        font-weight: 900;
+        color: V3Theme.text-secondary;
+        vertical-alignment: center;
+    }
+
+    Rectangle {
+        width: 30px * TvUi.u;
+        height: 30px * TvUi.u;
+        border-radius: 8px * TvUi.u;
+        y: (parent.height - self.height) / 2;
+        background: root.side.has-logo ? transparent : V3Theme.surface-raised;
+        border-width: root.side.has-logo ? 0px : 1px;
+        border-color: V3Theme.border;
+        clip: true;
+
+        if root.side.has-logo: Image {
+            width: 100%;
+            height: 100%;
+            source: root.side.logo;
+            image-fit: contain;
+        }
+
+        if !root.side.has-logo: Text {
+            text: root.side.initials;
+            font-family: V3Theme.font;
+            font-size: 11px * TvUi.u;
+            font-weight: 800;
+            color: V3Theme.text-secondary;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    Text {
+        horizontal-stretch: 1;
+        text: root.side.short;
+        font-family: V3Theme.font;
+        font-size: 20px * TvUi.u;
+        font-weight: root.side.emphasis == ScoreEmphasis.lead ? 900
+            : root.side.emphasis == ScoreEmphasis.trail ? 700 : 800;
+        color: root.side.emphasis == ScoreEmphasis.trail ? V3Theme.text-secondary : V3Theme.text-primary;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    for p in root.side.periods: Text {
+        width: 26px * TvUi.u;
+        text: p;
+        font-family: V3Theme.font;
+        font-size: 16px * TvUi.u;
+        font-weight: 700;
+        color: V3Theme.text-secondary;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    if !root.is-postponed: Text {
+        width: 44px * TvUi.u;
+        text: root.side.total;
+        font-family: V3Theme.font;
+        font-size: root.is-upcoming ? 15px * TvUi.u : 26px * TvUi.u;
+        font-weight: root.is-upcoming ? 700
+            : root.side.emphasis == ScoreEmphasis.lead ? 900
+            : root.side.emphasis == ScoreEmphasis.trail ? 700 : 800;
+        color: (root.is-upcoming || root.side.emphasis == ScoreEmphasis.trail)
+            ? V3Theme.text-secondary : V3Theme.text-primary;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+    }
+}
+
+component V3ScoreCardTile inherits Rectangle {
+    in property <ScoreCard> card;
+    in property <bool> is-postponed: false;
+
+    property <bool> star-foc: !TvUi.bar-focused && root.card.star-focus-id >= 0 && TvUi.focused-tile == root.card.star-focus-id;
+    property <bool> game-foc: !TvUi.bar-focused && root.card.game-focus-id >= 0 && TvUi.focused-tile == root.card.game-focus-id;
+    property <bool> card-foc: root.star-foc || root.game-foc;
+
+    border-radius: 20px * TvUi.u;
+    background: V3Theme.surface;
+    border-width: root.card-foc ? 4px : 1px;
+    border-color: root.card-foc ? V3Theme.focus-ring : V3Theme.border;
+
+    VerticalLayout {
+        padding-left: 20px * TvUi.u;
+        padding-right: 20px * TvUi.u;
+        padding-top: 16px * TvUi.u;
+        padding-bottom: 16px * TvUi.u;
+        spacing: 10px * TvUi.u;
+
+        // Top row: League (sub) · Status right
+        HorizontalLayout {
+            spacing: 8px * TvUi.u;
+
+            Text {
+                horizontal-stretch: 1;
+                text: root.card.league;
+                font-family: V3Theme.font;
+                font-size: 14px * TvUi.u;
+                font-weight: 900;
+                letter-spacing: 1.5px;
+                color: V3Theme.text-secondary;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            HorizontalLayout {
+                spacing: 6px * TvUi.u;
+                alignment: end;
+
+                if root.card.tone == ScoreTone.live: Rectangle {
+                    width: 10px * TvUi.u;
+                    height: 10px * TvUi.u;
+                    border-radius: 5px * TvUi.u;
+                    background: #E8000D;
+                    y: (parent.height - self.height) / 2;
+                }
+
+                Text {
+                    text: root.card.status;
+                    font-family: V3Theme.font;
+                    font-size: 16px * TvUi.u;
+                    font-weight: 900;
+                    color: root.card.tone == ScoreTone.live ? #E8000D
+                        : root.card.tone == ScoreTone.upcoming ? V3Theme.accent
+                        : V3Theme.text-secondary;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // Period header row
+        if !root.is-postponed && root.card.period-labels.length > 0: HorizontalLayout {
+            spacing: 8px * TvUi.u;
+            height: 18px * TvUi.u;
+
+            Rectangle { horizontal-stretch: 1; }
+
+            for lbl in root.card.period-labels: Text {
+                width: 26px * TvUi.u;
+                text: lbl;
+                font-family: V3Theme.font;
+                font-size: 13px * TvUi.u;
+                font-weight: 800;
+                color: V3Theme.text-secondary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            Text {
+                width: 44px * TvUi.u;
+                text: "T";
+                font-family: V3Theme.font;
+                font-size: 13px * TvUi.u;
+                font-weight: 800;
+                color: V3Theme.text-secondary;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+            }
+        }
+
+        V3ScoreSideRow {
+            side: root.card.away;
+            is-upcoming: root.card.tone == ScoreTone.upcoming;
+            is-postponed: root.is-postponed;
+        }
+
+        V3ScoreSideRow {
+            side: root.card.home;
+            is-upcoming: root.card.tone == ScoreTone.upcoming;
+            is-postponed: root.is-postponed;
+        }
+
+        // Footer
+        Rectangle {
+            height: 1px;
+            background: V3Theme.border;
+        }
+
+        HorizontalLayout {
+            spacing: 8px * TvUi.u;
+            height: 38px * TvUi.u;
+
+            Text {
+                horizontal-stretch: 1;
+                text: root.card.meta;
+                font-family: V3Theme.font;
+                font-size: 15px * TvUi.u;
+                font-weight: 700;
+                color: V3Theme.text-secondary;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            if root.card.following: Rectangle {
+                height: 38px * TvUi.u;
+                width: fl-t.preferred-width + 20px * TvUi.u;
+                border-radius: 10px * TvUi.u;
+                background: V3Theme.accent-tint;
+                fl-t := Text {
+                    text: "★ Following";
+                    font-family: V3Theme.font;
+                    font-size: 14px * TvUi.u;
+                    font-weight: 800;
+                    color: V3Theme.accent;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            if !root.card.following && root.card.event-id != "": Rectangle {
+                height: 38px * TvUi.u;
+                width: st-t.preferred-width + 22px * TvUi.u;
+                border-radius: 10px * TvUi.u;
+                background: root.card.starred ? V3Theme.accent : (st-ta.has-hover ? V3Theme.surface-raised : V3Theme.surface-raised);
+                border-width: root.star-foc ? 3px : 1px;
+                border-color: root.star-foc ? V3Theme.focus-ring : (root.card.starred ? V3Theme.accent : V3Theme.border);
+
+                st-t := Text {
+                    text: root.card.starred ? "★ Starred" : "☆ Star";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 800;
+                    color: root.card.starred ? V3Theme.on-accent : V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                st-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Scoreboard.toggle-star(root.card.event-id); }
+                }
+            }
+
+            if root.card.game-url != "": Rectangle {
+                height: 38px * TvUi.u;
+                width: gm-t.preferred-width + 22px * TvUi.u;
+                border-radius: 10px * TvUi.u;
+                background: gm-ta.has-hover ? V3Theme.panel : V3Theme.surface-raised;
+                border-width: root.game-foc ? 3px : 1px;
+                border-color: root.game-foc ? V3Theme.focus-ring : V3Theme.border;
+
+                gm-t := Text {
+                    text: "Game ↗";
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 800;
+                    color: V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                gm-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        Scoreboard.open-url(root.card.away.full + " vs " + root.card.home.full, root.card.game-url);
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component V3ScoreboardPanel inherits Rectangle {
+    background: transparent;
+    property <bool> filter-open: false;
+
+    // Auto-refresh: 2 min when live on today, else 10 min (§4)
+    Timer {
+        interval: (Scoreboard.groups.length > 0 && Scoreboard.groups[0].is-live) ? 120s : 600s;
+        running: Scoreboard.is-today && !Scoreboard.loading;
+        triggered => { Scoreboard.refresh(); }
+    }
+
+    // Controls row (§4–§5)
+    HorizontalLayout {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: 52px * TvUi.u;
+        spacing: 12px * TvUi.u;
+
+        // Date stepper track
+        Rectangle {
+            height: 52px * TvUi.u;
+            width: 44px * TvUi.u + 44px * TvUi.u + date-txt.preferred-width + 36px * TvUi.u;
+            border-radius: 16px * TvUi.u;
+            background: V3Theme.surface;
+            border-width: 1px;
+            border-color: V3Theme.border;
+
+            HorizontalLayout {
+                padding: 4px * TvUi.u;
+                spacing: 8px * TvUi.u;
+
+                Rectangle {
+                    width: 44px * TvUi.u;
+                    height: 44px * TvUi.u;
+                    border-radius: 12px * TvUi.u;
+                    background: (!TvUi.bar-focused && TvUi.focused-tile == 2) ? V3Theme.surface-raised : transparent;
+                    border-width: (!TvUi.bar-focused && TvUi.focused-tile == 2) ? 3px : 0px;
+                    border-color: V3Theme.focus-ring;
+                    opacity: Scoreboard.prev-day != "" ? 1.0 : 0.35;
+                    Text {
+                        text: "‹";
+                        font-size: 24px * TvUi.u;
+                        font-weight: 800;
+                        color: V3Theme.text-primary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        mouse-cursor: Scoreboard.prev-day != "" ? pointer : default;
+                        clicked => { Scoreboard.prev-day-clicked(); }
+                    }
+                }
+
+                date-txt := Text {
+                    text: Scoreboard.date-label != "" ? Scoreboard.date-label : Scoreboard.day-label;
+                    font-family: V3Theme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 800;
+                    color: V3Theme.text-primary;
+                    vertical-alignment: center;
+                }
+
+                Rectangle {
+                    width: 44px * TvUi.u;
+                    height: 44px * TvUi.u;
+                    border-radius: 12px * TvUi.u;
+                    background: (!TvUi.bar-focused && TvUi.focused-tile == 3) ? V3Theme.surface-raised : transparent;
+                    border-width: (!TvUi.bar-focused && TvUi.focused-tile == 3) ? 3px : 0px;
+                    border-color: V3Theme.focus-ring;
+                    opacity: Scoreboard.next-day != "" ? 1.0 : 0.35;
+                    Text {
+                        text: "›";
+                        font-size: 24px * TvUi.u;
+                        font-weight: 800;
+                        color: V3Theme.text-primary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        mouse-cursor: Scoreboard.next-day != "" ? pointer : default;
+                        clicked => { Scoreboard.next-day-clicked(); }
+                    }
+                }
+            }
+        }
+
+        if !Scoreboard.is-today: Rectangle {
+            width: 96px * TvUi.u;
+            height: 52px * TvUi.u;
+            border-radius: 14px * TvUi.u;
+            background: V3Theme.surface;
+            border-width: (!TvUi.bar-focused && TvUi.focused-tile == 4) ? 3px : 1px;
+            border-color: (!TvUi.bar-focused && TvUi.focused-tile == 4) ? V3Theme.focus-ring : V3Theme.border;
+            Text {
+                text: "Today";
+                font-family: V3Theme.font;
+                font-size: 19px * TvUi.u;
+                font-weight: 800;
+                color: V3Theme.accent;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { Scoreboard.today-clicked(); }
+            }
+        }
+
+        // Sport/league dropdown
+        Rectangle {
+            width: max(240px * TvUi.u, flt-lbl.preferred-width + 52px * TvUi.u);
+            height: 52px * TvUi.u;
+            border-radius: 14px * TvUi.u;
+            background: V3Theme.surface;
+            border-width: (!TvUi.bar-focused && TvUi.focused-tile == 5) || root.filter-open ? 3px : 1px;
+            border-color: (!TvUi.bar-focused && TvUi.focused-tile == 5) || root.filter-open ? V3Theme.focus-ring : V3Theme.border;
+
+            HorizontalLayout {
+                padding-left: 16px * TvUi.u;
+                padding-right: 16px * TvUi.u;
+                spacing: 8px * TvUi.u;
+                flt-lbl := Text {
+                    text: Scoreboard.show-label;
+                    font-family: V3Theme.font;
+                    font-size: 19px * TvUi.u;
+                    font-weight: 800;
+                    color: V3Theme.text-primary;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                }
+                Text {
+                    text: root.filter-open ? "▴" : "▾";
+                    font-size: 18px * TvUi.u;
+                    color: V3Theme.text-secondary;
+                    vertical-alignment: center;
+                }
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.filter-open = !root.filter-open; }
+            }
+        }
+
+        // Refresh
+        Rectangle {
+            width: 124px * TvUi.u;
+            height: 52px * TvUi.u;
+            border-radius: 14px * TvUi.u;
+            background: V3Theme.surface;
+            border-width: (!TvUi.bar-focused && TvUi.focused-tile == 6) ? 3px : 1px;
+            border-color: (!TvUi.bar-focused && TvUi.focused-tile == 6) ? V3Theme.focus-ring : V3Theme.border;
+            Text {
+                text: Scoreboard.loading ? "Loading…" : "↻ Refresh";
+                font-family: V3Theme.font;
+                font-size: 19px * TvUi.u;
+                font-weight: 800;
+                color: V3Theme.text-primary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { Scoreboard.refresh(); }
+            }
+        }
+
+        Rectangle { horizontal-stretch: 1; }
+
+        if Scoreboard.fresh != "": Text {
+            text: Scoreboard.fresh;
+            font-family: V3Theme.font;
+            font-size: 18px * TvUi.u;
+            font-weight: 700;
+            color: Scoreboard.stale ? V3Theme.warn : V3Theme.text-secondary;
+            vertical-alignment: center;
+        }
+    }
+
+    // Empty day
+    if !Scoreboard.loading && Scoreboard.groups.length == 0: Text {
+        x: 0;
+        y: 88px * TvUi.u;
+        text: Scoreboard.error != "" ? Scoreboard.error
+            : ("No games on " + (Scoreboard.date-label != "" ? Scoreboard.date-label : Scoreboard.day-label));
+        font-family: V3Theme.font;
+        font-size: 22px * TvUi.u;
+        font-weight: 700;
+        color: Scoreboard.error != "" ? V3Theme.warn : V3Theme.text-secondary;
+    }
+
+    // Groups + 3-column card grid
+    if Scoreboard.groups.length > 0: Flickable {
+        x: 0;
+        y: 70px * TvUi.u;
+        width: parent.width;
+        height: parent.height - 70px * TvUi.u;
+        interactive: true;
+        content-height: sb-col.preferred-height + 24px * TvUi.u;
+
+        sb-col := VerticalLayout {
+            width: parent.width;
+            spacing: 14px * TvUi.u;
+
+            for grp[gi] in Scoreboard.groups: VerticalLayout {
+                width: parent.width;
+                padding-top: gi == 0 ? 4px * TvUi.u : 16px * TvUi.u;
+                padding-bottom: 14px * TvUi.u;
+                spacing: 14px * TvUi.u;
+
+                // Group heading
+                HorizontalLayout {
+                    spacing: 10px * TvUi.u;
+                    alignment: start;
+
+                    if grp.is-live: Rectangle {
+                        width: 20px * TvUi.u;
+                        height: 20px * TvUi.u;
+                        border-radius: 10px * TvUi.u;
+                        background: #E8000D40;
+                        y: (parent.height - self.height) / 2;
+
+                        Rectangle {
+                            x: 3px * TvUi.u;
+                            y: 3px * TvUi.u;
+                            width: 14px * TvUi.u;
+                            height: 14px * TvUi.u;
+                            border-radius: 7px * TvUi.u;
+                            background: #E8000D;
+                        }
+                    }
+
+                    Text {
+                        text: grp.title;
+                        font-family: V3Theme.font;
+                        font-size: 26px * TvUi.u;
+                        font-weight: 900;
+                        color: V3Theme.text-primary;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: grp.count;
+                        font-family: V3Theme.font;
+                        font-size: 20px * TvUi.u;
+                        font-weight: 700;
+                        color: V3Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // 3-column rows
+                for row_idx in Math.ceil(grp.cards.length / 3): HorizontalLayout {
+                    spacing: 18px * TvUi.u;
+
+                    for col_idx in [0, 1, 2]: VerticalLayout {
+                        horizontal-stretch: 1;
+
+                        if (row_idx * 3 + col_idx) < grp.cards.length: V3ScoreCardTile {
+                            vertical-stretch: 1;
+                            card: grp.cards[row_idx * 3 + col_idx];
+                            is-postponed: grp.is-postponed;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Dropdown menu overlay
+    if root.filter-open: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #00000040;
+
+        TouchArea {
+            clicked => { root.filter-open = false; }
+        }
+
+        Rectangle {
+            x: 240px * TvUi.u;
+            y: 58px * TvUi.u;
+            width: 340px * TvUi.u;
+            height: min(460px * TvUi.u, Scoreboard.choices.length * 42px * TvUi.u + 16px * TvUi.u);
+            border-radius: 14px * TvUi.u;
+            background: V3Theme.panel;
+            border-width: 1px;
+            border-color: V3Theme.border;
+
+            ListView {
+                x: 8px * TvUi.u;
+                y: 8px * TvUi.u;
+                width: parent.width - 16px * TvUi.u;
+                height: parent.height - 16px * TvUi.u;
+
+                for ch in Scoreboard.choices: Rectangle {
+                    height: 40px * TvUi.u;
+                    border-radius: 8px * TvUi.u;
+                    background: ch.value == Scoreboard.show ? V3Theme.accent : transparent;
+
+                    Text {
+                        x: 12px * TvUi.u;
+                        text: ch.label;
+                        font-family: V3Theme.font;
+                        font-size: 16px * TvUi.u;
+                        font-weight: ch.value == Scoreboard.show ? 800 : 600;
+                        color: ch.value == Scoreboard.show ? V3Theme.on-accent : V3Theme.text-primary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.filter-open = false;
+                            Scoreboard.set-filter(ch.value);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

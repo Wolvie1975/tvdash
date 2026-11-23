@@ -659,11 +659,102 @@ export struct TvServiceTile {
     ago-text: string,
 }
 
+// ── Home + Apps redesign state (§10) ─────────────────────────────────────────
+export struct WhatsOn {
+    has-item: bool,
+    source: string,           // "PLEX", "NETFLIX"
+    title: string,
+    subtitle: string,
+    plot: string,
+    art: image,
+    has-art: bool,
+    progress: float,          // 0..1, <0 = hide
+    status: string,
+    is-app: bool,
+    app-color: color,
+    app-logo: image,
+    app-has-logo: bool,
+}
+
+export struct UpNextCard {
+    key: string,
+    title: string,
+    meta: string,
+    thumb: image,
+    has-thumb: bool,
+    progress: float,          // 0..1, <=0 = hide
+    up-next: bool,
+}
+
+export struct GameSide {
+    rank: string,
+    init: string,
+    logo: image,
+    has-logo: bool,
+    color: color,
+    name: string,
+    score: string,
+    lead: bool,
+}
+
+export enum GameState { live, upcoming, final }
+
+export struct NextGame {
+    visible: bool,
+    event-id: string,
+    date: string,
+    league: string,
+    state: GameState,
+    state-text: string,
+    away: GameSide,
+    home: GameSide,
+    meta: string,
+}
+
+export struct AppTile {
+    id: string,
+    name: string,
+    logo: image,
+    has-logo: bool,
+    logo-wide: bool,
+    color: color,
+    text-color: color,
+}
+
+export struct JustAddedCard {
+    visible: bool,
+    kind: string,       // "EPISODE" | "MOVIE" | "SERIES"
+    source: string,     // "PLEX" | "JELLYFIN"
+    title: string,
+    subtitle: string,
+    meta: string,
+    has-art: bool,
+    art: image,
+}
+
+export global HomeState {
+    in property <WhatsOn> whats-on;
+    in property <[UpNextCard]> up-next;
+    in-out property <NextGame> next-game: { visible: false };
+    in property <JustAddedCard> just-added: { visible: false };
+    in property <[AppTile]> apps-bar;
+    callback activate-hero();
+    callback activate-up-next(string);        // key
+    callback activate-just-added();
+    callback open-game(string, string);       // event-id, date
+    callback launch-app(string);              // id
+    callback open-apps-page();
+}
+
+export global AppsPage {
+    in property <[AppTile]> apps;
+}
+
 export global TvUi {
-    // "home" | "search" | "library" | "services" | "settings" | "show" | "collection"
+    // "home" | "apps" | "search" | "library" | "collections" | "sports" | "settings" | "show" | "collection"
     in-out property <string> screen: "home";
     in-out property <float> u: 1.0; // UI scale factor from 1920x1080 design units to window size
-    in-out property <int> active-tab: 0; // 0 Home, 1 Library, 2 Services, 3 Settings
+    in-out property <int> active-tab: 0; // 0 Home, 1 Apps, 2 Library, 3 Collections, 4 Sports, 5 Settings
     in-out property <bool> bar-focused: false;
     in-out property <int> focused-tile: 1;
     in-out property <length> cw-scroll: 0px;
@@ -818,11 +909,51 @@ export struct ScoreboardRowData {
     source-url: string,
 }
 
+export enum ScoreTone { live, upcoming, final, muted }
+export enum ScoreEmphasis { lead, trail, even }
+
+export struct ScoreSide {
+    rank: string,
+    short: string,
+    full: string,
+    initials: string,
+    logo: image,
+    has-logo: bool,
+    periods: [string],
+    total: string,
+    emphasis: ScoreEmphasis,
+}
+
+export struct ScoreCard {
+    event-id: string,
+    league: string,
+    status: string,
+    tone: ScoreTone,
+    period-labels: [string],
+    away: ScoreSide,
+    home: ScoreSide,
+    meta: string,
+    starred: bool,
+    following: bool,
+    game-url: string,
+    star-focus-id: int,
+    game-focus-id: int,
+}
+
+export struct ScoreGroup {
+    is-live: bool,
+    is-postponed: bool,
+    title: string,
+    count: string,
+    cards: [ScoreCard],
+}
+
 export global Scoreboard {
     in property <bool> loading: false;
     in property <string> error;
     in property <string> day;
     in property <string> day-label: "Today";
+    in property <string> date-label;
     in property <string> prev-day;
     in property <string> next-day;
     in property <bool> is-today: true;
@@ -832,8 +963,16 @@ export global Scoreboard {
     in property <[ScoreboardChoiceData]> choices;
     in property <string> coverage-warning;
     in property <string> empty-message;
+    in property <string> fresh;
+    in property <bool> stale: false;
     in property <[ScoreboardRowData]> rows;
+    in property <[ScoreGroup]> groups;
     callback load(string, string, bool);
+    callback prev-day-clicked();
+    callback next-day-clicked();
+    callback today-clicked();
+    callback set-filter(string);
+    callback refresh();
     callback open-url(string, string);
     callback toggle-star(string);
 }

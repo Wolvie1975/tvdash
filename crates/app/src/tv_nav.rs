@@ -44,6 +44,7 @@ thread_local! {
 fn page_name(page: &Page) -> &'static str {
     match page {
         Page::Home => "home",
+        Page::Apps => "apps",
         Page::Library => "library",
         Page::Show(_) => "show",
         Page::Collection(_) => "collection",
@@ -57,6 +58,7 @@ fn page_name(page: &Page) -> &'static str {
 fn hint_for(page: &Page) -> &'static str {
     match page {
         Page::Home => "OK Select · Back Home · F12 Return from service",
+        Page::Apps => "OK Launch app · Back Home",
         Page::Collections => "OK Open collection · Back Home",
         _ => "OK Select · Back Return",
     }
@@ -137,8 +139,73 @@ pub fn go_home(laptop: &LaptopWindow) {
     STATE.with_borrow_mut(|s| {
         s.shell.bar_focused = false;
         s.shell.switch_tab(Tab::Home);
-        s.shell.focused_tile = 1;
+        s.shell.focused_tile = 0;
         s.cw_scroll = 0.0;
+        s.last_key = Instant::now();
+    });
+    sync(laptop);
+    tv.set_focus_ticket(tv.get_focus_ticket() + 1);
+}
+
+pub fn go_apps(laptop: &LaptopWindow) {
+    let tv = laptop.global::<TvUi>();
+    tv.set_ambient(false);
+    tv.set_video_full(false);
+    STATE.with_borrow_mut(|s| {
+        s.shell.bar_focused = false;
+        s.shell.switch_tab(Tab::Apps);
+        s.shell.focused_tile = 0;
+        s.lib_scroll = 0.0;
+        s.last_key = Instant::now();
+    });
+    sync(laptop);
+    tv.set_focus_ticket(tv.get_focus_ticket() + 1);
+}
+
+pub fn go_search(laptop: &LaptopWindow) {
+    let tv = laptop.global::<TvUi>();
+    tv.set_ambient(false);
+    tv.set_video_full(false);
+    STATE.with_borrow_mut(|s| {
+        s.shell.bar_focused = false;
+        s.shell.push(Page::Search);
+        s.last_key = Instant::now();
+    });
+    sync(laptop);
+    tv.set_focus_ticket(tv.get_focus_ticket() + 1);
+}
+
+pub fn go_sports_game(laptop: &LaptopWindow, event_id: &str, date: &str) {
+    let tv = laptop.global::<TvUi>();
+    tv.set_ambient(false);
+    tv.set_video_full(false);
+    tv.set_sports_tab("scoreboard".into());
+    let sb = laptop.global::<Scoreboard>();
+    sb.set_show("all".into());
+    sb.set_show_label("All sports".into());
+    if !date.is_empty() {
+        sb.set_day(date.into());
+    }
+    let mut target_tile = 7usize;
+    let groups = sb.get_groups();
+    'find: for gi in 0..groups.row_count() {
+        if let Some(grp) = groups.row_data(gi) {
+            let cards = grp.cards;
+            for ci in 0..cards.row_count() {
+                if let Some(c) = cards.row_data(ci)
+                    && c.event_id == event_id
+                    && c.star_focus_id >= 0
+                {
+                    target_tile = c.star_focus_id as usize;
+                    break 'find;
+                }
+            }
+        }
+    }
+    STATE.with_borrow_mut(|s| {
+        s.shell.bar_focused = false;
+        s.shell.switch_tab(Tab::Sports);
+        s.shell.focused_tile = target_tile;
         s.last_key = Instant::now();
     });
     sync(laptop);
@@ -179,6 +246,10 @@ pub fn sync(laptop: &LaptopWindow) {
                         s.lib_scroll = 0.0;
                     }
                 }
+                Page::Apps => {
+                    let vert = Rect { x: r.y - 124.0, y: 0.0, w: r.h, h: r.w };
+                    s.lib_scroll = focus::panorama_scroll(vert, s.lib_scroll, 824.0, 16.0);
+                }
                 Page::Collections => {
                     let vert = Rect { x: r.y - 180.0, y: 0.0, w: r.h, h: r.w };
                     s.lib_scroll = focus::panorama_scroll(vert, s.lib_scroll, 824.0, 16.0);
@@ -211,7 +282,7 @@ pub fn sync(laptop: &LaptopWindow) {
             }
         }
         s.cw_scroll = 0.0;
-        if !matches!(s.shell.current(), Page::Library | Page::Collections) {
+        if !matches!(s.shell.current(), Page::Apps | Page::Library | Page::Collections) {
             s.lib_scroll = 0.0;
         }
         if !matches!(s.shell.current(), Page::Show(_)) {
@@ -254,31 +325,84 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
         Page::Home => {
             let ox = 24.0;
             let oy = 24.0;
-            let mut rects = vec![
-                Rect { x: ox + 40.0, y: oy + 96.0, w: 900.0, h: 470.0 },  // 0: Hero
-                Rect { x: ox + 40.0, y: oy + 96.0, w: 900.0, h: 470.0 },  // 1: Hero
-                Rect { x: ox + 978.0, y: oy + 492.0, w: 572.0, h: 60.0 }, // 2: Search
-                Rect { x: ox + 978.0, y: oy + 555.0, w: 572.0, h: 60.0 }, // 3: Library
-                Rect { x: ox + 978.0, y: oy + 618.0, w: 572.0, h: 60.0 }, // 4: Screensaver
-                Rect { x: ox + 968.0, y: oy + 96.0, w: 592.0, h: 204.0 }, // 5: Clock/Weather
-                Rect { x: ox + 968.0, y: oy + 318.0, w: 592.0, h: 146.0 }, // 6: Last Played
-                Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 },          // 7: unused (moved to Streaming)
-                Rect { x: ox + 978.0, y: oy + 744.0, w: 572.0, h: 60.0 }, // 8: Theme
-                Rect { x: ox + 978.0, y: oy + 681.0, w: 572.0, h: 60.0 }, // 9: Sleep timer
-            ];
-            let n = laptop.global::<TvUi>().get_services().row_count().min(12);
-            for i in 0..n {
+            let hs = laptop.global::<crate::HomeState>();
+            let up_n = hs.get_up_next().row_count().min(4);
+            let has_game = hs.get_next_game().visible;
+            let offscreen = Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 };
+
+            let hero_h = if up_n > 0 { 440.0 } else { 477.0 };
+            let mut rects = vec![Rect { x: ox + 44.0, y: oy + 96.0, w: 848.0, h: hero_h }]; // 0: Hero
+
+            // 1..=4: Up next cards
+            for i in 0..4 {
+                if i < up_n {
+                    let cx = if i == 0 { 44.0 } else { 326.0 + (i - 1) as f32 * 193.0 };
+                    let cw = if i == 0 { 268.0 } else { 179.0 };
+                    rects.push(Rect { x: ox + cx, y: oy + 596.0, w: cw, h: 196.0 });
+                } else {
+                    rects.push(offscreen);
+                }
+            }
+
+            // 5: Next Game card
+            rects.push(if has_game {
+                Rect { x: ox + 920.0, y: oy + 308.0, w: 568.0, h: 210.0 }
+            } else {
+                offscreen
+            });
+
+            // 6..=9: Bottom Quick actions bar (Search, Screensaver, Sleep timer, Theme)
+            for i in 0..4 {
                 rects.push(Rect {
-                    x: ox + 40.0 + (i % 6) as f32 * 152.0,
-                    y: oy + 626.0 + (i / 6) as f32 * 102.0,
-                    w: 138.0,
+                    x: ox + 44.0 + i as f32 * 365.0,
+                    y: oy + 850.0,
+                    w: 349.0,
                     h: 88.0,
                 });
             }
+
+            // 10..=16: Right rail Apps 2x4 stack (7 recent-first)
+            let apps_y = if has_game { 534.0 } else { 308.0 };
+            let apps_h = if has_game { 262.0 } else { 488.0 };
+            let tile_h = (apps_h - 36.0) / 4.0;
+            let bar_n = hs.get_apps_bar().row_count().min(7);
+            for i in 0..7 {
+                if i < bar_n {
+                    rects.push(Rect {
+                        x: ox + 920.0 + (i % 2) as f32 * 292.0,
+                        y: oy + apps_y + (i / 2) as f32 * (tile_h + 12.0),
+                        w: 276.0,
+                        h: tile_h,
+                    });
+                } else {
+                    rects.push(offscreen);
+                }
+            }
+
+            // 17: All apps ›
+            rects.push(Rect {
+                x: ox + 920.0 + 292.0,
+                y: oy + apps_y + 3.0 * (tile_h + 12.0),
+                w: 276.0,
+                h: tile_h,
+            });
             rects
         }
-        Page::Library => {
+        Page::Apps => {
             let ox = 92.0;
+            let oy = 24.0;
+            let n = laptop.global::<crate::AppsPage>().get_apps().row_count();
+            (0..n)
+                .map(|i| Rect {
+                    x: ox + 40.0 + (i % 4) as f32 * 366.0,
+                    y: oy + 124.0 + (i / 4) as f32 * 256.0,
+                    w: 344.0,
+                    h: 194.0,
+                })
+                .collect()
+        }
+        Page::Library => {
+            let ox = 160.0;
             let oy = 24.0;
             let lib = laptop.global::<Library>();
             let mut rects = vec![
@@ -299,9 +423,9 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 let n = lib.get_browse_items().row_count();
                 for i in 0..n {
                     rects.push(Rect {
-                        x: ox + 40.0 + (i % 8) as f32 * 192.0,
+                        x: ox + 40.0 + (i % 8) as f32 * 184.0,
                         y: oy + 210.0 + (i / 8) as f32 * 316.0,
-                        w: 174.0,
+                        w: 168.0,
                         h: 248.0,
                     });
                 }
@@ -341,7 +465,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             rects
         }
         Page::Collections => {
-            let ox = 160.0;
+            let ox = 228.0;
             let oy = 24.0;
             let n = laptop.global::<Library>().get_collections().row_count();
             (0..n)
@@ -354,7 +478,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 .collect()
         }
         Page::Show(_) => {
-            let ox = 160.0;
+            let ox = 228.0;
             let oy = 24.0;
             let show = laptop.global::<ShowPageState>();
             let mut rects = vec![
@@ -390,7 +514,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             rects
         }
         Page::Collection(_) => {
-            let ox = 228.0;
+            let ox = 296.0;
             let oy = 24.0;
             let col = laptop.global::<CollectionPageState>();
             let mut rects = vec![Rect { x: ox + 40.0, y: oy + 320.0, w: 220.0, h: 48.0 }];
@@ -437,7 +561,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             rects
         }
         Page::Sports => {
-            let ox = 228.0;
+            let ox = 296.0;
             let oy = 24.0;
             let mut rects = vec![
                 Rect { x: ox + 200.0, y: oy + 38.0, w: 144.0, h: 36.0 },
@@ -445,23 +569,44 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             ];
             if tv.get_sports_tab() == "scoreboard" {
                 let sb = laptop.global::<Scoreboard>();
-                let rows = sb.get_rows();
+                let offscreen = Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 };
+                rects.push(Rect { x: ox + 44.0, y: oy + 100.0, w: 44.0, h: 44.0 });   // 2: Prev
+                rects.push(Rect { x: ox + 220.0, y: oy + 100.0, w: 44.0, h: 44.0 });  // 3: Next
+                rects.push(if !sb.get_is_today() {
+                    Rect { x: ox + 280.0, y: oy + 96.0, w: 96.0, h: 52.0 }
+                } else {
+                    offscreen
+                }); // 4: Today
+                rects.push(Rect { x: ox + 388.0, y: oy + 96.0, w: 240.0, h: 52.0 }); // 5: Dropdown
+                rects.push(Rect { x: ox + 640.0, y: oy + 96.0, w: 124.0, h: 52.0 }); // 6: Refresh
+
+                let groups = sb.get_groups();
                 let mut y = oy + 170.0;
-                for i in 0..rows.row_count() {
-                    if let Some(r) = rows.row_data(i) {
-                        if r.kind == "group" {
-                            y += 44.0;
-                        } else {
-                            rects.push(Rect { x: ox + 40.0, y, w: 1500.0, h: 126.0 });
-                            y += 136.0;
+                for gi in 0..groups.row_count() {
+                    if let Some(grp) = groups.row_data(gi) {
+                        y += 46.0;
+                        let cards = grp.cards;
+                        let n = cards.row_count();
+                        for ci in 0..n {
+                            if let Some(c) = cards.row_data(ci) {
+                                let col = (ci % 3) as f32;
+                                let row = (ci / 3) as f32;
+                                let cx = ox + 40.0 + col * 490.0;
+                                let cy = y + row * 236.0;
+                                rects.push(Rect { x: cx + 260.0, y: cy + 174.0, w: 92.0, h: 38.0 });
+                                if !c.game_url.is_empty() {
+                                    rects.push(Rect { x: cx + 360.0, y: cy + 174.0, w: 92.0, h: 38.0 });
+                                }
+                            }
                         }
+                        y += n.div_ceil(3) as f32 * 236.0 + 14.0;
                     }
                 }
             }
             rects
         }
         Page::Settings => {
-            let ox = 296.0;
+            let ox = 364.0;
             let oy = 24.0;
             let mut rects = (0..7)
                 .map(|i| Rect {
@@ -570,33 +715,78 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
     let dash = laptop.global::<Dash>();
     match page {
         Page::Home => {
-            // 0..=4: Clock, Hero, Search, Library, Screensaver
-            // 5: Weather (210 x 230), 6: Last Played (356 x 230), 7: Sleep (240 x 230), 8: Theme (356 x 230)
-            // 10..21: 2x6 Streaming Services grid (235 x 119)
-            let mut rects = vec![
-                Rect { x: 96.0, y: 136.0, w: 210.0, h: 590.0 },   // 0: Clock + Plex info
-                Rect { x: 322.0, y: 136.0, w: 728.0, h: 590.0 },  // 1: Hero
-                Rect { x: 1066.0, y: 136.0, w: 240.0, h: 186.0 }, // 2: Search
-                Rect { x: 1066.0, y: 338.0, w: 240.0, h: 186.0 }, // 3: Library
-                Rect { x: 1066.0, y: 540.0, w: 240.0, h: 186.0 }, // 4: Screensaver
-                Rect { x: 96.0, y: 742.0, w: 210.0, h: 230.0 },   // 5: Weather
-                Rect { x: 322.0, y: 742.0, w: 356.0, h: 230.0 },  // 6: Last Played
-                Rect { x: 1066.0, y: 742.0, w: 240.0, h: 230.0 }, // 7: Sleep
-                Rect { x: 694.0, y: 742.0, w: 356.0, h: 230.0 },  // 8: Theme
-                Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 },  // 9: unused in Classic (Blades Sleep)
-            ];
-            let svcs_n = tv.get_services().row_count().min(12);
-            for i in 0..svcs_n {
-                let col = (i % 2) as f32;
-                let row = (i / 2) as f32;
-                rects.push(Rect {
-                    x: 1338.0 + col * 251.0,
-                    y: 176.0 + row * 135.0,
-                    w: 235.0,
-                    h: 119.0,
-                });
+            let hs = laptop.global::<crate::HomeState>();
+            let up_n = hs.get_up_next().row_count().min(4);
+            let has_game = hs.get_next_game().visible;
+            let has_bottom_right = has_game || hs.get_just_added().visible;
+            let offscreen = Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 };
+
+            let mut rects = vec![Rect { x: 342.0, y: 136.0, w: 708.0, h: 590.0 }]; // 0: Hero
+
+            // 1..=4: Up next row
+            for i in 0..4 {
+                if i < up_n {
+                    let cx = if i == 0 { 342.0 } else { 668.0 + (i - 1) as f32 * 218.0 };
+                    let cw = if i == 0 { 310.0 } else { 202.0 };
+                    rects.push(Rect { x: cx, y: 742.0, w: cw, h: 230.0 });
+                } else {
+                    rects.push(offscreen);
+                }
             }
+
+            // 5: Next Game (or Just Added fallback) card
+            rects.push(if has_bottom_right {
+                Rect { x: 1338.0, y: 682.0, w: 486.0, h: 290.0 }
+            } else {
+                offscreen
+            });
+
+            // 6..=9: Quick tiles (Search, Screensaver, Sleep, Theme)
+            rects.push(Rect { x: 1066.0, y: 136.0, w: 240.0, h: 135.0 }); // 6: Search
+            rects.push(Rect { x: 1066.0, y: 287.0, w: 240.0, h: 135.0 }); // 7: Screensaver
+            rects.push(Rect { x: 1066.0, y: 438.0, w: 240.0, h: 135.0 }); // 8: Sleep
+            rects.push(Rect { x: 1066.0, y: 589.0, w: 240.0, h: 137.0 }); // 9: Theme
+
+            // 10..=16: Apps 2x4 grid (7 recent-first)
+            let bar_n = hs.get_apps_bar().row_count().min(7);
+            for i in 0..7 {
+                if i < bar_n {
+                    let col = (i % 2) as f32;
+                    let row = (i / 2) as f32;
+                    rects.push(Rect {
+                        x: 1338.0 + col * 251.0,
+                        y: 176.0 + row * 126.0,
+                        w: 235.0,
+                        h: 112.0,
+                    });
+                } else {
+                    rects.push(offscreen);
+                }
+            }
+
+            // 17: All apps ›
+            rects.push(Rect {
+                x: 1338.0 + 251.0,
+                y: 176.0 + 3.0 * 126.0,
+                w: 235.0,
+                h: 112.0,
+            });
             rects
+        }
+        Page::Apps => {
+            let n = laptop.global::<crate::AppsPage>().get_apps().row_count();
+            (0..n)
+                .map(|i| {
+                    let col = (i % 5) as f32;
+                    let row = (i / 5) as f32;
+                    Rect {
+                        x: 96.0 + col * 348.0,
+                        y: 176.0 + row * 212.0,
+                        w: 328.0,
+                        h: 184.0,
+                    }
+                })
+                .collect()
         }
         Page::Collections => {
             let n = laptop.global::<Library>().get_collections().row_count();
@@ -620,16 +810,37 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             ];
             if tv.get_sports_tab() == "scoreboard" {
                 let sb = laptop.global::<Scoreboard>();
-                let rows = sb.get_rows();
-                let mut y = 248.0;
-                for i in 0..rows.row_count() {
-                    if let Some(r) = rows.row_data(i) {
-                        if r.kind == "group" {
-                            y += 54.0;
-                        } else {
-                            rects.push(Rect { x: 96.0, y, w: 1728.0, h: 122.0 });
-                            y += 130.0;
+                let offscreen = Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 };
+                rects.push(Rect { x: 96.0, y: 184.0, w: 50.0, h: 50.0 });   // 2: Prev
+                rects.push(Rect { x: 478.0, y: 184.0, w: 50.0, h: 50.0 });  // 3: Next
+                rects.push(if !sb.get_is_today() {
+                    Rect { x: 540.0, y: 184.0, w: 100.0, h: 50.0 }
+                } else {
+                    offscreen
+                }); // 4: Today
+                rects.push(Rect { x: 652.0, y: 184.0, w: 300.0, h: 50.0 }); // 5: Dropdown
+                rects.push(Rect { x: 964.0, y: 184.0, w: 128.0, h: 50.0 }); // 6: Refresh
+
+                let groups = sb.get_groups();
+                let mut y = 252.0;
+                for gi in 0..groups.row_count() {
+                    if let Some(grp) = groups.row_data(gi) {
+                        y += 48.0;
+                        let cards = grp.cards;
+                        let n = cards.row_count();
+                        for ci in 0..n {
+                            if let Some(c) = cards.row_data(ci) {
+                                let col = (ci % 2) as f32;
+                                let row = (ci / 2) as f32;
+                                let cx = 96.0 + col * 872.0;
+                                let cy = y + row * 170.0;
+                                rects.push(Rect { x: cx + 724.0, y: cy + 28.0, w: 112.0, h: 42.0 });
+                                if !c.game_url.is_empty() {
+                                    rects.push(Rect { x: cx + 724.0, y: cy + 78.0, w: 112.0, h: 42.0 });
+                                }
+                            }
                         }
+                        y += n.div_ceil(2) as f32 * 170.0 + 16.0;
                     }
                 }
             }
@@ -657,9 +868,9 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 for i in 0..n {
                     rects.push(Rect {
                         x: 96.0 + (i % 8) as f32 * 218.0,
-                        y: 296.0 + (i / 8) as f32 * 276.0,
+                        y: 296.0 + (i / 8) as f32 * 316.0,
                         w: 198.0,
-                        h: 256.0,
+                        h: 300.0,
                     });
                 }
             } else {
@@ -942,7 +1153,7 @@ fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
                 s.lib_scroll = (s.lib_scroll + step).clamp(0.0, max_scroll);
                 tv.set_lib_scroll(s.lib_scroll);
             }
-            Page::Collections => {
+            Page::Apps | Page::Collections => {
                 s.lib_scroll = (s.lib_scroll + step).clamp(0.0, 4000.0);
                 tv.set_lib_scroll(s.lib_scroll);
             }
@@ -1052,59 +1263,57 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
     let dash = laptop.global::<Dash>();
 
     match page {
-        Page::Home => match idx {
-            0 => {}
-            1 => {
-                if tv.get_video_on() {
-                    tv.set_video_full(true);
-                    if dash.get_tv().paused {
-                        dash.invoke_transport("play-pause".into());
+        Page::Home => {
+            let hs = laptop.global::<crate::HomeState>();
+            match idx {
+                0 => hs.invoke_activate_hero(),
+                1..=4 => {
+                    if let Some(card) = hs.get_up_next().row_data(idx - 1) {
+                        hs.invoke_activate_up_next(card.key);
                     }
-                } else if dash.get_continue_watching().row_count() > 0 {
-                    dash.invoke_play_item(0);
                 }
-            }
-            2 => {
-                STATE.with_borrow_mut(|s| s.shell.push(Page::Search));
-                sync(laptop);
-            }
-            3 => {
-                STATE.with_borrow_mut(|s| s.shell.switch_tab(Tab::Library));
-                sync(laptop);
-            }
-            4 => {
-                crate::bridge::start_ambient(laptop);
-                tv.set_ambient(true);
-            }
-            5 => {} // Weather tile
-            6 => tv.invoke_play_last_played(),
-            7 => {
-                if laptop.global::<Display>().get_dashboard_ui() == "blades" {
-                    laptop.global::<Sports>().invoke_open_url("Google Meet".into(), "https://meet.google.com".into());
-                } else {
-                    laptop.global::<SleepState>().invoke_open_picker();
+                5 => {
+                    let ng = hs.get_next_game();
+                    if ng.visible {
+                        hs.invoke_open_game(ng.event_id, ng.date);
+                    } else if hs.get_just_added().visible {
+                        hs.invoke_activate_just_added();
+                    }
                 }
-            }
-            8 => {
-                let next = match laptop.global::<crate::Theme>().get_mode() {
-                    UiTheme::Dark => UiTheme::Aubergine,
-                    UiTheme::Aubergine => UiTheme::Ku,
-                    UiTheme::Ku => UiTheme::KuLight,
-                    UiTheme::KuLight => UiTheme::Stone,
-                    UiTheme::Stone => UiTheme::Mist,
-                    UiTheme::Mist => UiTheme::Dark,
-                };
-                dash.invoke_set_theme(next);
-            }
-            9 => laptop.global::<SleepState>().invoke_open_picker(),
-            i if i >= 10 => {
-                let svcs = tv.get_services();
-                if let Some(svc) = svcs.row_data(i - 10) {
-                    dash.invoke_open_site(svc.index);
+                6 => {
+                    STATE.with_borrow_mut(|s| s.shell.push(Page::Search));
+                    sync(laptop);
                 }
+                7 => {
+                    crate::bridge::start_ambient(laptop);
+                    tv.set_ambient(true);
+                }
+                8 => laptop.global::<SleepState>().invoke_open_picker(),
+                9 => {
+                    let next = match laptop.global::<crate::Theme>().get_mode() {
+                        UiTheme::Dark => UiTheme::Aubergine,
+                        UiTheme::Aubergine => UiTheme::Ku,
+                        UiTheme::Ku => UiTheme::Stone,
+                        UiTheme::Stone => UiTheme::Mist,
+                        UiTheme::Mist => UiTheme::Dark,
+                    };
+                    dash.invoke_set_theme(next);
+                }
+                10..=16 => {
+                    if let Some(app) = hs.get_apps_bar().row_data(idx - 10) {
+                        hs.invoke_launch_app(app.id);
+                    }
+                }
+                17 => hs.invoke_open_apps_page(),
+                _ => {}
             }
-            _ => {}
-        },
+        }
+        Page::Apps => {
+            let apps = laptop.global::<crate::AppsPage>().get_apps();
+            if let Some(app) = apps.row_data(idx) {
+                laptop.global::<crate::HomeState>().invoke_launch_app(app.id);
+            }
+        }
         Page::Collections => {
             let lib = laptop.global::<Library>();
             if let Some(col) = lib.get_collections().row_data(idx) {
@@ -1361,8 +1570,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                             let next = match laptop.global::<crate::Theme>().get_mode() {
                                 UiTheme::Dark => UiTheme::Aubergine,
                                 UiTheme::Aubergine => UiTheme::Ku,
-                                UiTheme::Ku => UiTheme::KuLight,
-                                UiTheme::KuLight => UiTheme::Stone,
+                                UiTheme::Ku => UiTheme::Stone,
                                 UiTheme::Stone => UiTheme::Mist,
                                 UiTheme::Mist => UiTheme::Dark,
                             };
@@ -1420,17 +1628,51 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 }
             } else if tv.get_sports_tab() == "scoreboard" {
                 let sb = laptop.global::<Scoreboard>();
-                let rows = sb.get_rows();
-                for i in 0..rows.row_count() {
-                    if let Some(r) = rows.row_data(i)
-                        && r.kind == "game"
-                        && r.focus_id == idx as i32
-                    {
-                        if !r.is_following && !r.event_id.is_empty() {
-                            sb.invoke_toggle_star(r.event_id);
+                match idx {
+                    2 => sb.invoke_prev_day_clicked(),
+                    3 => sb.invoke_next_day_clicked(),
+                    4 => sb.invoke_today_clicked(),
+                    5 => {
+                        let choices = sb.get_choices();
+                        let cur = sb.get_show();
+                        let pos = (0..choices.row_count())
+                            .find(|&i| choices.row_data(i).is_some_and(|c| c.value == cur))
+                            .unwrap_or(0);
+                        let next_idx = if choices.row_count() > 0 {
+                            (pos + 1) % choices.row_count()
+                        } else {
+                            0
+                        };
+                        if let Some(ch) = choices.row_data(next_idx) {
+                            sb.invoke_set_filter(ch.value);
                         }
-                        break;
                     }
+                    6 => sb.invoke_refresh(),
+                    other if other >= 7 => {
+                        let groups = sb.get_groups();
+                        'outer: for gi in 0..groups.row_count() {
+                            if let Some(grp) = groups.row_data(gi) {
+                                let cards = grp.cards;
+                                for ci in 0..cards.row_count() {
+                                    if let Some(c) = cards.row_data(ci) {
+                                        if c.star_focus_id == other as i32 {
+                                            if !c.following && !c.event_id.is_empty() {
+                                                sb.invoke_toggle_star(c.event_id);
+                                            }
+                                            break 'outer;
+                                        } else if c.game_focus_id == other as i32 && !c.game_url.is_empty() {
+                                            sb.invoke_open_url(
+                                                format!("{} vs {}", c.away.full, c.home.full).into(),
+                                                c.game_url,
+                                            );
+                                            break 'outer;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
@@ -1709,14 +1951,14 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
             return true;
         }
         if tv.get_hud_open() {
-            let cur = tv.get_focused_tile().clamp(0, 8);
+            let cur = tv.get_focused_tile().clamp(0, 9);
             match decode_dir(text) {
                 Some(Dir::Left) => {
                     tv.set_focused_tile((cur - 1).max(0));
                     return true;
                 }
                 Some(Dir::Right) => {
-                    tv.set_focused_tile((cur + 1).min(8));
+                    tv.set_focused_tile((cur + 1).min(9));
                     return true;
                 }
                 _ => {}
@@ -1737,6 +1979,7 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
                     6 => dash.invoke_transport("audio".into()),
                     7 => laptop.global::<SleepState>().invoke_open_picker(),
                     8 => dash.invoke_transport("next-ep".into()),
+                    9 => dash.invoke_transport("restart".into()),
                     _ => {}
                 }
                 return true;
@@ -1892,11 +2135,13 @@ mod tests {
         let (l, rx) = test_window();
         let tv = l.global::<TvUi>();
         assert_eq!(tv.get_screen(), "home");
-        assert_eq!(tv.get_focused_tile(), 1); // Hero
+        assert_eq!(tv.get_focused_tile(), 0); // Hero
 
-        // Up from Hero focuses TabBar; Right switches to Library; Back returns to Home
+        // Up from Hero focuses TabBar; Right switches to Apps, then Library; Back returns to Home
         assert!(key(&l, &SharedString::from(Key::UpArrow)));
         assert!(tv.get_bar_focused());
+        assert!(key(&l, &SharedString::from(Key::RightArrow)));
+        assert_eq!(tv.get_screen(), "apps");
         assert!(key(&l, &SharedString::from(Key::RightArrow)));
         assert_eq!(tv.get_screen(), "library");
         assert!(matches!(
@@ -1906,10 +2151,10 @@ mod tests {
         assert!(key(&l, &SharedString::from(Key::Escape)));
         assert_eq!(tv.get_screen(), "home");
 
-        // Down from Hero lands on Last Played (tile 6), Sleep (tile 9) opens picker, service tile (10..20) opens it
-        assert!(key(&l, &SharedString::from(Key::DownArrow)));
-        assert_eq!(tv.get_focused_tile(), 6);
-        activate_tile(&l, 9);
+        // Right from Hero lands on Sleep (tile 8), Sleep (tile 8) opens picker, app tile (10) opens it
+        assert!(key(&l, &SharedString::from(Key::RightArrow)));
+        assert_eq!(tv.get_focused_tile(), 8);
+        activate_tile(&l, 8);
         assert!(l.global::<SleepState>().get_picker_open());
         assert!(key(&l, &SharedString::from(Key::Escape)));
         assert!(!l.global::<SleepState>().get_picker_open());
@@ -1923,8 +2168,8 @@ mod tests {
         let tv = l.global::<TvUi>();
         let w = l.global::<Watch>();
 
-        // Open Search (tile 2 on Home) and type via OK + physical key
-        activate_tile(&l, 2);
+        // Open Search (tile 6 on Home) and type via OK + physical key
+        activate_tile(&l, 6);
         assert_eq!(tv.get_screen(), "search");
         assert!(key(&l, "\n")); // 'A'
         assert!(key(&l, "b"));  // physical 'b'
@@ -1934,7 +2179,7 @@ mod tests {
 
         // Switch to Settings via TabBar and toggle Celsius (tile 9; 0..=6 are SubTabs)
         assert!(key(&l, &SharedString::from(Key::UpArrow)));
-        for _ in 0..4 {
+        for _ in 0..5 {
             assert!(key(&l, &SharedString::from(Key::RightArrow)));
         }
         assert_eq!(tv.get_screen(), "settings");

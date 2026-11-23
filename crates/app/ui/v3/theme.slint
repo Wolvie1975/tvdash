@@ -15,37 +15,36 @@ export global V3Theme {
     out property <bool> dark: Theme.mode == UiTheme.dark;
     out property <bool> aubergine: Theme.mode == UiTheme.aubergine;
     out property <bool> ku: Theme.mode == UiTheme.ku;
-    out property <bool> ku-light: Theme.mode == UiTheme.ku-light;
     out property <bool> is-dark: dark || aubergine || ku;
     out property <bool> stone: Theme.mode == UiTheme.stone;
     out property <bool> mist: Theme.mode == UiTheme.mist;
 
-    // Outer canvas & active panel (Kansas Light uses Jayhawk Yellow #FFC82D background + Signature Gray surfaces)
-    out property <color> bg: dark ? #1B140E : aubergine ? #1A1024 : ku ? #071426 : ku-light ? #FFC82D : stone ? #DFD9CE : #D6DDE4;
-    out property <color> panel: dark ? #221A13 : aubergine ? #21152D : ku ? #0A1A30 : ku-light ? #ECEDEE : stone ? #F2EFE9 : #EDF1F5;
-    out property <color> surface: dark ? #2A2018 : aubergine ? #291B38 : ku ? #0F2442 : ku-light ? #E2E5E7 : stone ? #E7E2D8 : #E2E7ED;
-    out property <color> surface-raised: dark ? #36291E : aubergine ? #332245 : ku ? #163259 : ku-light ? #F4F5F6 : stone ? #DDD7CB : #D7DEE6;
-    out property <color> border: dark ? #4A3A2B : aubergine ? #422D58 : ku ? #22487D : ku-light ? #B7BCBF : stone ? #CCC4B6 : #C3CCD6;
+    // Outer canvas & active panel
+    out property <color> bg: dark ? #1B140E : aubergine ? #1A1024 : ku ? #071426 : stone ? #DFD9CE : #D6DDE4;
+    out property <color> panel: dark ? #221A13 : aubergine ? #21152D : ku ? #0A1A30 : stone ? #F2EFE9 : #EDF1F5;
+    out property <color> surface: dark ? #2A2018 : aubergine ? #291B38 : ku ? #0F2442 : stone ? #E7E2D8 : #E2E7ED;
+    out property <color> surface-raised: dark ? #36291E : aubergine ? #332245 : ku ? #163259 : stone ? #DDD7CB : #D7DEE6;
+    out property <color> border: dark ? #4A3A2B : aubergine ? #422D58 : ku ? #22487D : stone ? #CCC4B6 : #C3CCD6;
 
-    // Side blade strips (nearer strips are subtly brighter; KU Blue on Kansas Light)
-    out property <color> blade-far: dark ? #1F1710 : aubergine ? #20142C : ku ? #09182D : ku-light ? #0051BA : stone ? #D5CEC2 : #CCD4DD;
-    out property <color> blade-near: dark ? #261D15 : aubergine ? #261935 : ku ? #0E223D : ku-light ? #1060C8 : stone ? #DCD6CA : #D3DBE3;
-    out property <color> blade-parent-tint: dark ? #2D2618 : aubergine ? #382328 : ku ? #451420 : ku-light ? #003E91 : stone ? #D6C2AA : #CBD2DC;
+    // Side blade strips (nearer strips are subtly brighter)
+    out property <color> blade-far: dark ? #1F1710 : aubergine ? #20142C : ku ? #09182D : stone ? #D5CEC2 : #CCD4DD;
+    out property <color> blade-near: dark ? #261D15 : aubergine ? #261935 : ku ? #0E223D : stone ? #DCD6CA : #D3DBE3;
+    out property <color> blade-parent-tint: dark ? #2D2618 : aubergine ? #382328 : ku ? #451420 : stone ? #D6C2AA : #CBD2DC;
 
     // Typography (Signature Gray #85898A for muted on Kansas)
-    out property <color> text-primary: is-dark ? #E8EAED : ku-light ? #0B192E : stone ? #1F1D1A : #1A1E23;
-    out property <color> text-secondary: is-dark ? #A0A6AF : ku-light ? #3A4D68 : stone ? #5A544B : #4B535D;
-    out property <color> text-muted: ku ? #85898A : is-dark ? #7A8291 : ku-light ? #636769 : stone ? #7A7368 : #6B737E;
+    out property <color> text-primary: is-dark ? #E8EAED : stone ? #1F1D1A : #1A1E23;
+    out property <color> text-secondary: is-dark ? #A0A6AF : stone ? #5A544B : #4B535D;
+    out property <color> text-muted: ku ? #85898A : is-dark ? #7A8291 : stone ? #7A7368 : #6B737E;
 
-    // Accent & focus ring (KU Crimson for Kansas Dark & Light, Amber for Midnight/Aubergine/Light)
-    out property <color> accent: (ku || ku-light) ? #E8000D : is-dark ? #F5A524 : #B45309;
-    out property <color> on-accent: (ku || ku-light) ? #FFFFFF : is-dark ? #0B0D10 : #FFFFFF;
-    out property <color> focus-ring: (ku || ku-light) ? #E8000D : is-dark ? #F5A524 : #B45309;
-    out property <color> accent-tint: (ku || ku-light) ? #E8000D26 : is-dark ? #F5A52426 : #B4530922;
+    // Accent & focus ring (KU Crimson for Kansas Dark, Amber for others)
+    out property <color> accent: ku ? #E8000D : is-dark ? #F5A524 : #B45309;
+    out property <color> on-accent: ku ? #FFFFFF : is-dark ? #0B0D10 : #FFFFFF;
+    out property <color> focus-ring: ku ? #E8000D : is-dark ? #F5A524 : #B45309;
+    out property <color> accent-tint: ku ? #E8000D26 : is-dark ? #F5A52426 : #B4530922;
 
     // Status (Jayhawk Yellow #FFC82D on Kansas Dark, darkened amber-gold on light)
     out property <color> ok: is-dark ? #4CC38A : #1E6B45;
-    out property <color> warn: ku ? #FFC82D : ku-light ? #9A6F00 : is-dark ? #E5A84B : #92400E;
+    out property <color> warn: ku ? #FFC82D : is-dark ? #E5A84B : #92400E;
     out property <color> alert: is-dark ? #F0605D : #B91C1C;
     out property <color> scrim: #0B0D10C8;
     out property <color> on-scrim: #E8EAED;

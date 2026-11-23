@@ -206,6 +206,31 @@ pub enum AppEvent {
     SportsAlerts(Vec<SportsAlertDto>),
     /// Full Sports Alerts settings, followed teams, starred games, and health state.
     SportsAlertsStatus(SportsAlertsStatusSnapshot),
+    /// Home Next Game card update (`None` hides the card).
+    NextGame(Option<NextGameDto>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NextGameSideDto {
+    pub rank: String,
+    pub init: String,
+    pub logo_url: Option<String>,
+    pub color: String,
+    pub name: String,
+    pub score: String,
+    pub lead: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NextGameDto {
+    pub event_id: String,
+    pub date: String,
+    pub league: String,
+    pub state: String, // "live" | "upcoming" | "final"
+    pub state_text: String,
+    pub away: NextGameSideDto,
+    pub home: NextGameSideDto,
+    pub meta: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -471,6 +496,12 @@ pub enum Command {
     SetSleepWarnBefore(String),
     /// Fetch posters for visible Browse-all items that aren't cached yet.
     FetchPosters(Vec<MediaItem>),
+    /// Drop evicted image keys from the controller's requested sets so they can be fetched again.
+    ForgetImages {
+        posters: Vec<(SourceKind, String)>,
+        backdrops: Vec<(SourceKind, String)>,
+        logos: Vec<String>,
+    },
     /// Enqueue a sample sports alert (`"soon"` | `"final"`).
     SportsAlertTest(String),
     /// Mark a sports alert key as shown (persisted to `sports-alerts.json`).

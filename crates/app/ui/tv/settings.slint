@@ -115,7 +115,7 @@ export component TvSettings inherits Rectangle {
             base-height: 220px * TvUi.u;
             fill: Theme.surface;
             label: "Theme";
-            value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.ku-light ? "Kansas Light" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
+            value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
             focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
             activated => { TvUi.tile-activated(8); }
             hovered => { TvUi.tile-hovered(8); }

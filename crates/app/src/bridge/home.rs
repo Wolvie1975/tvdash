@@ -62,7 +62,7 @@ pub(super) fn cards_for(s: &UiState, items: &[MediaItem]) -> Vec<PosterCardData>
         .iter()
         .map(|item| {
             let key = (item.source, item.id.clone());
-            card(item, s.posters.get(&key), s.hues.get(&key).copied(), s.effective_theme())
+            card(item, s.posters.peek(&key), s.hues.get(&key).copied(), s.effective_theme())
         })
         .collect()
 }
@@ -143,7 +143,11 @@ pub(super) fn on_poster(
         d.has_poster = true;
         lib.set_detail(d);
     }
-    s.posters.insert(key.clone(), img.clone());
+    let evicted = s.posters.insert(key.clone(), img.clone());
+    for k in &evicted {
+        s.hues.remove(k);
+    }
+    s.forget_images(evicted, Vec::new(), Vec::new());
     let sp = laptop.global::<ShowPageState>();
     if sp.get_open() {
         let eps = sp.get_episodes();
@@ -235,7 +239,31 @@ pub(super) fn refresh_tiles(s: &UiState, laptop: &LaptopWindow) {
     let tv_ui = laptop.global::<crate::TvUi>();
     tv_ui.set_services(ModelRc::new(VecModel::from(tv_services)));
     tv_ui.set_home_services(ModelRc::new(VecModel::from(home_services)));
+    laptop
+        .global::<crate::AppsPage>()
+        .set_apps(ModelRc::new(VecModel::from(crate::apps::apps_page_tiles(&s.sites, &s.logos))));
+    let recent_ids: Vec<String> = s.recent.iter().map(|r| r.id.clone()).collect();
+    let bar_ids = crate::apps::apps_bar(&recent_ids, &fixed_ids, 7);
+    let apps_bar: Vec<crate::AppTile> = bar_ids
+        .iter()
+        .filter_map(|id| {
+            visible
+                .iter()
+                .find(|(_, vid, _)| vid == id)
+                .map(|(_, _, site)| crate::apps::app_tile(site, &s.logos))
+        })
+        .collect();
+    laptop.global::<crate::HomeState>().set_apps_bar(ModelRc::new(VecModel::from(apps_bar)));
     refresh_last_played(s, laptop);
+}
+
+/// Find the config index of a streaming site by normalized service ID.
+pub fn site_index_by_id(id: &str) -> Option<usize> {
+    super::STATE.with_borrow(|s| {
+        s.sites
+            .iter()
+            .position(|site| !site.hidden && crate::brand::service_id(&site.name) == id)
+    })
 }
 
 pub(super) fn refresh_last_played(s: &UiState, laptop: &LaptopWindow) {
@@ -253,7 +281,7 @@ pub(super) fn refresh_last_played(s: &UiState, laptop: &LaptopWindow) {
     match target {
         Some(super::LastPlayed::Media(item)) => {
             let key = (item.source, item.id.clone());
-            let poster = s.posters.get(&key);
+            let poster = s.posters.peek(&key);
             tv.set_last_played_kind("media".into());
             tv.set_last_played_title(item.title.as_str().into());
             tv.set_last_played_subtitle(crate::format::item_detail(&item).into());
@@ -308,7 +336,7 @@ pub(super) fn on_browser(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, 
 
 /// Build the On the TV card: mpv playback, else the browser, else the top
 /// Continue Watching item ("up next"), else idle. Its tint follows the poster.
-pub(super) fn refresh_tv_card(s: &UiState, laptop: &LaptopWindow) {
+pub(super) fn refresh_tv_card(s: &mut UiState, laptop: &LaptopWindow) {
     let dash = laptop.global::<Dash>();
     let (card, hue) = tv_card(s);
     dash.set_tint(tint::card_tint(hue, s.effective_theme()));
@@ -324,19 +352,279 @@ pub(super) fn refresh_tv_card(s: &UiState, laptop: &LaptopWindow) {
         })
         .unwrap_or_default();
     dash.set_tv_ends_at(ends_at.into());
+    refresh_home_state(s, laptop);
 }
 
-fn tv_card(s: &UiState) -> (TvCard, Hue) {
-    let poster_of = |item: &MediaItem| {
-        let key = (item.source, item.id.clone());
-        let art = s.backdrops.get(&key).or_else(|| s.posters.get(&key)).cloned();
-        (art, s.hues.get(&key).copied().unwrap_or(tint::DEFAULT))
+/// Update `HomeState.whats_on` and `HomeState.up_next` (§3–§4).
+pub(super) fn refresh_home_state(s: &mut UiState, laptop: &LaptopWindow) {
+    use crate::whats_on::{HeroPick, hero_status, hero_subtitle};
+
+    let cw = in_order(&s.continue_watching);
+    let recent = in_order(&s.recently_added);
+    let last_media = match &s.last_played {
+        Some(super::LastPlayed::Media(m)) => Some(m),
+        _ => None,
     };
+
+    // Determine the first Up Next candidate in case we fall through to rule 4.
+    let first_candidate = s
+        .next_ep
+        .as_ref()
+        .or_else(|| cw.first())
+        .or_else(|| recent.first());
+
+    let pick = crate::whats_on::pick_hero(s.player.as_ref(), s.browser.as_deref(), last_media, first_candidate);
+    let now = format::now_local(s.tz);
+    let clock = s.clock.unwrap_or(ClockFormat::H24);
+    let status = hero_status(&pick, now, clock);
+
+    let art_of = |item: &MediaItem| {
+        let key = (item.source, item.id.clone());
+        s.backdrops.peek(&key).or_else(|| s.posters.peek(&key)).cloned()
+    };
+
+    let (whats_on, hero_id, hero_is_ep) = match &pick {
+        HeroPick::Player(st) => {
+            let art = art_of(&st.item);
+            s.hero_item = None;
+            (
+                crate::WhatsOn {
+                    has_item: true,
+                    source: st.item.source.label().to_uppercase().into(),
+                    title: st.item.title.as_str().into(),
+                    subtitle: hero_subtitle(&st.item).into(),
+                    plot: st.item.summary.as_deref().unwrap_or_default().into(),
+                    has_art: art.is_some(),
+                    art: art.unwrap_or_default(),
+                    progress: format::fraction(st),
+                    status: status.into(),
+                    is_app: false,
+                    ..Default::default()
+                },
+                Some(st.item.id.clone()),
+                st.item.kind == MediaKind::Episode,
+            )
+        }
+        HeroPick::Browser(site) => {
+            let id = crate::brand::service_id(site);
+            let b = crate::brand::brand_for_with_logo(&id, site, s.logos.get(*site).cloned());
+            s.hero_item = None;
+            (
+                crate::WhatsOn {
+                    has_item: true,
+                    source: site.to_uppercase().into(),
+                    title: (*site).into(),
+                    subtitle: "Open on the TV".into(),
+                    plot: "".into(),
+                    progress: -1.0,
+                    status: status.into(),
+                    is_app: true,
+                    app_color: b.fill,
+                    app_logo: b.logo,
+                    app_has_logo: b.has_logo,
+                    ..Default::default()
+                },
+                None,
+                false,
+            )
+        }
+        HeroPick::Unfinished(item) | HeroPick::UpNext(item) => {
+            let art = art_of(item);
+            s.hero_item = Some((*item).clone());
+            (
+                crate::WhatsOn {
+                    has_item: true,
+                    source: item.source.label().to_uppercase().into(),
+                    title: item.title.as_str().into(),
+                    subtitle: hero_subtitle(item).into(),
+                    plot: item.summary.as_deref().unwrap_or_default().into(),
+                    has_art: art.is_some(),
+                    art: art.unwrap_or_default(),
+                    progress: item.progress().filter(|&p| p > 0.0).unwrap_or(-1.0),
+                    status: status.into(),
+                    is_app: false,
+                    ..Default::default()
+                },
+                Some(item.id.clone()),
+                item.kind == MediaKind::Episode,
+            )
+        }
+        HeroPick::Empty => {
+            s.hero_item = None;
+            (
+                crate::WhatsOn {
+                    has_item: false,
+                    progress: -1.0,
+                    ..Default::default()
+                },
+                None,
+                false,
+            )
+        }
+    };
+
+    let hero_next_ep = if hero_is_ep {
+        s.next_ep
+            .as_ref()
+            .filter(|ep| hero_id.as_deref() != Some(ep.id.as_str()))
+    } else {
+        None
+    };
+
+    let up_next_items = crate::up_next::build_up_next(hero_id.as_deref(), hero_next_ep, &cw, &recent);
+    let up_next_cards: Vec<crate::UpNextCard> = up_next_items
+        .iter()
+        .enumerate()
+        .map(|(i, item)| {
+            let thumb = art_of(item);
+            crate::UpNextCard {
+                key: item.id.as_str().into(),
+                title: item.title.as_str().into(),
+                meta: crate::up_next::up_next_meta(item).into(),
+                has_thumb: thumb.is_some(),
+                thumb: thumb.unwrap_or_default(),
+                progress: item.progress().unwrap_or(0.0),
+                up_next: i == 0,
+            }
+        })
+        .collect();
+    s.up_next_items = up_next_items;
+
+    let just_added = recent.into_iter().next();
+    let just_added_card = match &just_added {
+        Some(item) => {
+            let key = (item.source, item.id.clone());
+            let art = s.posters.peek(&key).or_else(|| s.backdrops.peek(&key)).cloned();
+            let kind = match item.kind {
+                MediaKind::Episode => "EPISODE",
+                MediaKind::Series => "SERIES",
+                MediaKind::Movie => "MOVIE",
+                MediaKind::Other => "MEDIA",
+            };
+            crate::JustAddedCard {
+                visible: true,
+                kind: kind.into(),
+                source: item.source.label().to_uppercase().into(),
+                title: item.title.as_str().into(),
+                subtitle: format::item_detail(item).into(),
+                meta: format::item_meta(item).into(),
+                has_art: art.is_some(),
+                art: art.unwrap_or_default(),
+            }
+        }
+        None => crate::JustAddedCard::default(),
+    };
+    s.just_added_item = just_added;
+
+    let hs = laptop.global::<crate::HomeState>();
+    hs.set_whats_on(whats_on);
+    hs.set_up_next(ModelRc::new(VecModel::from(up_next_cards)));
+    hs.set_just_added(just_added_card);
+}
+
+pub fn just_added_item() -> Option<MediaItem> {
+    super::STATE.with_borrow(|s| s.just_added_item.clone())
+}
+
+pub enum HeroAction {
+    FocusPlayer,
+    OpenSite(usize),
+    Play(MediaItem),
+    OpenSearch,
+}
+
+pub fn hero_action() -> HeroAction {
+    super::STATE.with_borrow(|s| {
+        if s.player.is_some() {
+            return HeroAction::FocusPlayer;
+        }
+        if let Some(site) = &s.browser
+            && let Some(idx) = s.sites.iter().position(|x| x.name == *site)
+        {
+            return HeroAction::OpenSite(idx);
+        }
+        if let Some(item) = &s.hero_item {
+            return HeroAction::Play(item.clone());
+        }
+        HeroAction::OpenSearch
+    })
+}
+
+pub fn up_next_item_by_key(key: &str) -> Option<MediaItem> {
+    super::STATE.with_borrow(|s| s.up_next_items.iter().find(|i| i.id == key).cloned())
+}
+
+fn parse_hex_color(hex: &str) -> slint::Color {
+    let s = hex.trim_start_matches('#');
+    if s.len() == 6
+        && let Ok(v) = u32::from_str_radix(s, 16)
+    {
+        return slint::Color::from_rgb_u8(((v >> 16) & 0xFF) as u8, ((v >> 8) & 0xFF) as u8, (v & 0xFF) as u8);
+    }
+    slint::Color::from_rgb_u8(0x28, 0x30, 0x3D)
+}
+
+pub(super) fn on_next_game(
+    s: &mut UiState,
+    laptop: &LaptopWindow,
+    dto: Option<tvdash_core::events::NextGameDto>,
+) {
+    s.next_game = dto;
+    refresh_next_game(s, laptop);
+}
+
+pub(super) fn refresh_next_game(s: &UiState, laptop: &LaptopWindow) {
+    let hs = laptop.global::<crate::HomeState>();
+    let Some(g) = &s.next_game else {
+        hs.set_next_game(crate::NextGame {
+            visible: false,
+            ..Default::default()
+        });
+        return;
+    };
+    let to_side = |side: &tvdash_core::events::NextGameSideDto| {
+        let logo = side.logo_url.as_ref().and_then(|u| s.sports_logos.peek(u)).cloned();
+        crate::GameSide {
+            rank: side.rank.as_str().into(),
+            init: side.init.as_str().into(),
+            has_logo: logo.is_some(),
+            logo: logo.unwrap_or_default(),
+            color: parse_hex_color(&side.color),
+            name: side.name.as_str().into(),
+            score: side.score.as_str().into(),
+            lead: side.lead,
+        }
+    };
+    let state = match g.state.as_str() {
+        "live" => crate::GameState::Live,
+        "final" => crate::GameState::Final,
+        _ => crate::GameState::Upcoming,
+    };
+    hs.set_next_game(crate::NextGame {
+        visible: true,
+        event_id: g.event_id.as_str().into(),
+        date: g.date.as_str().into(),
+        league: g.league.as_str().into(),
+        state,
+        state_text: g.state_text.as_str().into(),
+        away: to_side(&g.away),
+        home: to_side(&g.home),
+        meta: g.meta.as_str().into(),
+    });
+}
+
+fn hero_art_and_hue(s: &mut UiState, item: &MediaItem) -> (Option<Image>, Hue) {
+    let key = (item.source, item.id.clone());
+    let art = s.backdrops.get(&key).or_else(|| s.posters.get(&key));
+    (art, s.hues.get(&key).copied().unwrap_or(tint::DEFAULT))
+}
+
+fn tv_card(s: &mut UiState) -> (TvCard, Hue) {
     let base = TvCard { label: "ON THE TV".into(), ..Default::default() };
-    if let Some(st) = &s.player {
-        let (poster, hue) = poster_of(&st.item);
+    if let Some(st) = s.player.clone() {
+        let (poster, hue) = hero_art_and_hue(s, &st.item);
         let now = format::now_local(s.tz);
-        let (at, left) = format::tv_times(st, now, s.clock.unwrap_or(ClockFormat::H24));
+        let (at, left) = format::tv_times(&st, now, s.clock.unwrap_or(ClockFormat::H24));
         let card = TvCard {
             mode: "playing".into(),
             source: st.item.source.label().into(),
@@ -345,7 +633,7 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
             summary: st.item.summary.as_deref().unwrap_or_default().into(),
             at_text: at.into(),
             left_text: left.into(),
-            progress: format::fraction(st),
+            progress: format::fraction(&st),
             paused: st.state == PlayState::Paused,
             is_episode: st.item.kind == MediaKind::Episode,
             has_poster: poster.is_some(),
@@ -366,18 +654,18 @@ fn tv_card(s: &UiState) -> (TvCard, Hue) {
         };
         return (card, Hue { degrees: tint::site_hue(site, index), saturation: 0.7 });
     }
-    if let Some(item) = in_order(&s.continue_watching).first() {
-        let (poster, hue) = poster_of(item);
+    if let Some(item) = in_order(&s.continue_watching).into_iter().next() {
+        let (poster, hue) = hero_art_and_hue(s, &item);
         let card = TvCard {
             mode: "next".into(),
             label: "CURRENTLY PLAYING".into(),
             source: item.source.label().into(),
             note: "Nothing on the TV. Pick up where you left off:".into(),
             title: item.title.as_str().into(),
-            subtitle: format::item_detail(item).into(),
+            subtitle: format::item_detail(&item).into(),
             summary: item.summary.as_deref().unwrap_or_default().into(),
             at_text: item.resume_ms.map(|p| format!("Stopped at {}", format::duration(p))).unwrap_or_default().into(),
-            left_text: format::time_left(item).unwrap_or_default().into(),
+            left_text: format::time_left(&item).unwrap_or_default().into(),
             progress: item.progress().unwrap_or(0.0),
             has_poster: poster.is_some(),
             poster: poster.unwrap_or_default(),

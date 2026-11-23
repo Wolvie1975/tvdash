@@ -928,6 +928,26 @@ impl Controller {
                     fetch_posters(jf.clone(), jf_items, self.posters_requested.clone(), self.events.clone());
                 }
             }
+            Command::ForgetImages { posters, backdrops, logos } => {
+                if !posters.is_empty() {
+                    let mut guard = self.posters_requested.lock().unwrap();
+                    for k in posters {
+                        guard.remove(&k);
+                    }
+                }
+                if !backdrops.is_empty() {
+                    let mut guard = self.backdrops_requested.lock().unwrap();
+                    for k in backdrops {
+                        guard.remove(&k);
+                    }
+                }
+                if !logos.is_empty() {
+                    let mut guard = self.sports_logos_requested.lock().unwrap();
+                    for k in logos {
+                        guard.remove(&k);
+                    }
+                }
+            }
             Command::SportsAlertTest(kind) => {
                 if let Some(tx) = &self.sports_tx {
                     let _ = tx.send(crate::sports_watch::WatcherMsg::EnqueueTest(kind));
@@ -1171,21 +1191,26 @@ impl Controller {
                 Err(_) => return,
             };
             for url in todo {
-                let Ok(resp) = client.get(&url).send().await else { continue };
+                let Ok(resp) = client.get(&url).send().await else {
+                    requested.lock().unwrap().remove(&url);
+                    continue;
+                };
                 if !resp.status().is_success() {
+                    requested.lock().unwrap().remove(&url);
                     continue;
                 }
-                let Ok(bytes) = resp.bytes().await else { continue };
-                if let Some(image) = tokio::task::spawn_blocking(move || {
-                    let img = image::load_from_memory(&bytes).ok()?;
-                    let rgba = img.to_rgba8();
-                    Some(RgbaImage { width: rgba.width(), height: rgba.height(), pixels: rgba.into_raw() })
-                })
-                .await
-                .ok()
-                .flatten()
+                let Ok(bytes) = resp.bytes().await else {
+                    requested.lock().unwrap().remove(&url);
+                    continue;
+                };
+                if let Some(image) = tokio::task::spawn_blocking(move || decode_sports_logo(&bytes))
+                    .await
+                    .ok()
+                    .flatten()
                 {
                     let _ = events.send(AppEvent::SportsLogo { url, image });
+                } else {
+                    requested.lock().unwrap().remove(&url);
                 }
             }
         });
@@ -3058,6 +3083,17 @@ pub(crate) fn decode_blurred(bytes: &[u8]) -> Option<RgbaImage> {
     Some(RgbaImage { width: blurred.width(), height: blurred.height(), pixels: blurred.into_raw() })
 }
 
+pub(crate) fn decode_sports_logo(bytes: &[u8]) -> Option<RgbaImage> {
+    let img = image::load_from_memory(bytes).ok()?;
+    let resized = if img.width() > 128 || img.height() > 128 {
+        img.resize(128, 128, image::imageops::FilterType::Triangle)
+    } else {
+        img
+    };
+    let rgba = resized.to_rgba8();
+    Some(RgbaImage { width: rgba.width(), height: rgba.height(), pixels: rgba.into_raw() })
+}
+
 pub(crate) fn decode(bytes: &[u8]) -> Option<RgbaImage> {
     match image::load_from_memory(bytes) {
         Ok(img) => {
@@ -3907,6 +3943,50 @@ mod e2e {
             .await;
         assert!(matches!(status, AccountStatus::Unreachable(ref e) if e.contains("didn't accept")), "{status:?}");
         std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn sports_logo_decode_resizes_to_fit_128() {
+        let big = image::RgbaImage::from_pixel(500, 500, image::Rgba([10, 20, 30, 255]));
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(big).write_to(&mut png, image::ImageFormat::Png).unwrap();
+        let decoded = decode_sports_logo(png.get_ref()).expect("decode_sports_logo");
+        assert!(decoded.width <= 128 && decoded.height <= 128, "{}x{}", decoded.width, decoded.height);
+        assert_eq!((decoded.width, decoded.height), (128, 128));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "needs python3; run with --ignored"]
+    async fn forget_images_allows_refetch() {
+        let _serial = SERIAL.lock().await;
+        let mut h = Harness::start("fake_plex.py", |c, _| c.jellyfin.enabled = false).await;
+        h.wait_for(|e| matches!(e, AppEvent::ContinueWatching(SourceKind::Plex, _)).then_some(())).await;
+
+        let item = MediaItem {
+            id: "1".into(),
+            source: SourceKind::Plex,
+            kind: tvdash_core::models::MediaKind::Movie,
+            title: "Test".into(),
+            subtitle: None,
+            summary: None,
+            poster: Some("/library/metadata/1/thumb".into()),
+            episode_label: None,
+            resume_ms: None,
+            duration_ms: None,
+            extra: tvdash_core::models::MediaExtra { art: Some("/library/metadata/1/art".into()), ..Default::default() },
+        };
+
+        h.send(Command::PrefetchBackdrop(item.clone()));
+        h.wait_for(|e| matches!(e, AppEvent::Backdrop { item_id, .. } if item_id == "1").then_some(())).await;
+
+        // Second prefetch without ForgetImages is a no-op; after ForgetImages it fetches again.
+        h.send(Command::ForgetImages {
+            posters: Vec::new(),
+            backdrops: vec![(SourceKind::Plex, "1".into())],
+            logos: Vec::new(),
+        });
+        h.send(Command::PrefetchBackdrop(item));
+        h.wait_for(|e| matches!(e, AppEvent::Backdrop { item_id, .. } if item_id == "1").then_some(())).await;
     }
 
     #[tokio::test(flavor = "multi_thread")]

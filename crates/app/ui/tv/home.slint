@@ -1,7 +1,9 @@
+// Classic UI — Home (§14.2), bound to the same HomeState as Blades.
+
 import { Theme, UiTheme } from "../theme.slint";
 import { Icon } from "../icons.slint";
-import { Dash, SleepState, TvUi } from "../state.slint";
-import { IconTile, MediaTile, ServiceTile, Tile, ValueTile } from "tile.slint";
+import { Dash, GameState, HomeState, SleepState, TvUi } from "../state.slint";
+import { IconTile, Tile, ValueTile } from "tile.slint";
 import { IntroRise } from "../shared/intro.slint";
 
 export component TvHome inherits Rectangle {
@@ -9,413 +11,682 @@ export component TvHome inherits Rectangle {
     height: 1080px * TvUi.u;
     background: transparent;
 
-    // ── Group 1: Hero + Clock/Plex info tile (450 ms) ────────────────────────
+    // ── Group 1: What's On info column + Hero art (450 ms) ───────────────────
     IntroRise {
         width: parent.width;
         height: parent.height;
         delay: 450ms;
 
-    // 0: Tall Plex Up Next / Now Playing info tile (210 x 590)
-    Tile {
-        x: 96px * TvUi.u;
-        y: 136px * TvUi.u;
-        base-width: 210px * TvUi.u;
-        base-height: 590px * TvUi.u;
-        fill: Dash.tint.card;
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 0;
-        activated => { TvUi.tile-activated(0); }
-        hovered => { TvUi.tile-hovered(0); }
+        // Left: What's On info column (230 x 590, non-focusable)
+        Tile {
+            x: 96px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 230px * TvUi.u;
+            base-height: 590px * TvUi.u;
+            fill: Theme.surface;
+            focused: false;
 
-        VerticalLayout {
-            padding: 18px * TvUi.u;
-            spacing: 8px * TvUi.u;
-            alignment: start;
+            VerticalLayout {
+                padding: 18px * TvUi.u;
+                spacing: 8px * TvUi.u;
+                alignment: start;
 
-            Text {
-                text: Dash.tv.source != "" ? Dash.tv.source + " · " + Dash.tv.label : Dash.tv.label;
-                font-size: 13px * TvUi.u;
-                font-weight: 600;
-                letter-spacing: 0.4px;
-                color: Dash.tint.accent;
-                wrap: word-wrap;
-            }
+                Text {
+                    text: HomeState.whats-on.source != ""
+                        ? "WHAT'S ON · " + HomeState.whats-on.source
+                        : "WHAT'S ON";
+                    font-size: 13px * TvUi.u;
+                    font-weight: 700;
+                    letter-spacing: 1.2px;
+                    color: Theme.text-secondary;
+                    wrap: word-wrap;
+                }
 
-            if Dash.tv.title != "": Text {
-                text: Dash.tv.title;
-                font-size: 22px * TvUi.u;
-                font-weight: 600;
-                color: Theme.text-primary;
-                wrap: word-wrap;
-            }
+                Text {
+                    text: HomeState.whats-on.has-item
+                        ? HomeState.whats-on.title
+                        : "Nothing on right now";
+                    font-size: 22px * TvUi.u;
+                    font-weight: 700;
+                    color: Theme.text-primary;
+                    wrap: word-wrap;
+                }
 
-            if Dash.tv.subtitle != "": Text {
-                text: Dash.tv.subtitle;
-                font-size: 17px * TvUi.u;
-                font-weight: 500;
-                color: Theme.text-primary;
-                wrap: word-wrap;
-            }
+                if HomeState.whats-on.subtitle != "" || !HomeState.whats-on.has-item: Text {
+                    text: HomeState.whats-on.has-item
+                        ? HomeState.whats-on.subtitle
+                        : "Search or open the Library";
+                    font-size: 16px * TvUi.u;
+                    font-weight: 600;
+                    color: Theme.text-primary;
+                    wrap: word-wrap;
+                }
 
-            if Dash.tv.at-text != "": Text {
-                text: Dash.tv.at-text;
-                font-size: 15px * TvUi.u;
-                color: Dash.tint.sec;
-                wrap: word-wrap;
-            }
+                if HomeState.whats-on.progress >= 0.0: Rectangle {
+                    height: 5px * TvUi.u;
+                    border-radius: 3px * TvUi.u;
+                    background: #FFFFFF38;
 
-            if Dash.tv.left-text != "": Text {
-                text: Dash.tv.left-text;
-                font-size: 15px * TvUi.u;
-                color: Dash.tint.sec;
-                wrap: word-wrap;
-            }
+                    Rectangle {
+                        x: 0;
+                        y: 0;
+                        width: parent.width * clamp(HomeState.whats-on.progress, 0.0, 1.0);
+                        height: parent.height;
+                        border-radius: 3px * TvUi.u;
+                        background: #FFFFFF;
+                    }
+                }
 
-            if Dash.tv.summary != "": Rectangle {
-                height: 1px;
-                background: Dash.tint.sec.with-alpha(0.25);
-            }
+                if HomeState.whats-on.status != "": Text {
+                    text: HomeState.whats-on.status;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 600;
+                    color: Dash.tint.sec;
+                    wrap: word-wrap;
+                }
 
-            if Dash.tv.summary != "": Text {
-                text: Dash.tv.summary;
-                font-size: 15px * TvUi.u;
-                color: Theme.text-secondary;
-                wrap: word-wrap;
-                overflow: elide;
-                vertical-stretch: 1;
+                if HomeState.whats-on.plot != "": Rectangle {
+                    height: 1px;
+                    background: Dash.tint.sec.with-alpha(0.25);
+                }
+
+                if HomeState.whats-on.plot != "": Text {
+                    text: HomeState.whats-on.plot;
+                    font-size: 15px * TvUi.u;
+                    color: Theme.text-secondary;
+                    wrap: word-wrap;
+                    overflow: elide;
+                    vertical-stretch: 1;
+                }
             }
         }
-    }
 
-    // 1: Big On-the-TV Hero tile (728 x 590, top progress bar; shows poster + play overlay when paused on Home)
-    MediaTile {
-        x: 322px * TvUi.u;
-        y: 136px * TvUi.u;
-        base-width: 728px * TvUi.u;
-        base-height: 590px * TvUi.u;
-        art: Dash.tv.poster;
-        has-art: Dash.tv.has-poster;
-        title: Dash.tv.title;
-        subtitle: TvUi.video-on ? "Paused · Click or press OK to resume" : Dash.tv.subtitle;
-        progress: Dash.tv.progress;
-        progress-top: true;
-        badge: Dash.tv.label;
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 1;
-        activated => { TvUi.tile-activated(1); }
-        hovered => { TvUi.tile-hovered(1); }
+        // 0: Hero art only (708 x 590; no badge or title overlay)
+        Tile {
+            x: 342px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 708px * TvUi.u;
+            base-height: 590px * TvUi.u;
+            fill: HomeState.whats-on.is-app ? HomeState.whats-on.app-color : Dash.tint.poster;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 0;
+            activated => { HomeState.activate-hero(); }
+            hovered => { TvUi.tile-hovered(0); }
 
-        if TvUi.video-on: Rectangle {
-            x: (parent.width - self.width) / 2;
-            y: (parent.height - self.height) / 2;
-            width: 88px * TvUi.u;
-            height: 88px * TvUi.u;
-            border-radius: 44px * TvUi.u;
-            background: #0B0D10B8;
-            border-width: 2px;
-            border-color: #FFFFFF55;
+            if !HomeState.whats-on.is-app && HomeState.whats-on.has-art: Image {
+                width: parent.width;
+                height: parent.height;
+                source: HomeState.whats-on.art;
+                image-fit: cover;
+            }
 
-            Icon {
-                x: (parent.width - self.width) / 2 + 3px * TvUi.u;
+            if HomeState.whats-on.is-app && HomeState.whats-on.app-has-logo: Image {
+                x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
-                size: 40px * TvUi.u;
-                name: "play";
-                tint: #FFFFFF;
+                width: parent.width * 0.55;
+                height: parent.height * 0.45;
+                source: HomeState.whats-on.app-logo;
+                image-fit: contain;
+            }
+
+            if !HomeState.whats-on.has-item && !HomeState.whats-on.is-app: VerticalLayout {
+                alignment: center;
+                spacing: 14px * TvUi.u;
+
+                Rectangle {
+                    x: (parent.width - self.width) / 2;
+                    width: 84px * TvUi.u;
+                    height: 84px * TvUi.u;
+                    border-radius: 42px * TvUi.u;
+                    background: #FFFFFF14;
+
+                    Icon {
+                        x: (parent.width - self.width) / 2 + 2px * TvUi.u;
+                        y: (parent.height - self.height) / 2;
+                        size: 36px * TvUi.u;
+                        name: "search";
+                        tint: Theme.text-secondary;
+                    }
+                }
+
+                Text {
+                    text: "Nothing on right now";
+                    font-size: 26px * TvUi.u;
+                    font-weight: 600;
+                    color: Theme.text-primary;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: "Press OK to search or browse Library";
+                    font-size: 18px * TvUi.u;
+                    color: Theme.text-secondary;
+                    horizontal-alignment: center;
+                }
+            }
+
+            if TvUi.video-on: Rectangle {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: 88px * TvUi.u;
+                height: 88px * TvUi.u;
+                border-radius: 44px * TvUi.u;
+                background: #0B0D10B8;
+                border-width: 2px;
+                border-color: #FFFFFF55;
+
+                Icon {
+                    x: (parent.width - self.width) / 2 + 3px * TvUi.u;
+                    y: (parent.height - self.height) / 2;
+                    size: 40px * TvUi.u;
+                    name: "play";
+                    tint: #FFFFFF;
+                }
             }
         }
-    }
     } // end Group 1
 
-    // ── Group 2: Utility column (Search, Library, Screensaver) (530 ms)
+    // ── Group 2: Quick tiles column (Search, Screensaver, Sleep, Theme) (530 ms)
     IntroRise {
         width: parent.width;
         height: parent.height;
         delay: 530ms;
-    IconTile {
-        x: 1066px * TvUi.u;
-        y: 136px * TvUi.u;
-        base-width: 240px * TvUi.u;
-        base-height: 186px * TvUi.u;
-        fill: Dash.tint.poster;
-        icon: "search";
-        label: "Search";
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 2;
-        activated => { TvUi.tile-activated(2); }
-        hovered => { TvUi.tile-hovered(2); }
-    }
 
-    IconTile {
-        x: 1066px * TvUi.u;
-        y: 338px * TvUi.u;
-        base-width: 240px * TvUi.u;
-        base-height: 186px * TvUi.u;
-        fill: Dash.tint.poster;
-        icon: "library";
-        label: "Library";
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 3;
-        activated => { TvUi.tile-activated(3); }
-        hovered => { TvUi.tile-hovered(3); }
-    }
+        // 6: Search
+        IconTile {
+            x: 1066px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 240px * TvUi.u;
+            base-height: 135px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "search";
+            label: "Search";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 6;
+            activated => { TvUi.tile-activated(6); }
+            hovered => { TvUi.tile-hovered(6); }
+        }
 
-    IconTile {
-        x: 1066px * TvUi.u;
-        y: 540px * TvUi.u;
-        base-width: 240px * TvUi.u;
-        base-height: 186px * TvUi.u;
-        fill: Dash.tint.poster;
-        icon: "screensaver";
-        label: "Screensaver";
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 4;
-        activated => { TvUi.tile-activated(4); }
-        hovered => { TvUi.tile-hovered(4); }
-    }
+        // 7: Screensaver
+        IconTile {
+            x: 1066px * TvUi.u;
+            y: 287px * TvUi.u;
+            base-width: 240px * TvUi.u;
+            base-height: 135px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "screensaver";
+            label: "Screensaver";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
+            activated => { TvUi.tile-activated(7); }
+            hovered => { TvUi.tile-hovered(7); }
+        }
+
+        // 8: Sleep
+        IconTile {
+            x: 1066px * TvUi.u;
+            y: 438px * TvUi.u;
+            base-width: 240px * TvUi.u;
+            base-height: 135px * TvUi.u;
+            fill: Theme.surface;
+            icon: "moon";
+            label: SleepState.active ? "Sleep · " + SleepState.label : "Sleep · Off";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
+            activated => { TvUi.tile-activated(8); }
+            hovered => { TvUi.tile-hovered(8); }
+        }
+
+        // 9: Theme
+        ValueTile {
+            x: 1066px * TvUi.u;
+            y: 589px * TvUi.u;
+            base-width: 240px * TvUi.u;
+            base-height: 137px * TvUi.u;
+            fill: Theme.surface-raised;
+            label: "Theme";
+            value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
+            value-size: 28px * TvUi.u;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 9;
+            activated => { TvUi.tile-activated(9); }
+            hovered => { TvUi.tile-hovered(9); }
+        }
     } // end Group 2
 
-    // ── Group 3: Bottom row (Weather, Last Played, Sleep, Theme) (610 ms)
+    // ── Group 3: Bottom row (Clock + Up next 4 cards) (610 ms) ───────────────
     IntroRise {
         width: parent.width;
         height: parent.height;
         delay: 610ms;
 
-    // 5: Weather tile underneath the left Clock column (210 x 230)
-    Tile {
-        x: 96px * TvUi.u;
-        y: 742px * TvUi.u;
-        base-width: 210px * TvUi.u;
-        base-height: 230px * TvUi.u;
-        fill: Dash.tint.card;
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 5;
-        activated => { TvUi.tile-activated(5); }
-        hovered => { TvUi.tile-hovered(5); }
+        // Clock card (230 x 230, non-focusable)
+        Tile {
+            x: 96px * TvUi.u;
+            y: 742px * TvUi.u;
+            base-width: 230px * TvUi.u;
+            base-height: 230px * TvUi.u;
+            fill: Theme.surface;
+            focused: false;
 
-        VerticalLayout {
-            padding: 16px * TvUi.u;
-            spacing: 6px * TvUi.u;
+            VerticalLayout {
+                padding: 16px * TvUi.u;
+                spacing: 6px * TvUi.u;
 
-            HorizontalLayout {
-                spacing: 4px * TvUi.u;
-                alignment: start;
+                HorizontalLayout {
+                    spacing: 4px * TvUi.u;
+                    alignment: start;
 
-                Text {
-                    text: Dash.clock-hh + ":" + Dash.clock-mm;
-                    font-size: 32px * TvUi.u;
-                    font-weight: 300;
-                    color: Theme.text-primary;
+                    Text {
+                        text: Dash.clock-hh + ":" + Dash.clock-mm;
+                        font-size: 32px * TvUi.u;
+                        font-weight: 300;
+                        color: Theme.text-primary;
+                    }
+
+                    if Dash.clock-ampm != "": Text {
+                        text: Dash.clock-ampm;
+                        font-size: 15px * TvUi.u;
+                        font-weight: 400;
+                        color: Dash.tint.sec;
+                        vertical-alignment: bottom;
+                    }
                 }
 
-                if Dash.clock-ampm != "": Text {
-                    text: Dash.clock-ampm;
-                    font-size: 15px * TvUi.u;
-                    font-weight: 400;
+                Text {
+                    text: Dash.clock-year != "" ? Dash.date-text + ", " + Dash.clock-year : Dash.date-text;
+                    font-size: 14px * TvUi.u;
                     color: Dash.tint.sec;
-                    vertical-alignment: bottom;
+                    overflow: elide;
                 }
-            }
 
-            Text {
-                text: Dash.clock-year != "" ? Dash.date-text + ", " + Dash.clock-year : Dash.date-text;
-                font-size: 14px * TvUi.u;
-                color: Dash.tint.sec;
-                overflow: elide;
-            }
-
-            Rectangle {
-                height: 1px;
-                background: Dash.tint.sec.with-alpha(0.25);
-            }
-
-            HorizontalLayout {
-                spacing: 8px * TvUi.u;
-                alignment: start;
-
-                Icon {
-                    name: Dash.weather-icon;
-                    size: 28px * TvUi.u;
-                    tint: Dash.tint.accent;
+                Rectangle {
+                    height: 1px;
+                    background: Dash.tint.sec.with-alpha(0.25);
                 }
+
+                HorizontalLayout {
+                    spacing: 8px * TvUi.u;
+                    alignment: start;
+
+                    Icon {
+                        name: Dash.weather-icon;
+                        size: 24px * TvUi.u;
+                        tint: Dash.tint.accent;
+                        y: (parent.height - self.height) / 2;
+                    }
+
+                    Text {
+                        text: Dash.weather-on
+                            ? Dash.weather-temp + " · " + Dash.weather-condition
+                            : "Weather";
+                        font-size: 18px * TvUi.u;
+                        font-weight: 500;
+                        color: Theme.text-primary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+
+                Rectangle { vertical-stretch: 1; }
 
                 Text {
-                    text: Dash.weather-on ? Dash.weather-temp : "—";
-                    font-size: 28px * TvUi.u;
-                    font-weight: 300;
-                    color: Theme.text-primary;
-                    vertical-alignment: center;
+                    text: Dash.weather-on
+                        ? (Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail)
+                        : "Set location in Settings";
+                    font-size: 15px * TvUi.u;
+                    color: Dash.tint.sec;
+                    overflow: elide;
+                }
+            }
+        }
+
+        // 1..=4: Up next row (4 cards across x: 342..1306, y: 742, h: 230)
+        for card[i] in HomeState.up-next: Tile {
+            visible: i < 4;
+            x: (i == 0 ? 342px : (668px + (i - 1) * 218px)) * TvUi.u;
+            y: 742px * TvUi.u;
+            base-width: (i == 0 ? 310px : 202px) * TvUi.u;
+            base-height: 230px * TvUi.u;
+            fill: Theme.surface;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 1 + i;
+            activated => { HomeState.activate-up-next(card.key); }
+            hovered => { TvUi.tile-hovered(1 + i); }
+
+            // Art box (156px tall)
+            Rectangle {
+                x: 0;
+                y: 0;
+                width: parent.width;
+                height: 156px * TvUi.u;
+                clip: true;
+                background: Theme.surface-raised;
+
+                if card.has-thumb: Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: card.thumb;
+                    image-fit: cover;
+                }
+
+                if card.up-next: Rectangle {
+                    x: 10px * TvUi.u;
+                    y: 10px * TvUi.u;
+                    width: cu-badge.preferred-width + 16px * TvUi.u;
+                    height: 24px * TvUi.u;
+                    border-radius: 6px * TvUi.u;
+                    background: Theme.accent;
+
+                    cu-badge := Text {
+                        text: "UP NEXT";
+                        font-size: 12px * TvUi.u;
+                        font-weight: 700;
+                        letter-spacing: 1.2px;
+                        color: #0B0D10;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                if card.progress > 0.0: Rectangle {
+                    x: 10px * TvUi.u;
+                    y: parent.height - 14px * TvUi.u;
+                    width: parent.width - 20px * TvUi.u;
+                    height: 5px * TvUi.u;
+                    border-radius: 3px * TvUi.u;
+                    background: #FFFFFF4D;
+
+                    Rectangle {
+                        x: 0;
+                        y: 0;
+                        width: parent.width * clamp(card.progress, 0.0, 1.0);
+                        height: parent.height;
+                        border-radius: 3px * TvUi.u;
+                        background: #FFFFFF;
+                    }
                 }
             }
 
-            Rectangle { vertical-stretch: 1; }
-
             Text {
-                text: Dash.weather-on ? Dash.weather-condition : "Weather";
-                font-size: 16px * TvUi.u;
-                font-weight: 500;
+                x: 12px * TvUi.u;
+                y: 164px * TvUi.u;
+                width: parent.width - 24px * TvUi.u;
+                text: card.title;
+                font-size: 18px * TvUi.u;
+                font-weight: 700;
                 color: Theme.text-primary;
                 overflow: elide;
             }
 
-            Text {
-                text: Dash.weather-on ? (Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail) : "Set location in Settings";
+            if card.meta != "": Text {
+                x: 12px * TvUi.u;
+                y: 192px * TvUi.u;
+                width: parent.width - 24px * TvUi.u;
+                text: card.meta;
                 font-size: 14px * TvUi.u;
-                color: Dash.tint.sec;
-                wrap: word-wrap;
+                color: Theme.text-secondary;
                 overflow: elide;
             }
         }
-    }
-
-    // 6: Last Played tile (356 x 230) — last streaming app, movie, or TV series
-    Tile {
-        x: 322px * TvUi.u;
-        y: 742px * TvUi.u;
-        base-width: 356px * TvUi.u;
-        base-height: 230px * TvUi.u;
-        fill: TvUi.last-played-kind == "site"
-            ? @linear-gradient(135deg, TvUi.last-played-brand.fill 0%, TvUi.last-played-brand.fill-end 100%)
-            : Dash.tint.card;
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 6;
-        activated => { TvUi.tile-activated(6); }
-        hovered => { TvUi.tile-hovered(6); }
-
-        if TvUi.last-played-kind == "media" && TvUi.last-played-progress > 0.0: Rectangle {
-            x: 0;
-            y: parent.height - 5px * TvUi.u;
-            width: parent.width;
-            height: 5px * TvUi.u;
-            background: #FFFFFF28;
-
-            Rectangle {
-                x: 0;
-                y: 0;
-                width: parent.width * clamp(TvUi.last-played-progress, 0.0, 1.0);
-                height: 100%;
-                background: #E8EAED;
-            }
-        }
-
-        HorizontalLayout {
-            padding: 16px * TvUi.u;
-            spacing: 14px * TvUi.u;
-
-            if TvUi.last-played-kind == "media" && TvUi.last-played-has-poster: Rectangle {
-                width: 96px * TvUi.u;
-                height: 144px * TvUi.u;
-                border-radius: 6px;
-                clip: true;
-
-                Image {
-                    width: parent.width;
-                    height: parent.height;
-                    source: TvUi.last-played-poster;
-                    image-fit: cover;
-                }
-            }
-
-            if TvUi.last-played-kind == "site" && TvUi.last-played-brand.has-logo: Rectangle {
-                width: 104px * TvUi.u;
-                height: 104px * TvUi.u;
-                background: transparent;
-
-                Image {
-                    x: 4px * TvUi.u;
-                    y: 12px * TvUi.u;
-                    width: parent.width - 8px * TvUi.u;
-                    height: parent.height - 24px * TvUi.u;
-                    source: TvUi.last-played-brand.logo;
-                    image-fit: contain;
-                }
-            }
-
-            VerticalLayout {
-                alignment: center;
-                spacing: 6px * TvUi.u;
-                horizontal-stretch: 1;
-
-                Text {
-                    text: TvUi.last-played-kind == "site" ? "LAST PLAYED · APP" : "LAST PLAYED";
-                    font-size: 14px * TvUi.u;
-                    font-weight: 600;
-                    letter-spacing: 1.1px;
-                    color: TvUi.last-played-kind == "site" ? TvUi.last-played-brand.sub-ink : Dash.tint.sec;
-                }
-
-                Text {
-                    text: TvUi.last-played-title != "" ? TvUi.last-played-title : "Nothing yet";
-                    font-size: 24px * TvUi.u;
-                    font-weight: 500;
-                    color: TvUi.last-played-kind == "site" ? TvUi.last-played-brand.ink : Theme.text-primary;
-                    overflow: elide;
-                }
-
-                Text {
-                    text: TvUi.last-played-subtitle != ""
-                        ? TvUi.last-played-subtitle
-                        : (TvUi.last-played-kind == "site"
-                            ? "OK to launch"
-                            : TvUi.last-played-kind == "media"
-                                ? "OK to resume"
-                                : "Pick something to play");
-                    font-size: 16px * TvUi.u;
-                    color: TvUi.last-played-kind == "site" ? TvUi.last-played-brand.sub-ink : Theme.text-secondary;
-                    overflow: elide;
-                }
-            }
-        }
-    }
-
-    // 7: Sleep tile (240 x 230, below Screensaver)
-    IconTile {
-        x: 1066px * TvUi.u;
-        y: 742px * TvUi.u;
-        base-width: 240px * TvUi.u;
-        base-height: 230px * TvUi.u;
-        fill: Dash.tint.card;
-        icon: "moon";
-        label: SleepState.active ? "Sleep · " + SleepState.label : "Sleep";
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
-        activated => { TvUi.tile-activated(7); }
-        hovered => { TvUi.tile-hovered(7); }
-    }
-
-    // 8: Theme tile (356 x 230)
-    ValueTile {
-        x: 694px * TvUi.u;
-        y: 742px * TvUi.u;
-        base-width: 356px * TvUi.u;
-        base-height: 230px * TvUi.u;
-        fill: Dash.tint.poster;
-        label: "Theme";
-        value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.ku-light ? "Kansas Light" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
-        activated => { TvUi.tile-activated(8); }
-        hovered => { TvUi.tile-hovered(8); }
-    }
     } // end Group 3
 
-    // ── Group 4: Streaming Services 2x5 grid (690 ms) ────────────────────────
+    // ── Group 4: Right column — APPS (2x4) + Next Game card (690 ms) ─────────
     IntroRise {
         width: parent.width;
         height: parent.height;
         delay: 690ms;
 
-    Text {
-        x: 1338px * TvUi.u;
-        y: 136px * TvUi.u;
-        text: "STREAMING SERVICES";
-        font-size: 22px * TvUi.u;
-        font-weight: 500;
-        letter-spacing: 1.2px;
-        color: Theme.text-secondary;
-    }
+        Text {
+            x: 1338px * TvUi.u;
+            y: 136px * TvUi.u;
+            text: "APPS";
+            font-size: 22px * TvUi.u;
+            font-weight: 500;
+            letter-spacing: 1.2px;
+            color: Theme.text-secondary;
+        }
 
-    for svc[i] in TvUi.services: ServiceTile {
-        visible: i < 12;
-        x: (1338px + Math.mod(i, 2) * 251px) * TvUi.u;
-        y: (176px + Math.floor(i / 2) * 135px) * TvUi.u;
-        base-width: 235px * TvUi.u;
-        base-height: 119px * TvUi.u;
-        brand: svc.brand;
-        is-recent: svc.is-recent;
-        focused: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;
-        activated => { TvUi.tile-activated(10 + i); }
-        hovered => { TvUi.tile-hovered(10 + i); }
-    }
+        // 10..=16: 7 recent-first apps in 2x4 grid
+        for app[i] in HomeState.apps-bar: Tile {
+            visible: i < 7;
+            x: (1338px + Math.mod(i, 2) * 251px) * TvUi.u;
+            y: (176px + Math.floor(i / 2) * 126px) * TvUi.u;
+            base-width: 235px * TvUi.u;
+            base-height: 112px * TvUi.u;
+            fill: app.color;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;
+            activated => { HomeState.launch-app(app.id); }
+            hovered => { TvUi.tile-hovered(10 + i); }
+
+            if app.has-logo: Image {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: parent.width * (app.logo-wide ? 0.88 : 0.70);
+                height: parent.height * (app.logo-wide ? 0.66 : 0.54);
+                source: app.logo;
+                image-fit: contain;
+            }
+
+            if !app.has-logo: Text {
+                x: 12px * TvUi.u;
+                y: 0;
+                width: parent.width - 24px * TvUi.u;
+                height: parent.height;
+                text: app.name;
+                font-size: 18px * TvUi.u;
+                font-weight: 700;
+                color: app.text-color;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        // 17: All apps › (slot 7 in 2x4)
+        Tile {
+            x: (1338px + 251px) * TvUi.u;
+            y: (176px + 3 * 126px) * TvUi.u;
+            base-width: 235px * TvUi.u;
+            base-height: 112px * TvUi.u;
+            fill: Theme.surface-raised;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 17;
+            activated => { HomeState.open-apps-page(); }
+            hovered => { TvUi.tile-hovered(17); }
+
+            Text {
+                text: "All apps ›";
+                font-size: 20px * TvUi.u;
+                font-weight: 700;
+                color: Theme.text-primary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        // 5: Next Game card (under Apps grid, x: 1338, y: 682, 486 x 290)
+        if HomeState.next-game.visible: Tile {
+            x: 1338px * TvUi.u;
+            y: 682px * TvUi.u;
+            base-width: 486px * TvUi.u;
+            base-height: 290px * TvUi.u;
+            fill: Theme.surface;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 5;
+            activated => { HomeState.open-game(HomeState.next-game.event-id, HomeState.next-game.date); }
+            hovered => { TvUi.tile-hovered(5); }
+
+            VerticalLayout {
+                padding: 18px * TvUi.u;
+                spacing: 12px * TvUi.u;
+
+                HorizontalLayout {
+                    alignment: space-between;
+
+                    Text {
+                        text: "NEXT GAME · " + HomeState.next-game.league;
+                        font-size: 14px * TvUi.u;
+                        font-weight: 700;
+                        letter-spacing: 1.5px;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: HomeState.next-game.state-text;
+                        font-size: 15px * TvUi.u;
+                        font-weight: 700;
+                        color: HomeState.next-game.state == GameState.live
+                            ? #E8000D
+                            : HomeState.next-game.state == GameState.upcoming
+                                ? Theme.accent
+                                : Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                }
+
+                for side in [HomeState.next-game.away, HomeState.next-game.home]: HorizontalLayout {
+                    spacing: 10px * TvUi.u;
+                    height: 38px * TvUi.u;
+
+                    Text {
+                        width: 34px * TvUi.u;
+                        text: side.rank;
+                        font-size: 15px * TvUi.u;
+                        font-weight: 700;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 32px * TvUi.u;
+                        height: 32px * TvUi.u;
+                        border-radius: 8px * TvUi.u;
+                        background: side.has-logo ? Theme.surface-raised : side.color;
+                        y: (parent.height - self.height) / 2;
+
+                        if side.has-logo: Image {
+                            x: 3px * TvUi.u;
+                            y: 3px * TvUi.u;
+                            width: parent.width - 6px * TvUi.u;
+                            height: parent.height - 6px * TvUi.u;
+                            source: side.logo;
+                            image-fit: contain;
+                        }
+
+                        if !side.has-logo: Text {
+                            text: side.init;
+                            font-size: 12px * TvUi.u;
+                            font-weight: 700;
+                            color: #FFFFFF;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    Text {
+                        horizontal-stretch: 1;
+                        text: side.name;
+                        font-size: 20px * TvUi.u;
+                        font-weight: side.lead ? 700 : 500;
+                        color: side.lead ? Theme.text-primary : Theme.text-secondary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+
+                    if side.score != "": Text {
+                        text: side.score;
+                        font-size: 26px * TvUi.u;
+                        font-weight: side.lead ? 700 : 500;
+                        color: side.lead ? Theme.text-primary : Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Rectangle { vertical-stretch: 1; }
+
+                if HomeState.next-game.meta != "": Rectangle {
+                    height: 1px;
+                    background: Theme.border;
+                }
+
+                if HomeState.next-game.meta != "": Text {
+                    text: HomeState.next-game.meta;
+                    font-size: 15px * TvUi.u;
+                    color: Theme.text-secondary;
+                    overflow: elide;
+                }
+            }
+        }
+
+        // 5 (fallback): Just Added card (latest episode or movie added)
+        if !HomeState.next-game.visible && HomeState.just-added.visible: Tile {
+            x: 1338px * TvUi.u;
+            y: 682px * TvUi.u;
+            base-width: 486px * TvUi.u;
+            base-height: 290px * TvUi.u;
+            fill: Theme.surface;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 5;
+            activated => { HomeState.activate-just-added(); }
+            hovered => { TvUi.tile-hovered(5); }
+
+            HorizontalLayout {
+                padding: 18px * TvUi.u;
+                spacing: 16px * TvUi.u;
+
+                Rectangle {
+                    width: 168px * TvUi.u;
+                    height: 254px * TvUi.u;
+                    border-radius: 10px * TvUi.u;
+                    clip: true;
+                    background: Theme.surface-raised;
+
+                    if HomeState.just-added.has-art: Image {
+                        width: 100%;
+                        height: 100%;
+                        source: HomeState.just-added.art;
+                        image-fit: cover;
+                    }
+                }
+
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 8px * TvUi.u;
+                    alignment: start;
+
+                    Text {
+                        text: HomeState.just-added.source != ""
+                            ? "JUST ADDED · " + HomeState.just-added.kind + " · " + HomeState.just-added.source
+                            : "JUST ADDED · " + HomeState.just-added.kind;
+                        font-size: 13px * TvUi.u;
+                        font-weight: 700;
+                        letter-spacing: 1.2px;
+                        color: Theme.accent;
+                        overflow: elide;
+                    }
+
+                    Text {
+                        text: HomeState.just-added.title;
+                        font-size: 24px * TvUi.u;
+                        font-weight: 700;
+                        color: Theme.text-primary;
+                        wrap: word-wrap;
+                        overflow: elide;
+                    }
+
+                    if HomeState.just-added.subtitle != "": Text {
+                        text: HomeState.just-added.subtitle;
+                        font-size: 17px * TvUi.u;
+                        font-weight: 600;
+                        color: Theme.text-secondary;
+                        wrap: word-wrap;
+                        overflow: elide;
+                    }
+
+                    Rectangle { vertical-stretch: 1; }
+
+                    if HomeState.just-added.meta != "": Text {
+                        text: HomeState.just-added.meta;
+                        font-size: 15px * TvUi.u;
+                        color: Theme.text-muted;
+                        wrap: word-wrap;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
     } // end Group 4
 }

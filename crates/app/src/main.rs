@@ -1,5 +1,6 @@
 //! tvdash: laptop control dashboard + TV playback window, one process.
 
+mod apps;
 mod brand;
 mod bridge;
 mod callbacks;
@@ -9,10 +10,13 @@ mod displays;
 mod focus;
 mod format;
 mod home_cmd;
+mod image_cache;
 mod instance;
 mod intro;
+mod next_game;
 mod portal;
 mod recent;
+mod scoreboard_view;
 mod shell_tv;
 mod sleep;
 mod sports_alerts;
@@ -20,9 +24,11 @@ mod sports_follows;
 mod sports_watch;
 mod tint;
 mod tv_nav;
+mod up_next;
 mod video;
 mod watch;
 mod watch_ui;
+mod whats_on;
 
 use std::{sync::Arc, time::Duration};
 
@@ -341,6 +347,7 @@ fn main() -> anyhow::Result<()> {
 
     // UI → background commands, handled by the controller.
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<Command>();
+    bridge::set_command_sender(cmd_tx.clone());
     let (mut controller, internal_rx) =
         controller::Controller::new((*config).clone(), loaded.path.clone(), args.windowed, event_tx.clone());
     controller.set_general_tx(general_tx);

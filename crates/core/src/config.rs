@@ -151,9 +151,8 @@ pub enum ThemeMode {
     /// Deep plum dark theme.
     Aubergine,
     /// University of Kansas (Crimson & Blue) dark theme.
+    #[serde(alias = "ku-light")]
     Ku,
-    /// University of Kansas (Blue & Crimson) light theme.
-    KuLight,
     /// Warm grey light theme.
     Stone,
     /// Cool blue-grey light theme.
@@ -162,7 +161,7 @@ pub enum ThemeMode {
 
 impl ThemeMode {
     pub fn is_light(self) -> bool {
-        matches!(self, Self::KuLight | Self::Stone | Self::Mist)
+        matches!(self, Self::Stone | Self::Mist)
     }
 
     /// Resolve `FollowSystem` into a concrete theme given the desktop preference.
@@ -469,6 +468,9 @@ pub struct StreamingSite {
     /// Tile logo to use instead of TMDB's: a PNG, JPEG or WebP file (`~/` allowed).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logo: Option<String>,
+    /// Logo box sizing (`"wide"` or `"glyph"`, default `"glyph"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub logo_box: Option<String>,
     /// Hold the sleep timer while this site is open (e.g. Google Meet).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hold_sleep_timer: bool,
@@ -742,7 +744,7 @@ mod tests {
         assert!(loaded.created);
         assert!(path.exists());
         assert!(!loaded.config.plex.client_id.is_empty());
-        assert_eq!(loaded.config.streaming.len(), 10);
+        assert_eq!(loaded.config.streaming.len(), 12);
 
         // Second load reads the same file and keeps the same IDs.
         let again = Config::load_or_create_at(&path).unwrap();

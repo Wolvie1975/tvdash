@@ -19,3 +19,6 @@
   - `./packaging/rpm.sh`
   - `cp dist/tvdash-<version>-1.x86_64.rpm releases/`
 - **When the user says it's done**, commit the updates (including the new `.rpm` in `releases/`), and let the user run `git push`.
+
+## Nightly Cleanup
+- When the user ends the session ("done for the night"), follow [docs/nightly-cleanup.md](docs/nightly-cleanup.md) after the final commit.

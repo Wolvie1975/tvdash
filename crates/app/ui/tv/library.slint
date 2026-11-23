@@ -145,7 +145,7 @@ export component TvLibrary inherits Rectangle {
             text: Library.browse-all ? "Browse all · On" : "Browse all";
             font-size: 20px * TvUi.u;
             font-weight: 500;
-            color: Library.browse-all ? #0B0D10 : Theme.text-primary;
+            color: Library.browse-all ? Theme.on-accent : Theme.text-primary;
             horizontal-alignment: center;
             vertical-alignment: center;
         }
@@ -227,7 +227,7 @@ export component TvLibrary inherits Rectangle {
                 text: ltr;
                 font-size: 20px * TvUi.u;
                 font-weight: parent.is-on ? 600 : 400;
-                color: parent.is-on ? #0B0D10 : Theme.text-primary;
+                color: parent.is-on ? Theme.on-accent : Theme.text-primary;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
@@ -288,15 +288,15 @@ export component TvLibrary inherits Rectangle {
                 x: 0;
                 y: -TvUi.lib-scroll * TvUi.u;
                 width: 1920px * TvUi.u;
-                height: (Math.ceil(Library.browse-items.length / 8) * 276px + 40px) * TvUi.u;
+                height: (Math.ceil(Library.browse-items.length / 8) * 316px + 40px) * TvUi.u;
                 background: transparent;
                 animate y { duration: 180ms; easing: ease-out; }
 
                 for item[i] in Library.browse-items: MediaTile {
                     x: (96px + Math.mod(i, 8) * 218px) * TvUi.u;
-                    y: (8px + Math.floor(i / 8) * 276px) * TvUi.u;
+                    y: (8px + Math.floor(i / 8) * 316px) * TvUi.u;
                     base-width: 198px * TvUi.u;
-                    base-height: 256px * TvUi.u;
+                    base-height: 300px * TvUi.u;
                     art: item.poster;
                     has-art: item.has-poster;
                     title: item.title;
@@ -647,7 +647,7 @@ export component TvLibrary inherits Rectangle {
                                         text: "This TV";
                                         font-size: 13px * TvUi.u;
                                         font-weight: 600;
-                                        color: #0B0D10;
+                                        color: Theme.on-accent;
                                         horizontal-alignment: center;
                                         vertical-alignment: center;
                                     }

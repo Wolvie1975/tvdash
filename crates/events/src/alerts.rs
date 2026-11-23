@@ -208,6 +208,92 @@ pub async fn fetch_alert_games(
     })
 }
 
+/// Scoreboard row for Home's Next Game card (§5.2).
+#[derive(Debug, Clone)]
+pub struct NextGameRow {
+    pub event_id: String,
+    pub scoreboard_date: chrono::NaiveDate,
+    pub starts_at_utc: Option<NaiveDateTime>,
+    pub time_tbd: bool,
+    pub status: String,
+    pub status_text: String,
+    pub period: Option<i32>,
+    pub display_clock: Option<String>,
+    pub league: String,
+    pub home_team_id: String,
+    pub home_name: String,
+    pub home_score: Option<i32>,
+    pub home_logo_url: Option<String>,
+    pub home_rank: Option<u8>,
+    pub away_team_id: String,
+    pub away_name: String,
+    pub away_score: Option<i32>,
+    pub away_logo_url: Option<String>,
+    pub away_rank: Option<u8>,
+    pub venue: String,
+    pub broadcasts: Option<String>,
+}
+
+/// Fetch all `dbo.SportsScoreboard` games in `[from_utc, to_utc]` for Home's Next Game card.
+pub async fn fetch_window_games(
+    cfg: &EventsConfig,
+    password: &str,
+    from_utc: DateTime<Utc>,
+    to_utc: DateTime<Utc>,
+) -> Result<Vec<NextGameRow>, EventsError> {
+    if password.trim().is_empty() {
+        return Err(EventsError::MissingPassword);
+    }
+    let from_naive = from_utc.naive_utc();
+    let to_naive = to_utc.naive_utc();
+    let mut client = connect(cfg, password).await?;
+    let rows = client
+        .query(
+            r#"
+SELECT EventId, ScoreboardDate, StartsAtUtc, TimeTbd, Status, StatusText,
+       Period, DisplayClock, League,
+       HomeTeamId, HomeName, HomeScore, HomeLogoUrl, HomeRank,
+       AwayTeamId, AwayName, AwayScore, AwayLogoUrl, AwayRank,
+       Venue, Broadcasts
+FROM dbo.SportsScoreboard
+WHERE StartsAtUtc BETWEEN @P1 AND @P2
+"#,
+            &[&from_naive, &to_naive],
+        )
+        .await?
+        .into_first_result()
+        .await?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for r in rows {
+        let Some(date) = r.get::<chrono::NaiveDate, _>(1) else { continue };
+        out.push(NextGameRow {
+            event_id: r.get::<&str, _>(0).unwrap_or_default().to_string(),
+            scoreboard_date: date,
+            starts_at_utc: r.get::<NaiveDateTime, _>(2),
+            time_tbd: r.get::<bool, _>(3).unwrap_or(false),
+            status: r.get::<&str, _>(4).unwrap_or_default().to_string(),
+            status_text: r.get::<&str, _>(5).unwrap_or_default().to_string(),
+            period: r.get::<i32, _>(6),
+            display_clock: r.get::<&str, _>(7).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()),
+            league: r.get::<&str, _>(8).unwrap_or_default().to_string(),
+            home_team_id: r.get::<&str, _>(9).unwrap_or_default().to_string(),
+            home_name: r.get::<&str, _>(10).unwrap_or_default().to_string(),
+            home_score: parse_score(r.get::<&str, _>(11)),
+            home_logo_url: safe_logo_url(r.get::<&str, _>(12)),
+            home_rank: r.get::<u8, _>(13).filter(|&rk| (1..=25).contains(&rk)),
+            away_team_id: r.get::<&str, _>(14).unwrap_or_default().to_string(),
+            away_name: r.get::<&str, _>(15).unwrap_or_default().to_string(),
+            away_score: parse_score(r.get::<&str, _>(16)),
+            away_logo_url: safe_logo_url(r.get::<&str, _>(17)),
+            away_rank: r.get::<u8, _>(18).filter(|&rk| (1..=25).contains(&rk)),
+            venue: r.get::<&str, _>(19).unwrap_or_default().trim().to_string(),
+            broadcasts: r.get::<&str, _>(20).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()),
+        });
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

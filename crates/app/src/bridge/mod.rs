@@ -29,16 +29,38 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, Timer, VecModel, Weak};
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tvdash_core::{
-    AppEvent,
+    AppEvent, Command,
     config::{ClockFormat, StreamingSite, ThemeMode, Units},
     events::{PlayerStatus, Service},
     models::{AccountStatus, ArtworkChoice, MediaItem, RgbaImage, ServerSummary, SignInState, SourceKind, Weather},
 };
 
+use crate::image_cache::{BACKDROP_CAP, FixedImageCache, POSTER_CAP, SPORTS_LOGO_CAP};
+
 pub use accounts::sync_setup;
-pub use home::{row, set_cw_filter, up_next};
+pub use home::{
+    HeroAction, hero_action, just_added_item, row, set_cw_filter, site_index_by_id, up_next, up_next_item_by_key,
+};
+
+pub fn optimistic_toggle_star(laptop: &LaptopWindow, event_id: &str) {
+    STATE.with_borrow_mut(|s| {
+        let list = &mut s.sports_alerts.status.starred;
+        if let Some(pos) = list.iter().position(|g| g.event_id == event_id) {
+            list.remove(pos);
+        } else {
+            list.push(tvdash_core::events::StarredGameInfo {
+                event_id: event_id.to_owned(),
+                matchup: String::new(),
+                meta: String::new(),
+            });
+        }
+        if s.scoreboard_page.is_some() {
+            refresh_scoreboard(s, laptop);
+        }
+    });
+}
 pub use library::{
     clear_search, close_detail, missing_browse_posters, on_library_focus_changed, reorder_collection, select, selected,
     set_browse_letter, set_filter, set_media_tab, start_search, watching_now_item,
@@ -77,7 +99,8 @@ pub struct UiState {
     /// Dashboard Continue Watching rows (filtered by `cw_filter`); index = card index.
     rows: Vec<MediaItem>,
     cw_filter: String,
-    posters: HashMap<(SourceKind, String), Image>,
+    posters: FixedImageCache<(SourceKind, String), POSTER_CAP>,
+    cmd_tx: Option<UnboundedSender<Command>>,
     /// TMDB token state.
     tmdb: Option<AccountStatus>,
     /// Tautulli status.
@@ -86,12 +109,16 @@ pub struct UiState {
     events_password_configured: bool,
     sports_page: Option<tvdash_core::models::SportsEventsPage>,
     scoreboard_page: Option<tvdash_core::models::ScoreboardPage>,
-    sports_logos: HashMap<String, Image>,
+    sports_logos: FixedImageCache<String, SPORTS_LOGO_CAP>,
     collection_detail: Option<tvdash_core::models::CollectionDetail>,
     show_detail: Option<tvdash_core::models::ShowDetail>,
     ambient_starts: usize,
     next_ep: Option<MediaItem>,
     last_played: Option<LastPlayed>,
+    hero_item: Option<MediaItem>,
+    up_next_items: Vec<MediaItem>,
+    just_added_item: Option<MediaItem>,
+    next_game: Option<tvdash_core::events::NextGameDto>,
     /// Last weather and when it arrived; the last fetch error, if the latest fetch failed.
     weather: Option<(Weather, DateTime<Utc>)>,
     weather_err: Option<String>,
@@ -125,7 +152,7 @@ pub struct UiState {
     lib_recently_released: Vec<MediaItem>,
     lib_focused_key: Option<(SourceKind, String)>,
     lib_shelves_loading: bool,
-    backdrops: HashMap<(SourceKind, String), Image>,
+    backdrops: FixedImageCache<(SourceKind, String), BACKDROP_CAP>,
     backdrop_hues: HashMap<(SourceKind, String), Hue>,
     raw_sessions: Vec<tvdash_core::models::Session>,
     selected: Option<MediaItem>,
@@ -147,6 +174,20 @@ pub struct UiState {
 }
 
 impl UiState {
+    pub(super) fn forget_images(
+        &self,
+        posters: Vec<(SourceKind, String)>,
+        backdrops: Vec<(SourceKind, String)>,
+        logos: Vec<String>,
+    ) {
+        if posters.is_empty() && backdrops.is_empty() && logos.is_empty() {
+            return;
+        }
+        if let Some(tx) = &self.cmd_tx {
+            let _ = tx.send(Command::ForgetImages { posters, backdrops, logos });
+        }
+    }
+
     pub(super) fn effective_theme(&self) -> ThemeMode {
         if self.tv_layout && self.night_active {
             ThemeMode::Dark
@@ -186,6 +227,10 @@ pub fn set_recent_services(laptop: &LaptopWindow, recent: Vec<tvdash_core::confi
         s.recent = recent;
         home::refresh_tiles(s, laptop);
     });
+}
+
+pub fn set_command_sender(tx: UnboundedSender<Command>) {
+    STATE.with_borrow_mut(|s| s.cmd_tx = Some(tx));
 }
 
 thread_local! {
@@ -380,7 +425,6 @@ fn ui_theme(mode: ThemeMode) -> UiTheme {
         ThemeMode::Dark | ThemeMode::FollowSystem => UiTheme::Dark,
         ThemeMode::Aubergine => UiTheme::Aubergine,
         ThemeMode::Ku => UiTheme::Ku,
-        ThemeMode::KuLight => UiTheme::KuLight,
         ThemeMode::Stone => UiTheme::Stone,
         ThemeMode::Mist => UiTheme::Mist,
     }
@@ -390,7 +434,6 @@ pub fn theme_mode(theme: UiTheme) -> ThemeMode {
     match theme {
         UiTheme::Aubergine => ThemeMode::Aubergine,
         UiTheme::Ku => ThemeMode::Ku,
-        UiTheme::KuLight => ThemeMode::KuLight,
         UiTheme::Stone => ThemeMode::Stone,
         UiTheme::Mist => ThemeMode::Mist,
         _ => ThemeMode::Dark,
@@ -477,6 +520,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::RecentlyAdded(kind, items) => {
             s.recently_added.insert(kind, items);
             library::rebuild(s, laptop);
+            home::refresh_home_state(s, laptop);
         }
         AppEvent::SearchResults { query, items } => library::on_results(s, laptop, query, items),
         AppEvent::Poster { source, item_id, image } => home::on_poster(s, laptop, source, item_id, &image),
@@ -635,7 +679,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
                 dash.set_next_ep_title(item.title.as_str().into());
                 dash.set_next_ep_subtitle(crate::format::item_detail(&item).into());
                 dash.set_next_ep_has_poster(poster.is_some());
-                dash.set_next_ep_poster(poster.cloned().unwrap_or_default());
+                dash.set_next_ep_poster(poster.unwrap_or_default());
                 dash.set_next_ep_open(true);
                 laptop.global::<crate::TvUi>().set_focused_tile(0);
             } else {
@@ -660,12 +704,16 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             }
         }
         AppEvent::SportsLogo { url, image } => {
-            s.sports_logos.insert(url, to_image(&image));
+            let evicted = s.sports_logos.insert(url, to_image(&image));
+            s.forget_images(Vec::new(), Vec::new(), evicted);
             if s.sports_page.is_some() {
                 refresh_sports(s, laptop);
             }
             if s.scoreboard_page.is_some() {
                 refresh_scoreboard(s, laptop);
+            }
+            if s.next_game.is_some() {
+                home::refresh_next_game(s, laptop);
             }
         }
         AppEvent::EventsPasswordConfigured(configured) => {
@@ -713,10 +761,14 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             }
         }
         AppEvent::SportsAlerts(list) => alerts::on_alerts(s, laptop, tv, list),
+        AppEvent::NextGame(dto) => home::on_next_game(s, laptop, dto),
         AppEvent::SportsAlertsStatus(st) => {
             alerts::on_status(s, laptop, st);
             if s.scoreboard_page.is_some() {
                 refresh_scoreboard(s, laptop);
+            }
+            if s.next_game.is_some() {
+                home::refresh_next_game(s, laptop);
             }
         }
         AppEvent::Sites(sites) => {
@@ -773,8 +825,8 @@ fn refresh_sports(s: &UiState, laptop: &LaptopWindow) {
                 ..Default::default()
             });
             for g in &lg.games {
-                let away_logo = g.away_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
-                let home_logo = g.home_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
+                let away_logo = g.away_logo_url.as_ref().and_then(|u| s.sports_logos.peek(u));
+                let home_logo = g.home_logo_url.as_ref().and_then(|u| s.sports_logos.peek(u));
                 rows.push(SportsRowData {
                     kind: "game".into(),
                     header_text: Default::default(),
@@ -846,8 +898,8 @@ fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
             ..Default::default()
         });
         for g in &group.games {
-            let away_logo = g.away_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
-            let home_logo = g.home_logo_url.as_ref().and_then(|u| s.sports_logos.get(u));
+            let away_logo = g.away_logo_url.as_ref().and_then(|u| s.sports_logos.peek(u));
+            let home_logo = g.home_logo_url.as_ref().and_then(|u| s.sports_logos.peek(u));
             let away_display = match g.away_rank {
                 Some(r) => format!("#{r} {}", g.away_name),
                 None => g.away_name.clone(),
@@ -910,6 +962,104 @@ fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
     sb.set_coverage_warning(page.coverage_warning.as_str().into());
     sb.set_empty_message(page.empty_message.as_str().into());
     sb.set_rows(ModelRc::new(VecModel::from(rows)));
+
+    // Build shared ScoreboardView (§10)
+    let starred_set: std::collections::HashSet<String> = s
+        .sports_alerts
+        .status
+        .starred
+        .iter()
+        .map(|st| st.event_id.clone())
+        .collect();
+    let follows_vec: Vec<(String, String)> = s
+        .sports_alerts
+        .status
+        .followed
+        .iter()
+        .map(|f| (f.league.clone(), f.id.clone()))
+        .collect();
+    let tz = s.tz.unwrap_or(chrono_tz::America::Chicago);
+    let now_local = chrono::Utc::now().with_timezone(&tz);
+    let clock = s.clock.unwrap_or(tvdash_core::config::ClockFormat::H24);
+    let view = crate::scoreboard_view::build_view(page, &starred_set, &follows_vec, &page.show, now_local, clock);
+
+    let mut pill_id = 7i32; // 0..1 tabs, 2..6 controls, 7.. card pills
+    let slint_groups: Vec<crate::ScoreGroup> = view
+        .groups
+        .into_iter()
+        .map(|grp| {
+            let cards: Vec<crate::ScoreCard> = grp
+                .cards
+                .into_iter()
+                .map(|c| {
+                    let star_focus_id = pill_id;
+                    pill_id += 1;
+                    let has_url = c.game_url.as_ref().is_some_and(|u| !u.is_empty());
+                    let game_focus_id = if has_url {
+                        let id = pill_id;
+                        pill_id += 1;
+                        id
+                    } else {
+                        -1
+                    };
+                    let to_side = |side: crate::scoreboard_view::SideView| {
+                        let logo = side.logo_url.as_ref().and_then(|u| s.sports_logos.peek(u)).cloned();
+                        let periods: Vec<slint::SharedString> =
+                            side.periods.into_iter().map(Into::into).collect();
+                        crate::ScoreSide {
+                            rank: side.rank.into(),
+                            short: side.short.into(),
+                            full: side.full.into(),
+                            initials: side.initials.into(),
+                            has_logo: logo.is_some(),
+                            logo: logo.unwrap_or_default(),
+                            periods: ModelRc::new(VecModel::from(periods)),
+                            total: side.total.into(),
+                            emphasis: match side.emphasis {
+                                crate::scoreboard_view::Emphasis::Lead => crate::ScoreEmphasis::Lead,
+                                crate::scoreboard_view::Emphasis::Trail => crate::ScoreEmphasis::Trail,
+                                crate::scoreboard_view::Emphasis::Even => crate::ScoreEmphasis::Even,
+                            },
+                        }
+                    };
+                    let p_labels: Vec<slint::SharedString> =
+                        c.period_labels.into_iter().map(Into::into).collect();
+                    crate::ScoreCard {
+                        event_id: c.event_id.into(),
+                        league: c.league.into(),
+                        status: c.status.into(),
+                        tone: match c.tone {
+                            crate::scoreboard_view::StatusTone::Live => crate::ScoreTone::Live,
+                            crate::scoreboard_view::StatusTone::Upcoming => crate::ScoreTone::Upcoming,
+                            crate::scoreboard_view::StatusTone::Final => crate::ScoreTone::Final,
+                            crate::scoreboard_view::StatusTone::Muted => crate::ScoreTone::Muted,
+                        },
+                        period_labels: ModelRc::new(VecModel::from(p_labels)),
+                        away: to_side(c.away),
+                        home: to_side(c.home),
+                        meta: c.meta.into(),
+                        starred: c.starred,
+                        following: c.following,
+                        game_url: c.game_url.unwrap_or_default().into(),
+                        star_focus_id,
+                        game_focus_id,
+                    }
+                })
+                .collect();
+            crate::ScoreGroup {
+                is_live: grp.kind == crate::scoreboard_view::GroupKind::Live,
+                is_postponed: grp.kind == crate::scoreboard_view::GroupKind::Postponed,
+                title: grp.title.into(),
+                count: grp.count.into(),
+                cards: ModelRc::new(VecModel::from(cards)),
+            }
+        })
+        .collect();
+
+    sb.set_date_label(view.date_label.into());
+    sb.set_fresh(view.fresh.into());
+    sb.set_stale(view.stale);
+    sb.set_groups(ModelRc::new(VecModel::from(slint_groups)));
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────

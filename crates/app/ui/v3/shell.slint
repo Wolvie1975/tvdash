@@ -6,6 +6,7 @@ import { SleepChip } from "../shared/sleep.slint";
 import { V3Theme } from "theme.slint";
 import { BladeStrip } from "blades.slint";
 import { V3Home } from "home.slint";
+import { V3Apps } from "apps.slint";
 import { V3Library } from "library.slint";
 import { V3Collections } from "collections.slint";
 import { V3Show } from "show.slint";
@@ -31,11 +32,11 @@ export component V3Shell inherits Rectangle {
     changed focus-ticket => { keys.focus(); }
 
     property <bool> is-subpage: TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search";
-    property <int> parent-tab: TvUi.screen == "show" ? 1 : TvUi.screen == "collection" ? 2 : 0;
+    property <int> parent-tab: TvUi.screen == "show" ? 2 : TvUi.screen == "collection" ? 3 : 0;
     property <int> eff-active: root.is-subpage ? root.parent-tab : TvUi.active-tab;
     property <int> left-count: root.is-subpage ? (root.eff-active + 1) : root.eff-active;
     property <length> panel-x: (24px + root.left-count * 68px) * TvUi.u;
-    property <length> panel-w: (root.is-subpage ? 1532px : 1600px) * TvUi.u;
+    property <length> panel-w: (root.is-subpage ? 1464px : 1532px) * TvUi.u;
     property <float> widen: Intro.revealing ? 1.0 : 0.0;
     animate widen {
         duration: Intro.instant ? 0ms : 550ms;
@@ -107,10 +108,11 @@ export component V3Shell inherits Rectangle {
         // Left Blades
         for tab[i] in [
             { idx: 0, label: "home" },
-            { idx: 1, label: "library" },
-            { idx: 2, label: "collections" },
-            { idx: 3, label: "sports" },
-            { idx: 4, label: "settings" },
+            { idx: 1, label: "apps" },
+            { idx: 2, label: "library" },
+            { idx: 3, label: "collections" },
+            { idx: 4, label: "sports" },
+            { idx: 5, label: "settings" },
         ]: BladeStrip {
             visible: root.is-subpage ? (i <= root.eff-active) : (i < root.eff-active);
             x: (24px + i * 68px) * TvUi.u;
@@ -137,6 +139,7 @@ export component V3Shell inherits Rectangle {
             border-color: V3Theme.border;
 
             if TvUi.screen == "home": V3Home { }
+            if TvUi.screen == "apps": V3Apps { }
             if TvUi.screen == "collections": V3Collections { }
             if TvUi.screen == "library": V3Library { }
             if TvUi.screen == "show": V3Show { }
@@ -226,10 +229,11 @@ export component V3Shell inherits Rectangle {
         // Right Blades
         for tab[i] in [
             { idx: 0, label: "home" },
-            { idx: 1, label: "library" },
-            { idx: 2, label: "collections" },
-            { idx: 3, label: "sports" },
-            { idx: 4, label: "settings" },
+            { idx: 1, label: "apps" },
+            { idx: 2, label: "library" },
+            { idx: 3, label: "collections" },
+            { idx: 4, label: "sports" },
+            { idx: 5, label: "settings" },
         ]: BladeStrip {
             visible: i > root.eff-active;
             x: active-panel.x + active-panel.width + 10px * TvUi.u + (i - root.eff-active - 1) * 68px * TvUi.u + self.intro-dx;

@@ -53,6 +53,60 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
     wire_sports_alert(laptop, send.clone());
     wire_intro(laptop, send.clone());
 
+    let home_state = laptop.global::<crate::HomeState>();
+    let s = send.clone();
+    home_state.on_launch_app(move |id| {
+        if let Some(idx) = bridge::site_index_by_id(&id) {
+            s(Command::OpenSite(idx));
+        }
+    });
+    let weak = laptop.as_weak();
+    home_state.on_open_apps_page(move || {
+        if let Some(l) = weak.upgrade() {
+            crate::tv_nav::go_apps(&l);
+        }
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    home_state.on_activate_hero(move || match bridge::hero_action() {
+        bridge::HeroAction::FocusPlayer => {
+            if let Some(l) = weak.upgrade() {
+                let tv = l.global::<crate::TvUi>();
+                tv.set_video_full(true);
+                tv.set_hud_open(true);
+            }
+        }
+        bridge::HeroAction::OpenSite(idx) => s(Command::OpenSite(idx)),
+        bridge::HeroAction::Play(item) => s(Command::Play(item)),
+        bridge::HeroAction::OpenSearch => {
+            if let Some(l) = weak.upgrade() {
+                crate::tv_nav::go_search(&l);
+            }
+        }
+    });
+    let s = send.clone();
+    home_state.on_activate_up_next(move |key| {
+        if let Some(item) = bridge::up_next_item_by_key(&key) {
+            s(Command::Play(item));
+        }
+    });
+    let s = send.clone();
+    home_state.on_activate_just_added(move || {
+        if let Some(item) = bridge::just_added_item() {
+            s(Command::Play(item));
+        }
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    home_state.on_open_game(move |event_id, date| {
+        if let Some(l) = weak.upgrade() {
+            crate::tv_nav::go_sports_game(&l, &event_id, &date);
+        }
+        s(Command::LoadScoreboard {
+            day: date.to_string(),
+            show: "all".into(),
+            final_only: false,
+        });
+    });
+
     let sports = laptop.global::<Sports>();
     let (weak, s) = (laptop.as_weak(), send.clone());
     sports.on_load(move |schedule, page| {
@@ -87,9 +141,58 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
         });
     });
 
-    let s = send.clone();
+    let (weak, s) = (laptop.as_weak(), send.clone());
     scoreboard.on_toggle_star(move |event_id| {
+        if let Some(l) = weak.upgrade() {
+            bridge::optimistic_toggle_star(&l, &event_id);
+        }
         s(Command::ToggleStarGame(event_id.to_string()));
+    });
+
+    let weak = laptop.as_weak();
+    scoreboard.on_prev_day_clicked(move || {
+        if let Some(l) = weak.upgrade() {
+            let sb = l.global::<Scoreboard>();
+            let prev = sb.get_prev_day();
+            if !prev.is_empty() {
+                sb.invoke_load(prev, sb.get_show(), false);
+            }
+        }
+    });
+
+    let weak = laptop.as_weak();
+    scoreboard.on_next_day_clicked(move || {
+        if let Some(l) = weak.upgrade() {
+            let sb = l.global::<Scoreboard>();
+            let next = sb.get_next_day();
+            if !next.is_empty() {
+                sb.invoke_load(next, sb.get_show(), false);
+            }
+        }
+    });
+
+    let weak = laptop.as_weak();
+    scoreboard.on_today_clicked(move || {
+        if let Some(l) = weak.upgrade() {
+            let sb = l.global::<Scoreboard>();
+            sb.invoke_load("".into(), sb.get_show(), false);
+        }
+    });
+
+    let weak = laptop.as_weak();
+    scoreboard.on_set_filter(move |show| {
+        if let Some(l) = weak.upgrade() {
+            let sb = l.global::<Scoreboard>();
+            sb.invoke_load(sb.get_day(), show, false);
+        }
+    });
+
+    let weak = laptop.as_weak();
+    scoreboard.on_refresh(move || {
+        if let Some(l) = weak.upgrade() {
+            let sb = l.global::<Scoreboard>();
+            sb.invoke_load(sb.get_day(), sb.get_show(), false);
+        }
     });
 
     let s = send.clone();
@@ -890,6 +993,7 @@ fn wire_site_editor(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'sta
                 tmdb_providers,
                 hidden: existing.is_some_and(|x| x.hidden),
                 logo: existing.and_then(|x| x.logo.clone()),
+                logo_box: existing.and_then(|x| x.logo_box.clone()),
                 hold_sleep_timer: existing.is_some_and(|x| x.hold_sleep_timer),
             };
             let others: Vec<&StreamingSite> =

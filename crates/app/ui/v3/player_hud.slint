@@ -308,6 +308,28 @@ export component V3PlayerHud inherits Rectangle {
                     clicked => { Dash.transport("next-ep"); }
                 }
             }
+
+            Rectangle {
+                width: 136px * TvUi.u;
+                height: 54px * TvUi.u;
+                border-radius: 14px * TvUi.u;
+                background: #1B1F26;
+                border-width: TvUi.focused-tile == 9 ? 3px : 1px;
+                border-color: TvUi.focused-tile == 9 ? V3Theme.accent : #FFFFFF22;
+                Text {
+                    text: "From start";
+                    font-family: V3Theme.font;
+                    font-size: 17px * TvUi.u;
+                    font-weight: 700;
+                    color: #FFFFFF;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.transport("restart"); }
+                }
+            }
         }
     }
 }
