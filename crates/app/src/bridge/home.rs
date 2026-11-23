@@ -526,6 +526,16 @@ pub fn just_added_item() -> Option<MediaItem> {
     super::STATE.with_borrow(|s| s.just_added_item.clone())
 }
 
+pub fn player_duration_secs() -> Option<u64> {
+    super::STATE.with_borrow(|s| {
+        s.player
+            .as_ref()
+            .and_then(|p| p.duration_ms.or(p.item.duration_ms))
+            .filter(|&d| d > 0)
+            .map(|d| d / 1000)
+    })
+}
+
 pub enum HeroAction {
     FocusPlayer,
     OpenSite(usize),

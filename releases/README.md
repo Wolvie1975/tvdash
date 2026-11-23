@@ -2,10 +2,10 @@
 
 ## 1. Install the RPM
 
-Download `tvdash-0.1.68-1.x86_64.rpm` from this folder, then install it on Fedora (`x86_64`, GNOME Wayland):
+Download `tvdash-0.1.69-1.x86_64.rpm` from this folder, then install it on Fedora (`x86_64`, GNOME Wayland):
 
 ```bash
-sudo dnf install ./tvdash-0.1.68-1.x86_64.rpm
+sudo dnf install ./tvdash-0.1.69-1.x86_64.rpm
 ```
 
 This installs `/usr/bin/tvdash`, the app-menu entry, and pulls in `mpv` and `mpv-libs` automatically.
@@ -52,7 +52,7 @@ sudo dnf install -y brave-browser
     ```
 - **Upgrade later:** Download the newer `.rpm` and run:
   ```bash
-  sudo dnf upgrade ./tvdash-0.1.68-1.x86_64.rpm
+  sudo dnf upgrade ./tvdash-0.1.69-1.x86_64.rpm
   ```
   Your settings (`~/.config/tvdash/`), browser profile (`~/.local/share/tvdash/`), and keyring sign-ins are preserved across upgrades.
 - **Uninstall:**

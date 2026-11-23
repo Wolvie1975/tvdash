@@ -7,10 +7,13 @@ export component TvPlayerHud inherits Rectangle {
     height: 100%;
     background: transparent;
 
-    // Auto-hide after 3.5 s
+    property <bool> scrubbing: false;
+    property <float> scrub-frac: 0.0;
+
+    // Auto-hide after 3.5 s (paused while scrubbing)
     Timer {
         interval: 3.5s;
-        running: TvUi.hud-open;
+        running: TvUi.hud-open && !root.scrubbing;
         triggered => { TvUi.hud-open = false; }
     }
 
@@ -47,22 +50,65 @@ export component TvPlayerHud inherits Rectangle {
             overflow: elide;
         }
 
-        // Progress bar
+        // Scrubbable progress bar
         Rectangle {
             x: 32px * TvUi.u;
-            y: 114px * TvUi.u;
+            y: 103px * TvUi.u;
             width: 1664px * TvUi.u;
-            height: 6px * TvUi.u;
-            border-radius: 3px;
-            background: #FFFFFF26;
+            height: 28px * TvUi.u;
+            background: transparent;
+
+            property <float> shown-frac: clamp(root.scrubbing ? root.scrub-frac : Dash.tv.progress, 0.0, 1.0);
 
             Rectangle {
                 x: 0px;
-                y: 0px;
-                width: parent.width * clamp(Dash.tv.progress, 0.0, 1.0);
-                height: 100%;
-                border-radius: 3px;
-                background: #E8EAED;
+                y: (parent.height - self.height) / 2;
+                width: parent.width;
+                height: (root.scrubbing || tv-scrub-ta.has-hover) ? 10px * TvUi.u : 6px * TvUi.u;
+                border-radius: 5px * TvUi.u;
+                background: #FFFFFF26;
+
+                Rectangle {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width * shown-frac;
+                    height: 100%;
+                    border-radius: 5px * TvUi.u;
+                    background: #E8EAED;
+                }
+            }
+
+            if root.scrubbing || tv-scrub-ta.has-hover: Rectangle {
+                x: clamp(parent.width * shown-frac - self.width / 2, 0px, parent.width - self.width);
+                y: (parent.height - self.height) / 2;
+                width: 18px * TvUi.u;
+                height: 18px * TvUi.u;
+                border-radius: 9px * TvUi.u;
+                background: #FFFFFF;
+                border-width: 2px;
+                border-color: Theme.accent;
+            }
+
+            tv-scrub-ta := TouchArea {
+                mouse-cursor: pointer;
+                pointer-event(event) => {
+                    if event.kind == PointerEventKind.down {
+                        root.scrubbing = true;
+                        root.scrub-frac = clamp(self.mouse-x / self.width, 0.0, 1.0);
+                    } else if event.kind == PointerEventKind.up {
+                        if root.scrubbing {
+                            root.scrubbing = false;
+                            Dash.seek-fraction(clamp(self.mouse-x / self.width, 0.0, 1.0));
+                        }
+                    } else if event.kind == PointerEventKind.cancel {
+                        root.scrubbing = false;
+                    }
+                }
+                moved => {
+                    if root.scrubbing {
+                        root.scrub-frac = clamp(self.mouse-x / self.width, 0.0, 1.0);
+                    }
+                }
             }
         }
 

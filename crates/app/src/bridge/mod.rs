@@ -41,7 +41,8 @@ use crate::image_cache::{BACKDROP_CAP, FixedImageCache, POSTER_CAP, SPORTS_LOGO_
 
 pub use accounts::sync_setup;
 pub use home::{
-    HeroAction, hero_action, just_added_item, row, set_cw_filter, site_index_by_id, up_next, up_next_item_by_key,
+    HeroAction, hero_action, just_added_item, player_duration_secs, row, set_cw_filter, site_index_by_id, up_next,
+    up_next_item_by_key,
 };
 
 pub fn optimistic_toggle_star(laptop: &LaptopWindow, event_id: &str) {

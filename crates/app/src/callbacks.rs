@@ -370,6 +370,13 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         };
         s(cmd);
     });
+    let s = send.clone();
+    dash.on_seek_fraction(move |frac| {
+        if let Some(dur) = bridge::player_duration_secs() {
+            let secs = (frac.clamp(0.0, 1.0) as f64 * dur as f64).round() as u64;
+            s(Command::SeekTo(secs));
+        }
+    });
 
     let (weak, s) = (laptop.as_weak(), send.clone());
     laptop.global::<crate::Display>().on_changed(move || {

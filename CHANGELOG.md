@@ -1,5 +1,9 @@
 # tvdash Changelog
 
+## v0.1.69 — 2026-11-23
+- **Scrubbable video timeline** (`v3/player_hud.slint`, `tv/player_hud.slint`, `state.slint`, `callbacks.rs`, `bridge/home.rs`):
+  - Added click/drag scrubbing on the playback HUD progress bar in both **Blades** and **Classic**, with a hover/drag scrub thumb, live bar preview, auto-hide timer pause while dragging, and `Dash.seek-fraction` → `Command::SeekTo` on release.
+
 ## v0.1.68 — 2026-11-23
 - **Classic Home "Just Added" fallback tile** (`tv/home.slint`, `state.slint`, `bridge/home.rs`, `callbacks.rs`, `tv_nav.rs`):
   - When `Next Game` is not visible, the lower-right `486×290` slot on Classic Home now displays a **Just Added** card for the latest episode or movie added (`recently_added`), with poster, kind badge (`EPISODE` / `MOVIE` / `SERIES`), title, subtitle, meta, and OK/click playback.
