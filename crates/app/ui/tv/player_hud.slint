@@ -183,5 +183,18 @@ export component TvPlayerHud inherits Rectangle {
             activated => { Dash.transport("next-ep"); }
             hovered => { TvUi.focused-tile = 8; }
         }
+
+        IconTile {
+            x: 1392px * TvUi.u;
+            y: 136px * TvUi.u;
+            base-width: 156px * TvUi.u;
+            base-height: 108px * TvUi.u;
+            fill: Theme.surface-raised;
+            icon: "back";
+            label: "From start";
+            focused: TvUi.focused-tile == 9;
+            activated => { Dash.transport("restart"); }
+            hovered => { TvUi.focused-tile = 9; }
+        }
     }
 }

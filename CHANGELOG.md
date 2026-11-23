@@ -1,5 +1,14 @@
 # tvdash Changelog
 
+## v0.1.63 — 2026-11-22
+- **All-app logos & local-only tile icons**:
+  - Replaced boxed TMDB provider icons with cropped, transparent, pre-coloured SVGs for **Apple TV**, **Fandango at Home**, **Hulu**, **Netflix**, **Prime Video**, and **YouTube**, plus transparent PNG for **Disney+** (`#0B2E6B`, `logo-wide = true`) in `assets/logos/` and `brand.rs`.
+  - Removed TMDB provider logo downloads from `watch.rs` so app tiles always use the bundled SVGs/PNG (or explicit `logo` file overrides in `config.toml`).
+- **Collections layout fix** (`v3/collections.slint`, `v3/collection.slint`):
+  - Tuned 7-column Collections grid (`190px` tiles, `210px` step) and 3-column Collection Detail grid (`324px` tiles, `344px` step) so cards stay within the Blades panel without spilling over the right edge.
+- **Playback HUD "From start" button** (`v3/player_hud.slint`, `tv/player_hud.slint`, `tv_nav.rs`):
+  - Added a **From start** control (tile `9`, `Dash.transport("restart")` → `Command::SeekTo(0)`) to both Blades and Classic player HUDs with D-pad navigation.
+
 ## v0.1.62 — 2026-11-22
 - **App logos & tile sizing** (`brand.rs`, `apps.rs`, `config.rs`, `assets/logos/`):
   - Updated cropped pre-coloured SVGs and tile colours for **YouTube TV** (`#000000` / `#FFFFFF`), **YouTube Music** (`#FF0000` / `#FFFFFF`), **Tubi** (`#7408FF` / `#FFF200`), and **Google Meet** (`#000000` / `#FBBC04`).

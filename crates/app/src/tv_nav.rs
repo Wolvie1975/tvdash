@@ -1950,14 +1950,14 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
             return true;
         }
         if tv.get_hud_open() {
-            let cur = tv.get_focused_tile().clamp(0, 8);
+            let cur = tv.get_focused_tile().clamp(0, 9);
             match decode_dir(text) {
                 Some(Dir::Left) => {
                     tv.set_focused_tile((cur - 1).max(0));
                     return true;
                 }
                 Some(Dir::Right) => {
-                    tv.set_focused_tile((cur + 1).min(8));
+                    tv.set_focused_tile((cur + 1).min(9));
                     return true;
                 }
                 _ => {}
@@ -1978,6 +1978,7 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
                     6 => dash.invoke_transport("audio".into()),
                     7 => laptop.global::<SleepState>().invoke_open_picker(),
                     8 => dash.invoke_transport("next-ep".into()),
+                    9 => dash.invoke_transport("restart".into()),
                     _ => {}
                 }
                 return true;

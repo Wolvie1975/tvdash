@@ -29,7 +29,7 @@ pub fn app_tile(site: &StreamingSite, logos: &HashMap<String, Image>) -> AppTile
         .logo_box
         .as_deref()
         .map(|v| v.eq_ignore_ascii_case("wide"))
-        .unwrap_or_else(|| id == "tubi");
+        .unwrap_or_else(|| matches!(id.as_str(), "tubi" | "disney-plus"));
     AppTile {
         id: b.id,
         name: b.name,

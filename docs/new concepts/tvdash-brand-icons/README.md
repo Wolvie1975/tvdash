@@ -1,20 +1,9 @@
-# tvdash brand icons — YouTube TV, YouTube Music, Tubi, Google Meet
+# tvdash app logos
 
-SVGs from Simple Icons v16.38.1 (CC0 for the SVG files). The logos themselves are
-trademarks of Google LLC (YouTube TV, YouTube Music, Google Meet) and Tubi, Inc. (Fox).
-Fine for a personal launcher; don't redistribute tvdash publicly with them without
-checking each brand's guidelines.
+logos/   tile-ready logos (cropped, pre-coloured): SVGs, plus disney-plus.png -> copy into assets/logos/
+mono/    the original single-colour Simple Icons files
+preview.png  Apps page mock-up with every tile
+tvdash-app-logos.md  the spec: colours, config.toml entries, sizing per surface, SVG sources
 
-mono/  single-path glyphs, no fill (inherits currentColor) — 24x24 viewBox
-tile/  same glyphs with the fill colour for the tvdash tile palette below
-
-| id            | Tile fill | Logo fill | Brand hex | Official source |
-|---------------|-----------|-----------|-----------|-----------------|
-| youtube-tv    | #F1F1F1   | #FF0000   | #FF0000   | https://partnermarketinghub.withgoogle.com/#/brands |
-| youtube-music | #FF0000   | #FFFFFF   | #FF0000   | https://partnermarketinghub.withgoogle.com/#/brands |
-| tubi          | #7408FF   | #FFF200   | #7408FF   | https://corporate.tubitv.com (press) |
-| google-meet   | #00897B   | #FFFFFF   | #00897B   | https://about.google/brand-resource-center/logos-list/ |
-
-Full-colour Google Meet logo (four-colour camera): Google Workspace branding ZIP at
-https://support.google.com/a/answer/9212588
-Full-colour YouTube logos: https://www.youtube.com/howyoutubeworks/resources/brand-resources/
+Simple Icons SVGs are CC0 (v16.38.1; Hulu and Prime Video from v7.21.0).
+The logos are trademarks of their owners. Personal use only.

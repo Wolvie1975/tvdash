@@ -79,19 +79,19 @@ export component V3Collections inherits Rectangle {
             background: transparent;
             animate y { duration: 150ms; easing: ease-out; }
 
-            // 7-column poster grid (196 x 284 + title/detail below)
+            // 7-column poster grid (190 x 280 + title/detail below, fits inside 1532 px panel)
             for col[i] in Library.collections: Rectangle {
                 property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == i;
-                x: (40px + Math.mod(i, 7) * 218px) * TvUi.u;
+                x: (40px + Math.mod(i, 7) * 210px) * TvUi.u;
                 y: (12px + Math.floor(i / 7) * 352px) * TvUi.u;
-                width: 198px * TvUi.u;
+                width: 190px * TvUi.u;
                 height: 336px * TvUi.u;
                 background: transparent;
 
                 Rectangle {
                     x: 0;
                     y: 0;
-                    width: 198px * TvUi.u;
+                    width: 190px * TvUi.u;
                     height: 280px * TvUi.u;
                     border-radius: 14px * TvUi.u;
                     clip: true;
