@@ -867,9 +867,9 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 for i in 0..n {
                     rects.push(Rect {
                         x: 96.0 + (i % 8) as f32 * 218.0,
-                        y: 296.0 + (i / 8) as f32 * 276.0,
+                        y: 296.0 + (i / 8) as f32 * 316.0,
                         w: 198.0,
-                        h: 256.0,
+                        h: 300.0,
                     });
                 }
             } else {

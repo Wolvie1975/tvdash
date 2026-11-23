@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.67 — 2026-11-23
+- **Classic MediaTile layout** (`tv/tile.slint`, `tv/library.slint`, `tv_nav.rs`):
+  - Updated Classic `MediaTile` to render the poster on top (without a bottom scrim) and the title + year/subtitle below the poster, matching **Blades** across Library Browse all, Collections, Collection detail, and Search.
+  - Adjusted Classic Library Browse all card height to `300px` (`316px` row pitch) and fixed `"Browse all · On"` / active letter pill text to use `Theme.on-accent`.
+
 ## v0.1.66 — 2026-11-22
 - **Blades Home Apps & Quick Actions swap** (`v3/home.slint`, `tv_nav.rs`):
   - Moved the 8-tile **Apps** area (`7` recent-first + `All apps ›`) into the right rail as a **2×4 stack** (`276px` tiles), and moved **Quick actions** (`Search`, `Screensaver`, `Sleep timer`, `Theme`) to a **1×4 bottom bar** (`349px` tiles), with updated D-pad spatial focus rects.
