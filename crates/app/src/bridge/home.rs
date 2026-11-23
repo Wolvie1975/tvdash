@@ -490,9 +490,40 @@ pub(super) fn refresh_home_state(s: &mut UiState, laptop: &LaptopWindow) {
         .collect();
     s.up_next_items = up_next_items;
 
+    let just_added = recent.into_iter().next();
+    let just_added_card = match &just_added {
+        Some(item) => {
+            let key = (item.source, item.id.clone());
+            let art = s.posters.peek(&key).or_else(|| s.backdrops.peek(&key)).cloned();
+            let kind = match item.kind {
+                MediaKind::Episode => "EPISODE",
+                MediaKind::Series => "SERIES",
+                MediaKind::Movie => "MOVIE",
+                MediaKind::Other => "MEDIA",
+            };
+            crate::JustAddedCard {
+                visible: true,
+                kind: kind.into(),
+                source: item.source.label().to_uppercase().into(),
+                title: item.title.as_str().into(),
+                subtitle: format::item_detail(item).into(),
+                meta: format::item_meta(item).into(),
+                has_art: art.is_some(),
+                art: art.unwrap_or_default(),
+            }
+        }
+        None => crate::JustAddedCard::default(),
+    };
+    s.just_added_item = just_added;
+
     let hs = laptop.global::<crate::HomeState>();
     hs.set_whats_on(whats_on);
     hs.set_up_next(ModelRc::new(VecModel::from(up_next_cards)));
+    hs.set_just_added(just_added_card);
+}
+
+pub fn just_added_item() -> Option<MediaItem> {
+    super::STATE.with_borrow(|s| s.just_added_item.clone())
 }
 
 pub enum HeroAction {

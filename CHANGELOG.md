@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.68 — 2026-11-23
+- **Classic Home "Just Added" fallback tile** (`tv/home.slint`, `state.slint`, `bridge/home.rs`, `callbacks.rs`, `tv_nav.rs`):
+  - When `Next Game` is not visible, the lower-right `486×290` slot on Classic Home now displays a **Just Added** card for the latest episode or movie added (`recently_added`), with poster, kind badge (`EPISODE` / `MOVIE` / `SERIES`), title, subtitle, meta, and OK/click playback.
+  - Updated `"WHAT'S ON · …"` label color in `tv/home.slint` to `Theme.text-secondary` for contrast on light themes like Stone.
+
 ## v0.1.67 — 2026-11-23
 - **Classic MediaTile layout** (`tv/tile.slint`, `tv/library.slint`, `tv_nav.rs`):
   - Updated Classic `MediaTile` to render the poster on top (without a bottom scrim) and the title + year/subtitle below the poster, matching **Blades** across Library Browse all, Collections, Collection detail, and Search.

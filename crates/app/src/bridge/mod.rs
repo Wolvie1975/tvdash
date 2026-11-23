@@ -40,7 +40,9 @@ use tvdash_core::{
 use crate::image_cache::{BACKDROP_CAP, FixedImageCache, POSTER_CAP, SPORTS_LOGO_CAP};
 
 pub use accounts::sync_setup;
-pub use home::{HeroAction, hero_action, row, set_cw_filter, site_index_by_id, up_next, up_next_item_by_key};
+pub use home::{
+    HeroAction, hero_action, just_added_item, row, set_cw_filter, site_index_by_id, up_next, up_next_item_by_key,
+};
 
 pub fn optimistic_toggle_star(laptop: &LaptopWindow, event_id: &str) {
     STATE.with_borrow_mut(|s| {
@@ -115,6 +117,7 @@ pub struct UiState {
     last_played: Option<LastPlayed>,
     hero_item: Option<MediaItem>,
     up_next_items: Vec<MediaItem>,
+    just_added_item: Option<MediaItem>,
     next_game: Option<tvdash_core::events::NextGameDto>,
     /// Last weather and when it arrived; the last fetch error, if the latest fetch failed.
     weather: Option<(Weather, DateTime<Utc>)>,

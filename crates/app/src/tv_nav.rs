@@ -718,6 +718,7 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             let hs = laptop.global::<crate::HomeState>();
             let up_n = hs.get_up_next().row_count().min(4);
             let has_game = hs.get_next_game().visible;
+            let has_bottom_right = has_game || hs.get_just_added().visible;
             let offscreen = Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 };
 
             let mut rects = vec![Rect { x: 342.0, y: 136.0, w: 708.0, h: 590.0 }]; // 0: Hero
@@ -733,8 +734,8 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 }
             }
 
-            // 5: Next Game card
-            rects.push(if has_game {
+            // 5: Next Game (or Just Added fallback) card
+            rects.push(if has_bottom_right {
                 Rect { x: 1338.0, y: 682.0, w: 486.0, h: 290.0 }
             } else {
                 offscreen
@@ -1275,6 +1276,8 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                     let ng = hs.get_next_game();
                     if ng.visible {
                         hs.invoke_open_game(ng.event_id, ng.date);
+                    } else if hs.get_just_added().visible {
+                        hs.invoke_activate_just_added();
                     }
                 }
                 6 => {

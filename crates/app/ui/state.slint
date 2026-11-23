@@ -721,13 +721,26 @@ export struct AppTile {
     text-color: color,
 }
 
+export struct JustAddedCard {
+    visible: bool,
+    kind: string,       // "EPISODE" | "MOVIE" | "SERIES"
+    source: string,     // "PLEX" | "JELLYFIN"
+    title: string,
+    subtitle: string,
+    meta: string,
+    has-art: bool,
+    art: image,
+}
+
 export global HomeState {
     in property <WhatsOn> whats-on;
     in property <[UpNextCard]> up-next;
     in-out property <NextGame> next-game: { visible: false };
+    in property <JustAddedCard> just-added: { visible: false };
     in property <[AppTile]> apps-bar;
     callback activate-hero();
     callback activate-up-next(string);        // key
+    callback activate-just-added();
     callback open-game(string, string);       // event-id, date
     callback launch-app(string);              // id
     callback open-apps-page();

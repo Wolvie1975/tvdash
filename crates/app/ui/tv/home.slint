@@ -38,7 +38,7 @@ export component TvHome inherits Rectangle {
                     font-size: 13px * TvUi.u;
                     font-weight: 700;
                     letter-spacing: 1.2px;
-                    color: #FFFFFF;
+                    color: Theme.text-secondary;
                     wrap: word-wrap;
                 }
 
@@ -608,6 +608,83 @@ export component TvHome inherits Rectangle {
                     font-size: 15px * TvUi.u;
                     color: Theme.text-secondary;
                     overflow: elide;
+                }
+            }
+        }
+
+        // 5 (fallback): Just Added card (latest episode or movie added)
+        if !HomeState.next-game.visible && HomeState.just-added.visible: Tile {
+            x: 1338px * TvUi.u;
+            y: 682px * TvUi.u;
+            base-width: 486px * TvUi.u;
+            base-height: 290px * TvUi.u;
+            fill: Theme.surface;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 5;
+            activated => { HomeState.activate-just-added(); }
+            hovered => { TvUi.tile-hovered(5); }
+
+            HorizontalLayout {
+                padding: 18px * TvUi.u;
+                spacing: 16px * TvUi.u;
+
+                Rectangle {
+                    width: 168px * TvUi.u;
+                    height: 254px * TvUi.u;
+                    border-radius: 10px * TvUi.u;
+                    clip: true;
+                    background: Theme.surface-raised;
+
+                    if HomeState.just-added.has-art: Image {
+                        width: 100%;
+                        height: 100%;
+                        source: HomeState.just-added.art;
+                        image-fit: cover;
+                    }
+                }
+
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 8px * TvUi.u;
+                    alignment: start;
+
+                    Text {
+                        text: HomeState.just-added.source != ""
+                            ? "JUST ADDED · " + HomeState.just-added.kind + " · " + HomeState.just-added.source
+                            : "JUST ADDED · " + HomeState.just-added.kind;
+                        font-size: 13px * TvUi.u;
+                        font-weight: 700;
+                        letter-spacing: 1.2px;
+                        color: Theme.accent;
+                        overflow: elide;
+                    }
+
+                    Text {
+                        text: HomeState.just-added.title;
+                        font-size: 24px * TvUi.u;
+                        font-weight: 700;
+                        color: Theme.text-primary;
+                        wrap: word-wrap;
+                        overflow: elide;
+                    }
+
+                    if HomeState.just-added.subtitle != "": Text {
+                        text: HomeState.just-added.subtitle;
+                        font-size: 17px * TvUi.u;
+                        font-weight: 600;
+                        color: Theme.text-secondary;
+                        wrap: word-wrap;
+                        overflow: elide;
+                    }
+
+                    Rectangle { vertical-stretch: 1; }
+
+                    if HomeState.just-added.meta != "": Text {
+                        text: HomeState.just-added.meta;
+                        font-size: 15px * TvUi.u;
+                        color: Theme.text-muted;
+                        wrap: word-wrap;
+                        overflow: elide;
+                    }
                 }
             }
         }

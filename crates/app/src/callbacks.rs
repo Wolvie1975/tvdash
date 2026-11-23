@@ -89,6 +89,12 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
             s(Command::Play(item));
         }
     });
+    let s = send.clone();
+    home_state.on_activate_just_added(move || {
+        if let Some(item) = bridge::just_added_item() {
+            s(Command::Play(item));
+        }
+    });
     let (weak, s) = (laptop.as_weak(), send.clone());
     home_state.on_open_game(move |event_id, date| {
         if let Some(l) = weak.upgrade() {
