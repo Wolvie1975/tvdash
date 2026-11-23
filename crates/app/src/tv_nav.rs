@@ -351,28 +351,28 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 offscreen
             });
 
-            // 6..=9: Quick actions (Search, Screensaver, Sleep timer, Theme)
-            let qa_y = if has_game { 534.0 } else { 308.0 };
-            let qa_h = if has_game { 262.0 } else { 488.0 };
-            let row_h = (qa_h - 38.0) / 4.0;
+            // 6..=9: Bottom Quick actions bar (Search, Screensaver, Sleep timer, Theme)
             for i in 0..4 {
                 rects.push(Rect {
-                    x: ox + 934.0,
-                    y: oy + qa_y + 10.0 + i as f32 * (row_h + 6.0),
-                    w: 540.0,
-                    h: row_h,
+                    x: ox + 44.0 + i as f32 * 365.0,
+                    y: oy + 850.0,
+                    w: 349.0,
+                    h: 88.0,
                 });
             }
 
-            // 10..=16: Apps bar (7 recent-first)
+            // 10..=16: Right rail Apps 2x4 stack (7 recent-first)
+            let apps_y = if has_game { 534.0 } else { 308.0 };
+            let apps_h = if has_game { 262.0 } else { 488.0 };
+            let tile_h = (apps_h - 36.0) / 4.0;
             let bar_n = hs.get_apps_bar().row_count().min(7);
             for i in 0..7 {
                 if i < bar_n {
                     rects.push(Rect {
-                        x: ox + 44.0 + i as f32 * 182.0,
-                        y: oy + 850.0,
-                        w: 170.0,
-                        h: 88.0,
+                        x: ox + 920.0 + (i % 2) as f32 * 292.0,
+                        y: oy + apps_y + (i / 2) as f32 * (tile_h + 12.0),
+                        w: 276.0,
+                        h: tile_h,
                     });
                 } else {
                     rects.push(offscreen);
@@ -381,10 +381,10 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
 
             // 17: All apps ›
             rects.push(Rect {
-                x: ox + 44.0 + 7.0 * 182.0,
-                y: oy + 850.0,
-                w: 170.0,
-                h: 88.0,
+                x: ox + 920.0 + 292.0,
+                y: oy + apps_y + 3.0 * (tile_h + 12.0),
+                w: 276.0,
+                h: tile_h,
             });
             rects
         }

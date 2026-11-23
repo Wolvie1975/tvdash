@@ -455,21 +455,24 @@ export component TvHome inherits Rectangle {
 
             if app.has-logo: Image {
                 x: (parent.width - self.width) / 2;
-                y: (parent.height - 26px * TvUi.u - self.height) / 2;
+                y: (parent.height - self.height) / 2;
                 width: parent.width * (app.logo-wide ? 0.88 : 0.70);
-                height: parent.height * (app.logo-wide ? 0.50 : 0.42);
+                height: parent.height * (app.logo-wide ? 0.66 : 0.54);
                 source: app.logo;
                 image-fit: contain;
             }
 
-            Text {
+            if !app.has-logo: Text {
                 x: 12px * TvUi.u;
-                y: parent.height - self.height - 8px * TvUi.u;
+                y: 0;
                 width: parent.width - 24px * TvUi.u;
+                height: parent.height;
                 text: app.name;
-                font-size: 15px * TvUi.u;
+                font-size: 18px * TvUi.u;
                 font-weight: 700;
                 color: app.text-color;
+                horizontal-alignment: center;
+                vertical-alignment: center;
                 overflow: elide;
             }
         }

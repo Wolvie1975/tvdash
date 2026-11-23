@@ -1,5 +1,18 @@
 # tvdash Changelog
 
+## v0.1.66 — 2026-11-22
+- **Blades Home Apps & Quick Actions swap** (`v3/home.slint`, `tv_nav.rs`):
+  - Moved the 8-tile **Apps** area (`7` recent-first + `All apps ›`) into the right rail as a **2×4 stack** (`276px` tiles), and moved **Quick actions** (`Search`, `Screensaver`, `Sleep timer`, `Theme`) to a **1×4 bottom bar** (`349px` tiles), with updated D-pad spatial focus rects.
+- **Blades Library Continue Watching margin** (`v3/library.slint`):
+  - Adjusted `shelf1` (`Continue Watching` / `Finish the Season`) to `350px` cards at `366px` step (`1488px` right edge) so all 4 cards stay inside the `1532px` panel.
+
+## v0.1.65 — 2026-11-22
+- **Blades Apps header fix** (`v3/apps.slint`):
+  - Added explicit `height: 52px * TvUi.u` to the **Apps** header `HorizontalLayout` so it stays at the top of the panel instead of being pushed to the bottom edge.
+- **Classic Apps tile parity** (`tv/home.slint`, `tv/apps.slint`):
+  - Removed app names from inside the Classic Home **APPS** tiles and centered the logos (`88% × 66%` wide / `70% × 54%` glyph).
+  - Moved app names below each tile on the Classic **Apps** tab (`Theme.text-primary`) and centered the logos inside `328 × 164` tiles.
+
 ## v0.1.64 — 2026-11-22
 - **Crunchyroll logo sizing**:
   - Cropped `assets/logos/crunchyroll.svg` (`viewBox="20 24 184 42"`) and set `crunchyroll` to `logo_wide = true` (`apps.rs`) so the icon fills tiles cleanly across both Blades and Classic.

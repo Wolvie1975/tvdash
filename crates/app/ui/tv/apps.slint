@@ -45,37 +45,59 @@ export component TvApps inherits Rectangle {
             x: 0;
             y: -TvUi.lib-scroll * TvUi.u;
             width: parent.width;
-            height: (Math.ceil(AppsPage.apps.length / 5) * 212px + 48px) * TvUi.u;
+            height: (Math.ceil(AppsPage.apps.length / 5) * 218px + 48px) * TvUi.u;
             background: transparent;
             animate y { duration: 150ms; easing: ease-out; }
 
-            for app[i] in AppsPage.apps: Tile {
+            for app[i] in AppsPage.apps: Rectangle {
                 x: (96px + Math.mod(i, 5) * 348px) * TvUi.u;
-                y: (6px + Math.floor(i / 5) * 212px) * TvUi.u;
-                base-width: 328px * TvUi.u;
-                base-height: 184px * TvUi.u;
-                fill: app.color;
-                focused: !TvUi.bar-focused && TvUi.focused-tile == i;
-                activated => { HomeState.launch-app(app.id); }
-                hovered => { TvUi.tile-hovered(i); }
+                y: (6px + Math.floor(i / 5) * 218px) * TvUi.u;
+                width: 328px * TvUi.u;
+                height: 204px * TvUi.u;
+                background: transparent;
 
-                if app.has-logo: Image {
-                    x: (parent.width - self.width) / 2;
-                    y: (parent.height - 28px * TvUi.u - self.height) / 2;
-                    width: parent.width * (app.logo-wide ? 0.88 : 0.70);
-                    height: parent.height * (app.logo-wide ? 0.50 : 0.42);
-                    source: app.logo;
-                    image-fit: contain;
+                Tile {
+                    x: 0;
+                    y: 0;
+                    base-width: 328px * TvUi.u;
+                    base-height: 164px * TvUi.u;
+                    fill: app.color;
+                    focused: !TvUi.bar-focused && TvUi.focused-tile == i;
+                    activated => { HomeState.launch-app(app.id); }
+                    hovered => { TvUi.tile-hovered(i); }
+
+                    if app.has-logo: Image {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        width: parent.width * (app.logo-wide ? 0.88 : 0.70);
+                        height: parent.height * (app.logo-wide ? 0.62 : 0.50);
+                        source: app.logo;
+                        image-fit: contain;
+                    }
+
+                    if !app.has-logo: Text {
+                        x: 14px * TvUi.u;
+                        y: 0;
+                        width: parent.width - 28px * TvUi.u;
+                        height: parent.height;
+                        text: app.name;
+                        font-size: 20px * TvUi.u;
+                        font-weight: 700;
+                        color: app.text-color;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                    }
                 }
 
                 Text {
-                    x: 14px * TvUi.u;
-                    y: parent.height - self.height - 10px * TvUi.u;
-                    width: parent.width - 28px * TvUi.u;
+                    x: 4px * TvUi.u;
+                    y: 174px * TvUi.u;
+                    width: parent.width - 8px * TvUi.u;
                     text: app.name;
                     font-size: 18px * TvUi.u;
                     font-weight: 700;
-                    color: app.text-color;
+                    color: Theme.text-primary;
                     overflow: elide;
                 }
             }

@@ -540,174 +540,178 @@ export component V3Home inherits Rectangle {
             }
         }
 
-        // Quick Actions (4 equal rows: 6 Search, 7 Screensaver, 8 Sleep timer, 9 Theme)
+        // ── Right rail: Apps 2×4 stack (10..=16 recent-first + 17 All apps ›) ──
         Rectangle {
-            property <length> qa-y: root.has-game ? 534px * TvUi.u : 308px * TvUi.u;
-            property <length> qa-h: root.has-game ? 262px * TvUi.u : 488px * TvUi.u;
-            property <length> row-h: (self.qa-h - 20px * TvUi.u - 18px * TvUi.u) / 4;
+            property <length> apps-y: root.has-game ? 534px * TvUi.u : 308px * TvUi.u;
+            property <length> apps-h: root.has-game ? 262px * TvUi.u : 488px * TvUi.u;
+            property <length> tile-w: 276px * TvUi.u;
+            property <length> tile-h: (self.apps-h - 36px * TvUi.u) / 4;
 
             x: 920px * TvUi.u;
-            y: self.qa-y;
+            y: self.apps-y;
             width: 568px * TvUi.u;
-            height: self.qa-h;
-            border-radius: 22px * TvUi.u;
-            background: V3Theme.surface;
-            border-width: 1px;
-            border-color: V3Theme.border;
+            height: self.apps-h;
+            background: transparent;
 
-            for row[idx] in [
-                { id: 6, icon: "search", label: "Search", right: "" },
-                { id: 7, icon: "screensaver", label: "Screensaver", right: "" },
-                { id: 8, icon: "moon", label: "Sleep timer", right: SleepState.active ? SleepState.label : "Off" },
-                { id: 9, icon: "sun", label: "Theme", right: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.stone ? "Stone" : "Mist" },
-            ]: Rectangle {
-                property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == row.id;
-                x: 14px * TvUi.u;
-                y: 10px * TvUi.u + idx * (parent.row-h + 6px * TvUi.u);
-                width: parent.width - 28px * TvUi.u;
-                height: parent.row-h;
-                border-radius: 14px * TvUi.u;
-                background: self.is-foc ? V3Theme.surface-raised : (r-ta.has-hover ? V3Theme.surface-raised : transparent);
-                border-width: self.is-foc ? 3px : 0px;
-                border-color: V3Theme.focus-ring;
+            for app[i] in HomeState.apps-bar: Rectangle {
+                visible: i < 7;
+                property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;
 
-                HorizontalLayout {
-                    padding-left: 12px * TvUi.u;
-                    padding-right: 12px * TvUi.u;
-                    spacing: 14px * TvUi.u;
+                x: Math.mod(i, 2) * 292px * TvUi.u;
+                y: Math.floor(i / 2) * (parent.tile-h + 12px * TvUi.u);
+                width: parent.tile-w;
+                height: parent.tile-h;
+                border-radius: 16px * TvUi.u;
+                clip: true;
+                background: app.color;
+                border-width: (self.is-foc || app-bar-ta.has-hover) ? 4px : 1px;
+                border-color: (self.is-foc || app-bar-ta.has-hover) ? V3Theme.focus-ring : #FFFFFF20;
 
-                    Rectangle {
-                        width: 40px * TvUi.u;
-                        height: 40px * TvUi.u;
-                        border-radius: 12px * TvUi.u;
-                        background: V3Theme.surface-raised;
-                        y: (parent.height - self.height) / 2;
-
-                        Icon {
-                            x: (parent.width - self.width) / 2;
-                            y: (parent.height - self.height) / 2;
-                            name: row.icon;
-                            size: 22px * TvUi.u;
-                            tint: V3Theme.text-secondary;
-                        }
-                    }
-
-                    Text {
-                        horizontal-stretch: 1;
-                        text: row.label;
-                        font-family: V3Theme.font;
-                        font-size: 22px * TvUi.u;
-                        font-weight: 800;
-                        color: V3Theme.text-primary;
-                        vertical-alignment: center;
-                    }
-
-                    if row.right != "": Text {
-                        text: row.right;
-                        font-family: V3Theme.font;
-                        font-size: 19px * TvUi.u;
-                        font-weight: 700;
-                        color: V3Theme.text-secondary;
-                        vertical-alignment: center;
-                    }
+                if app.has-logo: Image {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    width: parent.width * (app.logo-wide ? 0.88 : 0.70);
+                    height: parent.height * (app.logo-wide ? 0.66 : 0.54);
+                    source: app.logo;
+                    image-fit: contain;
                 }
 
-                r-ta := TouchArea {
+                if !app.has-logo: Text {
+                    x: 10px * TvUi.u;
+                    width: parent.width - 20px * TvUi.u;
+                    height: parent.height;
+                    text: app.name;
+                    font-family: V3Theme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 900;
+                    color: app.text-color;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                app-bar-ta := TouchArea {
                     mouse-cursor: pointer;
-                    clicked => { TvUi.tile-activated(row.id); }
+                    changed has-hover => {
+                        if self.has-hover {
+                            TvUi.tile-hovered(10 + i);
+                        }
+                    }
+                    clicked => { HomeState.launch-app(app.id); }
+                }
+            }
+
+            // Tile 17: All apps ›
+            Rectangle {
+                property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 17;
+                x: 292px * TvUi.u;
+                y: 3 * (parent.tile-h + 12px * TvUi.u);
+                width: parent.tile-w;
+                height: parent.tile-h;
+                border-radius: 16px * TvUi.u;
+                background: V3Theme.surface-raised;
+                border-width: (self.is-foc || all-apps-ta.has-hover) ? 4px : 2px;
+                border-color: (self.is-foc || all-apps-ta.has-hover) ? V3Theme.focus-ring : V3Theme.border;
+
+                Text {
+                    text: "All apps ›";
+                    font-family: V3Theme.font;
+                    font-size: 21px * TvUi.u;
+                    font-weight: 900;
+                    color: V3Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                all-apps-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    changed has-hover => {
+                        if self.has-hover {
+                            TvUi.tile-hovered(17);
+                        }
+                    }
+                    clicked => { HomeState.open-apps-page(); }
                 }
             }
         }
 
-        // ── Bottom Apps bar (7 recent-first + All apps ›) ────────────────────
+        // ── Bottom Quick Actions bar (6 Search, 7 Screensaver, 8 Sleep timer, 9 Theme) ──
         Text {
             x: 44px * TvUi.u;
             y: 816px * TvUi.u;
-            text: "Apps";
+            text: "Quick actions";
             font-family: V3Theme.font;
             font-size: 22px * TvUi.u;
             font-weight: 900;
             color: V3Theme.text-primary;
         }
 
-        for app[i] in HomeState.apps-bar: Rectangle {
-            visible: i < 7;
-            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 10 + i;
-
-            x: (44px + i * 182px) * TvUi.u;
+        for row[idx] in [
+            { id: 6, icon: "search", label: "Search", right: "" },
+            { id: 7, icon: "screensaver", label: "Screensaver", right: "" },
+            { id: 8, icon: "moon", label: "Sleep timer", right: SleepState.active ? SleepState.label : "Off" },
+            { id: 9, icon: "sun", label: "Theme", right: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.stone ? "Stone" : "Mist" },
+        ]: Rectangle {
+            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == row.id;
+            x: (44px + idx * 365px) * TvUi.u;
             y: 850px * TvUi.u;
-            width: 170px * TvUi.u;
+            width: 349px * TvUi.u;
             height: 88px * TvUi.u;
             border-radius: 16px * TvUi.u;
-            clip: true;
-            background: app.color;
-            border-width: (self.is-foc || app-bar-ta.has-hover) ? 4px : 1px;
-            border-color: (self.is-foc || app-bar-ta.has-hover) ? V3Theme.focus-ring : #FFFFFF20;
+            background: self.is-foc ? V3Theme.surface-raised : (r-ta.has-hover ? V3Theme.surface-raised : V3Theme.surface);
+            border-width: (self.is-foc || r-ta.has-hover) ? 4px : 1px;
+            border-color: (self.is-foc || r-ta.has-hover) ? V3Theme.focus-ring : V3Theme.border;
 
-            if app.has-logo: Image {
-                x: (parent.width - self.width) / 2;
-                y: (parent.height - self.height) / 2;
-                width: parent.width * (app.logo-wide ? 0.88 : 0.70);
-                height: parent.height * (app.logo-wide ? 0.66 : 0.54);
-                source: app.logo;
-                image-fit: contain;
+            HorizontalLayout {
+                padding-left: 16px * TvUi.u;
+                padding-right: 16px * TvUi.u;
+                spacing: 14px * TvUi.u;
+
+                Rectangle {
+                    width: 42px * TvUi.u;
+                    height: 42px * TvUi.u;
+                    border-radius: 12px * TvUi.u;
+                    background: V3Theme.surface-raised;
+                    y: (parent.height - self.height) / 2;
+
+                    Icon {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        name: row.icon;
+                        size: 22px * TvUi.u;
+                        tint: V3Theme.text-secondary;
+                    }
+                }
+
+                Text {
+                    horizontal-stretch: 1;
+                    text: row.label;
+                    font-family: V3Theme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 800;
+                    color: V3Theme.text-primary;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                if row.right != "": Text {
+                    text: row.right;
+                    font-family: V3Theme.font;
+                    font-size: 17px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-secondary;
+                    vertical-alignment: center;
+                }
             }
 
-            if !app.has-logo: Text {
-                x: 10px * TvUi.u;
-                width: parent.width - 20px * TvUi.u;
-                height: parent.height;
-                text: app.name;
-                font-family: V3Theme.font;
-                font-size: 21px * TvUi.u;
-                font-weight: 900;
-                color: app.text-color;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-                overflow: elide;
-            }
-
-            app-bar-ta := TouchArea {
+            r-ta := TouchArea {
                 mouse-cursor: pointer;
                 changed has-hover => {
                     if self.has-hover {
-                        TvUi.tile-hovered(10 + i);
+                        TvUi.tile-hovered(row.id);
                     }
                 }
-                clicked => { HomeState.launch-app(app.id); }
-            }
-        }
-
-        // Tile 17: All apps ›
-        Rectangle {
-            property <bool> is-foc: !TvUi.bar-focused && TvUi.focused-tile == 17;
-            x: (44px + 7 * 182px) * TvUi.u;
-            y: 850px * TvUi.u;
-            width: 170px * TvUi.u;
-            height: 88px * TvUi.u;
-            border-radius: 16px * TvUi.u;
-            background: V3Theme.surface-raised;
-            border-width: (self.is-foc || all-apps-ta.has-hover) ? 4px : 2px;
-            border-color: (self.is-foc || all-apps-ta.has-hover) ? V3Theme.focus-ring : V3Theme.border;
-
-            Text {
-                text: "All apps ›";
-                font-family: V3Theme.font;
-                font-size: 21px * TvUi.u;
-                font-weight: 900;
-                color: V3Theme.text-primary;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-
-            all-apps-ta := TouchArea {
-                mouse-cursor: pointer;
-                changed has-hover => {
-                    if self.has-hover {
-                        TvUi.tile-hovered(17);
-                    }
-                }
-                clicked => { HomeState.open-apps-page(); }
+                clicked => { TvUi.tile-activated(row.id); }
             }
         }
     } // end IntroRise
