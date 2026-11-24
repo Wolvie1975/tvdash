@@ -1,0 +1,460 @@
+import { Library, LibraryLanding, TvUi } from "../state.slint";
+import { PsTheme } from "theme.slint";
+import { PsPillButton } from "buttons.slint";
+import { PsSegmented } from "controls.slint";
+
+// PS5 Library tab (§4).
+export component PsLibrary inherits Rectangle {
+    in property <int> focused-idx: -1;
+    property <int> seg-idx: Library.browse-all ? 2 : (Library.media-tab == "movies" ? 1 : 0);
+
+    // Sub-tabs (y124) + Watching now pill
+    PsSegmented {
+        x: 96px * TvUi.u;
+        y: 124px * TvUi.u;
+        options: ["TV Series", "Movies", "Browse all"];
+        current: root.seg-idx;
+        selected(idx) => {
+            if idx == 0 {
+                Library.browse-all = false;
+                Library.set-media-tab("tv");
+            } else if idx == 1 {
+                Library.browse-all = false;
+                Library.set-media-tab("movies");
+            } else {
+                Library.browse-all = true;
+            }
+        }
+    }
+
+    if LibraryLanding.watching-now-count > 0: Rectangle {
+        x: 640px * TvUi.u;
+        y: 131px * TvUi.u;
+        width: wn-row.preferred-width + 36px * TvUi.u;
+        height: 40px * TvUi.u;
+        border-radius: 20px * TvUi.u;
+        background: PsTheme.glass;
+        wn-row := HorizontalLayout {
+            padding-left: 18px * TvUi.u;
+            padding-right: 18px * TvUi.u;
+            spacing: 10px * TvUi.u;
+            Rectangle {
+                y: 15px * TvUi.u;
+                width: 10px * TvUi.u;
+                height: 10px * TvUi.u;
+                border-radius: 5px * TvUi.u;
+                background: PsTheme.green;
+            }
+            Text {
+                text: "Watching now · " + LibraryLanding.watching-now-count;
+                font-family: PsTheme.font;
+                font-size: 18px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.text;
+                vertical-alignment: center;
+            }
+        }
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { LibraryLanding.open-watching-now(); }
+        }
+    }
+
+    // ── Browse all view ──────────────────────────────────────────────────────
+    if Library.browse-all: Rectangle {
+        x: 0;
+        y: 196px * TvUi.u;
+        width: parent.width;
+        height: parent.height - 196px * TvUi.u;
+
+        HorizontalLayout {
+            x: 96px * TvUi.u;
+            y: 0;
+            spacing: 6px * TvUi.u;
+            for ch in ["All", "#", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]: Rectangle {
+                property <string> val: ch == "All" ? "" : ch;
+                property <bool> is-sel: Library.browse-letter == self.val;
+                width: ch == "All" ? 56px * TvUi.u : 40px * TvUi.u;
+                height: 36px * TvUi.u;
+                border-radius: 18px * TvUi.u;
+                background: self.is-sel ? PsTheme.text : PsTheme.glass;
+                Text {
+                    text: ch;
+                    font-family: PsTheme.font;
+                    font-size: 16px * TvUi.u;
+                    font-weight: 600;
+                    color: parent.is-sel ? PsTheme.on-light : PsTheme.text;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Library.set-browse-letter(parent.val); }
+                }
+            }
+        }
+
+        Flickable {
+            x: 0;
+            y: 56px * TvUi.u;
+            width: parent.width;
+            height: parent.height - 56px * TvUi.u;
+            content-height: Math.max(parent.height - 56px * TvUi.u, (Math.ceil(Library.browse-items.length / 6) * 340px + 120px) * TvUi.u);
+
+            for item[i] in Library.browse-items: Rectangle {
+                property <int> gx: Math.mod(i, 6);
+                property <int> gy: Math.floor(i / 6);
+                x: (96px + self.gx * 292px) * TvUi.u;
+                y: (12px + self.gy * 340px) * TvUi.u;
+                width: 268px * TvUi.u;
+                height: 316px * TvUi.u;
+
+                Rectangle {
+                    width: 268px * TvUi.u;
+                    height: 268px * TvUi.u;
+                    border-radius: 20px * TvUi.u;
+                    background: PsTheme.card;
+                    clip: true;
+                    if item.has-poster: Image {
+                        source: item.poster;
+                        width: parent.width;
+                        height: parent.height;
+                        image-fit: cover;
+                    }
+                }
+                Text {
+                    x: 0;
+                    y: 278px * TvUi.u;
+                    width: 268px * TvUi.u;
+                    text: item.title;
+                    font-family: PsTheme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.text;
+                    overflow: elide;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Library.select("browse", i); }
+                }
+            }
+        }
+    }
+
+    // ── Landing view ─────────────────────────────────────────────────────────
+    if !Library.browse-all: Flickable {
+        x: 0;
+        y: 190px * TvUi.u;
+        width: parent.width;
+        height: parent.height - 190px * TvUi.u;
+        content-height: shelves-col.preferred-height + 420px * TvUi.u;
+
+        // Hero (x96, y0, w1000)
+        VerticalLayout {
+            x: 96px * TvUi.u;
+            y: 0;
+            width: 1000px * TvUi.u;
+            spacing: 10px * TvUi.u;
+
+            Text {
+                text: LibraryLanding.focus.kicker;
+                font-family: PsTheme.font;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.accent;
+                letter-spacing: 1.4px;
+            }
+            Text {
+                text: LibraryLanding.focus.title;
+                font-family: PsTheme.font;
+                font-size: 72px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.text;
+                overflow: elide;
+            }
+            Text {
+                text: LibraryLanding.focus.meta;
+                font-family: PsTheme.font;
+                font-size: 24px * TvUi.u;
+                color: PsTheme.sub;
+                overflow: elide;
+            }
+            Text {
+                height: 68px * TvUi.u;
+                text: LibraryLanding.focus.summary;
+                font-family: PsTheme.font;
+                font-size: 23px * TvUi.u;
+                color: PsTheme.sub;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+            HorizontalLayout {
+                spacing: 16px * TvUi.u;
+                PsPillButton {
+                    label: "▶  Play";
+                    primary: true;
+                    focused: root.focused-idx == 0;
+                    clicked => { Library.play-detail(false); }
+                }
+                PsPillButton {
+                    label: Library.media-tab == "tv" ? "Show page" : "From start";
+                    focused: root.focused-idx == 1;
+                    clicked => {
+                        if Library.media-tab == "tv" {
+                            Library.open-show(Library.detail.show-key);
+                        } else {
+                            Library.play-detail(true);
+                        }
+                    }
+                }
+            }
+        }
+
+        // On this page (right-aligned at 1824, y0)
+        VerticalLayout {
+            x: 1424px * TvUi.u;
+            y: 12px * TvUi.u;
+            width: 400px * TvUi.u;
+            spacing: 10px * TvUi.u;
+            Text {
+                text: "ON THIS PAGE";
+                font-family: PsTheme.font;
+                font-size: 18px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.muted;
+                horizontal-alignment: right;
+                letter-spacing: 1.2px;
+            }
+            Text { text: LibraryLanding.shelf1-title; font-family: PsTheme.font; font-size: 20px * TvUi.u; font-weight: 600; color: PsTheme.text; horizontal-alignment: right; }
+            Text { text: LibraryLanding.shelf2-title; font-family: PsTheme.font; font-size: 20px * TvUi.u; color: PsTheme.muted; horizontal-alignment: right; }
+            if LibraryLanding.shelf3-title != "": Text { text: LibraryLanding.shelf3-title; font-family: PsTheme.font; font-size: 20px * TvUi.u; color: PsTheme.muted; horizontal-alignment: right; }
+        }
+
+        // Shelves
+        shelves-col := VerticalLayout {
+            x: 96px * TvUi.u;
+            y: 340px * TvUi.u;
+            width: 1728px * TvUi.u;
+            spacing: 48px * TvUi.u;
+
+            // Shelf 1
+            if LibraryLanding.shelf1.length > 0: VerticalLayout {
+                spacing: 18px * TvUi.u;
+                Text {
+                    text: LibraryLanding.shelf1-title;
+                    font-family: PsTheme.font;
+                    font-size: 22px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.sub;
+                    letter-spacing: 1.2px;
+                }
+                Rectangle {
+                    property <int> rows: Math.ceil(Math.min(LibraryLanding.shelf1.length, 12) / 6);
+                    height: (self.rows * 240px - 24px) * TvUi.u;
+                    for tile[i] in LibraryLanding.shelf1: Rectangle {
+                        visible: i < 12;
+                        property <int> gx: Math.mod(i, 6);
+                        property <int> gy: Math.floor(i / 6);
+                        property <bool> is-foc: root.focused-idx == 10 + i;
+
+                        x: (self.gx * 292px) * TvUi.u;
+                        y: (self.gy * 240px) * TvUi.u;
+                        width: 268px * TvUi.u;
+                        height: 216px * TvUi.u;
+                        border-radius: 20px * TvUi.u;
+                        background: PsTheme.card;
+                        border-width: self.is-foc ? 4px * TvUi.u : 1px;
+                        border-color: self.is-foc ? PsTheme.text : PsTheme.card-border;
+                        clip: true;
+
+                        if tile.has-art: Image {
+                            source: tile.art;
+                            width: parent.width;
+                            height: parent.height;
+                            image-fit: cover;
+                        }
+                        Rectangle {
+                            width: parent.width;
+                            height: parent.height;
+                            background: PsTheme.scrim-bottom;
+                        }
+                        Text {
+                            x: 16px * TvUi.u;
+                            y: parent.height - 62px * TvUi.u;
+                            width: parent.width - 32px * TvUi.u;
+                            text: tile.title;
+                            font-family: PsTheme.font;
+                            font-size: 20px * TvUi.u;
+                            font-weight: 600;
+                            color: PsTheme.text;
+                            overflow: elide;
+                        }
+                        Text {
+                            x: 16px * TvUi.u;
+                            y: parent.height - 34px * TvUi.u;
+                            width: parent.width - 32px * TvUi.u;
+                            text: tile.right-label;
+                            font-family: PsTheme.font;
+                            font-size: 15px * TvUi.u;
+                            color: PsTheme.muted;
+                            overflow: elide;
+                        }
+                        if tile.progress > 0.0: Rectangle {
+                            x: 0;
+                            y: parent.height - 5px * TvUi.u;
+                            width: parent.width;
+                            height: 5px * TvUi.u;
+                            background: #FFFFFF28;
+                            Rectangle {
+                                width: parent.width * Math.clamp(tile.progress, 0.0, 1.0);
+                                height: parent.height;
+                                background: PsTheme.accent;
+                            }
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Library.select("shelf1", i); }
+                        }
+                    }
+                }
+            }
+
+            // Shelf 2
+            if LibraryLanding.shelf2.length > 0: VerticalLayout {
+                spacing: 18px * TvUi.u;
+                Text {
+                    text: LibraryLanding.shelf2-title;
+                    font-family: PsTheme.font;
+                    font-size: 22px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.sub;
+                    letter-spacing: 1.2px;
+                }
+                Rectangle {
+                    property <int> rows: Math.ceil(Math.min(LibraryLanding.shelf2.length, 12) / 6);
+                    height: (self.rows * 340px - 24px) * TvUi.u;
+                    for tile[i] in LibraryLanding.shelf2: Rectangle {
+                        visible: i < 12;
+                        property <int> gx: Math.mod(i, 6);
+                        property <int> gy: Math.floor(i / 6);
+                        property <bool> is-foc: root.focused-idx == 30 + i;
+
+                        x: (self.gx * 292px) * TvUi.u;
+                        y: (self.gy * 340px) * TvUi.u;
+                        width: 268px * TvUi.u;
+                        height: 316px * TvUi.u;
+
+                        Rectangle {
+                            width: 268px * TvUi.u;
+                            height: 268px * TvUi.u;
+                            border-radius: 20px * TvUi.u;
+                            background: PsTheme.card;
+                            border-width: parent.is-foc ? 4px * TvUi.u : 1px;
+                            border-color: parent.is-foc ? PsTheme.text : PsTheme.card-border;
+                            clip: true;
+
+                            if tile.has-poster: Image {
+                                source: tile.poster;
+                                width: parent.width;
+                                height: parent.height;
+                                image-fit: cover;
+                            }
+                            Rectangle {
+                                x: 12px * TvUi.u;
+                                y: 12px * TvUi.u;
+                                width: 34px * TvUi.u;
+                                height: 34px * TvUi.u;
+                                border-radius: 10px * TvUi.u;
+                                background: PsTheme.accent;
+                                Text {
+                                    text: tile.rank;
+                                    font-family: PsTheme.font;
+                                    font-size: 16px * TvUi.u;
+                                    font-weight: 800;
+                                    color: PsTheme.on-accent;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                        Text {
+                            x: 0;
+                            y: 278px * TvUi.u;
+                            width: 268px * TvUi.u;
+                            text: tile.title;
+                            font-family: PsTheme.font;
+                            font-size: 20px * TvUi.u;
+                            font-weight: 600;
+                            color: PsTheme.text;
+                            overflow: elide;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Library.select("shelf2", i); }
+                        }
+                    }
+                }
+            }
+
+            // Shelf 3
+            if LibraryLanding.shelf3.length > 0: VerticalLayout {
+                spacing: 18px * TvUi.u;
+                Text {
+                    text: LibraryLanding.shelf3-title;
+                    font-family: PsTheme.font;
+                    font-size: 22px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.sub;
+                    letter-spacing: 1.2px;
+                }
+                Rectangle {
+                    property <int> rows: Math.ceil(Math.min(LibraryLanding.shelf3.length, 12) / 6);
+                    height: (self.rows * 340px - 24px) * TvUi.u;
+                    for tile[i] in LibraryLanding.shelf3: Rectangle {
+                        visible: i < 12;
+                        property <int> gx: Math.mod(i, 6);
+                        property <int> gy: Math.floor(i / 6);
+                        property <bool> is-foc: root.focused-idx == 50 + i;
+
+                        x: (self.gx * 292px) * TvUi.u;
+                        y: (self.gy * 340px) * TvUi.u;
+                        width: 268px * TvUi.u;
+                        height: 316px * TvUi.u;
+
+                        Rectangle {
+                            width: 268px * TvUi.u;
+                            height: 268px * TvUi.u;
+                            border-radius: 20px * TvUi.u;
+                            background: PsTheme.card;
+                            border-width: parent.is-foc ? 4px * TvUi.u : 1px;
+                            border-color: parent.is-foc ? PsTheme.text : PsTheme.card-border;
+                            clip: true;
+
+                            if tile.has-poster: Image {
+                                source: tile.poster;
+                                width: parent.width;
+                                height: parent.height;
+                                image-fit: cover;
+                            }
+                        }
+                        Text {
+                            x: 0;
+                            y: 278px * TvUi.u;
+                            width: 268px * TvUi.u;
+                            text: tile.title;
+                            font-family: PsTheme.font;
+                            font-size: 20px * TvUi.u;
+                            font-weight: 600;
+                            color: PsTheme.text;
+                            overflow: elide;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Library.select("shelf3", i); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

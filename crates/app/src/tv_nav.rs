@@ -52,6 +52,7 @@ fn page_name(page: &Page) -> &'static str {
         Page::Sports => "sports",
         Page::Search => "search",
         Page::Settings => "settings",
+        Page::DashboardPicker => "dashboard_picker",
     }
 }
 
@@ -60,6 +61,7 @@ fn hint_for(page: &Page) -> &'static str {
         Page::Home => "OK Select · Back Home · F12 Return from service",
         Page::Apps => "OK Launch app · Back Home",
         Page::Collections => "OK Open collection · Back Home",
+        Page::DashboardPicker => "OK Switch · ‹ › Pick · Back Cancel",
         _ => "OK Select · Back Return",
     }
 }
@@ -227,6 +229,42 @@ pub fn tick(laptop: &LaptopWindow) {
     }
 }
 
+pub fn push_show(laptop: &LaptopWindow) {
+    STATE.with_borrow_mut(|s| {
+        if !matches!(s.shell.current(), Page::Show(_)) {
+            s.shell.push(Page::Show(String::new()));
+        }
+    });
+    sync(laptop);
+}
+
+pub fn push_collection(laptop: &LaptopWindow) {
+    STATE.with_borrow_mut(|s| {
+        if !matches!(s.shell.current(), Page::Collection(_)) {
+            s.shell.push(Page::Collection(String::new()));
+        }
+    });
+    sync(laptop);
+}
+
+pub fn pop_picker(laptop: &LaptopWindow) {
+    STATE.with_borrow_mut(|s| {
+        if matches!(s.shell.current(), Page::DashboardPicker) {
+            s.shell.back();
+        }
+    });
+    sync(laptop);
+}
+
+pub fn open_settings_display_focused_on_picker(laptop: &LaptopWindow) {
+    laptop.global::<TvUi>().set_settings_tab("display".into());
+    STATE.with_borrow_mut(|s| {
+        s.shell.switch_tab(Tab::Settings);
+        s.shell.focused_tile = 13; // Dashboard UI tile in Classic Settings › Display
+    });
+    sync(laptop);
+}
+
 pub fn sync(laptop: &LaptopWindow) {
     let tv = laptop.global::<TvUi>();
     STATE.with_borrow_mut(|s| {
@@ -316,6 +354,235 @@ pub fn sync(laptop: &LaptopWindow) {
         if lib.get_collections().row_count() == 0 && lib.get_media_tab() != "movies" {
             lib.invoke_set_media_tab("movies".into());
         }
+    }
+}
+
+fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
+    match page {
+        Page::Home => {
+            let mut rects = vec![
+                Rect { x: 110.0, y: 420.0, w: 104.0, h: 104.0 }, // 0: Hero Play
+                Rect { x: 340.0, y: 448.0, w: 140.0, h: 46.0 },  // 1: From start
+                Rect { x: 496.0, y: 448.0, w: 72.0, h: 46.0 },   // 2: More
+            ];
+            let hs = laptop.global::<crate::HomeState>();
+            let up_n = hs.get_up_next().row_count().min(4);
+            for i in 0..up_n {
+                let indent = match i { 0 => 120.0, 1 => 70.0, 2 => 40.0, _ => 30.0 };
+                rects.push(Rect { x: 1180.0 + indent, y: 230.0 + i as f32 * 114.0, w: 600.0, h: 104.0 });
+            }
+            if hs.get_next_game().visible || hs.get_just_added().visible {
+                rects.push(Rect { x: 1270.0, y: 700.0, w: 550.0, h: 108.0 });
+            }
+            rects.push(Rect { x: 885.0, y: 790.0, w: 150.0, h: 150.0 }); // Apps dial top node
+            rects
+        }
+        Page::Apps => {
+            let n = laptop.global::<crate::AppsPage>().get_apps().row_count().max(1);
+            (0..n)
+                .map(|i| {
+                    let ang = (i as f32 * 360.0 / n as f32 - 90.0).to_radians();
+                    let cx = 960.0 + 380.0 * ang.cos();
+                    let cy = 590.0 + 380.0 * ang.sin();
+                    Rect { x: cx - 62.0, y: cy - 62.0, w: 124.0, h: 124.0 }
+                })
+                .collect()
+        }
+        Page::Library => {
+            let lib = laptop.global::<Library>();
+            if lib.get_browse_all() {
+                let mut rects = vec![
+                    Rect { x: 110.0, y: 130.0, w: 130.0, h: 46.0 }, // 0: TV Series
+                    Rect { x: 252.0, y: 130.0, w: 110.0, h: 46.0 }, // 1: Movies
+                    Rect { x: 374.0, y: 130.0, w: 140.0, h: 46.0 }, // 2: Browse all
+                    Rect { x: 526.0, y: 130.0, w: 160.0, h: 46.0 }, // 3: Watching now
+                ];
+                for i in 0..28 {
+                    rects.push(Rect {
+                        x: 112.0,
+                        y: 200.0 + i as f32 * 30.0,
+                        w: 124.0,
+                        h: 80.0,
+                    });
+                }
+                let n = laptop.global::<crate::Browse>().get_items().row_count();
+                for i in 0..n {
+                    rects.push(Rect {
+                        x: 290.0 + (i % 6) as f32 * 266.0,
+                        y: 264.0 + (i / 6) as f32 * 274.0,
+                        w: 190.0,
+                        h: 254.0,
+                    });
+                }
+                return rects;
+            }
+            let mut rects = vec![
+                Rect { x: 110.0, y: 420.0, w: 104.0, h: 104.0 }, // 0: Play
+                Rect { x: 340.0, y: 448.0, w: 140.0, h: 46.0 },  // 1: Show page
+            ];
+            let ll = laptop.global::<crate::LibraryLanding>();
+            for i in 0..ll.get_shelf1().row_count().min(4) {
+                let indent = match i { 0 => 130.0, 1 => 70.0, 2 => 36.0, _ => 24.0 };
+                rects.push(Rect { x: 1180.0 + indent, y: 230.0 + i as f32 * 124.0, w: 580.0, h: 112.0 });
+            }
+            rects.push(Rect { x: 880.0, y: 750.0, w: 160.0, h: 160.0 }); // Bottom dial top node
+            rects
+        }
+        Page::Collections => {
+            let n = laptop.global::<crate::Library>().get_collections().row_count();
+            (0..n)
+                .map(|i| {
+                    let col = (i % 6) as f32;
+                    let row = (i / 6) as f32;
+                    Rect { x: 110.0 + col * 284.0, y: 464.0 + row * 296.0, w: 240.0, h: 274.0 }
+                })
+                .collect()
+        }
+        Page::Show(_) => {
+            let sp = laptop.global::<crate::ShowPageState>();
+            let n = sp.get_episodes().row_count().min(24).max(1);
+            (0..n)
+                .map(|i| {
+                    let ang = (i as f32 * 360.0 / n as f32 - 90.0).to_radians();
+                    let cx = 1440.0 + 340.0 * ang.cos();
+                    let cy = 580.0 + 340.0 * ang.sin();
+                    Rect { x: cx - 38.0, y: cy - 38.0, w: 76.0, h: 76.0 }
+                })
+                .collect()
+        }
+        Page::Collection(_) => {
+            let n = laptop.global::<crate::CollectionPageState>().get_items().row_count().min(12);
+            (0..n)
+                .map(|i| Rect { x: 750.0, y: 214.0 + i as f32 * 92.0, w: 1060.0, h: 72.0 })
+                .collect()
+        }
+        Page::Sports => vec![
+            Rect { x: 110.0, y: 130.0, w: 160.0, h: 46.0 },
+            Rect { x: 282.0, y: 130.0, w: 160.0, h: 46.0 },
+            Rect { x: 560.0, y: 220.0, w: 1250.0, h: 250.0 },
+        ],
+        Page::Search => (0..36)
+            .map(|i| {
+                let gx = (i % 6) as f32;
+                let gy = (i / 6) as f32;
+                Rect { x: 110.0 + gx * 108.0, y: 306.0 + gy * 106.0, w: 86.0, h: 86.0 }
+            })
+            .collect(),
+        Page::Settings | Page::DashboardPicker => (0..8)
+            .map(|i| Rect { x: 110.0, y: 196.0 + i as f32 * 88.0, w: 380.0, h: 80.0 })
+            .collect(),
+    }
+}
+
+fn ps5_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
+    match page {
+        Page::Home => vec![
+            Rect { x: 96.0, y: 620.0, w: 220.0, h: 72.0 }, // 0: Primary button
+            Rect { x: 332.0, y: 620.0, w: 200.0, h: 72.0 }, // 1: From start
+            Rect { x: 548.0, y: 620.0, w: 72.0, h: 72.0 },  // 2: More
+        ],
+        Page::Apps => {
+            let n = laptop.global::<crate::AppsPage>().get_apps().row_count();
+            (0..n)
+                .map(|i| {
+                    let col = (i % 6) as f32;
+                    let row = (i / 6) as f32;
+                    Rect {
+                        x: 96.0 + col * 272.0,
+                        y: 196.0 + row * 214.0,
+                        w: 248.0,
+                        h: 186.0,
+                    }
+                })
+                .collect()
+        }
+        Page::Library => {
+            let mut rects = vec![
+                Rect { x: 96.0, y: 420.0, w: 180.0, h: 72.0 }, // 0: Play
+                Rect { x: 292.0, y: 420.0, w: 200.0, h: 72.0 }, // 1: Show / From start
+            ];
+            let ll = laptop.global::<crate::LibraryLanding>();
+            for i in 0..ll.get_shelf1().row_count().min(12) {
+                let col = (i % 6) as f32;
+                let row = (i / 6) as f32;
+                rects.push(Rect {
+                    x: 96.0 + col * 292.0,
+                    y: 570.0 + row * 240.0,
+                    w: 268.0,
+                    h: 216.0,
+                });
+            }
+            rects
+        }
+        Page::Show(_) => vec![
+            Rect { x: 96.0, y: 500.0, w: 260.0, h: 72.0 }, // 0: Resume / Play
+            Rect { x: 372.0, y: 500.0, w: 220.0, h: 72.0 }, // 1: From S1 E1
+        ],
+        Page::Collections => {
+            let n = laptop.global::<Library>().get_collections().row_count();
+            (0..n)
+                .map(|i| {
+                    let col = (i % 6) as f32;
+                    let row = (i / 6) as f32;
+                    Rect {
+                        x: 96.0 + col * 292.0,
+                        y: 478.0 + row * 440.0,
+                        w: 248.0,
+                        h: 416.0,
+                    }
+                })
+                .collect()
+        }
+        Page::Collection(_) => vec![
+            Rect { x: 96.0, y: 540.0, w: 260.0, h: 72.0 }, // 0: Resume
+            Rect { x: 372.0, y: 540.0, w: 200.0, h: 72.0 }, // 1: From start
+        ],
+        Page::Sports => {
+            let groups = laptop.global::<crate::Scoreboard>().get_groups();
+            let mut rects = Vec::new();
+            let mut y = 320.0;
+            for g in 0..groups.row_count() {
+                if let Some(grp) = groups.row_data(g) {
+                    let count = grp.cards.row_count();
+                    for ci in 0..count {
+                        let col = (ci % 3) as f32;
+                        let row = (ci / 3) as f32;
+                        rects.push(Rect {
+                            x: 96.0 + col * 582.0,
+                            y: y + row * 224.0,
+                            w: 562.0,
+                            h: 204.0,
+                        });
+                    }
+                    let rows = count.div_ceil(3) as f32;
+                    y += rows * 224.0 + 48.0;
+                }
+            }
+            if rects.is_empty() {
+                rects.push(Rect { x: 96.0, y: 208.0, w: 240.0, h: 56.0 });
+            }
+            rects
+        }
+        Page::Settings | Page::DashboardPicker => (0..6)
+            .map(|i| Rect {
+                x: 540.0,
+                y: 150.0 + i as f32 * 88.0,
+                w: 1284.0,
+                h: 76.0,
+            })
+            .collect(),
+        Page::Search => (0..36)
+            .map(|i| {
+                let col = (i % 6) as f32;
+                let row = (i / 6) as f32;
+                Rect {
+                    x: 96.0 + col * 94.0,
+                    y: 238.0 + row * 84.0,
+                    w: 84.0,
+                    h: 74.0,
+                }
+            })
+            .collect(),
     }
 }
 
@@ -605,6 +872,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             }
             rects
         }
+        Page::DashboardPicker => vec![],
         Page::Settings => {
             let ox = 364.0;
             let oy = 24.0;
@@ -708,8 +976,15 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             ]
         };
     }
-    if laptop.global::<Display>().get_dashboard_ui() == "blades" {
+    let ui = laptop.global::<Display>().get_dashboard_ui();
+    if ui == "blades" {
         return blades_tile_rects(laptop, page);
+    }
+    if ui == "ps5" {
+        return ps5_tile_rects(laptop, page);
+    }
+    if ui == "orbit" {
+        return orbit_tile_rects(laptop, page);
     }
     let tv = laptop.global::<TvUi>();
     let dash = laptop.global::<Dash>();
@@ -997,6 +1272,17 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 });
             }
             rects
+        }
+        Page::DashboardPicker => {
+            let n = laptop.global::<Display>().get_dashboard_choices().row_count();
+            (0..n)
+                .map(|i| Rect {
+                    x: 96.0 + i as f32 * 436.0,
+                    y: 330.0,
+                    w: 420.0,
+                    h: 600.0,
+                })
+                .collect()
         }
         Page::Settings => {
             // 0..=6: SubTabs (Display, Accounts, Sites, Sports, Server, Diagnostics, What's new)
@@ -1348,6 +1634,15 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             }
             let is_tv = lib.get_media_tab() == "tv";
             if lib.get_browse_all() {
+                if laptop.global::<Display>().get_dashboard_ui() == "orbit" {
+                    let br = laptop.global::<crate::Browse>();
+                    if idx < 32 {
+                        br.invoke_set_letter((idx - 4) as i32);
+                    } else if let Some(item) = br.get_items().row_data(idx - 32) {
+                        br.invoke_activate(item.key);
+                    }
+                    return;
+                }
                 if idx < 32 {
                     let li = idx - 4;
                     let letter = match li {
@@ -1479,6 +1774,12 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 _ => {}
             }
         }
+        Page::DashboardPicker => {
+            let disp = laptop.global::<Display>();
+            if let Some(ch) = disp.get_dashboard_choices().row_data(idx) {
+                disp.invoke_choose_dashboard(ch.id);
+            }
+        }
         Page::Settings => {
             if idx < 7 {
                 let next_tab = match idx {
@@ -1593,8 +1894,16 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                             }
                         }
                         6 => {
-                            let next = if disp.get_dashboard_ui() == "blades" { "classic" } else { "blades" };
-                            disp.invoke_set_dashboard_ui(next.into());
+                            let cur = tvdash_core::config::DashboardUi::parse(&disp.get_dashboard_ui());
+                            let cur_idx = tvdash_core::config::DashboardUi::ALL
+                                .iter()
+                                .position(|&u| u == cur)
+                                .unwrap_or(0);
+                            STATE.with_borrow_mut(|s| {
+                                s.shell.push(Page::DashboardPicker);
+                                s.shell.focused_tile = cur_idx;
+                            });
+                            sync(laptop);
                         }
                         7 => {
                             let sl = laptop.global::<SleepState>();
@@ -2115,6 +2424,8 @@ mod tests {
                     .into_iter()
                     .map(site)
                     .collect(),
+                browse_sort_tv: "title_asc".into(),
+                browse_sort_movies: "title_asc".into(),
             },
         );
         let (tx, rx) = mpsc::channel();

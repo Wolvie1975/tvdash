@@ -1,0 +1,355 @@
+import { ShowPageState, TvUi } from "../state.slint";
+import { OrbitTheme } from "theme.slint";
+import { OrbitPill, OrbitPlay, OrbitRow } from "controls.slint";
+
+// Orbit Show page (§6):
+// Left: Hero (x 110, y 196) + 5-slot Season list (y 588, w 600)
+// Right: Episode ring (centre 1440, 580, r 340), 24 per page, centre episode readout
+export component OrbitShow inherits Rectangle {
+    in-out property <int> focused-ep: 0;
+    in property <bool> focus-in-seasons: false;
+    in property <int> focused-hero-btn: -1;   // 0=play, 1=from-start, 2=more
+    callback open-more();
+
+    property <int> ep-total: ShowPageState.episodes.length;
+    property <int> pages: Math.max(1, Math.ceil(ep-total / 24));
+    property <int> cur-ep: ep-total > 0 ? Math.clamp(focused-ep, 0, ep-total - 1) : 0;
+    property <int> cur-page: Math.floor(cur-ep / 24);
+    property <int> page-first: cur-page * 24;
+    property <int> page-count: Math.min(24, Math.max(0, ep-total - page-first));
+
+    property <int> season-count: ShowPageState.seasons.length;
+    property <int> cur-season-idx: 0;
+    property <int> season-win-start: season-count <= 5 ? 0 : Math.clamp(cur-season-idx - 2, 0, season-count - 5);
+
+    // ── 1. Hero (top-left) ───────────────────────────────────────────────────
+    VerticalLayout {
+        x: 110px * TvUi.u;
+        y: 196px * TvUi.u;
+        width: 720px * TvUi.u;
+        alignment: start;
+        spacing: 12px * TvUi.u;
+
+        Text {
+            text: ShowPageState.meta != "" ? ShowPageState.meta : "TV SERIES";
+            font-family: OrbitTheme.font;
+            font-size: 16px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 2.5px * TvUi.u;
+            color: OrbitTheme.accent;
+            overflow: elide;
+        }
+
+        Text {
+            text: ShowPageState.title;
+            font-family: OrbitTheme.font;
+            font-size: 76px * TvUi.u;
+            font-weight: 700;
+            letter-spacing: -2px * TvUi.u;
+            color: OrbitTheme.text;
+            wrap: word-wrap;
+            overflow: elide;
+        }
+
+        if ShowPageState.summary != "": Text {
+            text: ShowPageState.summary;
+            font-family: OrbitTheme.font;
+            font-size: 18px * TvUi.u;
+            color: OrbitTheme.sub;
+            wrap: word-wrap;
+            max-height: 82px * TvUi.u;
+            overflow: elide;
+        }
+
+        HorizontalLayout {
+            spacing: 18px * TvUi.u;
+            alignment: start;
+            padding-top: 8px * TvUi.u;
+
+            OrbitPlay {
+                focused: focused-hero-btn == 0;
+                activated => { ShowPageState.play-episode(ShowPageState.up-next-key, ShowPageState.can-resume); }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 4px * TvUi.u;
+                Text {
+                    text: ShowPageState.up-next != "" ? ShowPageState.up-next : "Play";
+                    font-family: OrbitTheme.font;
+                    font-size: 22px * TvUi.u;
+                    font-weight: 600;
+                    color: OrbitTheme.text;
+                }
+                if ShowPageState.season-summary-line != "": Text {
+                    text: ShowPageState.season-summary-line;
+                    font-family: OrbitTheme.font;
+                    font-size: 15px * TvUi.u;
+                    color: OrbitTheme.sub;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                OrbitPill {
+                    label: "From start";
+                    focused: focused-hero-btn == 1;
+                    activated => { ShowPageState.play-from-start(); }
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                OrbitPill {
+                    label: "···";
+                    focused: focused-hero-btn == 2;
+                    activated => { root.open-more(); }
+                }
+            }
+        }
+    }
+
+    // ── 2. Season List (bottom-left, 5 slots) ────────────────────────────────
+    HorizontalLayout {
+        x: 110px * TvUi.u;
+        y: 554px * TvUi.u;
+        width: 600px * TvUi.u;
+        spacing: 12px * TvUi.u;
+        alignment: space-between;
+
+        Text {
+            text: "SEASONS";
+            font-family: OrbitTheme.font;
+            font-size: 15px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 2.5px * TvUi.u;
+            color: OrbitTheme.sub;
+            vertical-alignment: center;
+        }
+        Text {
+            text: season-count > 5
+                ? ("Season " + (cur-season-idx + 1) + " of " + season-count + "  ·  ↑ ↓ seasons · → the ring")
+                : "↑ ↓ seasons · → the ring";
+            font-family: OrbitTheme.font;
+            font-size: 14px * TvUi.u;
+            color: OrbitTheme.muted;
+            vertical-alignment: center;
+        }
+    }
+
+    for slot in [0, 1, 2, 3, 4]: Rectangle {
+        property <int> s-idx: season-win-start + slot;
+        visible: s-idx < season-count;
+        property <bool> is-sel: s-idx < season-count && ShowPageState.seasons[s-idx].rating-key == ShowPageState.selected-season;
+        property <bool> at-top-fade: slot == 0 && season-win-start > 0;
+        property <bool> at-bot-fade: slot == 4 && (season-win-start + 5) < season-count;
+
+        x: 110px * TvUi.u;
+        y: (590px + slot * 84px) * TvUi.u;
+        width: 600px * TvUi.u;
+        height: 72px * TvUi.u;
+        opacity: (at-top-fade || at-bot-fade) ? 0.45 : 1.0;
+
+        OrbitRow {
+            width: parent.width;
+            row-height: 72px * TvUi.u;
+            selected: is-sel;
+            focused: focus-in-seasons && is-sel;
+            activated => {
+                if s-idx < season-count {
+                    ShowPageState.select-season(ShowPageState.seasons[s-idx].rating-key);
+                }
+            }
+
+            Rectangle {
+                x: 6px * TvUi.u;
+                y: 4px * TvUi.u;
+                width: 64px * TvUi.u;
+                height: 64px * TvUi.u;
+                border-radius: self.width / 2;
+                border-width: 4px * TvUi.u;
+                border-color: is-sel ? OrbitTheme.accent : OrbitTheme.track;
+                background: OrbitTheme.glass;
+
+                Text {
+                    text: s-idx < season-count ? "S" + ShowPageState.seasons[s-idx].index : "";
+                    font-family: OrbitTheme.font;
+                    font-size: 18px * TvUi.u;
+                    font-weight: 700;
+                    color: OrbitTheme.text;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            Text {
+                x: 86px * TvUi.u;
+                width: 310px * TvUi.u;
+                text: s-idx < season-count ? ShowPageState.seasons[s-idx].title : "";
+                font-family: OrbitTheme.font;
+                font-size: 21px * TvUi.u;
+                font-weight: 600;
+                color: OrbitTheme.text;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            Text {
+                x: 400px * TvUi.u;
+                width: 176px * TvUi.u;
+                text: s-idx < season-count ? ShowPageState.seasons[s-idx].progress : "";
+                font-family: OrbitTheme.font;
+                font-size: 16px * TvUi.u;
+                color: OrbitTheme.sub;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    // ── 3. Episode Ring (right: centre 1440, 580, r 340) ─────────────────────
+    Rectangle {
+        x: 1440px * TvUi.u - 340px * TvUi.u;
+        y: 580px * TvUi.u - 340px * TvUi.u;
+        width: 680px * TvUi.u;
+        height: 680px * TvUi.u;
+        border-radius: self.width / 2;
+        border-width: 8px * TvUi.u;
+        border-color: OrbitTheme.track;
+        background: transparent;
+    }
+
+    // Page indicator if > 24 episodes
+    if pages > 1: Rectangle {
+        x: 1440px * TvUi.u - 44px * TvUi.u;
+        y: 190px * TvUi.u;
+        width: 88px * TvUi.u;
+        height: 36px * TvUi.u;
+        border-radius: self.height / 2;
+        background: OrbitTheme.glass;
+        border-width: 1px;
+        border-color: OrbitTheme.glass-border;
+
+        Text {
+            text: (cur-page + 1) + " of " + pages;
+            font-family: OrbitTheme.font;
+            font-size: 15px * TvUi.u;
+            font-weight: 600;
+            color: OrbitTheme.text;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    // Centre episode readout
+    if ep-total > 0: VerticalLayout {
+        x: 1440px * TvUi.u - 210px * TvUi.u;
+        y: 580px * TvUi.u - 130px * TvUi.u;
+        width: 420px * TvUi.u;
+        height: 260px * TvUi.u;
+        alignment: center;
+        spacing: 8px * TvUi.u;
+
+        Text {
+            text: ShowPageState.episodes[cur-ep].rating-key == ShowPageState.up-next-key
+                ? ("NEXT UP · " + ShowPageState.episodes[cur-ep].num)
+                : ShowPageState.episodes[cur-ep].num;
+            font-family: OrbitTheme.font;
+            font-size: 16px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 2.5px * TvUi.u;
+            color: OrbitTheme.accent;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: ShowPageState.episodes[cur-ep].title;
+            font-family: OrbitTheme.font;
+            font-size: 36px * TvUi.u;
+            font-weight: 700;
+            color: OrbitTheme.text;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+            max-height: 92px * TvUi.u;
+            overflow: elide;
+        }
+        Text {
+            text: ShowPageState.episodes[cur-ep].meta;
+            font-family: OrbitTheme.font;
+            font-size: 16px * TvUi.u;
+            color: OrbitTheme.sub;
+            horizontal-alignment: center;
+        }
+        if ShowPageState.episodes[cur-ep].summary != "": Text {
+            text: ShowPageState.episodes[cur-ep].summary;
+            font-family: OrbitTheme.font;
+            font-size: 17px * TvUi.u;
+            color: OrbitTheme.sub;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+            max-height: 52px * TvUi.u;
+            overflow: elide;
+        }
+    }
+
+    // Episode nodes on the ring (up to 24 per page)
+    for ep[i] in ShowPageState.episodes: ep-node := Rectangle {
+        visible: i >= page-first && i < page-first + page-count;
+        property <int> slot: i - page-first;
+        property <bool> is-next: ep.rating-key == ShowPageState.up-next-key;
+        property <bool> is-foc: (!focus-in-seasons && focused-hero-btn < 0 && cur-ep == i) || ep-ta.has-hover;
+        property <length> sz: (page-count <= 12 ? (is-next ? 132px : 76px) : (is-next ? 112px : 54px)) * TvUi.u;
+        property <angle> ang: page-count > 0 ? (self.slot * 360deg / page-count) - 90deg : -90deg;
+        property <length> cx: 1440px * TvUi.u + 340px * TvUi.u * Math.cos(self.ang);
+        property <length> cy: 580px * TvUi.u + 340px * TvUi.u * Math.sin(self.ang);
+
+        x: self.cx - self.sz / 2;
+        y: self.cy - self.sz / 2;
+        width: self.sz;
+        height: self.sz;
+
+        if ep-node.is-foc: Rectangle {
+            x: -8px * TvUi.u;
+            y: -8px * TvUi.u;
+            width: parent.width + 16px * TvUi.u;
+            height: parent.height + 16px * TvUi.u;
+            border-radius: self.width / 2;
+            border-width: 4px * TvUi.u;
+            border-color: OrbitTheme.text;
+        }
+
+        Rectangle {
+            width: parent.width;
+            height: parent.height;
+            border-radius: self.width / 2;
+            background: ep.watched ? OrbitTheme.accent : OrbitTheme.unwatched;
+            border-width: ep.watched ? 0px : 2px;
+            border-color: #FFFFFF38;
+            clip: true;
+
+            if is-next && ep.has-thumb: Image {
+                source: ep.thumb;
+                width: parent.width;
+                height: parent.height;
+                image-fit: cover;
+            }
+            if !(is-next && ep.has-thumb): Text {
+                text: ep.num;
+                font-family: OrbitTheme.font;
+                font-size: (page-count <= 12 ? 18px : 14px) * TvUi.u;
+                font-weight: 700;
+                color: ep.watched ? OrbitTheme.bg : OrbitTheme.text;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        ep-ta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { ShowPageState.play-episode(ep.rating-key, ep.can-resume); }
+            pointer-event(ev) => {
+                if ev.kind == PointerEventKind.move {
+                    root.focused-ep = i;
+                }
+            }
+        }
+    }
+}

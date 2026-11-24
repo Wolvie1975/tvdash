@@ -27,6 +27,8 @@ fn windows() -> (LaptopWindow, TvWindow) {
                 .into_iter()
                 .map(|name| StreamingSite { url: format!("https://{name}.example"), name, ..Default::default() })
                 .collect(),
+            browse_sort_tv: "title_asc".into(),
+            browse_sort_movies: "title_asc".into(),
         },
     );
     (l, t)

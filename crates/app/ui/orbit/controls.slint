@@ -1,0 +1,358 @@
+import { TvUi } from "../state.slint";
+import { OrbitTheme } from "theme.slint";
+import { OrbitRing } from "ring.slint";
+
+// Pill button (§1.4): primary = text fill / bg ink; secondary = 1px #FFFFFF38 outline.
+// Hover = focus: focus ring drawn as a sibling behind the pill.
+export component OrbitPill inherits Rectangle {
+    in property <string> label;
+    in property <string> badge;
+    in property <bool> primary: false;
+    in property <bool> focused: false;
+    in property <bool> selected: false;
+    in property <color> accent-color: OrbitTheme.accent;
+    in property <length> pill-height: 46px * TvUi.u;
+    in property <length> h-pad: 22px * TvUi.u;
+    callback activated();
+    callback hovered();
+
+    property <bool> active-focus: focused || ta.has-hover;
+
+    width: row.preferred-width + h-pad * 2;
+    height: pill-height;
+
+    if active-focus: Rectangle {
+        x: -9px * TvUi.u;
+        y: -9px * TvUi.u;
+        width: parent.width + 18px * TvUi.u;
+        height: parent.height + 18px * TvUi.u;
+        border-radius: self.height / 2;
+        border-width: 4px * TvUi.u;
+        border-color: OrbitTheme.text;
+        background: transparent;
+    }
+
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: self.height / 2;
+        background: primary ? OrbitTheme.text
+            : selected ? OrbitTheme.row-focus
+            : active-focus ? OrbitTheme.row-focus
+            : OrbitTheme.glass;
+        border-width: primary ? 0px : 1px;
+        border-color: selected ? accent-color : #FFFFFF38;
+        animate background { duration: 120ms; }
+    }
+
+    row := HorizontalLayout {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        spacing: 8px * TvUi.u;
+        alignment: center;
+
+        Text {
+            text: label;
+            font-family: OrbitTheme.font;
+            font-size: 18px * TvUi.u;
+            font-weight: primary ? 600 : 500;
+            color: primary ? OrbitTheme.bg : OrbitTheme.text;
+            vertical-alignment: center;
+        }
+        if badge != "": Text {
+            text: badge;
+            font-family: OrbitTheme.font;
+            font-size: 16px * TvUi.u;
+            font-weight: 500;
+            color: primary ? OrbitTheme.bg : OrbitTheme.text;
+            opacity: 0.7;
+            vertical-alignment: center;
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.activated(); }
+        pointer-event(ev) => {
+            if ev.kind == PointerEventKind.move {
+                root.hovered();
+            }
+        }
+    }
+}
+
+// Round play button (§1.4): 104px, 9px ring = item/show progress, inner 86px text disc with bg ▶.
+export component OrbitPlay inherits Rectangle {
+    in property <string> lit-path;
+    in property <string> unlit-path;
+    in property <color> lit-color: OrbitTheme.accent;
+    in property <bool> focused: false;
+    in property <length> size: 104px * TvUi.u;
+    callback activated();
+    callback hovered();
+
+    property <bool> active-focus: focused || ta.has-hover;
+
+    width: size;
+    height: size;
+
+    if active-focus: Rectangle {
+        x: -9px * TvUi.u;
+        y: -9px * TvUi.u;
+        width: parent.width + 18px * TvUi.u;
+        height: parent.height + 18px * TvUi.u;
+        border-radius: self.width / 2;
+        border-width: 4px * TvUi.u;
+        border-color: OrbitTheme.text;
+        background: transparent;
+    }
+
+    OrbitRing {
+        size: root.size;
+        viewbox-size: 104;
+        thickness: 9px * TvUi.u;
+        lit-path: root.lit-path;
+        unlit-path: root.unlit-path;
+        lit-color: root.lit-color;
+
+        Rectangle {
+            width: parent.width;
+            height: parent.height;
+            border-radius: self.width / 2;
+            background: OrbitTheme.text;
+            drop-shadow-blur: active-focus ? 30px : 0px;
+            drop-shadow-offset-y: active-focus ? 10px : 0px;
+            drop-shadow-color: #000000AA;
+
+            Text {
+                text: "▶";
+                font-size: 28px * TvUi.u;
+                color: OrbitTheme.bg;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.activated(); }
+        pointer-event(ev) => {
+            if ev.kind == PointerEventKind.move {
+                root.hovered();
+            }
+        }
+    }
+}
+
+// 92 × 50 toggle (§1.4): on = accent, bg knob 40.
+export component OrbitToggle inherits Rectangle {
+    in property <bool> checked: false;
+    in property <bool> focused: false;
+    in property <color> accent-color: OrbitTheme.accent;
+    callback toggled();
+    callback hovered();
+
+    property <bool> active-focus: focused || ta.has-hover;
+
+    width: 92px * TvUi.u;
+    height: 50px * TvUi.u;
+
+    if active-focus: Rectangle {
+        x: -9px * TvUi.u;
+        y: -9px * TvUi.u;
+        width: parent.width + 18px * TvUi.u;
+        height: parent.height + 18px * TvUi.u;
+        border-radius: self.height / 2;
+        border-width: 4px * TvUi.u;
+        border-color: OrbitTheme.text;
+        background: transparent;
+    }
+
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: self.height / 2;
+        background: checked ? accent-color : OrbitTheme.track;
+        animate background { duration: 150ms; }
+
+        Rectangle {
+            x: checked ? parent.width - 45px * TvUi.u : 5px * TvUi.u;
+            y: 5px * TvUi.u;
+            width: 40px * TvUi.u;
+            height: 40px * TvUi.u;
+            border-radius: self.width / 2;
+            background: checked ? OrbitTheme.bg : OrbitTheme.text;
+            animate x { duration: 150ms; easing: ease-out; }
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.toggled(); }
+        pointer-event(ev) => {
+            if ev.kind == PointerEventKind.move {
+                root.hovered();
+            }
+        }
+    }
+}
+
+// List row (§1.4): radius = ½ height, row / row-focus, hover = focus.
+export component OrbitRow inherits Rectangle {
+    in property <bool> focused: false;
+    in property <bool> selected: false;
+    in property <length> row-height: 72px * TvUi.u;
+    callback activated();
+    callback hovered();
+
+    property <bool> active-focus: focused || ta.has-hover;
+
+    height: row-height;
+
+    if active-focus: Rectangle {
+        x: -9px * TvUi.u;
+        y: -9px * TvUi.u;
+        width: parent.width + 18px * TvUi.u;
+        height: parent.height + 18px * TvUi.u;
+        border-radius: self.height / 2;
+        border-width: 4px * TvUi.u;
+        border-color: OrbitTheme.text;
+        background: transparent;
+    }
+
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: self.height / 2;
+        background: (active-focus || selected) ? OrbitTheme.row-focus : OrbitTheme.row;
+        border-width: 1px;
+        border-color: (active-focus || selected) ? OrbitTheme.row-focus-border : OrbitTheme.row-border;
+        animate background { duration: 120ms; }
+    }
+
+    @children
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.activated(); }
+        pointer-event(ev) => {
+            if ev.kind == PointerEventKind.move {
+                root.hovered();
+            }
+        }
+    }
+}
+
+// Filter / section bubble (§1.4): circle with count/icon + segmented ring + label to the right.
+export component OrbitBubble inherits Rectangle {
+    in property <string> count-text;
+    in property <string> label;
+    in property <string> meta;
+    in property <bool> has-logo: false;
+    in property <image> logo;
+    in property <string> lit-path;
+    in property <string> unlit-path;
+    in property <color> lit-color: OrbitTheme.accent;
+    in property <color> meta-color: OrbitTheme.sub;
+    in property <length> circle-size: 96px * TvUi.u;
+    in property <bool> selected: false;
+    in property <bool> focused: false;
+    callback activated();
+    callback hovered();
+
+    property <bool> active-focus: focused || ta.has-hover;
+
+    height: circle-size + 12px * TvUi.u;
+
+    if active-focus: Rectangle {
+        x: -9px * TvUi.u;
+        y: -3px * TvUi.u;
+        width: parent.width + 18px * TvUi.u;
+        height: parent.height + 6px * TvUi.u;
+        border-radius: self.height / 2;
+        border-width: 4px * TvUi.u;
+        border-color: OrbitTheme.text;
+        background: transparent;
+    }
+
+    if selected || active-focus: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: self.height / 2;
+        background: active-focus ? OrbitTheme.row-focus : #FFFFFF14;
+    }
+
+    OrbitRing {
+        x: 6px * TvUi.u;
+        y: 6px * TvUi.u;
+        size: circle-size;
+        thickness: 5px * TvUi.u;
+        lit-path: root.lit-path;
+        unlit-path: root.unlit-path;
+        lit-color: root.lit-color;
+
+        Rectangle {
+            width: parent.width;
+            height: parent.height;
+            border-radius: self.width / 2;
+            background: selected ? OrbitTheme.text : OrbitTheme.glass;
+
+            if has-logo: Image {
+                source: logo;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: parent.width * 0.68;
+                height: parent.height * 0.68;
+                image-fit: contain;
+            }
+
+            if !has-logo: Text {
+                text: count-text;
+                font-family: OrbitTheme.font;
+                font-size: 26px * TvUi.u;
+                font-weight: 700;
+                color: selected ? OrbitTheme.bg : OrbitTheme.text;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    VerticalLayout {
+        x: circle-size + 24px * TvUi.u;
+        y: 0;
+        width: max(0px, parent.width - circle-size - 40px * TvUi.u);
+        height: parent.height;
+        alignment: center;
+        spacing: 4px * TvUi.u;
+
+        Text {
+            text: label;
+            font-family: OrbitTheme.font;
+            font-size: 21px * TvUi.u;
+            font-weight: selected ? 700 : 600;
+            color: OrbitTheme.text;
+            overflow: elide;
+        }
+        if meta != "": Text {
+            text: meta;
+            font-family: OrbitTheme.font;
+            font-size: 15px * TvUi.u;
+            color: meta-color;
+            overflow: elide;
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.activated(); }
+        pointer-event(ev) => {
+            if ev.kind == PointerEventKind.move {
+                root.hovered();
+            }
+        }
+    }
+}

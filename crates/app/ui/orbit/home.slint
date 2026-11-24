@@ -1,0 +1,424 @@
+import { Dash, GameState, HomeState, TvUi } from "../state.slint";
+import { OrbitTheme } from "theme.slint";
+import { OrbitPill, OrbitPlay } from "controls.slint";
+
+// Orbit Home page (§3):
+// 1. What's On hero at x 110, y 230 (OrbitPlay + From start + ···)
+// 2. Up next curved column on the right (4 round posters 108px) + Next Game / Just Added capsule
+// 3. Bottom Apps dial (cx 960, cy 1770, r 950, 9.5° steps)
+export component OrbitHome inherits Rectangle {
+    in-out property <int> dial-idx: 0;       // 0..apps-bar.length (last = All apps)
+    in-out property <int> focused-area: 0;   // 0=hero play, 1=from-start, 2=more, 3..6=up-next, 7=next-game/just-added, 8=dial
+    in-out property <int> focused-up-next: 0;
+    callback open-more();
+
+    property <int> dial-count: Math.min(HomeState.apps-bar.length, 7) + 1;
+    property <bool> has-game: HomeState.next-game.visible;
+    property <bool> has-just-added: !has-game && HomeState.just-added.visible;
+
+    // ── 1. What's On Hero (left) ─────────────────────────────────────────────
+    VerticalLayout {
+        x: 110px * TvUi.u;
+        y: 230px * TvUi.u;
+        width: 780px * TvUi.u;
+        alignment: start;
+        spacing: 14px * TvUi.u;
+
+        Text {
+            text: HomeState.whats-on.has-item
+                ? ("WHAT'S ON · " + (HomeState.whats-on.source != "" ? HomeState.whats-on.source : "PLAYING"))
+                : "WHAT'S ON · READY";
+            font-family: OrbitTheme.font;
+            font-size: 17px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 2.5px * TvUi.u;
+            color: OrbitTheme.accent;
+            overflow: elide;
+        }
+
+        Text {
+            text: HomeState.whats-on.has-item ? HomeState.whats-on.title : "Nothing playing right now";
+            font-family: OrbitTheme.font;
+            font-size: 84px * TvUi.u;
+            font-weight: 700;
+            letter-spacing: -2px * TvUi.u;
+            color: OrbitTheme.text;
+            wrap: word-wrap;
+            overflow: elide;
+        }
+
+        if HomeState.whats-on.has-item && HomeState.whats-on.subtitle != "": Text {
+            text: HomeState.whats-on.subtitle;
+            font-family: OrbitTheme.font;
+            font-size: 19px * TvUi.u;
+            color: OrbitTheme.sub;
+            overflow: elide;
+        }
+
+        if HomeState.whats-on.has-item && HomeState.whats-on.plot != "": Text {
+            text: HomeState.whats-on.plot;
+            font-family: OrbitTheme.font;
+            font-size: 19px * TvUi.u;
+            color: OrbitTheme.sub;
+            wrap: word-wrap;
+            max-height: 58px * TvUi.u;
+            overflow: elide;
+        }
+
+        Rectangle { height: 12px * TvUi.u; }
+
+        HorizontalLayout {
+            height: 104px * TvUi.u;
+            spacing: 20px * TvUi.u;
+            alignment: start;
+
+            OrbitPlay {
+                lit-path: HomeState.whats-on.ring-lit;
+                unlit-path: HomeState.whats-on.ring-unlit;
+                focused: root.focused-area == 0;
+                activated => { HomeState.activate-hero(); }
+                hovered => { root.focused-area = 0; }
+            }
+
+            VerticalLayout {
+                height: 104px * TvUi.u;
+                alignment: center;
+                spacing: 4px * TvUi.u;
+
+                Text {
+                    text: HomeState.whats-on.has-item
+                        ? (HomeState.whats-on.progress > 0.0 ? "Resume" : "Play")
+                        : "Search";
+                    font-family: OrbitTheme.font;
+                    font-size: 24px * TvUi.u;
+                    font-weight: 600;
+                    color: OrbitTheme.text;
+                }
+                if HomeState.whats-on.has-item && HomeState.whats-on.status != "": Text {
+                    text: HomeState.whats-on.status;
+                    font-family: OrbitTheme.font;
+                    font-size: 16px * TvUi.u;
+                    color: OrbitTheme.sub;
+                }
+            }
+
+            if HomeState.whats-on.has-item && HomeState.whats-on.progress > 0.0: VerticalLayout {
+                height: 104px * TvUi.u;
+                alignment: center;
+                OrbitPill {
+                    label: "From start";
+                    focused: root.focused-area == 1;
+                    activated => { Dash.transport("restart"); }
+                    hovered => { root.focused-area = 1; }
+                }
+            }
+
+            if HomeState.whats-on.has-item: VerticalLayout {
+                height: 104px * TvUi.u;
+                alignment: center;
+                OrbitPill {
+                    label: "···";
+                    focused: root.focused-area == 2;
+                    activated => { root.open-more(); }
+                    hovered => { root.focused-area = 2; }
+                }
+            }
+        }
+    }
+
+    // ── 2. Up Next Curved Column (right) ─────────────────────────────────────
+    for item[i] in HomeState.up-next: up-row := Rectangle {
+        visible: i < 4;
+        property <length> indent: (i == 0 ? 120px : i == 1 ? 70px : i == 2 ? 40px : 30px) * TvUi.u;
+        property <bool> is-foc: (root.focused-area == 3 + i) || up-ta.has-hover;
+
+        x: 1180px * TvUi.u + self.indent;
+        y: (230px + i * 114px) * TvUi.u;
+        width: 1840px * TvUi.u - self.x;
+        height: 104px * TvUi.u;
+
+        if up-row.is-foc: Rectangle {
+            x: -9px * TvUi.u;
+            y: -7px * TvUi.u;
+            width: parent.width + 18px * TvUi.u;
+            height: parent.height + 14px * TvUi.u;
+            border-radius: self.height / 2;
+            border-width: 4px * TvUi.u;
+            border-color: OrbitTheme.text;
+        }
+
+        Rectangle {
+            width: parent.width;
+            height: parent.height;
+            border-radius: self.height / 2;
+            background: up-row.is-foc ? #1A202CD9 : OrbitTheme.glass;
+        }
+
+        // Round poster 100px
+        Rectangle {
+            x: 2px * TvUi.u;
+            y: 2px * TvUi.u;
+            width: 100px * TvUi.u;
+            height: 100px * TvUi.u;
+            border-radius: self.width / 2;
+            border-width: 4px * TvUi.u;
+            border-color: item.progress > 0.0 ? OrbitTheme.accent : OrbitTheme.track;
+            clip: true;
+
+            if item.has-thumb: Image {
+                source: item.thumb;
+                width: parent.width;
+                height: parent.height;
+                image-fit: cover;
+            }
+        }
+
+        VerticalLayout {
+            x: 128px * TvUi.u;
+            y: 0;
+            width: parent.width - 144px * TvUi.u;
+            height: parent.height;
+            alignment: center;
+            spacing: 4px * TvUi.u;
+
+            Text {
+                text: item.title;
+                font-family: OrbitTheme.font;
+                font-size: 21px * TvUi.u;
+                font-weight: 600;
+                color: OrbitTheme.text;
+                overflow: elide;
+            }
+            Text {
+                text: item.meta;
+                font-family: OrbitTheme.font;
+                font-size: 16px * TvUi.u;
+                color: OrbitTheme.sub;
+                overflow: elide;
+            }
+        }
+
+        up-ta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { HomeState.activate-up-next(item.key); }
+            pointer-event(ev) => {
+                if ev.kind == PointerEventKind.move {
+                    root.focused-area = 3 + i;
+                }
+            }
+        }
+    }
+
+    // Next Game capsule (or Just Added fallback)
+    if has-game || has-just-added: ng-card := Rectangle {
+        property <bool> is-foc: (root.focused-area == 7) || ng-ta.has-hover;
+        x: 1270px * TvUi.u;
+        y: 700px * TvUi.u;
+        width: 550px * TvUi.u;
+        height: 108px * TvUi.u;
+
+        if ng-card.is-foc: Rectangle {
+            x: -9px * TvUi.u;
+            y: -9px * TvUi.u;
+            width: parent.width + 18px * TvUi.u;
+            height: parent.height + 18px * TvUi.u;
+            border-radius: self.height / 2;
+            border-width: 4px * TvUi.u;
+            border-color: OrbitTheme.text;
+        }
+
+        Rectangle {
+            width: parent.width;
+            height: parent.height;
+            border-radius: self.height / 2;
+            background: ng-card.is-foc ? #1A202CD9 : OrbitTheme.glass;
+            border-width: 1px;
+            border-color: OrbitTheme.row-border;
+        }
+
+        if has-game: HorizontalLayout {
+            x: 24px * TvUi.u;
+            y: 0;
+            width: parent.width - 48px * TvUi.u;
+            height: parent.height;
+            spacing: 16px * TvUi.u;
+            alignment: start;
+
+            Rectangle {
+                y: (parent.height - self.height) / 2;
+                width: 68px * TvUi.u;
+                height: 68px * TvUi.u;
+                border-radius: self.width / 2;
+                background: HomeState.next-game.state == GameState.live ? OrbitTheme.live : OrbitTheme.glass;
+                Text {
+                    text: HomeState.next-game.state == GameState.live ? "LIVE" : "GAME";
+                    font-family: OrbitTheme.font;
+                    font-size: 14px * TvUi.u;
+                    font-weight: 700;
+                    color: OrbitTheme.text;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 4px * TvUi.u;
+                Text {
+                    text: HomeState.next-game.away.init + " " + HomeState.next-game.away.score
+                        + "  –  " + HomeState.next-game.home.score + " " + HomeState.next-game.home.init;
+                    font-family: OrbitTheme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 600;
+                    color: OrbitTheme.text;
+                    overflow: elide;
+                }
+                Text {
+                    text: HomeState.next-game.league + " · " + HomeState.next-game.state-text;
+                    font-family: OrbitTheme.font;
+                    font-size: 15px * TvUi.u;
+                    color: HomeState.next-game.state == GameState.live ? OrbitTheme.live : OrbitTheme.sub;
+                    overflow: elide;
+                }
+            }
+        }
+
+        if has-just-added: HorizontalLayout {
+            x: 16px * TvUi.u;
+            y: 0;
+            width: parent.width - 32px * TvUi.u;
+            height: parent.height;
+            spacing: 16px * TvUi.u;
+            alignment: start;
+
+            Rectangle {
+                y: (parent.height - self.height) / 2;
+                width: 80px * TvUi.u;
+                height: 80px * TvUi.u;
+                border-radius: self.width / 2;
+                clip: true;
+                background: OrbitTheme.glass;
+                if HomeState.just-added.has-art: Image {
+                    source: HomeState.just-added.art;
+                    width: parent.width;
+                    height: parent.height;
+                    image-fit: cover;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 4px * TvUi.u;
+                Text {
+                    text: "JUST ADDED · " + HomeState.just-added.kind;
+                    font-family: OrbitTheme.font;
+                    font-size: 14px * TvUi.u;
+                    font-weight: 600;
+                    color: OrbitTheme.accent;
+                }
+                Text {
+                    text: HomeState.just-added.title;
+                    font-family: OrbitTheme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 600;
+                    color: OrbitTheme.text;
+                    overflow: elide;
+                }
+            }
+        }
+
+        ng-ta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => {
+                if has-game {
+                    HomeState.open-game(HomeState.next-game.event-id, HomeState.next-game.date);
+                } else {
+                    HomeState.activate-just-added();
+                }
+            }
+            pointer-event(ev) => {
+                if ev.kind == PointerEventKind.move {
+                    root.focused-area = 7;
+                }
+            }
+        }
+    }
+
+    // ── 3. Bottom Apps Dial (cx 960, cy 1815, r 950, 9.5° steps) ─────────────
+    for slot in [-3, -2, -1, 0, 1, 2, 3]: dial-node := Rectangle {
+        property <int> idx: Math.mod(root.dial-idx + slot + root.dial-count * 4, root.dial-count);
+        property <bool> is-all: self.idx >= Math.min(HomeState.apps-bar.length, 7);
+        property <bool> is-top: slot == 0;
+        property <bool> is-foc: (self.is-top && root.focused-area == 8) || dial-ta.has-hover;
+        property <length> node-sz: (self.is-top ? 150px : self.is-foc ? 124px : 104px) * TvUi.u;
+        property <angle> ang: slot * 9.5deg - 90deg;
+        property <length> cx: parent.width / 2 + 950px * TvUi.u * Math.cos(self.ang);
+        property <length> cy: 1815px * TvUi.u + 950px * TvUi.u * Math.sin(self.ang);
+
+        x: self.cx - self.node-sz / 2;
+        y: self.cy - self.node-sz / 2;
+        width: self.node-sz;
+        height: self.node-sz;
+        animate width, height { duration: 150ms; easing: ease-out; }
+
+        if dial-node.is-foc: Rectangle {
+            x: -9px * TvUi.u;
+            y: -9px * TvUi.u;
+            width: parent.width + 18px * TvUi.u;
+            height: parent.height + 18px * TvUi.u;
+            border-radius: self.width / 2;
+            border-width: 4px * TvUi.u;
+            border-color: OrbitTheme.text;
+        }
+
+        Rectangle {
+            width: parent.width;
+            height: parent.height;
+            border-radius: self.width / 2;
+            background: dial-node.is-all ? OrbitTheme.glass : HomeState.apps-bar[dial-node.idx].color;
+            border-width: dial-node.is-all ? 1px : 0px;
+            border-color: OrbitTheme.glass-border;
+            clip: true;
+
+            if !dial-node.is-all && HomeState.apps-bar[dial-node.idx].has-logo: Image {
+                source: HomeState.apps-bar[dial-node.idx].logo;
+                width: parent.width * 0.68;
+                height: parent.height * 0.60;
+                image-fit: contain;
+            }
+            if !dial-node.is-all && !HomeState.apps-bar[dial-node.idx].has-logo: Text {
+                text: HomeState.apps-bar[dial-node.idx].name;
+                font-family: OrbitTheme.font;
+                font-size: (dial-node.is-top || dial-node.is-foc ? 22px : 15px) * TvUi.u;
+                font-weight: 800;
+                color: HomeState.apps-bar[dial-node.idx].text-color;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                wrap: word-wrap;
+            }
+            if dial-node.is-all: Text {
+                text: "•••";
+                font-size: (dial-node.is-top || dial-node.is-foc ? 28px : 20px) * TvUi.u;
+                color: OrbitTheme.text;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        dial-ta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => {
+                if dial-node.is-all {
+                    HomeState.open-apps-page();
+                } else {
+                    HomeState.launch-app(HomeState.apps-bar[dial-node.idx].id);
+                }
+            }
+            pointer-event(ev) => {
+                if ev.kind == PointerEventKind.move {
+                    root.focused-area = 8;
+                }
+            }
+        }
+    }
+}

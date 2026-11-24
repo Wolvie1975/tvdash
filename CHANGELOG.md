@@ -1,5 +1,18 @@
 # tvdash Changelog
 
+## v0.1.71 — 2026-11-24
+- **Orbit Dashboard UI (`orbit`)** (`crates/app/ui/orbit/`, `crates/app/src/orbit/`, `crates/app/src/bridge/`):
+  - **Orbit: Storm grey background (`#2B313D`):** Replaced Orbit's near-black `#07070A` background with `#2B313D`, updated `muted` to `#9CA3AE`, `accent` to `#8FC1FF`, `row` to `#FFFFFF12` (with `#0B0A12B3` / `#1A202CD9` contrast backing on Home backdrop capsules), lifted glow middle stops, and removed the Orbit theme selector from `OrbitSettings`.
+  - **Orbit Library › Browse all (`orbit/letters.rs`, `bridge/browse.rs`, `orbit/browse.slint`):** Added the 9-slot centered letter rail (`All · # · A–Z`, 300 ms debounced grid reload, wheel-stepped), 6-across 190 px `OrbitRing` poster grid (first 10 `A–Z` on `All`, full list per letter/`#`), `TV Series` / `Movies` switch, per-library persisted `Sort` (`A–Z`, `Z–A`, `Recently added`), and `Genre` filter.
+  - **Orbit Home, Apps, Library & Collections polish:** Wired progress rings to `OrbitPlay` on Home and Library landing, unified full-brightness dials (`parent.width / 2` centering + subtle hover scale-up without overlap), removed `"More shelves"` and the Home dial label, fixed Sports Competitions/Scoreboard featured card to start on the first `"game"` row, fixed Collection click navigation (`push_show` / `push_collection`), `ORDER` header layout, and `watched_count` from `watched_keys`, mounted `TvPlayerHud` on Orbit full-screen video, and centered `OrbitIntro` vertically.
+- **Classic: Choose a dashboard (UI picker)** (`crates/core/src/config.rs`, `crates/app/ui/tv/dashboard_picker.slint`, `crates/app/src/bridge/display.rs`, `crates/app/src/callbacks.rs`, `crates/app/src/tv_nav.rs`):
+  - Replaced the Classic `Dashboard UI` toggle with the 4-tile **Choose a dashboard** sub-page (`DashboardUi::ALL`), direct `set_dashboard_ui`, shape previews, `✓ Current` / `OK · Switch to <name>` chips, and toast feedback.
+
+## v0.1.70 — 2026-11-23
+- **PS5 Dashboard UI (`ps5`)** (`crates/core/src/config.rs`, `crates/app/src/ps5/`, `crates/app/src/intro.rs`, `crates/app/src/tv_nav.rs`, `crates/app/ui/ps5/`):
+  - Added `DashboardUi::Ps5` (`"ps5"`, `PS5 · header tabs · app row`) alongside **Classic** and **Blades** across `Settings › Display` in all UIs, `laptop.slint`, and `sports_alert.slint`.
+  - Built the PS5 shell (`Ps5Shell`, `PsTheme`, `PsRowTile`, `PsPillButton`, `PsIconButton`, `PsSegmented`, `PsToggle`, `PsIntro`), header tabs + quick actions, and full page set (`PsHome`, `PsApps`, `PsLibrary`, `PsShow` + `PsSeasonPicker` with §5.1 stacking, `PsSports` + `PsBoxScore` + `PsCompetitions`, `PsCollections` + `PsCollection`, `PsSearch`, and `PsSettings`).
+
 ## v0.1.69 — 2026-11-23
 - **Scrubbable video timeline** (`v3/player_hud.slint`, `tv/player_hud.slint`, `state.slint`, `callbacks.rs`, `bridge/home.rs`):
   - Added click/drag scrubbing on the playback HUD progress bar in both **Blades** and **Classic**, with a hover/drag scrub thumb, live bar preview, auto-hide timer pause while dragging, and `Dash.seek-fraction` → `Command::SeekTo` on release.

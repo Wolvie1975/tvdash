@@ -185,7 +185,7 @@ export component TvSettings inherits Rectangle {
             base-height: 220px * TvUi.u;
             fill: Theme.surface;
             label: "Dashboard UI";
-            value: Display.dashboard-ui == "blades" ? "Blades · side tabs" : "Classic · top tabs";
+            value: Display.dashboard-ui-label;
             focused: !TvUi.bar-focused && TvUi.focused-tile == 13;
             activated => { TvUi.tile-activated(13); }
             hovered => { TvUi.tile-hovered(13); }

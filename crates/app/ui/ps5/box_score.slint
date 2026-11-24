@@ -1,0 +1,121 @@
+import { ScoreCard, ScoreEmphasis, ScoreSide, ScoreTone, TvUi } from "../state.slint";
+import { PsTheme } from "theme.slint";
+
+component PsBoxScoreRow inherits HorizontalLayout {
+    in property <ScoreSide> side;
+    in property <bool> show-periods: true;
+
+    height: 34px * TvUi.u;
+    spacing: 8px * TvUi.u;
+
+    Text {
+        width: 30px * TvUi.u;
+        text: root.side.rank;
+        font-family: PsTheme.font;
+        font-size: 15px * TvUi.u;
+        font-weight: 800;
+        color: PsTheme.muted;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+    }
+
+    Rectangle {
+        y: 2px * TvUi.u;
+        width: 30px * TvUi.u;
+        height: 30px * TvUi.u;
+        border-radius: 8px * TvUi.u;
+        background: #2C313A;
+        clip: true;
+        if root.side.has-logo: Image {
+            source: root.side.logo;
+            width: 24px * TvUi.u;
+            height: 24px * TvUi.u;
+            image-fit: contain;
+        }
+        if !root.side.has-logo: Text {
+            text: root.side.initials;
+            font-family: PsTheme.font;
+            font-size: 12px * TvUi.u;
+            font-weight: 800;
+            color: PsTheme.text;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    Text {
+        horizontal-stretch: 1;
+        text: root.side.short != "" ? root.side.short : root.side.full;
+        font-family: PsTheme.font;
+        font-size: 20px * TvUi.u;
+        font-weight: root.side.emphasis == ScoreEmphasis.lead ? 800 : 600;
+        color: root.side.emphasis == ScoreEmphasis.lead ? PsTheme.text : PsTheme.sub;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    if root.show-periods: HorizontalLayout {
+        spacing: 4px * TvUi.u;
+        for p in root.side.periods: Text {
+            width: 24px * TvUi.u;
+            text: p;
+            font-family: PsTheme.font;
+            font-size: 16px * TvUi.u;
+            font-weight: 600;
+            color: PsTheme.muted;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    Text {
+        width: 44px * TvUi.u;
+        text: root.side.total;
+        font-family: PsTheme.font;
+        font-size: 26px * TvUi.u;
+        font-weight: root.side.emphasis == ScoreEmphasis.lead ? 800 : 600;
+        color: root.side.emphasis == ScoreEmphasis.lead ? PsTheme.text : PsTheme.sub;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+    }
+}
+
+// PsBoxScore (§6.4)
+export component PsBoxScore inherits VerticalLayout {
+    in property <ScoreCard> card;
+
+    spacing: 8px * TvUi.u;
+
+    if root.card.period-labels.length > 0: HorizontalLayout {
+        height: 18px * TvUi.u;
+        spacing: 8px * TvUi.u;
+        Rectangle { horizontal-stretch: 1; }
+        for lbl in root.card.period-labels: Text {
+            width: 24px * TvUi.u;
+            text: lbl;
+            font-family: PsTheme.font;
+            font-size: 13px * TvUi.u;
+            font-weight: 700;
+            color: PsTheme.muted;
+            horizontal-alignment: center;
+        }
+        Text {
+            width: 44px * TvUi.u;
+            text: "T";
+            font-family: PsTheme.font;
+            font-size: 13px * TvUi.u;
+            font-weight: 700;
+            color: PsTheme.muted;
+            horizontal-alignment: right;
+        }
+    }
+
+    PsBoxScoreRow {
+        side: root.card.away;
+        show-periods: root.card.tone != ScoreTone.upcoming;
+    }
+    PsBoxScoreRow {
+        side: root.card.home;
+        show-periods: root.card.tone != ScoreTone.upcoming;
+    }
+}

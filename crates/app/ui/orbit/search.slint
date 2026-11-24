@@ -1,0 +1,350 @@
+import { TvUi, Watch } from "../state.slint";
+import { OrbitTheme } from "theme.slint";
+import { OrbitPill, OrbitRow, OrbitToggle } from "controls.slint";
+
+// Orbit Search (§9):
+// Green section tint (#7EE0B0); 6x6 round keys (86px, gap 22) + Space/Delete/Clear;
+// Right side: "Only what I can watch now" OrbitToggle + grouped vertical results.
+export component OrbitSearch inherits Rectangle {
+    in-out property <int> focused-key: 0; // 0..35 = grid, 36=Space, 37=Delete, 38=Clear
+    in property <bool> focus-in-results: false;
+    in-out property <int> focused-result: 0;
+
+    // Green glow
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: @radial-gradient(circle, #3D5A3445 0%, #33433A28 45%, #2B313D00 80%);
+    }
+
+    // Query capsule (x 110, y 196, 650 x 76)
+    Rectangle {
+        x: 110px * TvUi.u;
+        y: 196px * TvUi.u;
+        width: 650px * TvUi.u;
+        height: 76px * TvUi.u;
+        border-radius: self.height / 2;
+        background: OrbitTheme.glass;
+        border-width: 2px;
+        border-color: #FFFFFF38;
+
+        HorizontalLayout {
+            x: 24px * TvUi.u;
+            width: parent.width - 48px * TvUi.u;
+            height: parent.height;
+            spacing: 14px * TvUi.u;
+
+            Text {
+                text: "⌕";
+                font-size: 26px * TvUi.u;
+                color: OrbitTheme.search-accent;
+                vertical-alignment: center;
+            }
+            Text {
+                text: Watch.query != "" ? Watch.query : "Search movies, shows…";
+                font-family: OrbitTheme.font;
+                font-size: 28px * TvUi.u;
+                font-weight: 500;
+                color: Watch.query != "" ? OrbitTheme.text : OrbitTheme.muted;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+    }
+
+    // 6x6 round keys (86px, gap 22) at x 110, y 306
+    for ch[ki] in [
+        "a", "b", "c", "d", "e", "f",
+        "g", "h", "i", "j", "k", "l",
+        "m", "n", "o", "p", "q", "r",
+        "s", "t", "u", "v", "w", "x",
+        "y", "z", "1", "2", "3", "4",
+        "5", "6", "7", "8", "9", "0",
+    ]: key-node := Rectangle {
+        property <int> gx: Math.mod(ki, 6);
+        property <int> gy: Math.floor(ki / 6);
+        property <bool> is-foc: (!focus-in-results && focused-key == ki) || k-ta.has-hover;
+
+        x: (110px + self.gx * 108px) * TvUi.u;
+        y: (306px + self.gy * 106px) * TvUi.u;
+        width: 86px * TvUi.u;
+        height: 86px * TvUi.u;
+
+        if key-node.is-foc: Rectangle {
+            x: -7px * TvUi.u;
+            y: -7px * TvUi.u;
+            width: parent.width + 14px * TvUi.u;
+            height: parent.height + 14px * TvUi.u;
+            border-radius: self.width / 2;
+            border-width: 4px * TvUi.u;
+            border-color: OrbitTheme.text;
+        }
+
+        Rectangle {
+            width: parent.width;
+            height: parent.height;
+            border-radius: self.width / 2;
+            background: key-node.is-foc ? OrbitTheme.text : OrbitTheme.glass;
+            border-width: 1px;
+            border-color: OrbitTheme.glass-border;
+
+            Text {
+                text: ch;
+                font-family: OrbitTheme.font;
+                font-size: 26px * TvUi.u;
+                font-weight: 600;
+                color: key-node.is-foc ? OrbitTheme.bg : OrbitTheme.text;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        k-ta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => {
+                Watch.query = Watch.query + ch;
+                Watch.edited(Watch.query);
+            }
+            pointer-event(ev) => {
+                if ev.kind == PointerEventKind.move {
+                    root.focused-key = ki;
+                }
+            }
+        }
+    }
+
+    // Space · Delete · Clear (y 964)
+    HorizontalLayout {
+        x: 110px * TvUi.u;
+        y: 964px * TvUi.u;
+        spacing: 14px * TvUi.u;
+
+        OrbitPill {
+            label: "Space";
+            pill-height: 54px * TvUi.u;
+            focused: !focus-in-results && focused-key == 36;
+            activated => {
+                Watch.query = Watch.query + " ";
+                Watch.edited(Watch.query);
+            }
+        }
+        OrbitPill {
+            label: "Delete";
+            pill-height: 54px * TvUi.u;
+            focused: !focus-in-results && focused-key == 37;
+            activated => {
+                if Watch.query != "" {
+                    Watch.search(Watch.query);
+                }
+            }
+        }
+        OrbitPill {
+            label: "Clear";
+            pill-height: 54px * TvUi.u;
+            focused: !focus-in-results && focused-key == 38;
+            activated => {
+                Watch.query = "";
+                Watch.edited("");
+            }
+        }
+    }
+
+    // Right side: Filter toggle + Results (x 860, y 200, w 950)
+    HorizontalLayout {
+        x: 860px * TvUi.u;
+        y: 204px * TvUi.u;
+        width: 950px * TvUi.u;
+        alignment: space-between;
+
+        Text {
+            text: "Only what I can watch now";
+            font-family: OrbitTheme.font;
+            font-size: 20px * TvUi.u;
+            font-weight: 600;
+            color: OrbitTheme.text;
+            vertical-alignment: center;
+        }
+        OrbitToggle {
+            checked: Watch.only-now;
+            accent-color: OrbitTheme.search-accent;
+            toggled => {
+                Watch.only-now = !Watch.only-now;
+                if Watch.query != "" {
+                    Watch.search(Watch.query);
+                }
+            }
+        }
+    }
+
+    if Watch.message != "": Text {
+        x: 860px * TvUi.u;
+        y: 284px * TvUi.u;
+        text: Watch.message;
+        font-family: OrbitTheme.font;
+        font-size: 18px * TvUi.u;
+        color: OrbitTheme.sub;
+    }
+
+    Flickable {
+        x: 850px * TvUi.u;
+        y: 280px * TvUi.u;
+        width: 970px * TvUi.u;
+        height: parent.height - 310px * TvUi.u;
+        content-height: (Watch.library.length + Watch.included.length + Watch.extra.length + Watch.none.length) * 100px * TvUi.u + 160px * TvUi.u;
+
+        VerticalLayout {
+            x: 10px * TvUi.u;
+            width: 950px * TvUi.u;
+            spacing: 12px * TvUi.u;
+
+            if Watch.library.length > 0: Text {
+                text: "IN YOUR LIBRARY · Plays on Plex";
+                font-family: OrbitTheme.font;
+                font-size: 14px * TvUi.u;
+                font-weight: 600;
+                letter-spacing: 2px * TvUi.u;
+                color: #E5A00D;
+            }
+            for card in Watch.library: OrbitRow {
+                width: 950px * TvUi.u;
+                row-height: 88px * TvUi.u;
+                activated => { Watch.select(card.key); }
+
+                Rectangle {
+                    x: 8px * TvUi.u;
+                    y: 8px * TvUi.u;
+                    width: 72px * TvUi.u;
+                    height: 72px * TvUi.u;
+                    border-radius: self.width / 2;
+                    clip: true;
+                    background: OrbitTheme.glass;
+                    if card.has-poster: Image { source: card.poster; width: parent.width; height: parent.height; image-fit: cover; }
+                }
+                VerticalLayout {
+                    x: 96px * TvUi.u;
+                    width: 640px * TvUi.u;
+                    height: parent.height;
+                    alignment: center;
+                    Text { text: card.title; font-family: OrbitTheme.font; font-size: 20px * TvUi.u; font-weight: 600; color: OrbitTheme.text; overflow: elide; }
+                    Text { text: card.meta; font-family: OrbitTheme.font; font-size: 15px * TvUi.u; color: OrbitTheme.sub; overflow: elide; }
+                }
+                Text {
+                    x: 740px * TvUi.u;
+                    width: 190px * TvUi.u;
+                    text: card.line;
+                    font-family: OrbitTheme.font;
+                    font-size: 14px * TvUi.u;
+                    font-weight: 600;
+                    color: #E5A00D;
+                    horizontal-alignment: right;
+                    vertical-alignment: center;
+                }
+            }
+
+            if Watch.included.length > 0: Text {
+                text: "INCLUDED WITH YOUR APPS";
+                font-family: OrbitTheme.font;
+                font-size: 14px * TvUi.u;
+                font-weight: 600;
+                letter-spacing: 2px * TvUi.u;
+                color: #30D158;
+            }
+            for card in Watch.included: OrbitRow {
+                width: 950px * TvUi.u;
+                row-height: 88px * TvUi.u;
+                activated => { Watch.select(card.key); }
+                Rectangle {
+                    x: 8px * TvUi.u;
+                    y: 8px * TvUi.u;
+                    width: 72px * TvUi.u;
+                    height: 72px * TvUi.u;
+                    border-radius: self.width / 2;
+                    clip: true;
+                    background: OrbitTheme.glass;
+                    if card.has-poster: Image { source: card.poster; width: parent.width; height: parent.height; image-fit: cover; }
+                }
+                VerticalLayout {
+                    x: 96px * TvUi.u;
+                    width: 640px * TvUi.u;
+                    height: parent.height;
+                    alignment: center;
+                    Text { text: card.title; font-family: OrbitTheme.font; font-size: 20px * TvUi.u; font-weight: 600; color: OrbitTheme.text; overflow: elide; }
+                    Text { text: card.meta; font-family: OrbitTheme.font; font-size: 15px * TvUi.u; color: OrbitTheme.sub; overflow: elide; }
+                }
+                Text {
+                    x: 740px * TvUi.u;
+                    width: 190px * TvUi.u;
+                    text: card.line;
+                    font-family: OrbitTheme.font;
+                    font-size: 14px * TvUi.u;
+                    font-weight: 600;
+                    color: #30D158;
+                    horizontal-alignment: right;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+
+    // Detail sheet (radius 48)
+    if Watch.detail-open: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: #2B313DE0;
+
+        Rectangle {
+            x: (parent.width - 960px * TvUi.u) / 2;
+            y: (parent.height - 540px * TvUi.u) / 2;
+            width: 960px * TvUi.u;
+            height: 540px * TvUi.u;
+            border-radius: 48px * TvUi.u;
+            background: #121319;
+            border-width: 1px;
+            border-color: OrbitTheme.glass-border;
+
+            VerticalLayout {
+                x: 48px * TvUi.u;
+                y: 44px * TvUi.u;
+                width: parent.width - 96px * TvUi.u;
+                spacing: 16px * TvUi.u;
+
+                Text {
+                    text: Watch.detail.title;
+                    font-family: OrbitTheme.font;
+                    font-size: 42px * TvUi.u;
+                    font-weight: 700;
+                    color: OrbitTheme.text;
+                    overflow: elide;
+                }
+                Text {
+                    text: Watch.detail.meta + " · " + Watch.detail.line;
+                    font-family: OrbitTheme.font;
+                    font-size: 18px * TvUi.u;
+                    color: OrbitTheme.search-accent;
+                }
+                if Watch.detail-overview != "": Text {
+                    text: Watch.detail-overview;
+                    font-family: OrbitTheme.font;
+                    font-size: 18px * TvUi.u;
+                    color: OrbitTheme.sub;
+                    wrap: word-wrap;
+                    max-height: 150px * TvUi.u;
+                    overflow: elide;
+                }
+                HorizontalLayout {
+                    spacing: 12px * TvUi.u;
+                    padding-top: 16px * TvUi.u;
+                    for act in Watch.detail-actions: OrbitPill {
+                        label: act.label;
+                        primary: act.primary;
+                        activated => { Watch.action(act); }
+                    }
+                    OrbitPill {
+                        label: "Close";
+                        activated => { Watch.close-detail(); }
+                    }
+                }
+            }
+        }
+    }
+}

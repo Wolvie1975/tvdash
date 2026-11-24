@@ -1,0 +1,314 @@
+import { Scoreboard, ScoreTone, TvUi } from "../state.slint";
+import { PsTheme } from "theme.slint";
+import { PsPillButton } from "buttons.slint";
+import { PsCard, PsSegmented } from "controls.slint";
+import { PsBoxScore } from "box_score.slint";
+import { PsCompetitions } from "competitions.slint";
+
+// PS5 Sports tab (§6):
+// Fixed bg + KU blue (#0051BA40) top-left & red (#E8000D2E) top-right glows.
+// Sub-switch y130: PsSegmented Competitions | Scoreboard.
+export component PsSports inherits Rectangle {
+    in property <int> focused-card: -1;
+    in-out property <bool> sport-filter-open: false;
+
+    // Soft team glows
+    Rectangle {
+        x: -200px * TvUi.u;
+        y: -200px * TvUi.u;
+        width: 900px * TvUi.u;
+        height: 700px * TvUi.u;
+        border-radius: 450px * TvUi.u;
+        background: #0051BA40;
+    }
+    Rectangle {
+        x: parent.width - 700px * TvUi.u;
+        y: -200px * TvUi.u;
+        width: 900px * TvUi.u;
+        height: 700px * TvUi.u;
+        border-radius: 450px * TvUi.u;
+        background: #E8000D2E;
+    }
+
+    PsSegmented {
+        x: 96px * TvUi.u;
+        y: 130px * TvUi.u;
+        options: ["Competitions", "Scoreboard"];
+        current: TvUi.sports-tab == "scoreboard" ? 1 : 0;
+        selected(idx) => {
+            TvUi.sports-tab = idx == 1 ? "scoreboard" : "competitions";
+        }
+    }
+
+    if TvUi.sports-tab != "scoreboard": PsCompetitions {
+        x: 0;
+        y: 208px * TvUi.u;
+        width: parent.width;
+        height: parent.height - 208px * TvUi.u;
+    }
+
+    if TvUi.sports-tab == "scoreboard": Rectangle {
+        x: 0;
+        y: 208px * TvUi.u;
+        width: parent.width;
+        height: parent.height - 208px * TvUi.u;
+
+        // Controls row
+        HorizontalLayout {
+            x: 96px * TvUi.u;
+            y: 0;
+            width: 1728px * TvUi.u;
+            height: 56px * TvUi.u;
+            spacing: 14px * TvUi.u;
+
+            // Date stepper
+            Rectangle {
+                width: stp.preferred-width + 16px * TvUi.u;
+                height: 56px * TvUi.u;
+                border-radius: 28px * TvUi.u;
+                background: PsTheme.glass;
+                stp := HorizontalLayout {
+                    padding-left: 8px * TvUi.u;
+                    padding-right: 8px * TvUi.u;
+                    spacing: 12px * TvUi.u;
+                    Rectangle {
+                        width: 48px * TvUi.u; height: 56px * TvUi.u;
+                        Text { text: "‹"; font-size: 26px * TvUi.u; font-weight: 600; color: PsTheme.text; horizontal-alignment: center; vertical-alignment: center; }
+                        TouchArea { mouse-cursor: pointer; clicked => { Scoreboard.prev-day-clicked(); } }
+                    }
+                    Text {
+                        text: Scoreboard.date-label != "" ? Scoreboard.date-label : Scoreboard.day-label;
+                        font-family: PsTheme.font;
+                        font-size: 22px * TvUi.u;
+                        font-weight: 600;
+                        color: PsTheme.text;
+                        vertical-alignment: center;
+                    }
+                    Rectangle {
+                        width: 48px * TvUi.u; height: 56px * TvUi.u;
+                        Text { text: "›"; font-size: 26px * TvUi.u; font-weight: 600; color: PsTheme.text; horizontal-alignment: center; vertical-alignment: center; }
+                        TouchArea { mouse-cursor: pointer; clicked => { Scoreboard.next-day-clicked(); } }
+                    }
+                }
+            }
+
+            if !Scoreboard.is-today: PsPillButton {
+                label: "Today";
+                compact: true;
+                clicked => { Scoreboard.today-clicked(); }
+            }
+
+            PsPillButton {
+                label: Scoreboard.show-label + " ▾";
+                compact: true;
+                clicked => { root.sport-filter-open = !root.sport-filter-open; }
+            }
+
+            PsPillButton {
+                label: "↻ Refresh";
+                compact: true;
+                clicked => { Scoreboard.refresh(); }
+            }
+
+            Rectangle { horizontal-stretch: 1; }
+
+            Text {
+                text: Scoreboard.fresh;
+                font-family: PsTheme.font;
+                font-size: 18px * TvUi.u;
+                color: Scoreboard.stale ? #E5A84B : PsTheme.muted;
+                vertical-alignment: center;
+            }
+        }
+
+        // Groups + 3-column grid
+        Flickable {
+            x: 0;
+            y: 76px * TvUi.u;
+            width: parent.width;
+            height: parent.height - 76px * TvUi.u;
+            content-height: grp-col.preferred-height + 120px * TvUi.u;
+
+            grp-col := VerticalLayout {
+                x: 96px * TvUi.u;
+                y: 12px * TvUi.u;
+                width: 1728px * TvUi.u;
+                spacing: 32px * TvUi.u;
+
+                for grp in Scoreboard.groups: VerticalLayout {
+                    spacing: 16px * TvUi.u;
+
+                    HorizontalLayout {
+                        spacing: 12px * TvUi.u;
+                        if grp.is-live: Rectangle {
+                            y: 9px * TvUi.u;
+                            width: 12px * TvUi.u;
+                            height: 12px * TvUi.u;
+                            border-radius: 6px * TvUi.u;
+                            background: PsTheme.live;
+                        }
+                        Text {
+                            text: grp.title;
+                            font-family: PsTheme.font;
+                            font-size: 26px * TvUi.u;
+                            font-weight: 600;
+                            color: PsTheme.text;
+                        }
+                        Text {
+                            text: grp.count;
+                            font-family: PsTheme.font;
+                            font-size: 20px * TvUi.u;
+                            color: PsTheme.muted;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    Rectangle {
+                        property <int> rows: Math.ceil(grp.cards.length / 3);
+                        height: (self.rows * 224px - 20px) * TvUi.u;
+
+                        for card[ci] in grp.cards: sc-card := PsCard {
+                            property <int> gx: Math.mod(ci, 3);
+                            property <int> gy: Math.floor(ci / 3);
+                            property <bool> is-foc: root.focused-card == card.game-focus-id;
+
+                            x: (self.gx * 582px) * TvUi.u;
+                            y: (self.gy * 224px) * TvUi.u;
+                            width: 562px * TvUi.u;
+                            height: 204px * TvUi.u;
+                            card-radius: 18px * TvUi.u;
+                            focused: self.is-foc;
+
+                            HorizontalLayout {
+                                x: 20px * TvUi.u;
+                                y: 16px * TvUi.u;
+                                width: parent.width - 40px * TvUi.u;
+                                Text {
+                                    text: card.league;
+                                    font-family: PsTheme.font;
+                                    font-size: 14px * TvUi.u;
+                                    font-weight: 700;
+                                    color: PsTheme.muted;
+                                    horizontal-stretch: 1;
+                                }
+                                Text {
+                                    text: card.status;
+                                    font-family: PsTheme.font;
+                                    font-size: 14px * TvUi.u;
+                                    font-weight: 700;
+                                    color: card.tone == ScoreTone.live ? PsTheme.live-text
+                                        : card.tone == ScoreTone.upcoming ? PsTheme.accent
+                                        : PsTheme.muted;
+                                }
+                            }
+
+                            PsBoxScore {
+                                x: 20px * TvUi.u;
+                                y: 46px * TvUi.u;
+                                width: parent.width - 40px * TvUi.u;
+                                card: card;
+                            }
+
+                            HorizontalLayout {
+                                x: 20px * TvUi.u;
+                                y: parent.height - 46px * TvUi.u;
+                                width: parent.width - 40px * TvUi.u;
+                                spacing: 10px * TvUi.u;
+                                Text {
+                                    horizontal-stretch: 1;
+                                    text: card.meta;
+                                    font-family: PsTheme.font;
+                                    font-size: 15px * TvUi.u;
+                                    color: PsTheme.muted;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                                if card.following: Rectangle {
+                                    width: flw.preferred-width + 20px * TvUi.u;
+                                    height: 30px * TvUi.u;
+                                    border-radius: 15px * TvUi.u;
+                                    background: PsTheme.glass;
+                                    flw := Text {
+                                        text: "★ Following";
+                                        font-family: PsTheme.font;
+                                        font-size: 14px * TvUi.u;
+                                        font-weight: 600;
+                                        color: PsTheme.text;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                if card.game-url != "": Rectangle {
+                                    width: gbtn.preferred-width + 24px * TvUi.u;
+                                    height: 36px * TvUi.u;
+                                    border-radius: 18px * TvUi.u;
+                                    background: sc-card.is-foc ? PsTheme.text : PsTheme.glass;
+                                    gbtn := Text {
+                                        text: card.tone == ScoreTone.final ? "Recap ↗" : "Game ↗";
+                                        font-family: PsTheme.font;
+                                        font-size: 14px * TvUi.u;
+                                        font-weight: 600;
+                                        color: sc-card.is-foc ? PsTheme.on-light : PsTheme.text;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+
+                            TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    if card.game-url != "" {
+                                        Scoreboard.open-url(card.game-url, card.league);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if root.sport-filter-open: Rectangle {
+            x: 340px * TvUi.u;
+            y: 64px * TvUi.u;
+            width: 280px * TvUi.u;
+            height: Math.min(Scoreboard.choices.length * 46px + 16px, 380px) * TvUi.u;
+            border-radius: 16px * TvUi.u;
+            background: #1C2026F8;
+            border-width: 1px;
+            border-color: PsTheme.card-border;
+            clip: true;
+
+            Flickable {
+                width: parent.width;
+                height: parent.height;
+                content-height: (Scoreboard.choices.length * 46px + 16px) * TvUi.u;
+                VerticalLayout {
+                    padding: 8px * TvUi.u;
+                    for c in Scoreboard.choices: Rectangle {
+                        height: 46px * TvUi.u;
+                        border-radius: 10px * TvUi.u;
+                        background: c.value == Scoreboard.show ? PsTheme.text : transparent;
+                        Text {
+                            x: 16px * TvUi.u;
+                            text: c.label;
+                            font-family: PsTheme.font;
+                            font-size: 18px * TvUi.u;
+                            font-weight: 600;
+                            color: c.value == Scoreboard.show ? PsTheme.on-light : PsTheme.text;
+                            vertical-alignment: center;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                Scoreboard.set-filter(c.value);
+                                root.sport-filter-open = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

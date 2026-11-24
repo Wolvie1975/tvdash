@@ -1,0 +1,561 @@
+import { Dash, GameState, HomeState, TvUi } from "../state.slint";
+import { Intro, IntroStage } from "../shared/intro.slint";
+import { PsTheme } from "theme.slint";
+import { PsRowTile, PsRowLabel } from "row_tile.slint";
+import { PsPillButton } from "buttons.slint";
+import { PsCard } from "controls.slint";
+
+// PS5 Home page (§3).
+// 1. Row of 9 tiles at x96, y140 (What's On + 7 apps-bar + All apps) + PsRowLabel
+// 2. Hero block at x96, y420, w980 (follows focused tile)
+// 3. Up next + Next Game / Just Added cards at x96, y790, h190
+export component PsHome inherits Rectangle {
+    in-out property <int> focused-row-tile: 0; // 0=What's On, 1..7=apps, 8=All apps
+    in property <int> focused-hero-btn: -1;   // 0=primary, 1=from start, 2=more
+    in property <int> focused-card: -1;       // 0..3=up-next, 4=next-game/just-added
+    callback open-search();
+    callback open-apps();
+
+    property <bool> revealed: Intro.stage == IntroStage.reveal || Intro.stage == IntroStage.done;
+    property <int> app-count: Math.min(HomeState.apps-bar.length, 7);
+
+    // ── 1. Horizontal Row (9 tiles) ──────────────────────────────────────────
+    HorizontalLayout {
+        x: 96px * TvUi.u;
+        y: 140px * TvUi.u;
+        height: 216px * TvUi.u;
+        spacing: 16px * TvUi.u;
+
+        // Tile 0: What's On
+        PsRowTile {
+            focused: root.focused-row-tile == 0;
+            fill: HomeState.whats-on.has-item && HomeState.whats-on.is-app ? HomeState.whats-on.app-color : PsTheme.card;
+            activated => {
+                root.focused-row-tile = 0;
+                HomeState.activate-hero();
+            }
+
+            if HomeState.whats-on.has-item && !HomeState.whats-on.is-app && HomeState.whats-on.has-art: Image {
+                source: HomeState.whats-on.art;
+                width: parent.width;
+                height: parent.height;
+                image-fit: cover;
+            }
+            if HomeState.whats-on.has-item && HomeState.whats-on.is-app && HomeState.whats-on.app-has-logo: Image {
+                source: HomeState.whats-on.app-logo;
+                width: parent.width * 0.7;
+                height: parent.height * 0.6;
+                image-fit: contain;
+            }
+            if !HomeState.whats-on.has-item: Text {
+                text: "▶";
+                font-family: PsTheme.font;
+                font-size: 44px * TvUi.u;
+                color: PsTheme.muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            if HomeState.whats-on.has-item && HomeState.whats-on.progress > 0.0: Rectangle {
+                x: 0;
+                y: parent.height - 6px * TvUi.u;
+                width: parent.width;
+                height: 6px * TvUi.u;
+                background: #FFFFFF30;
+                Rectangle {
+                    width: parent.width * Math.clamp(HomeState.whats-on.progress, 0.0, 1.0);
+                    height: parent.height;
+                    background: PsTheme.accent;
+                }
+            }
+        }
+
+        // Tiles 1..7: Apps bar
+        for app[i] in HomeState.apps-bar: PsRowTile {
+            visible: i < 7;
+            focused: root.focused-row-tile == i + 1;
+            fill: app.color;
+            activated => {
+                root.focused-row-tile = i + 1;
+                HomeState.launch-app(app.id);
+            }
+
+            if app.has-logo: Image {
+                source: app.logo;
+                width: app.logo-wide ? parent.width * 0.88 : parent.width * 0.70;
+                height: app.logo-wide ? parent.height * 0.66 : parent.height * 0.60;
+                image-fit: contain;
+            }
+            if !app.has-logo: Text {
+                text: app.name;
+                font-family: PsTheme.font;
+                font-size: 22px * TvUi.u;
+                font-weight: 800;
+                color: app.text-color;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                wrap: word-wrap;
+            }
+        }
+
+        // Tile 8: All apps
+        PsRowTile {
+            focused: root.focused-row-tile == 8;
+            fill: PsTheme.glass;
+            activated => { root.open-apps(); }
+
+            Rectangle {
+                width: 48px * TvUi.u;
+                height: 48px * TvUi.u;
+                for g in 9: Rectangle {
+                    x: (Math.mod(g, 3) * 18px) * TvUi.u;
+                    y: (Math.floor(g / 3) * 18px) * TvUi.u;
+                    width: 12px * TvUi.u;
+                    height: 12px * TvUi.u;
+                    border-radius: 3px * TvUi.u;
+                    background: PsTheme.text;
+                }
+            }
+        }
+
+        // Label next to the row
+        PsRowLabel {
+            y: 70px * TvUi.u;
+            title: root.focused-row-tile == 0
+                ? (HomeState.whats-on.has-item ? HomeState.whats-on.title : "What's On")
+                : root.focused-row-tile == 8 ? "All apps"
+                : (root.focused-row-tile - 1 < HomeState.apps-bar.length ? HomeState.apps-bar[root.focused-row-tile - 1].name : "");
+            subtitle: root.focused-row-tile == 0
+                ? (HomeState.whats-on.has-item ? HomeState.whats-on.source : "Ready to play")
+                : root.focused-row-tile == 8 ? "A–Z" : "App · recent";
+        }
+    }
+
+    // ── 2. Hero Block (x96, y420, w980) ──────────────────────────────────────
+    VerticalLayout {
+        x: 96px * TvUi.u;
+        y: root.revealed ? 420px * TvUi.u : 432px * TvUi.u;
+        width: 980px * TvUi.u;
+        spacing: 14px * TvUi.u;
+        opacity: root.revealed ? 1.0 : 0.0;
+        animate y, opacity { duration: Intro.instant ? 0ms : 375ms; delay: Intro.instant ? 0ms : 1375ms; easing: ease-out; }
+
+        // What's On focused
+        if root.focused-row-tile == 0 && HomeState.whats-on.has-item && !HomeState.whats-on.is-app: VerticalLayout {
+            spacing: 12px * TvUi.u;
+            Text {
+                text: "WHAT'S ON · " + HomeState.whats-on.source;
+                font-family: PsTheme.font;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.accent;
+                letter-spacing: 1.4px;
+            }
+            Text {
+                text: HomeState.whats-on.title;
+                font-family: PsTheme.font;
+                font-size: 92px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.text;
+                letter-spacing: -2px;
+                overflow: elide;
+            }
+            Text {
+                text: HomeState.whats-on.subtitle + (HomeState.whats-on.status != "" ? (" · " + HomeState.whats-on.status) : "");
+                font-family: PsTheme.font;
+                font-size: 26px * TvUi.u;
+                font-weight: 400;
+                color: PsTheme.sub;
+                overflow: elide;
+            }
+            if HomeState.whats-on.progress >= 0.0: Rectangle {
+                width: 560px * TvUi.u;
+                height: 6px * TvUi.u;
+                border-radius: 3px * TvUi.u;
+                background: #FFFFFF28;
+                Rectangle {
+                    width: parent.width * Math.clamp(HomeState.whats-on.progress, 0.0, 1.0);
+                    height: parent.height;
+                    border-radius: 3px * TvUi.u;
+                    background: PsTheme.accent;
+                }
+            }
+            Text {
+                height: 68px * TvUi.u;
+                text: HomeState.whats-on.plot;
+                font-family: PsTheme.font;
+                font-size: 23px * TvUi.u;
+                color: PsTheme.sub;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+            HorizontalLayout {
+                spacing: 16px * TvUi.u;
+                PsPillButton {
+                    label: TvUi.video-on ? "Full screen" : "▶  Resume";
+                    primary: true;
+                    focused: root.focused-hero-btn == 0;
+                    clicked => { HomeState.activate-hero(); }
+                }
+                PsPillButton {
+                    label: "From start";
+                    focused: root.focused-hero-btn == 1;
+                    clicked => { Dash.play-item-from-start(0); }
+                }
+                PsPillButton {
+                    label: "⋯";
+                    round: true;
+                    focused: root.focused-hero-btn == 2;
+                    clicked => { TvUi.hud-open = true; }
+                }
+            }
+        }
+
+        // What's On app open in Brave
+        if root.focused-row-tile == 0 && HomeState.whats-on.has-item && HomeState.whats-on.is-app: VerticalLayout {
+            spacing: 14px * TvUi.u;
+            Text {
+                text: "WHAT'S ON · " + HomeState.whats-on.source;
+                font-family: PsTheme.font;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.accent;
+                letter-spacing: 1.4px;
+            }
+            Text {
+                text: HomeState.whats-on.title;
+                font-family: PsTheme.font;
+                font-size: 92px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.text;
+            }
+            Text {
+                text: "Open on the TV";
+                font-family: PsTheme.font;
+                font-size: 26px * TvUi.u;
+                color: PsTheme.sub;
+            }
+            HorizontalLayout {
+                PsPillButton {
+                    label: "Return to app";
+                    primary: true;
+                    focused: root.focused-hero-btn == 0;
+                    clicked => { HomeState.activate-hero(); }
+                }
+            }
+        }
+
+        // Empty What's On
+        if root.focused-row-tile == 0 && !HomeState.whats-on.has-item: VerticalLayout {
+            spacing: 14px * TvUi.u;
+            Text {
+                text: "WHAT'S ON";
+                font-family: PsTheme.font;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.accent;
+                letter-spacing: 1.4px;
+            }
+            Text {
+                text: "Nothing on right now";
+                font-family: PsTheme.font;
+                font-size: 76px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.text;
+            }
+            Text {
+                text: "Search or open the Library";
+                font-family: PsTheme.font;
+                font-size: 26px * TvUi.u;
+                color: PsTheme.sub;
+            }
+            HorizontalLayout {
+                PsPillButton {
+                    label: "Search";
+                    primary: true;
+                    focused: root.focused-hero-btn == 0;
+                    clicked => { root.open-search(); }
+                }
+            }
+        }
+
+        // App tile focused
+        if root.focused-row-tile >= 1 && root.focused-row-tile <= 7 && root.focused-row-tile - 1 < HomeState.apps-bar.length: VerticalLayout {
+            spacing: 14px * TvUi.u;
+            Text {
+                text: "APP · RECENT";
+                font-family: PsTheme.font;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.accent;
+                letter-spacing: 1.4px;
+            }
+            Text {
+                text: HomeState.apps-bar[root.focused-row-tile - 1].name;
+                font-family: PsTheme.font;
+                font-size: 92px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.text;
+            }
+            Text {
+                text: "Opens full screen on the TV";
+                font-family: PsTheme.font;
+                font-size: 26px * TvUi.u;
+                color: PsTheme.sub;
+            }
+            HorizontalLayout {
+                PsPillButton {
+                    label: "Open on TV";
+                    primary: true;
+                    focused: root.focused-hero-btn == 0;
+                    clicked => { HomeState.launch-app(HomeState.apps-bar[root.focused-row-tile - 1].id); }
+                }
+            }
+        }
+
+        // All apps tile focused
+        if root.focused-row-tile == 8: VerticalLayout {
+            spacing: 14px * TvUi.u;
+            Text {
+                text: "APPS";
+                font-family: PsTheme.font;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.accent;
+                letter-spacing: 1.4px;
+            }
+            Text {
+                text: "All apps";
+                font-family: PsTheme.font;
+                font-size: 92px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.text;
+            }
+            Text {
+                text: "A–Z";
+                font-family: PsTheme.font;
+                font-size: 26px * TvUi.u;
+                color: PsTheme.sub;
+            }
+            HorizontalLayout {
+                PsPillButton {
+                    label: "Open";
+                    primary: true;
+                    focused: root.focused-hero-btn == 0;
+                    clicked => { root.open-apps(); }
+                }
+            }
+        }
+    }
+
+    // ── 3. Bottom Cards Row (y790, h190) ─────────────────────────────────────
+    Text {
+        x: 96px * TvUi.u;
+        y: 750px * TvUi.u;
+        text: "UP NEXT";
+        font-family: PsTheme.font;
+        font-size: 22px * TvUi.u;
+        font-weight: 600;
+        color: PsTheme.sub;
+        letter-spacing: 1.2px;
+        opacity: root.revealed ? 1.0 : 0.0;
+        animate opacity { duration: Intro.instant ? 0ms : 375ms; delay: Intro.instant ? 0ms : 1500ms; easing: ease-out; }
+    }
+
+    HorizontalLayout {
+        x: 96px * TvUi.u;
+        y: 790px * TvUi.u;
+        height: 190px * TvUi.u;
+        spacing: 16px * TvUi.u;
+        opacity: root.revealed ? 1.0 : 0.0;
+        animate opacity { duration: Intro.instant ? 0ms : 375ms; delay: Intro.instant ? 0ms : 1500ms; easing: ease-out; }
+
+        for card[i] in HomeState.up-next: PsCard {
+            visible: i < 4;
+            width: i == 0 ? 420px * TvUi.u : 300px * TvUi.u;
+            height: 190px * TvUi.u;
+            focused: root.focused-card == i;
+
+            if card.has-thumb: Image {
+                source: card.thumb;
+                width: parent.width;
+                height: parent.height;
+                image-fit: cover;
+            }
+            Rectangle {
+                width: parent.width;
+                height: parent.height;
+                background: PsTheme.scrim-bottom;
+            }
+            if i == 0: Rectangle {
+                x: 16px * TvUi.u;
+                y: 14px * TvUi.u;
+                width: 86px * TvUi.u;
+                height: 26px * TvUi.u;
+                border-radius: 13px * TvUi.u;
+                background: PsTheme.accent;
+                Text {
+                    text: "UP NEXT";
+                    font-family: PsTheme.font;
+                    font-size: 12px * TvUi.u;
+                    font-weight: 800;
+                    color: PsTheme.on-accent;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+            Text {
+                x: 16px * TvUi.u;
+                y: parent.height - 62px * TvUi.u;
+                width: parent.width - 32px * TvUi.u;
+                text: card.title;
+                font-family: PsTheme.font;
+                font-size: 20px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.text;
+                overflow: elide;
+            }
+            Text {
+                x: 16px * TvUi.u;
+                y: parent.height - 34px * TvUi.u;
+                width: parent.width - 32px * TvUi.u;
+                text: card.meta;
+                font-family: PsTheme.font;
+                font-size: 15px * TvUi.u;
+                color: PsTheme.muted;
+                overflow: elide;
+            }
+            if card.progress > 0.0: Rectangle {
+                x: 0;
+                y: parent.height - 5px * TvUi.u;
+                width: parent.width;
+                height: 5px * TvUi.u;
+                background: #FFFFFF28;
+                Rectangle {
+                    width: parent.width * Math.clamp(card.progress, 0.0, 1.0);
+                    height: parent.height;
+                    background: PsTheme.accent;
+                }
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { HomeState.activate-up-next(card.key); }
+            }
+        }
+
+        // Next Game or Just Added (340 wide)
+        if HomeState.next-game.visible || HomeState.just-added.visible: PsCard {
+            width: 340px * TvUi.u;
+            height: 190px * TvUi.u;
+            focused: root.focused-card == 4;
+
+            if HomeState.next-game.visible: Rectangle {
+                width: parent.width;
+                height: parent.height;
+                Text {
+                    x: 18px * TvUi.u;
+                    y: 16px * TvUi.u;
+                    text: HomeState.next-game.league;
+                    font-family: PsTheme.font;
+                    font-size: 13px * TvUi.u;
+                    font-weight: 700;
+                    color: PsTheme.muted;
+                }
+                Text {
+                    x: parent.width - self.preferred-width - 18px * TvUi.u;
+                    y: 16px * TvUi.u;
+                    text: HomeState.next-game.state-text;
+                    font-family: PsTheme.font;
+                    font-size: 13px * TvUi.u;
+                    font-weight: 700;
+                    color: HomeState.next-game.state == GameState.live ? PsTheme.live-text : PsTheme.accent;
+                }
+                Text {
+                    x: 18px * TvUi.u;
+                    y: 54px * TvUi.u;
+                    width: parent.width - 36px * TvUi.u;
+                    text: HomeState.next-game.away.name + "  " + HomeState.next-game.away.score;
+                    font-family: PsTheme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.text;
+                    overflow: elide;
+                }
+                Text {
+                    x: 18px * TvUi.u;
+                    y: 90px * TvUi.u;
+                    width: parent.width - 36px * TvUi.u;
+                    text: HomeState.next-game.home.name + "  " + HomeState.next-game.home.score;
+                    font-family: PsTheme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.text;
+                    overflow: elide;
+                }
+                Text {
+                    x: 18px * TvUi.u;
+                    y: parent.height - 34px * TvUi.u;
+                    width: parent.width - 36px * TvUi.u;
+                    text: HomeState.next-game.meta;
+                    font-family: PsTheme.font;
+                    font-size: 14px * TvUi.u;
+                    color: PsTheme.muted;
+                    overflow: elide;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { HomeState.open-game(HomeState.next-game.event-id, HomeState.next-game.date); }
+                }
+            }
+
+            if !HomeState.next-game.visible && HomeState.just-added.visible: Rectangle {
+                width: parent.width;
+                height: parent.height;
+                if HomeState.just-added.has-art: Image {
+                    source: HomeState.just-added.art;
+                    width: parent.width;
+                    height: parent.height;
+                    image-fit: cover;
+                }
+                Rectangle {
+                    width: parent.width;
+                    height: parent.height;
+                    background: PsTheme.scrim-bottom;
+                }
+                Text {
+                    x: 18px * TvUi.u;
+                    y: 16px * TvUi.u;
+                    text: "JUST ADDED · " + HomeState.just-added.kind;
+                    font-family: PsTheme.font;
+                    font-size: 13px * TvUi.u;
+                    font-weight: 700;
+                    color: PsTheme.accent;
+                }
+                Text {
+                    x: 18px * TvUi.u;
+                    y: parent.height - 62px * TvUi.u;
+                    width: parent.width - 36px * TvUi.u;
+                    text: HomeState.just-added.title;
+                    font-family: PsTheme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.text;
+                    overflow: elide;
+                }
+                Text {
+                    x: 18px * TvUi.u;
+                    y: parent.height - 34px * TvUi.u;
+                    width: parent.width - 36px * TvUi.u;
+                    text: HomeState.just-added.subtitle;
+                    font-family: PsTheme.font;
+                    font-size: 14px * TvUi.u;
+                    color: PsTheme.sub;
+                    overflow: elide;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { HomeState.activate-just-added(); }
+                }
+            }
+        }
+    }
+}

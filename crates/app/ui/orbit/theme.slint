@@ -1,0 +1,28 @@
+import { Theme } from "../theme.slint";
+
+// Visual tokens for the Orbit Dashboard UI (§1.1).
+export global OrbitTheme {
+    out property <string> font: Theme.font;
+
+    out property <color> bg: #2B313D;
+    out property <color> text: #EEF1F4;
+    out property <color> sub: #B7BEC7;
+    out property <color> muted: #9CA3AE;
+    out property <color> accent: #8FC1FF;
+    out property <color> collections-accent: #F2C66B;
+    out property <color> search-accent: #7EE0B0;
+    out property <color> live: #FF6B6B;
+
+    out property <color> glass: #0B0A12B3;
+    out property <color> glass-border: #FFFFFF1A;
+    out property <color> row: #FFFFFF12;
+    out property <color> row-border: #FFFFFF14;
+    out property <color> row-focus: #FFFFFF1F;
+    out property <color> row-focus-border: #FFFFFF55;
+    out property <color> track: #FFFFFF2E;
+    out property <color> unwatched: #1A1624;
+
+    out property <brush> fade: @linear-gradient(180deg, #2B313D00 0%, #2B313DFF 100%);
+    out property <brush> scrim-left: @linear-gradient(90deg, #2B313DF0 0%, #2B313DA6 38%, #2B313D00 66%);
+    out property <brush> scrim-bottom: @linear-gradient(180deg, #2B313D00 45%, #2B313DCC 75%, #2B313DFF 100%);
+}

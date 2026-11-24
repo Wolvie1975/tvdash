@@ -1,0 +1,82 @@
+import { TvUi } from "../state.slint";
+import { Intro, IntroStage } from "../shared/intro.slint";
+import { PsTheme } from "theme.slint";
+
+// PS5 Startup animation overlay (§10):
+// Logo (0 -> 2.0s): black, wordmark (tv 300 + dash 800 in accent, 150px) fades 0->1 (0.5s), scales 0.96->1 (0.75s).
+// Hold: 340x5 track with 30% shimmer sliding across every 1.0s.
+// Reveal (2.125s): logo moves toward header (-760, -470) scaling to 0.35 and fading out.
+export component PsIntro inherits Rectangle {
+    property <bool> is-idle: Intro.stage == IntroStage.idle;
+    property <bool> is-logo: Intro.stage == IntroStage.logo;
+    property <bool> is-hold: Intro.stage == IntroStage.hold;
+    property <bool> is-reveal: Intro.stage == IntroStage.reveal || Intro.stage == IntroStage.done;
+
+    visible: Intro.stage != IntroStage.done;
+    background: self.is-reveal ? transparent : #000000;
+    animate background { duration: Intro.instant ? 0ms : 750ms; easing: ease-out; }
+
+    // Soft accent glow behind logo
+    Rectangle {
+        x: (parent.width - 700px * TvUi.u) / 2;
+        y: (parent.height - 340px * TvUi.u) / 2;
+        width: 700px * TvUi.u;
+        height: 340px * TvUi.u;
+        border-radius: 170px * TvUi.u;
+        background: #5B9DFF18;
+        opacity: root.is-logo || root.is-hold ? 1.0 : 0.0;
+        animate opacity { duration: Intro.instant ? 0ms : 500ms; easing: ease-out; }
+    }
+
+    // Wordmark
+    HorizontalLayout {
+        x: root.is-reveal ? ((parent.width - self.preferred-width) / 2 - 760px * TvUi.u) : ((parent.width - self.preferred-width) / 2);
+        y: root.is-reveal ? ((parent.height - self.preferred-height) / 2 - 470px * TvUi.u) : ((parent.height - self.preferred-height) / 2);
+        transform-scale: root.is-idle ? 0.96 : root.is-reveal ? 0.35 : 1.0;
+        opacity: root.is-idle || root.is-reveal ? 0.0 : 1.0;
+        animate x, y { duration: Intro.instant ? 0ms : 750ms; easing: ease-out; }
+        animate transform-scale { duration: Intro.instant ? 0ms : 750ms; easing: ease-out; }
+        animate opacity { duration: Intro.instant ? 0ms : 500ms; easing: ease-out; }
+
+        Text {
+            text: "tv";
+            font-family: PsTheme.font;
+            font-size: 150px * TvUi.u;
+            font-weight: 300;
+            color: PsTheme.text;
+        }
+        Text {
+            text: "dash";
+            font-family: PsTheme.font;
+            font-size: 150px * TvUi.u;
+            font-weight: 800;
+            color: PsTheme.accent;
+        }
+    }
+
+    // Hold shimmer track (340 x 5)
+    Rectangle {
+        x: (parent.width - 340px * TvUi.u) / 2;
+        y: (parent.height / 2) + 110px * TvUi.u;
+        width: 340px * TvUi.u;
+        height: 5px * TvUi.u;
+        border-radius: 2.5px * TvUi.u;
+        background: #E8EAED20;
+        opacity: root.is-hold ? 1.0 : 0.0;
+        clip: true;
+
+        Rectangle {
+            x: root.is-hold ? 238px * TvUi.u : -102px * TvUi.u;
+            y: 0;
+            width: 102px * TvUi.u;
+            height: parent.height;
+            border-radius: 2.5px * TvUi.u;
+            background: PsTheme.accent;
+            animate x { duration: 1000ms; easing: ease-in-out; }
+        }
+    }
+
+    TouchArea {
+        clicked => { Intro.skip(); }
+    }
+}

@@ -493,11 +493,11 @@ export component V3Settings inherits Rectangle {
 
             // Classic preview option
             Rectangle {
-                property <bool> selected: Display.dashboard-ui != "blades";
+                property <bool> selected: Display.dashboard-ui != "blades" && Display.dashboard-ui != "ps5" && Display.dashboard-ui != "orbit";
                 x: 22px * TvUi.u;
-                y: 84px * TvUi.u;
+                y: 74px * TvUi.u;
                 width: parent.width - 44px * TvUi.u;
-                height: 120px * TvUi.u;
+                height: 88px * TvUi.u;
                 border-radius: 14px * TvUi.u;
                 background: V3Theme.surface-raised;
                 border-width: self.selected ? 3px : 1px;
@@ -506,42 +506,42 @@ export component V3Settings inherits Rectangle {
                 // Mini wireframe: top tabs
                 Rectangle {
                     x: 14px * TvUi.u;
-                    y: 12px * TvUi.u;
+                    y: 10px * TvUi.u;
                     width: parent.width - 28px * TvUi.u;
-                    height: 66px * TvUi.u;
+                    height: 44px * TvUi.u;
                     border-radius: 8px * TvUi.u;
                     background: V3Theme.bg;
                     for t[ti] in 4: Rectangle {
                         x: (10px + ti * 34px) * TvUi.u;
-                        y: 8px * TvUi.u;
+                        y: 6px * TvUi.u;
                         width: 26px * TvUi.u;
-                        height: 6px * TvUi.u;
-                        border-radius: 3px * TvUi.u;
+                        height: 5px * TvUi.u;
+                        border-radius: 2.5px * TvUi.u;
                         background: ti == 0 ? V3Theme.text-primary : V3Theme.text-muted;
                     }
                     Rectangle {
                         x: 10px * TvUi.u;
-                        y: 22px * TvUi.u;
+                        y: 16px * TvUi.u;
                         width: parent.width - 70px * TvUi.u;
-                        height: 36px * TvUi.u;
-                        border-radius: 6px * TvUi.u;
+                        height: 22px * TvUi.u;
+                        border-radius: 5px * TvUi.u;
                         background: V3Theme.surface;
                     }
                 }
                 Text {
                     x: 16px * TvUi.u;
-                    y: 88px * TvUi.u;
+                    y: 60px * TvUi.u;
                     text: "Classic · top tabs";
                     font-family: V3Theme.font;
-                    font-size: 15px * TvUi.u;
+                    font-size: 14px * TvUi.u;
                     font-weight: 700;
                     color: V3Theme.text-primary;
                 }
                 if self.selected: Text {
                     x: parent.width - 28px * TvUi.u;
-                    y: 88px * TvUi.u;
+                    y: 59px * TvUi.u;
                     text: "✓";
-                    font-size: 16px * TvUi.u;
+                    font-size: 15px * TvUi.u;
                     font-weight: 700;
                     color: V3Theme.accent;
                 }
@@ -555,9 +555,9 @@ export component V3Settings inherits Rectangle {
             Rectangle {
                 property <bool> selected: Display.dashboard-ui == "blades";
                 x: 22px * TvUi.u;
-                y: 218px * TvUi.u;
+                y: 170px * TvUi.u;
                 width: parent.width - 44px * TvUi.u;
-                height: 120px * TvUi.u;
+                height: 88px * TvUi.u;
                 border-radius: 14px * TvUi.u;
                 background: V3Theme.surface-raised;
                 border-width: self.selected ? 3px : 1px;
@@ -566,48 +566,151 @@ export component V3Settings inherits Rectangle {
                 // Mini wireframe: side blades
                 Rectangle {
                     x: 14px * TvUi.u;
-                    y: 12px * TvUi.u;
+                    y: 10px * TvUi.u;
                     width: parent.width - 28px * TvUi.u;
-                    height: 66px * TvUi.u;
+                    height: 44px * TvUi.u;
                     border-radius: 8px * TvUi.u;
                     background: V3Theme.bg;
                     Rectangle {
                         x: 8px * TvUi.u;
-                        y: 8px * TvUi.u;
+                        y: 6px * TvUi.u;
                         width: parent.width - 60px * TvUi.u;
-                        height: 50px * TvUi.u;
-                        border-radius: 6px * TvUi.u;
+                        height: 32px * TvUi.u;
+                        border-radius: 5px * TvUi.u;
                         background: V3Theme.surface;
                     }
                     for b[bi] in 3: Rectangle {
                         x: parent.width - (44px - bi * 12px) * TvUi.u;
-                        y: 8px * TvUi.u;
+                        y: 6px * TvUi.u;
                         width: 8px * TvUi.u;
-                        height: 50px * TvUi.u;
+                        height: 32px * TvUi.u;
                         border-radius: 4px * TvUi.u;
                         background: V3Theme.surface;
                     }
                 }
                 Text {
                     x: 16px * TvUi.u;
-                    y: 88px * TvUi.u;
+                    y: 60px * TvUi.u;
                     text: "Blades · side tabs";
                     font-family: V3Theme.font;
-                    font-size: 15px * TvUi.u;
+                    font-size: 14px * TvUi.u;
                     font-weight: 700;
                     color: V3Theme.text-primary;
                 }
                 if self.selected: Text {
                     x: parent.width - 28px * TvUi.u;
-                    y: 88px * TvUi.u;
+                    y: 59px * TvUi.u;
                     text: "✓";
-                    font-size: 16px * TvUi.u;
+                    font-size: 15px * TvUi.u;
                     font-weight: 700;
                     color: V3Theme.accent;
                 }
                 TouchArea {
                     mouse-cursor: pointer;
                     clicked => { Display.set-dashboard-ui("blades"); }
+                }
+            }
+
+            // PS5 preview option
+            Rectangle {
+                property <bool> selected: Display.dashboard-ui == "ps5";
+                x: 22px * TvUi.u;
+                y: 266px * TvUi.u;
+                width: parent.width - 44px * TvUi.u;
+                height: 88px * TvUi.u;
+                border-radius: 14px * TvUi.u;
+                background: V3Theme.surface-raised;
+                border-width: self.selected ? 3px : 1px;
+                border-color: self.selected ? V3Theme.accent : V3Theme.border;
+
+                // Mini wireframe: header tabs + app row
+                Rectangle {
+                    x: 14px * TvUi.u;
+                    y: 10px * TvUi.u;
+                    width: parent.width - 28px * TvUi.u;
+                    height: 44px * TvUi.u;
+                    border-radius: 8px * TvUi.u;
+                    background: V3Theme.bg;
+                    for t[ti] in 4: Rectangle {
+                        x: (10px + ti * 28px) * TvUi.u;
+                        y: 6px * TvUi.u;
+                        width: 20px * TvUi.u;
+                        height: 4px * TvUi.u;
+                        border-radius: 2px * TvUi.u;
+                        background: ti == 0 ? V3Theme.text-primary : V3Theme.text-muted;
+                    }
+                    Rectangle {
+                        x: 10px * TvUi.u;
+                        y: 15px * TvUi.u;
+                        width: 18px * TvUi.u;
+                        height: 18px * TvUi.u;
+                        border-radius: 4px * TvUi.u;
+                        background: V3Theme.accent;
+                    }
+                    for a[ai] in 4: Rectangle {
+                        x: (34px + ai * 18px) * TvUi.u;
+                        y: 19px * TvUi.u;
+                        width: 14px * TvUi.u;
+                        height: 14px * TvUi.u;
+                        border-radius: 3px * TvUi.u;
+                        background: V3Theme.surface;
+                    }
+                }
+                Text {
+                    x: 16px * TvUi.u;
+                    y: 60px * TvUi.u;
+                    text: "PS5 · header tabs · app row";
+                    font-family: V3Theme.font;
+                    font-size: 14px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-primary;
+                }
+                if self.selected: Text {
+                    x: parent.width - 28px * TvUi.u;
+                    y: 59px * TvUi.u;
+                    text: "✓";
+                    font-size: 15px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.accent;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Display.set-dashboard-ui("ps5"); }
+                }
+            }
+
+            // Orbit preview option
+            Rectangle {
+                property <bool> selected: Display.dashboard-ui == "orbit";
+                x: 22px * TvUi.u;
+                y: 360px * TvUi.u;
+                width: parent.width - 44px * TvUi.u;
+                height: 44px * TvUi.u;
+                border-radius: 12px * TvUi.u;
+                background: V3Theme.surface-raised;
+                border-width: self.selected ? 3px : 1px;
+                border-color: self.selected ? V3Theme.accent : V3Theme.border;
+
+                Text {
+                    x: 16px * TvUi.u;
+                    text: "Orbit · pill nav · dials · rings";
+                    font-family: V3Theme.font;
+                    font-size: 14px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-primary;
+                    vertical-alignment: center;
+                }
+                if self.selected: Text {
+                    x: parent.width - 28px * TvUi.u;
+                    text: "✓";
+                    font-size: 15px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.accent;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Display.set-dashboard-ui("orbit"); }
                 }
             }
         }

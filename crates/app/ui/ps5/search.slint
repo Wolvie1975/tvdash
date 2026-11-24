@@ -1,0 +1,389 @@
+import { TvUi, Watch } from "../state.slint";
+import { PsTheme } from "theme.slint";
+import { PsPillButton } from "buttons.slint";
+import { PsCard, PsToggle } from "controls.slint";
+
+// PS5 Search page (§8).
+export component PsSearch inherits Rectangle {
+    in property <int> focused-key: -1;
+
+    property <[string]> keys: [
+        "A", "B", "C", "D", "E", "F",
+        "G", "H", "I", "J", "K", "L",
+        "M", "N", "O", "P", "Q", "R",
+        "S", "T", "U", "V", "W", "X",
+        "Y", "Z", "0", "1", "2", "3",
+        "4", "5", "6", "7", "8", "9",
+    ];
+
+    // Dark green/blue glow fallback behind results
+    Rectangle {
+        x: 300px * TvUi.u;
+        y: -150px * TvUi.u;
+        width: 1100px * TvUi.u;
+        height: 700px * TvUi.u;
+        border-radius: 550px * TvUi.u;
+        background: #0F2E2840;
+    }
+
+    // Left (w560): query field + 6x6 keyboard + Space/Del/Clear + Only now toggle
+    Rectangle {
+        x: 96px * TvUi.u;
+        y: 140px * TvUi.u;
+        width: 560px * TvUi.u;
+        height: 860px * TvUi.u;
+
+        // Query field (h76 pill)
+        Rectangle {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: 76px * TvUi.u;
+            border-radius: 38px * TvUi.u;
+            background: PsTheme.glass;
+
+            HorizontalLayout {
+                padding-left: 26px * TvUi.u;
+                padding-right: 26px * TvUi.u;
+                spacing: 14px * TvUi.u;
+                Text {
+                    text: "⌕";
+                    font-family: PsTheme.font;
+                    font-size: 28px * TvUi.u;
+                    color: PsTheme.sub;
+                    vertical-alignment: center;
+                }
+                TextInput {
+                    horizontal-stretch: 1;
+                    text <=> Watch.query;
+                    font-family: PsTheme.font;
+                    font-size: 26px * TvUi.u;
+                    font-weight: 500;
+                    color: PsTheme.text;
+                    vertical-alignment: center;
+                    selection-background-color: PsTheme.accent;
+                    edited => { Watch.edited(self.text); }
+                    accepted => { Watch.search(self.text); }
+                }
+            }
+        }
+
+        // 6x6 keyboard (keys h74 r18)
+        for k[i] in root.keys: Rectangle {
+            property <int> gx: Math.mod(i, 6);
+            property <int> gy: Math.floor(i / 6);
+            property <bool> is-foc: root.focused-key == i;
+
+            x: (self.gx * 94px) * TvUi.u;
+            y: (98px + self.gy * 84px) * TvUi.u;
+            width: 84px * TvUi.u;
+            height: 74px * TvUi.u;
+            border-radius: 18px * TvUi.u;
+            background: self.is-foc ? PsTheme.text : PsTheme.glass;
+
+            Text {
+                text: k;
+                font-family: PsTheme.font;
+                font-size: 24px * TvUi.u;
+                font-weight: 600;
+                color: parent.is-foc ? PsTheme.on-light : PsTheme.text;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    Watch.query = Watch.query + k;
+                    Watch.edited(Watch.query);
+                }
+            }
+        }
+
+        // Space / Delete / Clear
+        HorizontalLayout {
+            x: 0;
+            y: 616px * TvUi.u;
+            width: 554px * TvUi.u;
+            spacing: 10px * TvUi.u;
+            PsPillButton {
+                horizontal-stretch: 2;
+                label: "Space";
+                compact: true;
+                focused: root.focused-key == 36;
+                clicked => {
+                    Watch.query = Watch.query + " ";
+                    Watch.edited(Watch.query);
+                }
+            }
+            PsPillButton {
+                horizontal-stretch: 1;
+                label: "Delete";
+                compact: true;
+                focused: root.focused-key == 37;
+                clicked => { Watch.search(Watch.query); }
+            }
+            PsPillButton {
+                horizontal-stretch: 1;
+                label: "Clear";
+                compact: true;
+                focused: root.focused-key == 38;
+                clicked => {
+                    Watch.query = "";
+                    Watch.edited("");
+                }
+            }
+        }
+
+        // Only what I can watch now toggle
+        HorizontalLayout {
+            x: 0;
+            y: 698px * TvUi.u;
+            width: 554px * TvUi.u;
+            spacing: 14px * TvUi.u;
+            Text {
+                horizontal-stretch: 1;
+                text: "Only what I can watch now";
+                font-family: PsTheme.font;
+                font-size: 20px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.sub;
+                vertical-alignment: center;
+            }
+            PsToggle {
+                checked: Watch.only-now;
+                toggled => { Watch.only-now = !Watch.only-now; }
+            }
+        }
+    }
+
+    // Right: Grouped 4-column 16:9 tiles r16
+    Flickable {
+        x: 700px * TvUi.u;
+        y: 140px * TvUi.u;
+        width: 1124px * TvUi.u;
+        height: parent.height - 140px * TvUi.u;
+        content-height: res-col.preferred-height + 100px * TvUi.u;
+
+        res-col := VerticalLayout {
+            width: parent.width;
+            spacing: 28px * TvUi.u;
+
+            if Watch.searching: Text {
+                text: "SEARCHING…";
+                font-family: PsTheme.font;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.muted;
+                letter-spacing: 1.2px;
+            }
+
+            if !Watch.searching && Watch.message != "" && Watch.library.length == 0 && Watch.included.length == 0: Text {
+                text: Watch.message;
+                font-family: PsTheme.font;
+                font-size: 24px * TvUi.u;
+                color: PsTheme.sub;
+            }
+
+            // IN YOUR LIBRARY
+            if Watch.library.length > 0: VerticalLayout {
+                spacing: 14px * TvUi.u;
+                Text {
+                    text: "IN YOUR LIBRARY";
+                    font-family: PsTheme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.sub;
+                    letter-spacing: 1.2px;
+                }
+                Rectangle {
+                    property <int> rows: Math.ceil(Watch.library.length / 4);
+                    height: (self.rows * 214px - 16px) * TvUi.u;
+                    for item[i] in Watch.library: Rectangle {
+                        property <int> gx: Math.mod(i, 4);
+                        property <int> gy: Math.floor(i / 4);
+                        x: (self.gx * 284px) * TvUi.u;
+                        y: (self.gy * 214px) * TvUi.u;
+                        width: 268px * TvUi.u;
+                        height: 198px * TvUi.u;
+
+                        Rectangle {
+                            width: 268px * TvUi.u;
+                            height: 144px * TvUi.u;
+                            border-radius: 16px * TvUi.u;
+                            background: PsTheme.card;
+                            border-width: Watch.selected == item.key ? 3px * TvUi.u : 1px;
+                            border-color: Watch.selected == item.key ? PsTheme.text : PsTheme.card-border;
+                            clip: true;
+                            if item.has-poster: Image { source: item.poster; width: parent.width; height: parent.height; image-fit: cover; }
+                            Rectangle {
+                                x: 10px * TvUi.u; y: 10px * TvUi.u;
+                                width: c-l.preferred-width + 16px * TvUi.u; height: 24px * TvUi.u;
+                                border-radius: 12px * TvUi.u; background: PsTheme.plex;
+                                c-l := Text { text: "Plex"; font-family: PsTheme.font; font-size: 12px * TvUi.u; font-weight: 800; color: #0B0D10; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                        }
+                        Text { x: 0; y: 150px * TvUi.u; width: 268px * TvUi.u; text: item.title; font-family: PsTheme.font; font-size: 18px * TvUi.u; font-weight: 600; color: PsTheme.text; overflow: elide; }
+                        Text { x: 0; y: 174px * TvUi.u; width: 268px * TvUi.u; text: item.meta; font-family: PsTheme.font; font-size: 15px * TvUi.u; color: PsTheme.muted; overflow: elide; }
+                        TouchArea { mouse-cursor: pointer; clicked => { Watch.select(item.key); } }
+                    }
+                }
+            }
+
+            // INCLUDED WITH YOUR APPS
+            if Watch.included.length > 0: VerticalLayout {
+                spacing: 14px * TvUi.u;
+                Text {
+                    text: "INCLUDED WITH YOUR APPS";
+                    font-family: PsTheme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.sub;
+                    letter-spacing: 1.2px;
+                }
+                Rectangle {
+                    property <int> rows: Math.ceil(Watch.included.length / 4);
+                    height: (self.rows * 214px - 16px) * TvUi.u;
+                    for item[i] in Watch.included: Rectangle {
+                        property <int> gx: Math.mod(i, 4);
+                        property <int> gy: Math.floor(i / 4);
+                        x: (self.gx * 284px) * TvUi.u;
+                        y: (self.gy * 214px) * TvUi.u;
+                        width: 268px * TvUi.u;
+                        height: 198px * TvUi.u;
+
+                        Rectangle {
+                            width: 268px * TvUi.u;
+                            height: 144px * TvUi.u;
+                            border-radius: 16px * TvUi.u;
+                            background: PsTheme.card;
+                            border-width: Watch.selected == item.key ? 3px * TvUi.u : 1px;
+                            border-color: Watch.selected == item.key ? PsTheme.text : PsTheme.card-border;
+                            clip: true;
+                            if item.has-poster: Image { source: item.poster; width: parent.width; height: parent.height; image-fit: cover; }
+                            Rectangle {
+                                x: 10px * TvUi.u; y: 10px * TvUi.u;
+                                width: c-i.preferred-width + 16px * TvUi.u; height: 24px * TvUi.u;
+                                border-radius: 12px * TvUi.u; background: PsTheme.green;
+                                c-i := Text { text: item.line; font-family: PsTheme.font; font-size: 12px * TvUi.u; font-weight: 800; color: #0B0D10; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                        }
+                        Text { x: 0; y: 150px * TvUi.u; width: 268px * TvUi.u; text: item.title; font-family: PsTheme.font; font-size: 18px * TvUi.u; font-weight: 600; color: PsTheme.text; overflow: elide; }
+                        Text { x: 0; y: 174px * TvUi.u; width: 268px * TvUi.u; text: item.meta; font-family: PsTheme.font; font-size: 15px * TvUi.u; color: PsTheme.muted; overflow: elide; }
+                        TouchArea { mouse-cursor: pointer; clicked => { Watch.select(item.key); } }
+                    }
+                }
+            }
+
+            // COSTS EXTRA
+            if !Watch.only-now && Watch.extra.length > 0: VerticalLayout {
+                spacing: 14px * TvUi.u;
+                Text {
+                    text: "COSTS EXTRA";
+                    font-family: PsTheme.font;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.sub;
+                    letter-spacing: 1.2px;
+                }
+                Rectangle {
+                    property <int> rows: Math.ceil(Watch.extra.length / 4);
+                    height: (self.rows * 214px - 16px) * TvUi.u;
+                    for item[i] in Watch.extra: Rectangle {
+                        property <int> gx: Math.mod(i, 4);
+                        property <int> gy: Math.floor(i / 4);
+                        x: (self.gx * 284px) * TvUi.u;
+                        y: (self.gy * 214px) * TvUi.u;
+                        width: 268px * TvUi.u;
+                        height: 198px * TvUi.u;
+
+                        Rectangle {
+                            width: 268px * TvUi.u;
+                            height: 144px * TvUi.u;
+                            border-radius: 16px * TvUi.u;
+                            background: PsTheme.card;
+                            clip: true;
+                            if item.has-poster: Image { source: item.poster; width: parent.width; height: parent.height; image-fit: cover; }
+                        }
+                        Text { x: 0; y: 150px * TvUi.u; width: 268px * TvUi.u; text: item.title; font-family: PsTheme.font; font-size: 18px * TvUi.u; font-weight: 600; color: PsTheme.text; overflow: elide; }
+                        Text { x: 0; y: 174px * TvUi.u; width: 268px * TvUi.u; text: item.line; font-family: PsTheme.font; font-size: 15px * TvUi.u; color: PsTheme.muted; overflow: elide; }
+                        TouchArea { mouse-cursor: pointer; clicked => { Watch.select(item.key); } }
+                    }
+                }
+            }
+        }
+    }
+
+    // Detail sheet overlay
+    if Watch.detail-open: Rectangle {
+        x: 1180px * TvUi.u;
+        y: 140px * TvUi.u;
+        width: 644px * TvUi.u;
+        height: 860px * TvUi.u;
+        border-radius: 24px * TvUi.u;
+        background: #14171CF8;
+        border-width: 1px;
+        border-color: PsTheme.card-border;
+        clip: true;
+
+        if Watch.detail.has-poster: Image {
+            source: Watch.detail.poster;
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: 300px * TvUi.u;
+            image-fit: cover;
+        }
+        Rectangle {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: 305px * TvUi.u;
+            background: PsTheme.scrim-bottom;
+        }
+
+        VerticalLayout {
+            x: 32px * TvUi.u;
+            y: 250px * TvUi.u;
+            width: parent.width - 64px * TvUi.u;
+            spacing: 14px * TvUi.u;
+
+            Text {
+                text: Watch.detail.title;
+                font-family: PsTheme.font;
+                font-size: 36px * TvUi.u;
+                font-weight: 600;
+                color: PsTheme.text;
+                wrap: word-wrap;
+            }
+            Text {
+                text: Watch.detail.meta;
+                font-family: PsTheme.font;
+                font-size: 18px * TvUi.u;
+                color: PsTheme.sub;
+            }
+            Text {
+                height: 110px * TvUi.u;
+                text: Watch.detail-overview;
+                font-family: PsTheme.font;
+                font-size: 18px * TvUi.u;
+                color: PsTheme.sub;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+            HorizontalLayout {
+                spacing: 12px * TvUi.u;
+                for act in Watch.detail-actions: PsPillButton {
+                    label: act.label;
+                    primary: act.primary;
+                    compact: true;
+                    clicked => { Watch.action(act); }
+                }
+                PsPillButton {
+                    label: "Close";
+                    compact: true;
+                    clicked => { Watch.close-detail(); }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,249 @@
+import { Sports, TvUi } from "../state.slint";
+import { PsTheme } from "theme.slint";
+import { PsPillButton } from "buttons.slint";
+
+// PS5 Sports Competitions view (§6.5).
+export component PsCompetitions inherits Rectangle {
+    in-out property <bool> choice-menu-open: false;
+    in property <int> focused-row: -1;
+
+    // Controls row (y0)
+    HorizontalLayout {
+        x: 96px * TvUi.u;
+        y: 0;
+        width: 1728px * TvUi.u;
+        height: 56px * TvUi.u;
+        spacing: 16px * TvUi.u;
+
+        PsPillButton {
+            label: Sports.schedule-label + " ▾";
+            compact: true;
+            clicked => { root.choice-menu-open = !root.choice-menu-open; }
+        }
+        Text {
+            text: Sports.last-updated != "" ? ("Schedule last updated " + Sports.last-updated + " · " + Sports.total-count + " events") : (Sports.total-count + " events");
+            font-family: PsTheme.font;
+            font-size: 18px * TvUi.u;
+            color: PsTheme.muted;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        // Earlier / Page / Later
+        Rectangle {
+            width: 130px * TvUi.u;
+            height: 48px * TvUi.u;
+            border-radius: 24px * TvUi.u;
+            background: PsTheme.glass;
+            opacity: Sports.page > 0 ? 1.0 : 0.5;
+            Text { text: "← Earlier"; font-family: PsTheme.font; font-size: 18px * TvUi.u; font-weight: 600; color: PsTheme.text; horizontal-alignment: center; vertical-alignment: center; }
+            TouchArea { mouse-cursor: pointer; clicked => { if Sports.page > 0 { Sports.load(Sports.schedule, Sports.page - 1); } } }
+        }
+        Text {
+            text: "Page " + (Sports.page + 1) + " of " + Math.max(Sports.total-pages, 1);
+            font-family: PsTheme.font;
+            font-size: 18px * TvUi.u;
+            font-weight: 600;
+            color: PsTheme.sub;
+            vertical-alignment: center;
+        }
+        Rectangle {
+            width: 130px * TvUi.u;
+            height: 48px * TvUi.u;
+            border-radius: 24px * TvUi.u;
+            background: PsTheme.glass;
+            opacity: Sports.page + 1 < Sports.total-pages ? 1.0 : 0.5;
+            Text { text: "Later →"; font-family: PsTheme.font; font-size: 18px * TvUi.u; font-weight: 600; color: PsTheme.text; horizontal-alignment: center; vertical-alignment: center; }
+            TouchArea { mouse-cursor: pointer; clicked => { if Sports.page + 1 < Sports.total-pages { Sports.load(Sports.schedule, Sports.page + 1); } } }
+        }
+    }
+
+    // List
+    Flickable {
+        x: 0;
+        y: 76px * TvUi.u;
+        width: parent.width;
+        height: parent.height - 76px * TvUi.u;
+        content-height: rows-col.preferred-height + 120px * TvUi.u;
+
+        rows-col := VerticalLayout {
+            x: 96px * TvUi.u;
+            y: 0;
+            width: 1728px * TvUi.u;
+            spacing: 12px * TvUi.u;
+
+            for row[i] in Sports.rows: Rectangle {
+                height: row.kind == "day" ? 44px * TvUi.u : row.kind == "league" ? 30px * TvUi.u : 92px * TvUi.u;
+
+                if row.kind == "day": Text {
+                    text: row.header-text;
+                    font-family: PsTheme.font;
+                    font-size: 26px * TvUi.u;
+                    font-weight: 600;
+                    color: PsTheme.text;
+                    vertical-alignment: bottom;
+                }
+                if row.kind == "league": Text {
+                    text: row.header-text;
+                    font-family: PsTheme.font;
+                    font-size: 16px * TvUi.u;
+                    font-weight: 700;
+                    color: PsTheme.muted;
+                    letter-spacing: 1px;
+                    vertical-alignment: bottom;
+                }
+                if row.kind == "game": Rectangle {
+                    width: parent.width;
+                    height: 92px * TvUi.u;
+                    border-radius: 18px * TvUi.u;
+                    background: PsTheme.card;
+                    border-width: root.focused-row == i ? 4px * TvUi.u : 1px;
+                    border-color: root.focused-row == i ? PsTheme.text : PsTheme.card-border;
+
+                    // Overlapping badges
+                    Rectangle {
+                        x: 20px * TvUi.u;
+                        y: 24px * TvUi.u;
+                        width: 44px * TvUi.u;
+                        height: 44px * TvUi.u;
+                        border-radius: 22px * TvUi.u;
+                        background: #2C313A;
+                        clip: true;
+                        if row.away-has-logo: Image { source: row.away-logo; width: 32px * TvUi.u; height: 32px * TvUi.u; image-fit: contain; }
+                        if !row.away-has-logo: Text { text: row.away-initials; font-family: PsTheme.font; font-size: 14px * TvUi.u; font-weight: 800; color: PsTheme.text; horizontal-alignment: center; vertical-alignment: center; }
+                    }
+                    Rectangle {
+                        x: 48px * TvUi.u;
+                        y: 24px * TvUi.u;
+                        width: 44px * TvUi.u;
+                        height: 44px * TvUi.u;
+                        border-radius: 22px * TvUi.u;
+                        background: #1C2026;
+                        border-width: 2px;
+                        border-color: #050608;
+                        clip: true;
+                        if row.home-has-logo: Image { source: row.home-logo; width: 32px * TvUi.u; height: 32px * TvUi.u; image-fit: contain; }
+                        if !row.home-has-logo: Text { text: row.home-initials; font-family: PsTheme.font; font-size: 14px * TvUi.u; font-weight: 800; color: PsTheme.text; horizontal-alignment: center; vertical-alignment: center; }
+                    }
+
+                    // Title + location
+                    VerticalLayout {
+                        x: 112px * TvUi.u;
+                        y: 18px * TvUi.u;
+                        width: 720px * TvUi.u;
+                        spacing: 4px * TvUi.u;
+                        Text {
+                            text: row.away-name + " vs " + row.home-name;
+                            font-family: PsTheme.font;
+                            font-size: 24px * TvUi.u;
+                            font-weight: 600;
+                            color: PsTheme.text;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: (row.is-neutral ? "Neutral" : "Home") + (row.city != "" ? (" · " + row.city) : "") + (row.venue != "" ? (" · " + row.venue) : "");
+                            font-family: PsTheme.font;
+                            font-size: 17px * TvUi.u;
+                            color: PsTheme.muted;
+                            overflow: elide;
+                        }
+                    }
+
+                    // Time
+                    Text {
+                        x: 860px * TvUi.u;
+                        width: 150px * TvUi.u;
+                        text: row.is-tbd ? "Time TBD" : row.time-text;
+                        font-family: PsTheme.font;
+                        font-size: 24px * TvUi.u;
+                        font-weight: 500;
+                        color: PsTheme.text;
+                        vertical-alignment: center;
+                    }
+
+                    // TV / radio
+                    Text {
+                        x: 1030px * TvUi.u;
+                        width: 170px * TvUi.u;
+                        text: row.tv != "" ? row.tv : row.radio;
+                        font-family: PsTheme.font;
+                        font-size: 18px * TvUi.u;
+                        color: PsTheme.sub;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+
+                    // Link pills (h40)
+                    HorizontalLayout {
+                        x: 1220px * TvUi.u;
+                        y: 26px * TvUi.u;
+                        spacing: 8px * TvUi.u;
+                        if row.stream-url != "": Rectangle {
+                            width: 100px * TvUi.u; height: 40px * TvUi.u; border-radius: 20px * TvUi.u; background: PsTheme.glass;
+                            Text { text: "Stream"; font-family: PsTheme.font; font-size: 15px * TvUi.u; font-weight: 600; color: PsTheme.text; horizontal-alignment: center; vertical-alignment: center; }
+                            TouchArea { mouse-cursor: pointer; clicked => { Sports.open-url(row.stream-url, "Stream"); } }
+                        }
+                        if row.stats-url != "": Rectangle {
+                            width: 110px * TvUi.u; height: 40px * TvUi.u; border-radius: 20px * TvUi.u; background: PsTheme.glass;
+                            Text { text: "Live stats"; font-family: PsTheme.font; font-size: 15px * TvUi.u; font-weight: 600; color: PsTheme.text; horizontal-alignment: center; vertical-alignment: center; }
+                            TouchArea { mouse-cursor: pointer; clicked => { Sports.open-url(row.stats-url, "Live stats"); } }
+                        }
+                        if row.audio-url != "": Rectangle {
+                            width: 90px * TvUi.u; height: 40px * TvUi.u; border-radius: 20px * TvUi.u; background: PsTheme.glass;
+                            Text { text: "Audio"; font-family: PsTheme.font; font-size: 15px * TvUi.u; font-weight: 600; color: PsTheme.text; horizontal-alignment: center; vertical-alignment: center; }
+                            TouchArea { mouse-cursor: pointer; clicked => { Sports.open-url(row.audio-url, "Audio"); } }
+                        }
+                        if row.details-url != "": Rectangle {
+                            width: 96px * TvUi.u; height: 40px * TvUi.u; border-radius: 20px * TvUi.u; background: PsTheme.glass;
+                            Text { text: "Details"; font-family: PsTheme.font; font-size: 15px * TvUi.u; font-weight: 600; color: PsTheme.text; horizontal-alignment: center; vertical-alignment: center; }
+                            TouchArea { mouse-cursor: pointer; clicked => { Sports.open-url(row.details-url, "Details"); } }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Schedule dropdown
+    if root.choice-menu-open: Rectangle {
+        x: 96px * TvUi.u;
+        y: 64px * TvUi.u;
+        width: 300px * TvUi.u;
+        height: Math.min(Sports.choices.length * 46px + 16px, 400px) * TvUi.u;
+        border-radius: 16px * TvUi.u;
+        background: #1C2026F8;
+        border-width: 1px;
+        border-color: PsTheme.card-border;
+        clip: true;
+
+        Flickable {
+            width: parent.width;
+            height: parent.height;
+            content-height: (Sports.choices.length * 46px + 16px) * TvUi.u;
+            VerticalLayout {
+                padding: 8px * TvUi.u;
+                for c in Sports.choices: Rectangle {
+                    height: 46px * TvUi.u;
+                    border-radius: 10px * TvUi.u;
+                    background: c.value == Sports.schedule ? PsTheme.text : transparent;
+                    Text {
+                        x: 16px * TvUi.u;
+                        text: c.label;
+                        font-family: PsTheme.font;
+                        font-size: 18px * TvUi.u;
+                        font-weight: 600;
+                        color: c.value == Sports.schedule ? PsTheme.on-light : PsTheme.text;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            Sports.load(c.value, 0);
+                            root.choice-menu-open = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

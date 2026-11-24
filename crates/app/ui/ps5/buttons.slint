@@ -1,0 +1,111 @@
+import { TvUi } from "../state.slint";
+import { PsTheme } from "theme.slint";
+
+// Pill button (§1.3): primary h72 #E8EAED fill, secondary glass, round "more" 72x72, compact h56.
+export component PsPillButton inherits Rectangle {
+    in property <string> label: "";
+    in property <bool> primary: false;
+    in property <bool> focused: false;
+    in property <bool> compact: false;
+    in property <bool> round: false;
+    callback clicked();
+
+    property <length> h: root.compact ? 56px * TvUi.u : 72px * TvUi.u;
+    height: root.h;
+    width: root.round ? root.h : (txt.preferred-width + (root.compact ? 44px : 64px) * TvUi.u);
+
+    if root.focused: Rectangle {
+        x: -7px * TvUi.u;
+        y: -7px * TvUi.u;
+        width: parent.width + 14px * TvUi.u;
+        height: parent.height + 14px * TvUi.u;
+        border-radius: self.height / 2;
+        border-width: 4px * TvUi.u;
+        border-color: PsTheme.text;
+    }
+
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: self.height / 2;
+        background: root.primary ? PsTheme.text : PsTheme.glass;
+
+        txt := Text {
+            text: root.label;
+            font-family: PsTheme.font;
+            font-size: root.compact ? 22px * TvUi.u : (root.primary ? 30px * TvUi.u : 28px * TvUi.u);
+            font-weight: root.primary ? 600 : 500;
+            color: root.primary ? PsTheme.on-light : PsTheme.text;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Header quick-action circle icon button (§1.3): 52x52 glass circle + focused tooltip below.
+export component PsIconButton inherits Rectangle {
+    in property <string> glyph: "";
+    in property <string> tooltip: "";
+    in property <bool> active: false;
+    in property <bool> focused: false;
+    callback clicked();
+
+    width: 52px * TvUi.u;
+    height: 52px * TvUi.u;
+
+    if root.focused: Rectangle {
+        x: -6px * TvUi.u;
+        y: -6px * TvUi.u;
+        width: parent.width + 12px * TvUi.u;
+        height: parent.height + 12px * TvUi.u;
+        border-radius: self.height / 2;
+        border-width: 3px * TvUi.u;
+        border-color: PsTheme.text;
+    }
+
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: 26px * TvUi.u;
+        background: root.active ? PsTheme.text : PsTheme.glass;
+        Text {
+            text: root.glyph;
+            font-family: PsTheme.font;
+            font-size: 24px * TvUi.u;
+            font-weight: 600;
+            color: root.active ? PsTheme.on-light : PsTheme.text;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    if root.focused && root.tooltip != "": Rectangle {
+        x: (parent.width - tip-txt.preferred-width - 24px * TvUi.u) / 2;
+        y: parent.height + 12px * TvUi.u;
+        width: tip-txt.preferred-width + 24px * TvUi.u;
+        height: 32px * TvUi.u;
+        border-radius: 16px * TvUi.u;
+        background: PsTheme.card;
+        border-width: 1px;
+        border-color: PsTheme.card-border;
+        tip-txt := Text {
+            text: root.tooltip;
+            font-family: PsTheme.font;
+            font-size: 16px * TvUi.u;
+            font-weight: 600;
+            color: PsTheme.text;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}

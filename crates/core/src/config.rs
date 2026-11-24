@@ -79,20 +79,86 @@ pub enum DashboardUi {
     #[default]
     Classic,
     Blades,
+    Ps5,
+    Orbit,
 }
 
 impl DashboardUi {
+    /// Every UI this build can show, in picker order.
+    pub const ALL: &'static [DashboardUi] = &[
+        DashboardUi::Classic,
+        DashboardUi::Blades,
+        DashboardUi::Ps5,
+        DashboardUi::Orbit,
+    ];
+
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Classic => "classic",
             Self::Blades => "blades",
+            Self::Ps5 => "ps5",
+            Self::Orbit => "orbit",
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Classic => "Classic",
+            Self::Blades => "Blades",
+            Self::Ps5 => "PS5",
+            Self::Orbit => "Orbit",
+        }
+    }
+
+    pub fn sub(self) -> &'static str {
+        match self {
+            Self::Classic => "Top tabs · tile hub",
+            Self::Blades => "Side tabs",
+            Self::Ps5 => "Header tabs · app row",
+            Self::Orbit => "Pill nav · dials · rings",
+        }
+    }
+
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::Classic => "Flat tiles under big tabs. The original tvdash look.",
+            Self::Blades => "Your tabs as blades down each side, one wide panel in the middle.",
+            Self::Ps5 => "Full-screen art, a row of apps and cards along the bottom.",
+            Self::Orbit => "Round everything: dials, rings and a floating pill nav.",
         }
     }
 
     pub fn parse(s: &str) -> Self {
         match s {
             "blades" => Self::Blades,
-            _ => Self::Classic,
+            "ps5" => Self::Ps5,
+            "orbit" => Self::Orbit,
+            "classic" => Self::Classic,
+            other => {
+                if !other.is_empty() {
+                    tracing::warn!(dashboard_ui = %other, "unknown dashboard_ui; falling back to classic");
+                }
+                Self::Classic
+            }
+        }
+    }
+
+    /// Settings cycle order.
+    pub fn next(self) -> Self {
+        match self {
+            Self::Classic => Self::Blades,
+            Self::Blades => Self::Ps5,
+            Self::Ps5 => Self::Orbit,
+            Self::Orbit => Self::Classic,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Classic => "Classic · top tabs",
+            Self::Blades => "Blades · side tabs",
+            Self::Ps5 => "PS5 · header tabs · app row",
+            Self::Orbit => "Orbit · pill nav · dials · rings",
         }
     }
 }
@@ -194,6 +260,16 @@ pub struct GeneralConfig {
     pub longitude: f64,
     /// IANA zone name, e.g. `America/Chicago`. Empty or invalid → system local time.
     pub timezone: String,
+    /// Remembered Browse all sort for TV Series (`"title_asc"` | `"title_desc"` | `"recent"`).
+    #[serde(default = "default_browse_sort")]
+    pub browse_sort_tv: String,
+    /// Remembered Browse all sort for Movies (`"title_asc"` | `"title_desc"` | `"recent"`).
+    #[serde(default = "default_browse_sort")]
+    pub browse_sort_movies: String,
+}
+
+fn default_browse_sort() -> String {
+    "title_asc".into()
 }
 
 impl GeneralConfig {
@@ -575,6 +651,8 @@ impl Default for GeneralConfig {
             latitude: 0.0,
             longitude: 0.0,
             timezone: "America/Chicago".into(),
+            browse_sort_tv: default_browse_sort(),
+            browse_sort_movies: default_browse_sort(),
         }
     }
 }
@@ -855,5 +933,33 @@ mod tests {
         d.night_end = "05:00".into();
         assert!(d.is_night_now(t(3, 0)));
         assert!(!d.is_night_now(t(23, 0)));
+    }
+
+    #[test]
+    fn dashboard_ui_orbit_round_trips_and_cycles() {
+        assert_eq!(DashboardUi::parse("orbit"), DashboardUi::Orbit);
+        assert_eq!(DashboardUi::Orbit.as_str(), "orbit");
+        assert_eq!(DashboardUi::Classic.next(), DashboardUi::Blades);
+        assert_eq!(DashboardUi::Blades.next(), DashboardUi::Ps5);
+        assert_eq!(DashboardUi::Ps5.next(), DashboardUi::Orbit);
+        assert_eq!(DashboardUi::Orbit.next(), DashboardUi::Classic);
+
+        let mut c = Config::default();
+        c.display.dashboard_ui = DashboardUi::Orbit;
+        let text = toml::to_string_pretty(&c).unwrap();
+        let back: Config = toml::from_str(&text).unwrap();
+        assert_eq!(back.display.dashboard_ui, DashboardUi::Orbit);
+    }
+
+    #[test]
+    fn dashboard_ui_all_has_no_duplicates_and_round_trips() {
+        assert!(DashboardUi::ALL.contains(&DashboardUi::Classic));
+        for (i, &a) in DashboardUi::ALL.iter().enumerate() {
+            assert_eq!(DashboardUi::parse(a.as_str()), a);
+            for &b in &DashboardUi::ALL[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+        assert_eq!(DashboardUi::parse("unknown-ui"), DashboardUi::Classic);
     }
 }
