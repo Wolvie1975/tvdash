@@ -643,6 +643,12 @@ pub(super) fn on_collection_detail(s: &mut UiState, laptop: &LaptopWindow, res: 
     cp.set_progress_text(
         format!("{watched_count} of {} watched", detail.items.len()).into(),
     );
+    let col_poster = s
+        .posters
+        .peek(&(SourceKind::Plex, detail.collection.rating_key.clone()))
+        .or_else(|| detail.items.first().and_then(|i| s.posters.peek(&(i.source, i.id.clone()))));
+    cp.set_has_poster(col_poster.is_some());
+    cp.set_poster(col_poster.cloned().unwrap_or_default());
     cp.set_summary(detail.collection.summary.as_deref().unwrap_or("").into());
     if let Some(k) = &detail.up_next_key {
         cp.set_up_next_key(k.as_str().into());

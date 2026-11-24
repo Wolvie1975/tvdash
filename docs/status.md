@@ -1,23 +1,19 @@
 # tvdash: where things stand
 
-Last updated 2026-11-24 (`v0.1.71` bumped on `feature/add-uis`, ready for final tests + RPM build). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-24 (`v0.1.73` bumped on `feature/add-uis`, ready for final tests + RPM build). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-- **`v0.1.71` (`feature/add-uis`) — version bumped, ready for final tests & RPM build:**
-  - **Done on 2026-11-24:**
-    - **Orbit: Storm grey background (`#2B313D`):** Updated `OrbitTheme` (`bg: #2B313D`, `muted: #9CA3AE`, `accent: #8FC1FF`, `row: #FFFFFF12`), backdrop glows, and contrast backing on Home Up Next / Just Added capsules; removed the Orbit theme selector from `OrbitSettings`.
-    - **Orbit Sports (`sports.slint`, `bridge/mod.rs`, `state.slint`):** Populated the featured matchup card on landing and league/filter switches with the first `"game"` row (`first-game-index`) instead of header rows.
-    - **Orbit Library › Browse all (`orbit/letters.rs`, `bridge/browse.rs`, `orbit/browse.slint`, `orbit/library.slint`, `orbit/ring.slint`):** Built the 9-slot centered letter rail (`All · # · A–Z`, 300 ms debounced grid reload, wheel-stepped), 6-across 190 px `OrbitRing` poster grid, `TV Series` / `Movies` switch, per-library persisted `Sort`, and `Genre` filter.
-    - **Orbit Home, Apps, Library, Collections & Video:** Wired progress rings to `OrbitPlay` on Home and Library landing; unified full-brightness dials (`parent.width / 2` centering, dialed-down hover scale without overlap); removed `"More shelves"` and Home dial label; fixed Collection click navigation (`push_show` / `push_collection`), `ORDER` header layout, and `watched_count` from `watched_keys`; mounted `TvPlayerHud` on Orbit full-screen video; centered `OrbitIntro` vertically.
-    - **Classic: Choose a dashboard (UI picker):** Added `DashboardUi::ALL`, `TvDashboardPicker` (`ui/tv/dashboard_picker.slint`), `bridge/display.rs`, unified `set_dashboard_ui`, and `Page::DashboardPicker` remote navigation.
+- **`v0.1.73` (`feature/add-uis`) — version bumped, ready for final tests & RPM build:**
+  - **Done since `v0.1.72`:**
+    - **Orbit Collection detail (`orbit/collection.slint`, `bridge/library.rs`, `state.slint`):** Padded the `Flickable` so the first row's focus ring isn't clipped, moved `X of Y watched` below the title, and displayed the collection's poster inside the 260 px gold circle.
   - **Next (on host):**
     1. Run `cargo test -j 2 -p tvdash-core` and `cargo test -j 2 -p tvdash -- --test-threads=1`.
-    2. Build and package `v0.1.71`:
+    2. Build and package `v0.1.73`:
        - `cargo build --release -j 2`
        - `./packaging/rpm.sh`
-       - `cp dist/tvdash-0.1.71-1.x86_64.rpm releases/`
+       - `cp dist/tvdash-0.1.73-1.x86_64.rpm releases/`
 - **PS5 Dashboard UI (`v0.1.70`)** is complete on `feature/add-uis` with [tvdash-0.1.70-1.x86_64.rpm](releases/tvdash-0.1.70-1.x86_64.rpm).
 - **macOS Stage Dashboard UI (`macos`)** has a build spec in `docs/new concepts/` and is on hold for now.
 - Reference to build/upgrade an RPM on the TV machine:

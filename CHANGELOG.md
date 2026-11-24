@@ -1,5 +1,19 @@
 # tvdash Changelog
 
+## v0.1.73 — 2026-11-24
+- **Orbit Collection detail polish** (`orbit/collection.slint`, `bridge/library.rs`, `state.slint`):
+  - Padded the `Flickable` viewport (`y: 200`, `width: 1092`, `10px` top row offset) so the first row's focus ring isn't clipped.
+  - Moved the watched count (`X of Y watched`) out of the 260 px gold circle into the metadata line below the title, and displayed the collection's poster inside the circle.
+
+## v0.1.72 — 2026-11-24
+- **Orbit Home, Subpages & Intro polish** (`orbit/shell.slint`, `orbit/home.slint`, `orbit/intro.slint`, `orbit/settings.slint`, `tv_nav.rs`):
+  - Shrunk the Orbit Home clock to `144px` to match subpages, moved Up Next and Just Added / Next Game up (`y: 185` / `y: 640`) for more Apps arc clearance, and restricted content backdrop images to the Home page.
+  - Fixed Orbit Settings `Flickable` layout alignment (`y: 0`, `alignment: start`) and focus-ring padding (`12/10 px`) so section headers sit flush and focus rings never clip.
+  - Centered `OrbitIntro` vertically and horizontally via a full-screen `VerticalLayout` and fixed the reveal clock-ring flash animation.
+  - **Orbit Sports league logos & grey bubbles** (`assets/logos/leagues/`, `bridge/mod.rs`, `orbit/controls.slint`, `orbit/sports.slint`): Added bundled EFL Championship & white Premier League logo overrides (`78%` / `66%` bubble insets), `#3A3F4B` / `#464C59` `OrbitBubble` fills, monogram fallbacks, top bubble padding, and clean `·` separators.
+- **Shared `Choose a dashboard` picker across all UIs** (`ui/tv/dashboard_picker.slint`, `ui/v3/`, `ui/ps5/`, `ui/orbit/`, `state.slint`, `callbacks.rs`, `tv_nav.rs`):
+  - Replaced the inline Dashboard UI cards in **Blades**, **PS5**, and **Orbit** Settings with `Display.open-dashboard-picker()` opening the unified 4-tile `TvDashboardPicker` page.
+
 ## v0.1.71 — 2026-11-24
 - **Orbit Dashboard UI (`orbit`)** (`crates/app/ui/orbit/`, `crates/app/src/orbit/`, `crates/app/src/bridge/`):
   - **Orbit: Storm grey background (`#2B313D`):** Replaced Orbit's near-black `#07070A` background with `#2B313D`, updated `muted` to `#9CA3AE`, `accent` to `#8FC1FF`, `row` to `#FFFFFF12` (with `#0B0A12B3` / `#1A202CD9` contrast backing on Home backdrop capsules), lifted glow middle stops, and removed the Orbit theme selector from `OrbitSettings`.

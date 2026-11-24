@@ -247,6 +247,21 @@ pub fn push_collection(laptop: &LaptopWindow) {
     sync(laptop);
 }
 
+pub fn open_dashboard_picker(laptop: &LaptopWindow) {
+    let cur = tvdash_core::config::DashboardUi::parse(&laptop.global::<Display>().get_dashboard_ui());
+    let cur_idx = tvdash_core::config::DashboardUi::ALL
+        .iter()
+        .position(|&u| u == cur)
+        .unwrap_or(0);
+    STATE.with_borrow_mut(|s| {
+        if !matches!(s.shell.current(), Page::DashboardPicker) {
+            s.shell.push(Page::DashboardPicker);
+        }
+        s.shell.focused_tile = cur_idx;
+    });
+    sync(laptop);
+}
+
 pub fn pop_picker(laptop: &LaptopWindow) {
     STATE.with_borrow_mut(|s| {
         if matches!(s.shell.current(), Page::DashboardPicker) {
@@ -369,10 +384,10 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             let up_n = hs.get_up_next().row_count().min(4);
             for i in 0..up_n {
                 let indent = match i { 0 => 120.0, 1 => 70.0, 2 => 40.0, _ => 30.0 };
-                rects.push(Rect { x: 1180.0 + indent, y: 230.0 + i as f32 * 114.0, w: 600.0, h: 104.0 });
+                rects.push(Rect { x: 1180.0 + indent, y: 185.0 + i as f32 * 110.0, w: 600.0, h: 104.0 });
             }
             if hs.get_next_game().visible || hs.get_just_added().visible {
-                rects.push(Rect { x: 1270.0, y: 700.0, w: 550.0, h: 108.0 });
+                rects.push(Rect { x: 1270.0, y: 640.0, w: 550.0, h: 108.0 });
             }
             rects.push(Rect { x: 885.0, y: 790.0, w: 150.0, h: 150.0 }); // Apps dial top node
             rects
@@ -468,7 +483,18 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 Rect { x: 110.0 + gx * 108.0, y: 306.0 + gy * 106.0, w: 86.0, h: 86.0 }
             })
             .collect(),
-        Page::Settings | Page::DashboardPicker => (0..8)
+        Page::DashboardPicker => {
+            let n = laptop.global::<Display>().get_dashboard_choices().row_count();
+            (0..n)
+                .map(|i| Rect {
+                    x: 96.0 + i as f32 * 436.0,
+                    y: 330.0,
+                    w: 420.0,
+                    h: 600.0,
+                })
+                .collect()
+        }
+        Page::Settings => (0..8)
             .map(|i| Rect { x: 110.0, y: 196.0 + i as f32 * 88.0, w: 380.0, h: 80.0 })
             .collect(),
     }
@@ -563,7 +589,18 @@ fn ps5_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             }
             rects
         }
-        Page::Settings | Page::DashboardPicker => (0..6)
+        Page::DashboardPicker => {
+            let n = laptop.global::<Display>().get_dashboard_choices().row_count();
+            (0..n)
+                .map(|i| Rect {
+                    x: 96.0 + i as f32 * 436.0,
+                    y: 330.0,
+                    w: 420.0,
+                    h: 600.0,
+                })
+                .collect()
+        }
+        Page::Settings => (0..6)
             .map(|i| Rect {
                 x: 540.0,
                 y: 150.0 + i as f32 * 88.0,
@@ -872,7 +909,17 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             }
             rects
         }
-        Page::DashboardPicker => vec![],
+        Page::DashboardPicker => {
+            let n = laptop.global::<Display>().get_dashboard_choices().row_count();
+            (0..n)
+                .map(|i| Rect {
+                    x: 96.0 + i as f32 * 436.0,
+                    y: 330.0,
+                    w: 420.0,
+                    h: 600.0,
+                })
+                .collect()
+        }
         Page::Settings => {
             let ox = 364.0;
             let oy = 24.0;

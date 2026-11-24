@@ -15,6 +15,8 @@ import { V3Search } from "search.slint";
 import { V3Sports } from "events.slint";
 import { V3Settings } from "settings.slint";
 import { V3PlayerHud } from "player_hud.slint";
+import { TvDashboardPicker } from "../tv/dashboard_picker.slint";
+import { Theme } from "../theme.slint";
 import { V3Ambient } from "ambient.slint";
 import { Intro, IntroStage } from "../shared/intro.slint";
 import { BladesIntro } from "intro_blades.slint";
@@ -98,7 +100,39 @@ export component V3Shell inherits Rectangle {
     }
 
     // ── Blades Shell (hidden while full-screen video is active) ──────────────
-    if !(TvUi.video-on && TvUi.video-full): Rectangle {
+    if !(TvUi.video-on && TvUi.video-full) && TvUi.screen == "dashboard_picker": Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 1920px * TvUi.u;
+        height: 1080px * TvUi.u;
+        background: Theme.bg;
+
+        TvDashboardPicker { width: 100%; height: 100%; }
+
+        Rectangle {
+            x: 96px * TvUi.u;
+            y: 52px * TvUi.u;
+            width: v3-pick-back.preferred-width + 32px * TvUi.u;
+            height: 46px * TvUi.u;
+            border-radius: 23px * TvUi.u;
+            background: v3-pick-ta.has-hover ? Theme.surface-raised : Theme.surface;
+            border-width: 1px;
+            border-color: Theme.border;
+            v3-pick-back := Text {
+                text: "← Back";
+                font-size: 22px * TvUi.u;
+                color: Theme.text-primary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            v3-pick-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { TvUi.back-clicked(); }
+            }
+        }
+    }
+
+    if !(TvUi.video-on && TvUi.video-full) && TvUi.screen != "dashboard_picker": Rectangle {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         width: 1920px * TvUi.u;

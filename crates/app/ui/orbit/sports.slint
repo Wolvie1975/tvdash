@@ -107,18 +107,19 @@ export component OrbitSports inherits Rectangle {
 
         Flickable {
             x: 100px * TvUi.u;
-            y: 234px * TvUi.u;
+            y: 244px * TvUi.u;
             width: 400px * TvUi.u;
-            height: parent.height - 260px * TvUi.u;
-            content-height: Scoreboard.choices.length * 116px * TvUi.u;
+            height: parent.height - 270px * TvUi.u;
+            content-height: Scoreboard.choices.length * 116px * TvUi.u + 20px * TvUi.u;
 
             for choice[ci] in Scoreboard.choices: OrbitBubble {
                 x: 10px * TvUi.u;
-                y: ci * 116px * TvUi.u;
+                y: 10px * TvUi.u + ci * 116px * TvUi.u;
                 width: 380px * TvUi.u;
                 circle-size: 96px * TvUi.u;
-                count-text: ci == 0 ? "★" : "•";
+                count-text: ci == 0 ? "★" : choice.monogram;
                 has-logo: choice.has-logo;
+                logo-tall: choice.logo-tall;
                 logo: choice.logo;
                 label: choice.label;
                 meta: choice.group;
@@ -372,18 +373,19 @@ export component OrbitSports inherits Rectangle {
 
         Flickable {
             x: 100px * TvUi.u;
-            y: 234px * TvUi.u;
+            y: 244px * TvUi.u;
             width: 400px * TvUi.u;
-            height: parent.height - 260px * TvUi.u;
-            content-height: Sports.choices.length * 144px * TvUi.u;
+            height: parent.height - 270px * TvUi.u;
+            content-height: Sports.choices.length * 144px * TvUi.u + 20px * TvUi.u;
 
             for choice[ci] in Sports.choices: OrbitBubble {
                 x: 10px * TvUi.u;
-                y: ci * 144px * TvUi.u;
+                y: 10px * TvUi.u + ci * 144px * TvUi.u;
                 width: 380px * TvUi.u;
                 circle-size: 120px * TvUi.u;
-                count-text: ci == 0 ? "★" : "•";
+                count-text: ci == 0 ? "★" : choice.monogram;
                 has-logo: choice.has-logo;
+                logo-tall: choice.logo-tall;
                 logo: choice.logo;
                 label: choice.label;
                 meta: "";
@@ -521,7 +523,7 @@ export component OrbitSports inherits Rectangle {
                     }
                 }
                 Text {
-                    text: Sports.rows[safe-row].venue + (Sports.rows[safe-row].tv != "" ? " · " + Sports.rows[safe-row].tv : "");
+                    text: Sports.rows[safe-row].venue + (Sports.rows[safe-row].venue != "" && Sports.rows[safe-row].tv != "" ? " · " : "") + Sports.rows[safe-row].tv;
                     font-family: OrbitTheme.font;
                     font-size: 17px * TvUi.u;
                     color: OrbitTheme.sub;
@@ -680,7 +682,7 @@ export component OrbitSports inherits Rectangle {
                                 }
                             }
                             Text {
-                                text: row.sport + " · " + row.venue + (row.tv != "" ? " · " + row.tv : "");
+                                text: row.sport + (row.venue != "" ? " · " + row.venue : "") + (row.tv != "" ? " · " + row.tv : "");
                                 font-family: OrbitTheme.font;
                                 font-size: 15px * TvUi.u;
                                 color: OrbitTheme.sub;

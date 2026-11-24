@@ -419,6 +419,8 @@ export global CollectionPageState {
     in property <string> title;
     in property <string> meta;
     in property <string> progress-text;
+    in property <image> poster;
+    in property <bool> has-poster: false;
     in property <string> summary;
     in property <string> up-next-key;
     in property <string> up-next-label: "Play next on TV";
@@ -673,6 +675,7 @@ export global Display {
     callback set-layout-setting(string);
     callback set-dashboard-ui(string);
     callback choose-dashboard(string);
+    callback open-dashboard-picker();
     callback find-place(string);
     callback pick-place(int);
 }
@@ -873,7 +876,9 @@ export struct SportsChoiceData {
     value: string,
     label: string,
     has-logo: bool,
+    logo-tall: bool,
     logo: image,
+    monogram: string,
 }
 
 export struct SportsRowData {
@@ -924,7 +929,9 @@ export struct ScoreboardChoiceData {
     label: string,
     group: string,
     has-logo: bool,
+    logo-tall: bool,
     logo: image,
+    monogram: string,
 }
 
 export struct ScoreboardRowData {

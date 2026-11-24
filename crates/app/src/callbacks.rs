@@ -472,6 +472,13 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         }
     });
 
+    let weak_open = weak.clone();
+    laptop.global::<crate::Display>().on_open_dashboard_picker(move || {
+        if let Some(l) = weak_open.upgrade() {
+            crate::tv_nav::open_dashboard_picker(&l);
+        }
+    });
+
     laptop.global::<crate::Display>().on_choose_dashboard(move |ui| {
         if let Some(l) = weak.upgrade() {
             set_ui(&ui, &l, &s);
