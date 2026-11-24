@@ -21,6 +21,7 @@ export component OrbitHome inherits Rectangle {
         x: 110px * TvUi.u;
         y: 230px * TvUi.u;
         width: 780px * TvUi.u;
+        alignment: start;
         spacing: 14px * TvUi.u;
 
         Text {
@@ -64,10 +65,12 @@ export component OrbitHome inherits Rectangle {
             overflow: elide;
         }
 
+        Rectangle { height: 12px * TvUi.u; }
+
         HorizontalLayout {
+            height: 104px * TvUi.u;
             spacing: 20px * TvUi.u;
             alignment: start;
-            padding-top: 12px * TvUi.u;
 
             OrbitPlay {
                 focused: root.focused-area == 0;
@@ -76,6 +79,7 @@ export component OrbitHome inherits Rectangle {
             }
 
             VerticalLayout {
+                height: 104px * TvUi.u;
                 alignment: center;
                 spacing: 4px * TvUi.u;
 
@@ -97,6 +101,7 @@ export component OrbitHome inherits Rectangle {
             }
 
             if HomeState.whats-on.has-item && HomeState.whats-on.progress > 0.0: VerticalLayout {
+                height: 104px * TvUi.u;
                 alignment: center;
                 OrbitPill {
                     label: "From start";
@@ -107,6 +112,7 @@ export component OrbitHome inherits Rectangle {
             }
 
             if HomeState.whats-on.has-item: VerticalLayout {
+                height: 104px * TvUi.u;
                 alignment: center;
                 OrbitPill {
                     label: "···";
@@ -125,9 +131,9 @@ export component OrbitHome inherits Rectangle {
         property <bool> is-foc: (root.focused-area == 3 + i) || up-ta.has-hover;
 
         x: 1180px * TvUi.u + self.indent;
-        y: (240px + i * 124px) * TvUi.u;
-        width: 600px * TvUi.u;
-        height: 112px * TvUi.u;
+        y: (230px + i * 114px) * TvUi.u;
+        width: 1840px * TvUi.u - self.x;
+        height: 104px * TvUi.u;
 
         if up-row.is-foc: Rectangle {
             x: -9px * TvUi.u;
@@ -139,19 +145,19 @@ export component OrbitHome inherits Rectangle {
             border-color: OrbitTheme.text;
         }
 
-        if up-row.is-foc: Rectangle {
+        Rectangle {
             width: parent.width;
             height: parent.height;
             border-radius: self.height / 2;
-            background: OrbitTheme.row-focus;
+            background: up-row.is-foc ? OrbitTheme.row-focus : #0D101799;
         }
 
-        // Round poster 108px
+        // Round poster 100px
         Rectangle {
             x: 2px * TvUi.u;
             y: 2px * TvUi.u;
-            width: 108px * TvUi.u;
-            height: 108px * TvUi.u;
+            width: 100px * TvUi.u;
+            height: 100px * TvUi.u;
             border-radius: self.width / 2;
             border-width: 4px * TvUi.u;
             border-color: item.progress > 0.0 ? OrbitTheme.accent : OrbitTheme.track;
@@ -204,10 +210,10 @@ export component OrbitHome inherits Rectangle {
     // Next Game capsule (or Just Added fallback)
     if has-game || has-just-added: ng-card := Rectangle {
         property <bool> is-foc: (root.focused-area == 7) || ng-ta.has-hover;
-        x: 1210px * TvUi.u;
-        y: 750px * TvUi.u;
-        width: 580px * TvUi.u;
-        height: 112px * TvUi.u;
+        x: 1270px * TvUi.u;
+        y: 700px * TvUi.u;
+        width: 550px * TvUi.u;
+        height: 108px * TvUi.u;
 
         if ng-card.is-foc: Rectangle {
             x: -9px * TvUi.u;
@@ -336,10 +342,10 @@ export component OrbitHome inherits Rectangle {
         }
     }
 
-    // ── 3. Bottom Apps Dial (cx 960, cy 1770, r 950, 9.5° steps) ─────────────
+    // ── 3. Bottom Apps Dial (cx 960, cy 1815, r 950, 9.5° steps) ─────────────
     Text {
         x: (parent.width - 360px * TvUi.u) / 2;
-        y: 868px * TvUi.u;
+        y: 752px * TvUi.u;
         width: 360px * TvUi.u;
         text: root.dial-idx < Math.min(HomeState.apps-bar.length, 7)
             ? HomeState.apps-bar[root.dial-idx].name
@@ -359,7 +365,7 @@ export component OrbitHome inherits Rectangle {
         property <length> node-sz: (self.is-top ? 150px : 104px) * TvUi.u;
         property <angle> ang: slot * 9.5deg - 90deg;
         property <length> cx: 960px * TvUi.u + 950px * TvUi.u * Math.cos(self.ang);
-        property <length> cy: 1770px * TvUi.u + 950px * TvUi.u * Math.sin(self.ang);
+        property <length> cy: 1815px * TvUi.u + 950px * TvUi.u * Math.sin(self.ang);
 
         x: self.cx - self.node-sz / 2;
         y: self.cy - self.node-sz / 2;
@@ -423,7 +429,6 @@ export component OrbitHome inherits Rectangle {
             pointer-event(ev) => {
                 if ev.kind == PointerEventKind.move {
                     root.focused-area = 8;
-                    root.dial-idx = dial-node.idx;
                 }
             }
         }

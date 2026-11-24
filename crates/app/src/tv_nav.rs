@@ -331,12 +331,12 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             let up_n = hs.get_up_next().row_count().min(4);
             for i in 0..up_n {
                 let indent = match i { 0 => 120.0, 1 => 70.0, 2 => 40.0, _ => 30.0 };
-                rects.push(Rect { x: 1180.0 + indent, y: 240.0 + i as f32 * 124.0, w: 600.0, h: 112.0 });
+                rects.push(Rect { x: 1180.0 + indent, y: 230.0 + i as f32 * 114.0, w: 600.0, h: 104.0 });
             }
             if hs.get_next_game().visible || hs.get_just_added().visible {
-                rects.push(Rect { x: 1210.0, y: 750.0, w: 580.0, h: 112.0 });
+                rects.push(Rect { x: 1270.0, y: 700.0, w: 550.0, h: 108.0 });
             }
-            rects.push(Rect { x: 885.0, y: 745.0, w: 150.0, h: 150.0 }); // Apps dial top node
+            rects.push(Rect { x: 885.0, y: 790.0, w: 150.0, h: 150.0 }); // Apps dial top node
             rects
         }
         Page::Apps => {
@@ -373,7 +373,7 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
-        Page::Show => {
+        Page::Show(_) => {
             let sp = laptop.global::<crate::ShowPageState>();
             let n = sp.get_episodes().row_count().min(24).max(1);
             (0..n)
@@ -385,7 +385,7 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
-        Page::Collection => {
+        Page::Collection(_) => {
             let n = laptop.global::<crate::CollectionPageState>().get_items().row_count().min(12);
             (0..n)
                 .map(|i| Rect { x: 750.0, y: 214.0 + i as f32 * 92.0, w: 1060.0, h: 72.0 })
@@ -406,7 +406,6 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
         Page::Settings => (0..8)
             .map(|i| Rect { x: 110.0, y: 196.0 + i as f32 * 88.0, w: 380.0, h: 80.0 })
             .collect(),
-        Page::Player | Page::Modal => vec![],
     }
 }
 

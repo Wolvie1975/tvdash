@@ -11,8 +11,12 @@
   - `cargo test -j 2 -p tvdash-events` (if modified)
   - `cargo test -j 2 -p tvdash -- --test-threads=1`
 
+## Live Testing Before Release
+- **Always run a live test on the host before bumping the version or building an RPM** (e.g., `cargo run -j 2 -- --windowed --layout tv` or `cargo run -j 2 -- --windowed`).
+- Verify the changed UI/feature interactively (navigation, layout, focus, playback/controls) and fix any issues before moving to the version bump and RPM build.
+
 ## Releases & Versioning
-- **When testing is finished, bump the version number** before building a release/RPM so `dnf upgrade` picks up the new package cleanly.
+- **When unit tests and live testing are finished, bump the version number** before building a release/RPM so `dnf upgrade` picks up the new package cleanly.
 - Update `Cargo.toml`, `CHANGELOG.md`, `docs/fedora-install.txt`, `docs/status.md`, and `releases/README.md` together.
 - **Do not run `cargo build --release` or `./packaging/rpm.sh` directly.** Instead, show the build commands to the user so they can run the release/RPM build on the host:
   - `cargo build --release -j 2`

@@ -797,13 +797,60 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
     }
 }
 
+/// Map a Sports/Scoreboard filter choice value to an ESPN CDN league (or NCAA) logo URL.
+pub(crate) fn league_logo_url(value: &str) -> Option<&'static str> {
+    let lower = value.to_ascii_lowercase();
+    if lower == "top25" {
+        return Some("https://a.espncdn.com/i/espn/misc_logos/500/ncaa.png");
+    }
+    if lower.contains("nfl") {
+        return Some("https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png");
+    }
+    if lower.contains("wnba") {
+        return Some("https://a.espncdn.com/i/teamlogos/leagues/500/wnba.png");
+    }
+    if lower.contains("nba") {
+        return Some("https://a.espncdn.com/i/teamlogos/leagues/500/nba.png");
+    }
+    if lower.contains("mlb") {
+        return Some("https://a.espncdn.com/i/teamlogos/leagues/500/mlb.png");
+    }
+    if lower.contains("nhl") {
+        return Some("https://a.espncdn.com/i/teamlogos/leagues/500/nhl.png");
+    }
+    if lower.contains("mls") || lower.contains("usa.1") {
+        return Some("https://a.espncdn.com/i/teamlogos/leagues/500/mls.png");
+    }
+    if lower.contains("epl") || lower.contains("eng.1") {
+        return Some("https://a.espncdn.com/i/leaguelogos/soccer/500/23.png");
+    }
+    if lower.contains("efl") || lower.contains("eng.2") {
+        return Some("https://a.espncdn.com/i/leaguelogos/soccer/500/24.png");
+    }
+    if lower.contains("uefa.champions") || lower.contains("ucl") {
+        return Some("https://a.espncdn.com/i/leaguelogos/soccer/500/2.png");
+    }
+    if lower.contains("college-football") || lower.contains("mens-college-basketball") || lower.contains("womens-college-basketball") || lower.contains("big12") {
+        return Some("https://a.espncdn.com/i/espn/misc_logos/500/ncaa.png");
+    }
+    None
+}
+
 fn refresh_sports(s: &UiState, laptop: &LaptopWindow) {
     let Some(page) = &s.sports_page else { return };
     let sp = laptop.global::<Sports>();
     let choices: Vec<SportsChoiceData> = page
         .choices
         .iter()
-        .map(|c| SportsChoiceData { value: c.value.as_str().into(), label: c.label.as_str().into() })
+        .map(|c| {
+            let logo = league_logo_url(&c.value).and_then(|u| s.sports_logos.peek(&u.to_string()));
+            SportsChoiceData {
+                value: c.value.as_str().into(),
+                label: c.label.as_str().into(),
+                has_logo: logo.is_some(),
+                logo: logo.cloned().unwrap_or_default(),
+            }
+        })
         .collect();
     let label = page
         .choices
@@ -874,10 +921,15 @@ fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
     let choices: Vec<ScoreboardChoiceData> = page
         .choices
         .iter()
-        .map(|c| ScoreboardChoiceData {
-            value: c.value.as_str().into(),
-            label: c.label.as_str().into(),
-            group: c.group.as_str().into(),
+        .map(|c| {
+            let logo = league_logo_url(&c.value).and_then(|u| s.sports_logos.peek(&u.to_string()));
+            ScoreboardChoiceData {
+                value: c.value.as_str().into(),
+                label: c.label.as_str().into(),
+                group: c.group.as_str().into(),
+                has_logo: logo.is_some(),
+                logo: logo.cloned().unwrap_or_default(),
+            }
         })
         .collect();
     let show_label = page

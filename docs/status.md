@@ -1,17 +1,28 @@
 # tvdash: where things stand
 
-Last updated 2026-11-23 (v0.1.70). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-23 (post-`v0.1.70` on `feature/add-uis`). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-- **PS5 Dashboard UI (`v0.1.70`)** is complete on `feature/add-uis` (ready to test/build/merge whenever you want).
+- **Orbit Dashboard UI (`feature/add-uis`) — currently in live testing** (not yet bumped to `0.1.71` or packaged into an RPM):
+  - **Done tonight:**
+    - Fixed `orbit_tile_rects` `Page` match arms in `crates/app/src/tv_nav.rs` (`cargo test -j 2 -p tvdash -- --test-threads=1` passed).
+    - Fixed Orbit Home hero `alignment: start` (revealing `OrbitPlay` + `From start` + `···`), vertical centering of the Play controls row, `OrbitPill` label centering (`controls.slint`), bottom dial label position and clearance from `Next Game` / `Just Added`, Up Next row contrast backing and right margin, jumpy dial hover behavior (`home.slint` & `library.slint`), and a centered vector Search magnifying glass in `shell.slint`.
+    - Fixed Orbit Collections hero `alignment: start` (and matching hero `VerticalLayout`s in `apps.slint`, `collection.slint`, `show.slint`, `settings.slint`).
+    - Added team logos beside team names in Orbit Sports Competitions (top event card + event rows) and league logos (plus the NCAA logo for `top25` / college leagues) to the Sports filter bubbles (`state.slint`, `controls.slint`, `sports.slint`, `bridge/mod.rs`, `controller.rs`), including the `&u.to_string()` `sports_logos.peek` compile fix in `bridge/mod.rs`.
+    - Added **Live Testing Before Release** to `GEMINI.md` as a standard step before version bump & RPM build.
+  - **Next when picking back up (uncommitted changes are in the working tree):**
+    1. Run `cargo run -j 2 -- --windowed --layout tv` to verify the Sports league/NCAA logos compile/render cleanly and check any remaining Orbit screens (`Apps`, `Library`, `Show`, `Collection`, `Search`, `Settings`).
+    2. Re-run `cargo test -j 2 -p tvdash -- --test-threads=1`, then bump to `0.1.71` and build the RPM.
+- **PS5 Dashboard UI (`v0.1.70`)** is complete on `feature/add-uis` with [tvdash-0.1.70-1.x86_64.rpm](releases/tvdash-0.1.70-1.x86_64.rpm) already built.
+- **macOS Stage Dashboard UI (`macos`)** has a build spec in `docs/new concepts/` and is on hold for now.
 - Reference to build/upgrade an RPM on the TV machine:
   ```bash
   cargo build --release -j 2
   ./packaging/rpm.sh
-  cp dist/tvdash-0.1.70-1.x86_64.rpm releases/
-  sudo dnf upgrade ./releases/tvdash-0.1.70-1.x86_64.rpm
+  cp dist/tvdash-<version>-1.x86_64.rpm releases/
+  sudo dnf upgrade ./releases/tvdash-<version>-1.x86_64.rpm
   ```
 
 ## Done

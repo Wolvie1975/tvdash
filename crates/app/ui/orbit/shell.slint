@@ -248,7 +248,20 @@ export component OrbitShell inherits Rectangle {
                 border-width: 1px;
                 border-color: OrbitTheme.glass-border;
 
-                Text {
+                if qi == 0: Path {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    width: 24px * TvUi.u;
+                    height: 24px * TvUi.u;
+                    viewbox-width: 24;
+                    viewbox-height: 24;
+                    commands: "M 10.5 4 A 6.5 6.5 0 1 0 10.5 17 A 6.5 6.5 0 1 0 10.5 4 Z M 15.5 15.5 L 20.5 20.5";
+                    fill: transparent;
+                    stroke: OrbitTheme.text;
+                    stroke-width: 2.2px * TvUi.u;
+                    stroke-line-cap: round;
+                }
+                if qi != 0: Text {
                     text: qc.icon;
                     font-size: 22px * TvUi.u;
                     color: OrbitTheme.text;

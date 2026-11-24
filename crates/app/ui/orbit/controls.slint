@@ -46,8 +46,9 @@ export component OrbitPill inherits Rectangle {
     }
 
     row := HorizontalLayout {
-        x: h-pad;
+        x: 0;
         y: 0;
+        width: parent.width;
         height: parent.height;
         spacing: 8px * TvUi.u;
         alignment: center;
@@ -249,6 +250,8 @@ export component OrbitBubble inherits Rectangle {
     in property <string> count-text;
     in property <string> label;
     in property <string> meta;
+    in property <bool> has-logo: false;
+    in property <image> logo;
     in property <string> lit-path;
     in property <string> unlit-path;
     in property <color> lit-color: OrbitTheme.accent;
@@ -296,7 +299,16 @@ export component OrbitBubble inherits Rectangle {
             border-radius: self.width / 2;
             background: selected ? OrbitTheme.text : OrbitTheme.glass;
 
-            Text {
+            if has-logo: Image {
+                source: logo;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: parent.width * 0.68;
+                height: parent.height * 0.68;
+                image-fit: contain;
+            }
+
+            if !has-logo: Text {
                 text: count-text;
                 font-family: OrbitTheme.font;
                 font-size: 26px * TvUi.u;

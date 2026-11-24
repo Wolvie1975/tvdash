@@ -64,6 +64,7 @@ export component OrbitLibrary inherits Rectangle {
             x: 110px * TvUi.u;
             y: 230px * TvUi.u;
             width: 880px * TvUi.u;
+            alignment: start;
             spacing: 14px * TvUi.u;
 
             Text {
@@ -97,10 +98,12 @@ export component OrbitLibrary inherits Rectangle {
                 overflow: elide;
             }
 
+            Rectangle { height: 10px * TvUi.u; }
+
             HorizontalLayout {
+                height: 104px * TvUi.u;
                 spacing: 20px * TvUi.u;
                 alignment: start;
-                padding-top: 10px * TvUi.u;
 
                 OrbitPlay {
                     focused: root.focused-area == 0;
@@ -113,6 +116,7 @@ export component OrbitLibrary inherits Rectangle {
                 }
 
                 VerticalLayout {
+                    height: 104px * TvUi.u;
                     alignment: center;
                     spacing: 4px * TvUi.u;
                     Text {
@@ -131,6 +135,7 @@ export component OrbitLibrary inherits Rectangle {
                 }
 
                 if !is-movies && LibraryLanding.shelf1.length > 0: VerticalLayout {
+                    height: 104px * TvUi.u;
                     alignment: center;
                     OrbitPill {
                         label: "Show page";
@@ -335,8 +340,6 @@ export component OrbitLibrary inherits Rectangle {
                 pointer-event(ev) => {
                     if ev.kind == PointerEventKind.move {
                         root.focused-area = 6;
-                        root.dial-idx = lib-dial-node.idx;
-                        LibraryLanding.focus-changed(lib-dial-node.idx);
                     }
                 }
             }

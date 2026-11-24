@@ -1101,6 +1101,11 @@ impl Controller {
                         result: Ok(format!("{count} upcoming")),
                     });
                     let mut logo_urls = Vec::new();
+                    for c in &data.choices {
+                        if let Some(u) = crate::bridge::league_logo_url(&c.value) {
+                            logo_urls.push(u.to_string());
+                        }
+                    }
                     for day in &data.days {
                         for lg in &day.leagues {
                             for g in &lg.games {
@@ -1148,6 +1153,11 @@ impl Controller {
                         result: Ok(format!("{count} scoreboard games")),
                     });
                     let mut logo_urls = Vec::new();
+                    for c in &data.choices {
+                        if let Some(u) = crate::bridge::league_logo_url(&c.value) {
+                            logo_urls.push(u.to_string());
+                        }
+                    }
                     for grp in &data.groups {
                         for g in &grp.games {
                             if let Some(u) = &g.away_logo_url {
