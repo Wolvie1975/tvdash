@@ -13,6 +13,7 @@ import { PsCollection } from "collection.slint";
 import { PsSearch } from "search.slint";
 import { PsSettings } from "settings.slint";
 import { PsIntro } from "intro.slint";
+import { TvDashboardPicker } from "../tv/dashboard_picker.slint";
 
 // PS5 Dashboard shell (§2.3).
 // Owns full-screen backdrop + scrims, y44 header (tabs + quick actions + weather + clock),
@@ -125,6 +126,34 @@ export component Ps5Shell inherits Rectangle {
         width: parent.width;
         height: parent.height;
         focused-idx: !TvUi.bar-focused ? TvUi.focused-tile : -1;
+    }
+    if TvUi.screen == "dashboard_picker": Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: Theme.bg;
+        TvDashboardPicker { width: 100%; height: 100%; }
+
+        Rectangle {
+            x: 96px * TvUi.u;
+            y: 52px * TvUi.u;
+            width: ps5-pick-back.preferred-width + 32px * TvUi.u;
+            height: 46px * TvUi.u;
+            border-radius: 23px * TvUi.u;
+            background: ps5-pick-ta.has-hover ? Theme.surface-raised : Theme.surface;
+            border-width: 1px;
+            border-color: Theme.border;
+            ps5-pick-back := Text {
+                text: "← Back";
+                font-size: 22px * TvUi.u;
+                color: Theme.text-primary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            ps5-pick-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { TvUi.back-clicked(); }
+            }
+        }
     }
 
     // Bottom fade on scrolling pages

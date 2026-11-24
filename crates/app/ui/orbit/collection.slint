@@ -71,21 +71,13 @@ export component OrbitCollection inherits Rectangle {
             border-width: 10px * TvUi.u;
             border-color: OrbitTheme.collections-accent;
             background: OrbitTheme.glass;
+            clip: true;
 
-            VerticalLayout {
+            if CollectionPageState.has-poster: Image {
+                source: CollectionPageState.poster;
                 width: parent.width;
                 height: parent.height;
-                alignment: center;
-                spacing: 4px * TvUi.u;
-                Text {
-                    text: CollectionPageState.progress-text != "" ? CollectionPageState.progress-text : (count + " items");
-                    font-family: OrbitTheme.font;
-                    font-size: 22px * TvUi.u;
-                    font-weight: 700;
-                    color: OrbitTheme.text;
-                    horizontal-alignment: center;
-                    wrap: word-wrap;
-                }
+                image-fit: cover;
             }
         }
 
@@ -106,8 +98,10 @@ export component OrbitCollection inherits Rectangle {
             color: OrbitTheme.text;
             wrap: word-wrap;
         }
-        if CollectionPageState.meta != "": Text {
-            text: CollectionPageState.meta;
+        if CollectionPageState.meta != "" || CollectionPageState.progress-text != "": Text {
+            text: CollectionPageState.meta
+                + (CollectionPageState.meta != "" && CollectionPageState.progress-text != "" ? " · " : "")
+                + CollectionPageState.progress-text;
             font-family: OrbitTheme.font;
             font-size: 17px * TvUi.u;
             color: OrbitTheme.sub;
@@ -134,16 +128,16 @@ export component OrbitCollection inherits Rectangle {
 
     Flickable {
         x: 740px * TvUi.u;
-        y: 210px * TvUi.u;
-        width: 1080px * TvUi.u;
-        height: parent.height - 230px * TvUi.u;
-        content-height: count * 92px * TvUi.u + 160px * TvUi.u;
+        y: 200px * TvUi.u;
+        width: 1092px * TvUi.u;
+        height: parent.height - 220px * TvUi.u;
+        content-height: count * 92px * TvUi.u + 170px * TvUi.u;
 
         for item[i] in CollectionPageState.items: col-row := Rectangle {
             property <bool> is-foc: (safe-row == i) || item-ta.has-hover;
             x: 0;
-            y: i * 92px * TvUi.u;
-            width: parent.width;
+            y: 10px * TvUi.u + i * 92px * TvUi.u;
+            width: parent.width - 12px * TvUi.u;
             height: 80px * TvUi.u;
 
             // Node on the timeline

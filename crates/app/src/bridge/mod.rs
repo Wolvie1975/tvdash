@@ -813,6 +813,50 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
     }
 }
 
+/// Bundled league logo overrides (`(image, is_tall)`). Wins over remote ESPN CDN URLs.
+fn bundled_league_logo(value: &str) -> Option<(Image, bool)> {
+    let lower = value.to_ascii_lowercase();
+    let (bytes, tall): (&[u8], bool) = if lower.contains("eng.2") || lower.contains("efl") {
+        (include_bytes!("../../../../assets/logos/leagues/efl-championship.png"), true)
+    } else if lower.contains("eng.1") || lower.contains("epl") {
+        (include_bytes!("../../../../assets/logos/leagues/premier-league.png"), false)
+    } else {
+        return None;
+    };
+    let img = image::load_from_memory(bytes).ok()?;
+    let rgba = img.to_rgba8();
+    let buf = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&rgba, rgba.width(), rgba.height());
+    Some((Image::from_rgba8(buf), tall))
+}
+
+fn league_monogram(value: &str, label: &str) -> String {
+    let lower = value.to_ascii_lowercase();
+    if lower.contains("eng.2") || lower.contains("efl") {
+        return "EFL".into();
+    }
+    if lower.contains("eng.1") || lower.contains("epl") {
+        return "EPL".into();
+    }
+    let words: Vec<&str> = label.split_whitespace().collect();
+    if words.len() >= 2 {
+        let abbr: String = words
+            .iter()
+            .filter_map(|w| w.chars().next())
+            .take(3)
+            .map(|c| c.to_ascii_uppercase())
+            .collect();
+        if !abbr.is_empty() {
+            return abbr;
+        }
+    }
+    label
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .take(3)
+        .map(|c| c.to_ascii_uppercase())
+        .collect()
+}
+
 /// Map a Sports/Scoreboard filter choice value to an ESPN CDN league (or NCAA) logo URL.
 pub(crate) fn league_logo_url(value: &str) -> Option<&'static str> {
     let lower = value.to_ascii_lowercase();
@@ -859,12 +903,24 @@ fn refresh_sports(s: &UiState, laptop: &LaptopWindow) {
         .choices
         .iter()
         .map(|c| {
-            let logo = league_logo_url(&c.value).and_then(|u| s.sports_logos.peek(&u.to_string()));
+            let bundled = bundled_league_logo(&c.value);
+            let remote = if bundled.is_none() {
+                league_logo_url(&c.value).and_then(|u| s.sports_logos.peek(&u.to_string()).cloned())
+            } else {
+                None
+            };
+            let (has_logo, logo_tall, logo) = match (bundled, remote) {
+                (Some((img, tall)), _) => (true, tall, img),
+                (None, Some(img)) => (true, false, img),
+                (None, None) => (false, false, Image::default()),
+            };
             SportsChoiceData {
                 value: c.value.as_str().into(),
                 label: c.label.as_str().into(),
-                has_logo: logo.is_some(),
-                logo: logo.cloned().unwrap_or_default(),
+                has_logo,
+                logo_tall,
+                logo,
+                monogram: league_monogram(&c.value, &c.label).into(),
             }
         })
         .collect();
@@ -944,13 +1000,25 @@ fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
         .choices
         .iter()
         .map(|c| {
-            let logo = league_logo_url(&c.value).and_then(|u| s.sports_logos.peek(&u.to_string()));
+            let bundled = bundled_league_logo(&c.value);
+            let remote = if bundled.is_none() {
+                league_logo_url(&c.value).and_then(|u| s.sports_logos.peek(&u.to_string()).cloned())
+            } else {
+                None
+            };
+            let (has_logo, logo_tall, logo) = match (bundled, remote) {
+                (Some((img, tall)), _) => (true, tall, img),
+                (None, Some(img)) => (true, false, img),
+                (None, None) => (false, false, Image::default()),
+            };
             ScoreboardChoiceData {
                 value: c.value.as_str().into(),
                 label: c.label.as_str().into(),
                 group: c.group.as_str().into(),
-                has_logo: logo.is_some(),
-                logo: logo.cloned().unwrap_or_default(),
+                has_logo,
+                logo_tall,
+                logo,
+                monogram: league_monogram(&c.value, &c.label).into(),
             }
         })
         .collect();

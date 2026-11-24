@@ -13,6 +13,7 @@ import { OrbitSports } from "sports.slint";
 import { OrbitSearch } from "search.slint";
 import { OrbitSettings } from "settings.slint";
 import { TvPlayerHud } from "../tv/player_hud.slint";
+import { TvDashboardPicker } from "../tv/dashboard_picker.slint";
 
 // Orbit Dashboard shell (§1.3).
 // Owns full-screen backdrop + scrims, centred pill nav, top-right clock badge,
@@ -29,32 +30,19 @@ export component OrbitShell inherits Rectangle {
     property <int> focus-ticket: TvUi.focus-ticket;
     changed focus-ticket => { keys.focus(); }
 
-    property <bool> is-subpage: TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search";
+    property <bool> is-subpage: TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search" || TvUi.screen == "dashboard_picker";
     property <int> eff-tab: TvUi.screen == "apps" ? 1
         : (TvUi.screen == "library" || TvUi.screen == "show") ? 2
         : (TvUi.screen == "collections" || TvUi.screen == "collection") ? 3
         : TvUi.screen == "sports" ? 4
-        : TvUi.screen == "settings" ? 5
+        : (TvUi.screen == "settings" || TvUi.screen == "dashboard_picker") ? 5
         : TvUi.screen == "search" ? -1
         : 0;
-    property <bool> is-home: TvUi.screen == "home";
-    property <length> clock-sz: is-home ? 190px * TvUi.u : 150px * TvUi.u;
+    property <length> clock-sz: 144px * TvUi.u;
 
-    // 1. Full-screen backdrop (Home / Library / Show / Collections)
+    // 1. Full-screen backdrop (Home only)
     if TvUi.screen == "home" && HomeState.whats-on.has-item && !HomeState.whats-on.is-app && HomeState.whats-on.has-art: Image {
         source: HomeState.whats-on.art;
-        width: parent.width;
-        height: parent.height;
-        image-fit: cover;
-    }
-    if (TvUi.screen == "library" || TvUi.screen == "collections") && LibraryLanding.has-backdrop: Image {
-        source: LibraryLanding.backdrop-show-b ? LibraryLanding.backdrop-b : LibraryLanding.backdrop-a;
-        width: parent.width;
-        height: parent.height;
-        image-fit: cover;
-    }
-    if TvUi.screen == "show" && ShowPageState.has-backdrop: Image {
-        source: ShowPageState.backdrop;
         width: parent.width;
         height: parent.height;
         image-fit: cover;
@@ -99,6 +87,7 @@ export component OrbitShell inherits Rectangle {
     if TvUi.screen == "sports": OrbitSports { width: parent.width; height: parent.height; }
     if TvUi.screen == "search": OrbitSearch { width: parent.width; height: parent.height; }
     if TvUi.screen == "settings": OrbitSettings { width: parent.width; height: parent.height; }
+    if TvUi.screen == "dashboard_picker": TvDashboardPicker { width: parent.width; height: parent.height; }
 
     // 3. Centred pill nav (y 40, padding 6, gap 6, glass capsule)
     Rectangle {
@@ -171,7 +160,7 @@ export component OrbitShell inherits Rectangle {
         }
     }
 
-    // 4. Top-right circular clock badge (190px on Home, 150px elsewhere)
+    // 4. Top-right circular clock badge (144px)
     Rectangle {
         x: parent.width - 80px * TvUi.u - clock-sz;
         y: 30px * TvUi.u;
@@ -191,7 +180,7 @@ export component OrbitShell inherits Rectangle {
             Text {
                 text: Dash.clock-hh + ":" + Dash.clock-mm;
                 font-family: OrbitTheme.font;
-                font-size: (is-home ? 44px : 34px) * TvUi.u;
+                font-size: 34px * TvUi.u;
                 font-weight: 300;
                 color: OrbitTheme.text;
                 horizontal-alignment: center;
@@ -199,7 +188,7 @@ export component OrbitShell inherits Rectangle {
             Text {
                 text: (Dash.clock-ampm != "" ? Dash.clock-ampm + " · " : "") + Dash.weather-temp;
                 font-family: OrbitTheme.font;
-                font-size: (is-home ? 15px : 13px) * TvUi.u;
+                font-size: 13px * TvUi.u;
                 color: OrbitTheme.sub;
                 horizontal-alignment: center;
             }

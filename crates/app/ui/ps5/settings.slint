@@ -80,9 +80,9 @@ export component PsSettings inherits Rectangle {
             width: parent.width;
             spacing: 14px * TvUi.u;
 
-            // Dashboard UI 3 preview cards
+            // Dashboard UI picker row
             Rectangle {
-                height: 220px * TvUi.u;
+                height: 76px * TvUi.u;
                 border-radius: 18px * TvUi.u;
                 background: PsTheme.card;
                 border-width: 1px;
@@ -90,63 +90,18 @@ export component PsSettings inherits Rectangle {
 
                 Text {
                     x: 24px * TvUi.u;
-                    y: 18px * TvUi.u;
                     text: "Dashboard UI";
                     font-family: PsTheme.font;
-                    font-size: 22px * TvUi.u;
+                    font-size: 21px * TvUi.u;
                     font-weight: 600;
                     color: PsTheme.text;
+                    vertical-alignment: center;
                 }
-
-                HorizontalLayout {
-                    x: 24px * TvUi.u;
-                    y: 58px * TvUi.u;
-                    spacing: 18px * TvUi.u;
-
-                    for opt in [
-                        { id: "classic", label: "Classic", sub: "top tabs · tile hub" },
-                        { id: "blades", label: "Blades", sub: "side tabs" },
-                        { id: "ps5", label: "PS5", sub: "header tabs · app row" },
-                        { id: "orbit", label: "Orbit", sub: "pill nav · dials · rings" },
-                    ]: Rectangle {
-                        property <bool> is-sel: Display.dashboard-ui == opt.id || (opt.id == "classic" && Display.dashboard-ui != "blades" && Display.dashboard-ui != "ps5" && Display.dashboard-ui != "orbit");
-                        width: 286px * TvUi.u;
-                        height: 140px * TvUi.u;
-                        border-radius: 16px * TvUi.u;
-                        background: #050608B0;
-                        border-width: self.is-sel ? 3px * TvUi.u : 1px;
-                        border-color: self.is-sel ? PsTheme.accent : PsTheme.card-border;
-
-                        Text {
-                            x: 20px * TvUi.u;
-                            y: 26px * TvUi.u;
-                            text: opt.label;
-                            font-family: PsTheme.font;
-                            font-size: 21px * TvUi.u;
-                            font-weight: 600;
-                            color: PsTheme.text;
-                        }
-                        Text {
-                            x: 20px * TvUi.u;
-                            y: 62px * TvUi.u;
-                            text: opt.sub;
-                            font-family: PsTheme.font;
-                            font-size: 16px * TvUi.u;
-                            color: PsTheme.muted;
-                        }
-                        if self.is-sel: Text {
-                            x: parent.width - 42px * TvUi.u;
-                            y: 24px * TvUi.u;
-                            text: "✓";
-                            font-size: 22px * TvUi.u;
-                            font-weight: 700;
-                            color: PsTheme.accent;
-                        }
-                        TouchArea {
-                            mouse-cursor: pointer;
-                            clicked => { Display.set-dashboard-ui(opt.id); }
-                        }
-                    }
+                PsPillButton {
+                    x: parent.width - self.width - 18px * TvUi.u;
+                    y: 15px * TvUi.u;
+                    label: Display.dashboard-ui-label + " ›";
+                    clicked => { Display.open-dashboard-picker(); }
                 }
             }
 
