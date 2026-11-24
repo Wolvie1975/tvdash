@@ -1,0 +1,150 @@
+import { Library, TvUi } from "../state.slint";
+import { OrbitTheme } from "theme.slint";
+
+// Orbit Collections landing (§8.1):
+// Gold section tint (#F2C66B); Hero (x 110, y 160, w 900);
+// 6-across 200px circular covers with progress rings in vertical Flickable + bottom fade.
+export component OrbitCollections inherits Rectangle {
+    in-out property <int> focused-idx: 0;
+
+    property <int> count: Library.collections.length;
+    property <int> safe-idx: count > 0 ? Math.clamp(focused-idx, 0, count - 1) : 0;
+
+    // Gold-tinted backdrop glow
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: @radial-gradient(circle, #F2C66B28 0%, #07070A00 60%);
+    }
+
+    // Hero (x 110, y 160, w 900)
+    VerticalLayout {
+        x: 110px * TvUi.u;
+        y: 160px * TvUi.u;
+        width: 900px * TvUi.u;
+        spacing: 10px * TvUi.u;
+
+        Text {
+            text: count > 0
+                ? ((Library.collections[safe-idx].smart ? "COLLECTION · SMART · " : "COLLECTION · ") + Library.collections[safe-idx].detail)
+                : "COLLECTIONS";
+            font-family: OrbitTheme.font;
+            font-size: 16px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 2.5px * TvUi.u;
+            color: OrbitTheme.collections-accent;
+        }
+        Text {
+            text: count > 0 ? Library.collections[safe-idx].title : "No collections";
+            font-family: OrbitTheme.font;
+            font-size: 74px * TvUi.u;
+            font-weight: 700;
+            letter-spacing: -2px * TvUi.u;
+            color: OrbitTheme.text;
+            overflow: elide;
+        }
+    }
+
+    Text {
+        x: 110px * TvUi.u;
+        y: 410px * TvUi.u;
+        text: "ALL COLLECTIONS · " + count;
+        font-family: OrbitTheme.font;
+        font-size: 15px * TvUi.u;
+        font-weight: 600;
+        letter-spacing: 2.5px * TvUi.u;
+        color: OrbitTheme.sub;
+    }
+
+    Flickable {
+        x: 96px * TvUi.u;
+        y: 452px * TvUi.u;
+        width: parent.width - 192px * TvUi.u;
+        height: parent.height - 460px * TvUi.u;
+        content-height: Math.ceil(count / 6) * 296px * TvUi.u + 120px * TvUi.u;
+
+        for col[i] in Library.collections: col-card := Rectangle {
+            property <int> gx: Math.mod(i, 6);
+            property <int> gy: Math.floor(i / 6);
+            property <bool> is-foc: (safe-idx == i) || col-ta.has-hover;
+
+            x: (14px + self.gx * 284px) * TvUi.u;
+            y: (12px + self.gy * 296px) * TvUi.u;
+            width: 240px * TvUi.u;
+            height: 274px * TvUi.u;
+
+            if col-card.is-foc: Rectangle {
+                x: 11px * TvUi.u;
+                y: -9px * TvUi.u;
+                width: 218px * TvUi.u;
+                height: 218px * TvUi.u;
+                border-radius: self.width / 2;
+                border-width: 4px * TvUi.u;
+                border-color: OrbitTheme.text;
+            }
+
+            // 200px circular cover with ring
+            Rectangle {
+                x: 20px * TvUi.u;
+                y: 0;
+                width: 200px * TvUi.u;
+                height: 200px * TvUi.u;
+                border-radius: self.width / 2;
+                border-width: 6px * TvUi.u;
+                border-color: col.progress > 0.0 ? OrbitTheme.collections-accent : OrbitTheme.track;
+                background: OrbitTheme.glass;
+                clip: true;
+
+                if col.has-poster: Image {
+                    source: col.poster;
+                    width: parent.width;
+                    height: parent.height;
+                    image-fit: cover;
+                }
+            }
+
+            Text {
+                x: 0;
+                y: 212px * TvUi.u;
+                width: parent.width;
+                text: col.title;
+                font-family: OrbitTheme.font;
+                font-size: 20px * TvUi.u;
+                font-weight: 600;
+                color: OrbitTheme.text;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+            Text {
+                x: 0;
+                y: 240px * TvUi.u;
+                width: parent.width;
+                text: col.detail;
+                font-family: OrbitTheme.font;
+                font-size: 15px * TvUi.u;
+                color: OrbitTheme.sub;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+
+            col-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { Library.open-collection(col.rating-key); }
+                pointer-event(ev) => {
+                    if ev.kind == PointerEventKind.move {
+                        root.focused-idx = i;
+                    }
+                }
+            }
+        }
+    }
+
+    // Bottom fade
+    Rectangle {
+        x: 0;
+        y: parent.height - 120px * TvUi.u;
+        width: parent.width;
+        height: 120px * TvUi.u;
+        background: OrbitTheme.fade;
+    }
+}

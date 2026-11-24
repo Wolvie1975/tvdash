@@ -9,14 +9,18 @@ import { V3Theme } from "v3/theme.slint";
 import { V3Shell } from "v3/shell.slint";
 import { PsTheme } from "ps5/theme.slint";
 import { Ps5Shell } from "ps5/shell.slint";
+import { OrbitTheme } from "orbit/theme.slint";
+import { OrbitShell } from "orbit/shell.slint";
 
-// The main window. Renders Classic (TvShell), Blades (V3Shell), or PS5 (Ps5Shell)
-// based on Display.dashboard-ui ("classic" | "blades" | "ps5").
+// The main window. Renders Classic (TvShell), Blades (V3Shell), PS5 (Ps5Shell), or Orbit (OrbitShell)
+// based on Display.dashboard-ui ("classic" | "blades" | "ps5" | "orbit").
 export component LaptopWindow inherits Window {
     title: "tvdash";
-    background: Display.dashboard-ui == "ps5" ? PsTheme.bg
+    background: Display.dashboard-ui == "orbit" ? OrbitTheme.bg
+        : Display.dashboard-ui == "ps5" ? PsTheme.bg
         : Display.dashboard-ui == "blades" ? V3Theme.bg : Theme.bg;
-    default-font-family: Display.dashboard-ui == "ps5" ? PsTheme.font
+    default-font-family: Display.dashboard-ui == "orbit" ? OrbitTheme.font
+        : Display.dashboard-ui == "ps5" ? PsTheme.font
         : Display.dashboard-ui == "blades" ? V3Theme.font : Theme.font;
     preferred-width: 1600px;
     preferred-height: 1000px;
@@ -24,9 +28,10 @@ export component LaptopWindow inherits Window {
     min-width: 800px;
     min-height: 480px;
 
-    if Display.dashboard-ui != "blades" && Display.dashboard-ui != "ps5": TvShell { width: root.width; height: root.height; }
+    if Display.dashboard-ui != "blades" && Display.dashboard-ui != "ps5" && Display.dashboard-ui != "orbit": TvShell { width: root.width; height: root.height; }
     if Display.dashboard-ui == "blades": V3Shell { width: root.width; height: root.height; }
     if Display.dashboard-ui == "ps5": Ps5Shell { width: root.width; height: root.height; }
+    if Display.dashboard-ui == "orbit": OrbitShell { width: root.width; height: root.height; }
 
     if SiteEditor.open: SiteEditorDialog { width: root.width; height: root.height; }
 

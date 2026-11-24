@@ -1,0 +1,230 @@
+import { CollectionPageState, TvUi } from "../state.slint";
+import { OrbitTheme } from "theme.slint";
+import { OrbitPill, OrbitRow } from "controls.slint";
+
+// Orbit Collection page (§8.2):
+// Header: ‹ Collections · ORDER (Collection order · Release date · A–Z) · Hide watched
+// Left (fixed x 110, y 220, w 520): 280px disc + title + summary
+// Right (x 790): vertical timeline + movie rows (focused h 138 with OK · Play/Resume)
+export component OrbitCollection inherits Rectangle {
+    in-out property <int> focused-row: 0;
+
+    property <int> count: CollectionPageState.items.length;
+    property <int> safe-row: count > 0 ? Math.clamp(focused-row, 0, count - 1) : 0;
+    property <bool> show-timeline: CollectionPageState.order == "release";
+
+    // Gold-tinted glow
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: @radial-gradient(circle, #F2C66B22 0%, #07070A00 60%);
+    }
+
+    // Header controls (next to Back pill at x 110, y 130)
+    HorizontalLayout {
+        x: 310px * TvUi.u;
+        y: 130px * TvUi.u;
+        spacing: 10px * TvUi.u;
+
+        Text {
+            text: "ORDER";
+            font-family: OrbitTheme.font;
+            font-size: 14px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 2px * TvUi.u;
+            color: OrbitTheme.muted;
+            vertical-alignment: center;
+        }
+        for ord in [
+            { id: "collection", label: "Collection order" },
+            { id: "release", label: "Release date" },
+            { id: "alpha", label: "A–Z" },
+        ]: OrbitPill {
+            label: ord.label;
+            selected: CollectionPageState.order == ord.id;
+            accent-color: OrbitTheme.collections-accent;
+            activated => { CollectionPageState.set-order(ord.id); }
+        }
+
+        OrbitPill {
+            label: "Hide watched";
+            selected: CollectionPageState.hide-watched;
+            accent-color: OrbitTheme.collections-accent;
+            activated => { CollectionPageState.set-hide-watched(!CollectionPageState.hide-watched); }
+        }
+    }
+
+    // Left fixed column (x 110, y 220, w 560)
+    VerticalLayout {
+        x: 110px * TvUi.u;
+        y: 220px * TvUi.u;
+        width: 560px * TvUi.u;
+        spacing: 14px * TvUi.u;
+
+        Rectangle {
+            width: 260px * TvUi.u;
+            height: 260px * TvUi.u;
+            border-radius: self.width / 2;
+            border-width: 10px * TvUi.u;
+            border-color: OrbitTheme.collections-accent;
+            background: OrbitTheme.glass;
+
+            VerticalLayout {
+                width: parent.width;
+                height: parent.height;
+                alignment: center;
+                spacing: 4px * TvUi.u;
+                Text {
+                    text: CollectionPageState.progress-text != "" ? CollectionPageState.progress-text : (count + " items");
+                    font-family: OrbitTheme.font;
+                    font-size: 22px * TvUi.u;
+                    font-weight: 700;
+                    color: OrbitTheme.text;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        Text {
+            text: "COLLECTION · PLEX";
+            font-family: OrbitTheme.font;
+            font-size: 16px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 2.5px * TvUi.u;
+            color: OrbitTheme.collections-accent;
+        }
+        Text {
+            text: CollectionPageState.title;
+            font-family: OrbitTheme.font;
+            font-size: 52px * TvUi.u;
+            font-weight: 700;
+            letter-spacing: -1.5px * TvUi.u;
+            color: OrbitTheme.text;
+            wrap: word-wrap;
+        }
+        if CollectionPageState.meta != "": Text {
+            text: CollectionPageState.meta;
+            font-family: OrbitTheme.font;
+            font-size: 17px * TvUi.u;
+            color: OrbitTheme.sub;
+        }
+        if CollectionPageState.summary != "": Text {
+            text: CollectionPageState.summary;
+            font-family: OrbitTheme.font;
+            font-size: 18px * TvUi.u;
+            color: OrbitTheme.sub;
+            wrap: word-wrap;
+            max-height: 84px * TvUi.u;
+            overflow: elide;
+        }
+    }
+
+    // Right Timeline / List (x 740, y 210, w 1070)
+    if show-timeline: Rectangle {
+        x: 790px * TvUi.u;
+        y: 220px * TvUi.u;
+        width: 4px * TvUi.u;
+        height: parent.height - 260px * TvUi.u;
+        background: OrbitTheme.track;
+    }
+
+    Flickable {
+        x: 740px * TvUi.u;
+        y: 210px * TvUi.u;
+        width: 1080px * TvUi.u;
+        height: parent.height - 230px * TvUi.u;
+        content-height: count * 92px * TvUi.u + 160px * TvUi.u;
+
+        for item[i] in CollectionPageState.items: col-row := Rectangle {
+            property <bool> is-foc: (safe-row == i) || item-ta.has-hover;
+            x: 0;
+            y: i * 92px * TvUi.u;
+            width: parent.width;
+            height: 80px * TvUi.u;
+
+            // Node on the timeline
+            if show-timeline: Rectangle {
+                x: col-row.is-foc ? 18px * TvUi.u : 30px * TvUi.u;
+                y: col-row.is-foc ? 8px * TvUi.u : 20px * TvUi.u;
+                width: col-row.is-foc ? 64px * TvUi.u : 40px * TvUi.u;
+                height: col-row.is-foc ? 64px * TvUi.u : 40px * TvUi.u;
+                border-radius: self.width / 2;
+                border-width: 3px * TvUi.u;
+                border-color: item.watched ? OrbitTheme.collections-accent : OrbitTheme.track;
+                background: OrbitTheme.glass;
+                clip: true;
+
+                if item.has-poster: Image {
+                    source: item.poster;
+                    width: parent.width;
+                    height: parent.height;
+                    image-fit: cover;
+                }
+            }
+
+            OrbitRow {
+                x: show-timeline ? 100px * TvUi.u : 10px * TvUi.u;
+                y: 4px * TvUi.u;
+                width: show-timeline ? (parent.width - 110px * TvUi.u) : (parent.width - 20px * TvUi.u);
+                row-height: 72px * TvUi.u;
+                focused: is-foc;
+                activated => { CollectionPageState.play-item(item.rating-key, item.can-resume); }
+                hovered => { root.focused-row = i; }
+
+                HorizontalLayout {
+                    x: 20px * TvUi.u;
+                    width: parent.width - 40px * TvUi.u;
+                    height: parent.height;
+                    spacing: 16px * TvUi.u;
+
+                    Text {
+                        text: item.num;
+                        font-family: OrbitTheme.font;
+                        font-size: 16px * TvUi.u;
+                        color: OrbitTheme.muted;
+                        vertical-alignment: center;
+                        width: 44px * TvUi.u;
+                    }
+                    Text {
+                        text: item.title;
+                        font-family: OrbitTheme.font;
+                        font-size: 21px * TvUi.u;
+                        font-weight: 600;
+                        color: OrbitTheme.text;
+                        vertical-alignment: center;
+                        width: 520px * TvUi.u;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: item.status;
+                        font-family: OrbitTheme.font;
+                        font-size: 16px * TvUi.u;
+                        color: item.watched ? OrbitTheme.collections-accent : OrbitTheme.sub;
+                        vertical-alignment: center;
+                        horizontal-alignment: right;
+                        width: 240px * TvUi.u;
+                    }
+                }
+            }
+
+            item-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { CollectionPageState.play-item(item.rating-key, item.can-resume); }
+                pointer-event(ev) => {
+                    if ev.kind == PointerEventKind.move {
+                        root.focused-row = i;
+                    }
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        x: 740px * TvUi.u;
+        y: parent.height - 110px * TvUi.u;
+        width: 1080px * TvUi.u;
+        height: 110px * TvUi.u;
+        background: OrbitTheme.fade;
+    }
+}

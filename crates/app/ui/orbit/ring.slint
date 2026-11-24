@@ -1,0 +1,47 @@
+import { OrbitTheme } from "theme.slint";
+
+// Segmented or continuous SVG arc ring (§1.5).
+// Rust builds `lit-path` and `unlit-path` via `orbit::rings::ring_paths`.
+export component OrbitRing inherits Rectangle {
+    in property <length> size: 108px;
+    in property <length> thickness: 6px;
+    in property <string> lit-path;
+    in property <string> unlit-path;
+    in property <brush> lit-color: OrbitTheme.accent;
+
+    width: size;
+    height: size;
+
+    if unlit-path != "": Path {
+        width: parent.width;
+        height: parent.height;
+        commands: unlit-path;
+        fill: transparent;
+        stroke: OrbitTheme.track;
+        stroke-width: thickness;
+        viewbox-width: size / 1px;
+        viewbox-height: size / 1px;
+    }
+
+    if lit-path != "": Path {
+        width: parent.width;
+        height: parent.height;
+        commands: lit-path;
+        fill: transparent;
+        stroke: lit-color;
+        stroke-width: thickness;
+        stroke-line-cap: round;
+        viewbox-width: size / 1px;
+        viewbox-height: size / 1px;
+    }
+
+    Rectangle {
+        x: thickness + 3px;
+        y: thickness + 3px;
+        width: max(0px, parent.width - (thickness + 3px) * 2);
+        height: max(0px, parent.height - (thickness + 3px) * 2);
+        border-radius: self.width / 2;
+        clip: true;
+        @children
+    }
+}

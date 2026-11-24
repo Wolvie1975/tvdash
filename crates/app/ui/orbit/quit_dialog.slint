@@ -1,0 +1,135 @@
+import { Dash, HomeState, TvUi } from "../state.slint";
+import { OrbitTheme } from "theme.slint";
+import { OrbitPill } from "controls.slint";
+
+// Orbit Quit Confirmation Dialog (§10.2):
+// 640-wide dialog (radius 60, #121319), Cancel focused first, Quit (live fill).
+export component OrbitQuitDialog inherits Rectangle {
+    in-out property <int> focused-btn: 0; // 0 = Cancel, 1 = Quit
+    callback cancel();
+
+    width: 100%;
+    height: 100%;
+    background: #06070AE0;
+
+    TouchArea {
+        clicked => { root.cancel(); }
+    }
+
+    Rectangle {
+        x: (parent.width - 640px * TvUi.u) / 2;
+        y: (parent.height - 460px * TvUi.u) / 2;
+        width: 640px * TvUi.u;
+        height: 460px * TvUi.u;
+        border-radius: 60px * TvUi.u;
+        background: #121319;
+        border-width: 1px;
+        border-color: OrbitTheme.glass-border;
+
+        TouchArea {}
+
+        VerticalLayout {
+            x: 48px * TvUi.u;
+            y: 44px * TvUi.u;
+            width: parent.width - 96px * TvUi.u;
+            spacing: 20px * TvUi.u;
+            alignment: center;
+
+            // 120px power bubble
+            Rectangle {
+                x: (parent.width - 120px * TvUi.u) / 2;
+                width: 120px * TvUi.u;
+                height: 120px * TvUi.u;
+                border-radius: self.width / 2;
+                background: #3A1418;
+                border-width: 2px * TvUi.u;
+                border-color: #FF6B6B66;
+
+                Text {
+                    text: "⏻";
+                    font-size: 48px * TvUi.u;
+                    color: #FF8A8A;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            Text {
+                text: "Quit tvdash?";
+                font-family: OrbitTheme.font;
+                font-size: 44px * TvUi.u;
+                font-weight: 700;
+                color: OrbitTheme.text;
+                horizontal-alignment: center;
+            }
+
+            Text {
+                text: HomeState.whats-on.has-item
+                    ? (HomeState.whats-on.title + " stops and your place is saved to Plex. Brave closes too.")
+                    : "Nothing is playing. Brave closes too.";
+                font-family: OrbitTheme.font;
+                font-size: 18px * TvUi.u;
+                color: OrbitTheme.sub;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+
+            HorizontalLayout {
+                alignment: center;
+                spacing: 16px * TvUi.u;
+                padding-top: 8px * TvUi.u;
+
+                OrbitPill {
+                    label: "Cancel";
+                    primary: true;
+                    focused: root.focused-btn == 0;
+                    activated => { root.cancel(); }
+                    hovered => { root.focused-btn = 0; }
+                }
+
+                q-btn := Rectangle {
+                    property <bool> is-foc: (root.focused-btn == 1) || q-ta.has-hover;
+                    width: 150px * TvUi.u;
+                    height: 46px * TvUi.u;
+
+                    if q-btn.is-foc: Rectangle {
+                        x: -9px * TvUi.u;
+                        y: -9px * TvUi.u;
+                        width: parent.width + 18px * TvUi.u;
+                        height: parent.height + 18px * TvUi.u;
+                        border-radius: self.height / 2;
+                        border-width: 4px * TvUi.u;
+                        border-color: OrbitTheme.text;
+                    }
+
+                    Rectangle {
+                        width: parent.width;
+                        height: parent.height;
+                        border-radius: self.height / 2;
+                        background: OrbitTheme.live;
+
+                        Text {
+                            text: "Quit";
+                            font-family: OrbitTheme.font;
+                            font-size: 18px * TvUi.u;
+                            font-weight: 600;
+                            color: OrbitTheme.bg;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    q-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { Dash.quit(); }
+                        pointer-event(ev) => {
+                            if ev.kind == PointerEventKind.move {
+                                root.focused-btn = 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

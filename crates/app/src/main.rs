@@ -14,6 +14,7 @@ mod image_cache;
 mod instance;
 mod intro;
 mod next_game;
+mod orbit;
 mod portal;
 mod ps5;
 mod recent;

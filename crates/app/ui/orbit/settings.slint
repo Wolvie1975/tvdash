@@ -1,0 +1,367 @@
+import { Accounts, Dash, Diagnostics, Display, Server, SiteEditor, SportsAlertsSettings, TvUi } from "../state.slint";
+import { Intro } from "../shared/intro.slint";
+import { Theme, UiTheme } from "../theme.slint";
+import { OrbitTheme } from "theme.slint";
+import { OrbitPill, OrbitRow, OrbitToggle } from "controls.slint";
+import { OrbitQuitDialog } from "quit_dialog.slint";
+
+// Orbit Settings page (§10):
+// Left (x 110, y 196, w 380): 80px section bubbles + divider + Quit tvdash bubble
+// Right (x 560, w 1250): section title 44/700 + OrbitRow settings rows
+export component OrbitSettings inherits Rectangle {
+    in-out property <bool> quit-dialog-open: false;
+
+    property <string> theme-label: Theme.mode == UiTheme.dark ? "Kansas Dark"
+        : Theme.mode == UiTheme.aubergine ? "Aubergine"
+        : Theme.mode == UiTheme.ku ? "KU Crimson"
+        : Theme.mode == UiTheme.stone ? "Stone"
+        : "Mist";
+
+    // Left section column (x 110, y 196, w 380)
+    Text {
+        x: 110px * TvUi.u;
+        y: 162px * TvUi.u;
+        text: "SETTINGS";
+        font-family: OrbitTheme.font;
+        font-size: 15px * TvUi.u;
+        font-weight: 600;
+        letter-spacing: 2.5px * TvUi.u;
+        color: OrbitTheme.sub;
+    }
+
+    VerticalLayout {
+        x: 110px * TvUi.u;
+        y: 196px * TvUi.u;
+        width: 380px * TvUi.u;
+        spacing: 8px * TvUi.u;
+
+        for item in [
+            { id: "display", icon: "◫", name: "Display" },
+            { id: "accounts", icon: "☺", name: "Accounts" },
+            { id: "sites", icon: "◈", name: "Sites" },
+            { id: "sports", icon: "★", name: "Sports" },
+            { id: "server", icon: "⛁", name: "Server" },
+            { id: "diagnostics", icon: "⌖", name: "Diagnostics" },
+            { id: "changelog", icon: "✦", name: "What's new" },
+        ]: sec-row := Rectangle {
+            property <bool> is-sel: TvUi.settings-tab == item.id || (item.id == "display" && TvUi.settings-tab == "");
+            property <bool> is-foc: self.is-sel || sec-ta.has-hover;
+            height: 80px * TvUi.u;
+            border-radius: 40px * TvUi.u;
+            background: self.is-sel ? #FFFFFF14 : sec-ta.has-hover ? OrbitTheme.row-focus : transparent;
+
+            Rectangle {
+                x: 4px * TvUi.u;
+                y: 4px * TvUi.u;
+                width: 72px * TvUi.u;
+                height: 72px * TvUi.u;
+                border-radius: self.width / 2;
+                background: sec-row.is-sel ? OrbitTheme.text : OrbitTheme.glass;
+                border-width: 1px;
+                border-color: OrbitTheme.glass-border;
+
+                Text {
+                    text: item.icon;
+                    font-size: 24px * TvUi.u;
+                    color: sec-row.is-sel ? OrbitTheme.bg : OrbitTheme.text;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            Text {
+                x: 92px * TvUi.u;
+                text: item.name;
+                font-family: OrbitTheme.font;
+                font-size: 21px * TvUi.u;
+                font-weight: sec-row.is-sel ? 700 : 600;
+                color: OrbitTheme.text;
+                vertical-alignment: center;
+            }
+
+            sec-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    TvUi.settings-tab = item.id;
+                    if item.id == "server" { Server.open(); }
+                }
+            }
+        }
+
+        // Divider + Quit tvdash (§10.2)
+        Rectangle {
+            height: 1px;
+            background: OrbitTheme.glass-border;
+        }
+
+        Rectangle {
+            property <bool> is-foc: q-row-ta.has-hover;
+            height: 92px * TvUi.u;
+            border-radius: 46px * TvUi.u;
+            background: self.is-foc ? #FF6B6B22 : transparent;
+
+            Rectangle {
+                x: 4px * TvUi.u;
+                y: 4px * TvUi.u;
+                width: 84px * TvUi.u;
+                height: 84px * TvUi.u;
+                border-radius: self.width / 2;
+                background: #3A1418;
+                border-width: 2px * TvUi.u;
+                border-color: #FF6B6B66;
+
+                Text {
+                    text: "⏻";
+                    font-size: 28px * TvUi.u;
+                    color: #FF8A8A;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            VerticalLayout {
+                x: 102px * TvUi.u;
+                width: parent.width - 116px * TvUi.u;
+                height: parent.height;
+                alignment: center;
+                spacing: 2px * TvUi.u;
+
+                Text {
+                    text: "Quit tvdash";
+                    font-family: OrbitTheme.font;
+                    font-size: 21px * TvUi.u;
+                    font-weight: 700;
+                    color: #FF9A9A;
+                }
+                Text {
+                    text: "Stops playback · closes Brave · OK asks first";
+                    font-family: OrbitTheme.font;
+                    font-size: 13px * TvUi.u;
+                    color: OrbitTheme.muted;
+                    overflow: elide;
+                }
+            }
+
+            q-row-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.quit-dialog-open = true; }
+            }
+        }
+    }
+
+    // Right Content (x 560, y 180, w 1250)
+    Flickable {
+        x: 560px * TvUi.u;
+        y: 180px * TvUi.u;
+        width: 1250px * TvUi.u;
+        height: parent.height - 200px * TvUi.u;
+        content-height: 980px * TvUi.u;
+
+        // ── Display (§10.1) ──────────────────────────────────────────────────
+        if TvUi.settings-tab == "display" || TvUi.settings-tab == "": VerticalLayout {
+            width: parent.width;
+            spacing: 14px * TvUi.u;
+
+            Text {
+                text: "Display";
+                font-family: OrbitTheme.font;
+                font-size: 44px * TvUi.u;
+                font-weight: 700;
+                color: OrbitTheme.text;
+            }
+
+            // Dashboard UI 150px round previews
+            Rectangle {
+                height: 230px * TvUi.u;
+                border-radius: 48px * TvUi.u;
+                background: OrbitTheme.row;
+                border-width: 1px;
+                border-color: OrbitTheme.row-border;
+
+                Text {
+                    x: 28px * TvUi.u;
+                    y: 18px * TvUi.u;
+                    text: "Dashboard UI";
+                    font-family: OrbitTheme.font;
+                    font-size: 21px * TvUi.u;
+                    font-weight: 600;
+                    color: OrbitTheme.text;
+                }
+
+                HorizontalLayout {
+                    x: 28px * TvUi.u;
+                    y: 54px * TvUi.u;
+                    spacing: 36px * TvUi.u;
+
+                    for opt in [
+                        { id: "classic", label: "Classic", sub: "top tabs" },
+                        { id: "blades", label: "Blades", sub: "side tabs" },
+                        { id: "ps5", label: "PS5", sub: "header tabs" },
+                        { id: "orbit", label: "Orbit", sub: "dials · rings" },
+                    ]: ui-opt := Rectangle {
+                        property <bool> is-sel: Display.dashboard-ui == opt.id || (opt.id == "classic" && Display.dashboard-ui != "blades" && Display.dashboard-ui != "ps5" && Display.dashboard-ui != "orbit");
+                        width: 260px * TvUi.u;
+                        height: 156px * TvUi.u;
+
+                        Rectangle {
+                            x: (parent.width - 110px * TvUi.u) / 2;
+                            y: 0;
+                            width: 110px * TvUi.u;
+                            height: 110px * TvUi.u;
+                            border-radius: self.width / 2;
+                            background: OrbitTheme.glass;
+                            border-width: ui-opt.is-sel ? 5px * TvUi.u : 2px * TvUi.u;
+                            border-color: ui-opt.is-sel ? OrbitTheme.accent : OrbitTheme.track;
+
+                            Text {
+                                text: opt.label + (ui-opt.is-sel ? " ✓" : "");
+                                font-family: OrbitTheme.font;
+                                font-size: 16px * TvUi.u;
+                                font-weight: 700;
+                                color: OrbitTheme.text;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                        Text {
+                            x: 0;
+                            y: 120px * TvUi.u;
+                            width: parent.width;
+                            text: opt.sub;
+                            font-family: OrbitTheme.font;
+                            font-size: 14px * TvUi.u;
+                            color: OrbitTheme.sub;
+                            horizontal-alignment: center;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { Display.set-dashboard-ui(opt.id); }
+                        }
+                    }
+                }
+            }
+
+            OrbitRow {
+                width: parent.width;
+                row-height: 74px * TvUi.u;
+                activated => { TvUi.tile-activated(1); }
+                Text { x: 28px * TvUi.u; text: "Theme"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
+                OrbitPill { x: parent.width - self.width - 20px * TvUi.u; y: 14px * TvUi.u; label: theme-label + " ›"; activated => { TvUi.tile-activated(1); } }
+            }
+
+            OrbitRow {
+                width: parent.width;
+                row-height: 74px * TvUi.u;
+                activated => {
+                    Display.h12 = !Display.h12;
+                    Display.changed();
+                }
+                Text { x: 28px * TvUi.u; text: "Time format"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
+                OrbitPill { x: parent.width - self.width - 20px * TvUi.u; y: 14px * TvUi.u; label: (Display.h12 ? "12h" : "24h") + " ›"; activated => { Display.h12 = !Display.h12; Display.changed(); } }
+            }
+
+            OrbitRow {
+                width: parent.width;
+                row-height: 74px * TvUi.u;
+                activated => {
+                    Display.celsius = !Display.celsius;
+                    Display.changed();
+                }
+                Text { x: 28px * TvUi.u; text: "Weather units"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
+                OrbitPill { x: parent.width - self.width - 20px * TvUi.u; y: 14px * TvUi.u; label: (Display.celsius ? "°C" : "°F") + " ›"; activated => { Display.celsius = !Display.celsius; Display.changed(); } }
+            }
+
+            OrbitRow {
+                width: parent.width;
+                row-height: 74px * TvUi.u;
+                activated => { Intro.set-enabled(!Intro.enabled); }
+                Text { x: 28px * TvUi.u; text: "Startup animation"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
+                OrbitToggle { x: parent.width - self.width - 170px * TvUi.u; y: 12px * TvUi.u; checked: Intro.enabled; toggled => { Intro.set-enabled(!Intro.enabled); } }
+                OrbitPill { x: parent.width - self.width - 20px * TvUi.u; y: 14px * TvUi.u; label: "Preview"; activated => { Intro.preview(); } }
+            }
+
+            OrbitRow {
+                width: parent.width;
+                row-height: 74px * TvUi.u;
+                activated => { TvUi.clear-recent(); }
+                Text { x: 28px * TvUi.u; text: "Clear recent apps"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
+                OrbitPill { x: parent.width - self.width - 20px * TvUi.u; y: 14px * TvUi.u; label: "Clear"; activated => { TvUi.clear-recent(); } }
+            }
+        }
+
+        // ── Accounts / Sites / Sports / Server / Diagnostics / What's new ───
+        if TvUi.settings-tab == "accounts": VerticalLayout {
+            width: parent.width;
+            spacing: 14px * TvUi.u;
+            Text { text: "Accounts"; font-family: OrbitTheme.font; font-size: 44px * TvUi.u; font-weight: 700; color: OrbitTheme.text; }
+            for acc in Accounts.accounts: OrbitRow {
+                width: parent.width;
+                row-height: 74px * TvUi.u;
+                Text { x: 28px * TvUi.u; text: acc.name + " · " + acc.detail; font-family: OrbitTheme.font; font-size: 20px * TvUi.u; color: OrbitTheme.text; vertical-alignment: center; }
+            }
+        }
+
+        if TvUi.settings-tab == "sites": VerticalLayout {
+            width: parent.width;
+            spacing: 14px * TvUi.u;
+            Text { text: "Streaming sites"; font-family: OrbitTheme.font; font-size: 44px * TvUi.u; font-weight: 700; color: OrbitTheme.text; }
+            OrbitRow {
+                width: parent.width;
+                row-height: 74px * TvUi.u;
+                activated => { SiteEditor.index = -1; SiteEditor.open = true; }
+                Text { x: 28px * TvUi.u; text: "Add streaming site"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
+                OrbitPill { x: parent.width - self.width - 20px * TvUi.u; y: 14px * TvUi.u; label: "+ Add"; primary: true; activated => { SiteEditor.index = -1; SiteEditor.open = true; } }
+            }
+        }
+
+        if TvUi.settings-tab == "sports": VerticalLayout {
+            width: parent.width;
+            spacing: 14px * TvUi.u;
+            Text { text: "Sports alerts"; font-family: OrbitTheme.font; font-size: 44px * TvUi.u; font-weight: 700; color: OrbitTheme.text; }
+            OrbitRow {
+                width: parent.width;
+                row-height: 74px * TvUi.u;
+                activated => { SportsAlertsSettings.set-final-on(!SportsAlertsSettings.final-on); }
+                Text { x: 28px * TvUi.u; text: "Final score alerts"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
+                OrbitToggle { x: parent.width - self.width - 20px * TvUi.u; y: 12px * TvUi.u; checked: SportsAlertsSettings.final-on; toggled => { SportsAlertsSettings.set-final-on(!SportsAlertsSettings.final-on); } }
+            }
+        }
+
+        if TvUi.settings-tab == "server": VerticalLayout {
+            width: parent.width;
+            spacing: 14px * TvUi.u;
+            Text { text: "Server"; font-family: OrbitTheme.font; font-size: 44px * TvUi.u; font-weight: 700; color: OrbitTheme.text; }
+            OrbitRow {
+                width: parent.width;
+                row-height: 74px * TvUi.u;
+                Text { x: 28px * TvUi.u; text: "Streams: " + Server.streams + " · CPU: " + Server.cpu + "% · RAM: " + Server.ram + "%"; font-family: OrbitTheme.font; font-size: 20px * TvUi.u; color: OrbitTheme.text; vertical-alignment: center; }
+            }
+        }
+
+        if TvUi.settings-tab == "diagnostics": VerticalLayout {
+            width: parent.width;
+            spacing: 14px * TvUi.u;
+            Text { text: "Diagnostics"; font-family: OrbitTheme.font; font-size: 44px * TvUi.u; font-weight: 700; color: OrbitTheme.text; }
+            OrbitRow {
+                width: parent.width;
+                row-height: 74px * TvUi.u;
+                Text { x: 28px * TvUi.u; text: "Version " + Dash.version; font-family: OrbitTheme.font; font-size: 20px * TvUi.u; color: OrbitTheme.text; vertical-alignment: center; }
+            }
+        }
+
+        if TvUi.settings-tab == "changelog": VerticalLayout {
+            width: parent.width;
+            spacing: 14px * TvUi.u;
+            Text { text: "What's new"; font-family: OrbitTheme.font; font-size: 44px * TvUi.u; font-weight: 700; color: OrbitTheme.text; }
+            OrbitRow {
+                width: parent.width;
+                row-height: 74px * TvUi.u;
+                Text { x: 28px * TvUi.u; text: "tvdash " + Dash.version + " · Orbit Dashboard UI"; font-family: OrbitTheme.font; font-size: 20px * TvUi.u; color: OrbitTheme.text; vertical-alignment: center; }
+            }
+        }
+    }
+
+    if quit-dialog-open: OrbitQuitDialog {
+        cancel => { root.quit-dialog-open = false; }
+    }
+}

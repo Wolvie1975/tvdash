@@ -61,11 +61,13 @@ export component SportsAlertCard inherits Rectangle {
     visible: SportsAlertState.visible;
     width: 560px * TvUi.u;
     height: card-col.preferred-height + 44px * TvUi.u;
-    border-radius: 26px * TvUi.u;
-    background: Display.dashboard-ui == "ps5" ? #14171CDB
+    border-radius: Display.dashboard-ui == "orbit" ? self.height / 2 : 26px * TvUi.u;
+    background: Display.dashboard-ui == "orbit" ? #0D1017CC
+        : Display.dashboard-ui == "ps5" ? #14171CDB
         : Display.dashboard-ui == "blades" ? #1C2026 : Theme.surface-raised;
     border-width: 1px;
-    border-color: Display.dashboard-ui == "ps5" ? #E8EAED1A
+    border-color: Display.dashboard-ui == "orbit" ? #FFFFFF14
+        : Display.dashboard-ui == "ps5" ? #E8EAED1A
         : Display.dashboard-ui == "blades" ? #2A303A : Theme.border;
     drop-shadow-blur: 50px;
     drop-shadow-offset-y: 20px;

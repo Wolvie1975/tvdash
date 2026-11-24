@@ -101,15 +101,16 @@ export component PsSettings inherits Rectangle {
                 HorizontalLayout {
                     x: 24px * TvUi.u;
                     y: 58px * TvUi.u;
-                    spacing: 24px * TvUi.u;
+                    spacing: 18px * TvUi.u;
 
                     for opt in [
                         { id: "classic", label: "Classic", sub: "top tabs · tile hub" },
                         { id: "blades", label: "Blades", sub: "side tabs" },
                         { id: "ps5", label: "PS5", sub: "header tabs · app row" },
+                        { id: "orbit", label: "Orbit", sub: "pill nav · dials · rings" },
                     ]: Rectangle {
-                        property <bool> is-sel: Display.dashboard-ui == opt.id || (opt.id == "classic" && Display.dashboard-ui != "blades" && Display.dashboard-ui != "ps5");
-                        width: 390px * TvUi.u;
+                        property <bool> is-sel: Display.dashboard-ui == opt.id || (opt.id == "classic" && Display.dashboard-ui != "blades" && Display.dashboard-ui != "ps5" && Display.dashboard-ui != "orbit");
+                        width: 286px * TvUi.u;
                         height: 140px * TvUi.u;
                         border-radius: 16px * TvUi.u;
                         background: #050608B0;

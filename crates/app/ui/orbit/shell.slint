@@ -1,0 +1,300 @@
+import { CollectionPageState, Dash, HomeState, LibraryLanding, ShowPageState, SleepState, TvUi } from "../state.slint";
+import { Intro, IntroStage } from "../shared/intro.slint";
+import { OrbitTheme } from "theme.slint";
+import { OrbitPill } from "controls.slint";
+import { OrbitIntro } from "intro.slint";
+import { OrbitHome } from "home.slint";
+import { OrbitApps } from "apps.slint";
+import { OrbitLibrary } from "library.slint";
+import { OrbitShow } from "show.slint";
+import { OrbitCollections } from "collections.slint";
+import { OrbitCollection } from "collection.slint";
+import { OrbitSports } from "sports.slint";
+import { OrbitSearch } from "search.slint";
+import { OrbitSettings } from "settings.slint";
+
+// Orbit Dashboard shell (§1.3).
+// Owns full-screen backdrop + scrims, centred pill nav, top-right clock badge,
+// bottom-left quick circles (Home/Library), active page, and OrbitIntro overlay.
+export component OrbitShell inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: OrbitTheme.bg;
+
+    property <float> scale: max(0.5, min(root.width / 1920px, root.height / 1080px));
+    changed scale => { TvUi.u = self.scale; }
+    init => { TvUi.u = self.scale; }
+
+    property <int> focus-ticket: TvUi.focus-ticket;
+    changed focus-ticket => { keys.focus(); }
+
+    property <bool> is-subpage: TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search";
+    property <int> eff-tab: TvUi.screen == "apps" ? 1
+        : (TvUi.screen == "library" || TvUi.screen == "show") ? 2
+        : (TvUi.screen == "collections" || TvUi.screen == "collection") ? 3
+        : TvUi.screen == "sports" ? 4
+        : TvUi.screen == "settings" ? 5
+        : TvUi.screen == "search" ? -1
+        : 0;
+    property <bool> is-home: TvUi.screen == "home";
+    property <length> clock-sz: is-home ? 190px * TvUi.u : 150px * TvUi.u;
+
+    // 1. Full-screen backdrop (Home / Library / Show / Collections)
+    if TvUi.screen == "home" && HomeState.whats-on.has-item && !HomeState.whats-on.is-app && HomeState.whats-on.has-art: Image {
+        source: HomeState.whats-on.art;
+        width: parent.width;
+        height: parent.height;
+        image-fit: cover;
+    }
+    if (TvUi.screen == "library" || TvUi.screen == "collections") && LibraryLanding.has-backdrop: Image {
+        source: LibraryLanding.backdrop-show-b ? LibraryLanding.backdrop-b : LibraryLanding.backdrop-a;
+        width: parent.width;
+        height: parent.height;
+        image-fit: cover;
+    }
+    if TvUi.screen == "show" && ShowPageState.has-backdrop: Image {
+        source: ShowPageState.backdrop;
+        width: parent.width;
+        height: parent.height;
+        image-fit: cover;
+    }
+
+    // Fixed glows for Sports, Search, Settings
+    if TvUi.screen == "sports": Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: @radial-gradient(circle, #0051BA40 0%, #07070A00 60%);
+    }
+    if TvUi.screen == "search": Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: @radial-gradient(circle, #3D5A3440 0%, #07070A00 60%);
+    }
+    if TvUi.screen == "settings": Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: @radial-gradient(circle, #2A355040 0%, #07070A00 60%);
+    }
+
+    // Scrims
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: OrbitTheme.scrim-left;
+    }
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: OrbitTheme.scrim-bottom;
+    }
+
+    // 2. Active page
+    if TvUi.screen == "home": OrbitHome { width: parent.width; height: parent.height; }
+    if TvUi.screen == "apps": OrbitApps { width: parent.width; height: parent.height; }
+    if TvUi.screen == "library": OrbitLibrary { width: parent.width; height: parent.height; }
+    if TvUi.screen == "show": OrbitShow { width: parent.width; height: parent.height; }
+    if TvUi.screen == "collections": OrbitCollections { width: parent.width; height: parent.height; }
+    if TvUi.screen == "collection": OrbitCollection { width: parent.width; height: parent.height; }
+    if TvUi.screen == "sports": OrbitSports { width: parent.width; height: parent.height; }
+    if TvUi.screen == "search": OrbitSearch { width: parent.width; height: parent.height; }
+    if TvUi.screen == "settings": OrbitSettings { width: parent.width; height: parent.height; }
+
+    // 3. Centred pill nav (y 40, padding 6, gap 6, glass capsule)
+    Rectangle {
+        x: (parent.width - nav-row.preferred-width - 12px * TvUi.u) / 2;
+        y: 40px * TvUi.u;
+        width: nav-row.preferred-width + 12px * TvUi.u;
+        height: 64px * TvUi.u;
+        border-radius: self.height / 2;
+        background: OrbitTheme.glass;
+        border-width: 1px;
+        border-color: OrbitTheme.glass-border;
+
+        nav-row := HorizontalLayout {
+            x: 6px * TvUi.u;
+            y: 6px * TvUi.u;
+            height: 52px * TvUi.u;
+            spacing: 6px * TvUi.u;
+
+            for tab[ti] in [
+                { id: "home", label: "Home" },
+                { id: "apps", label: "Apps" },
+                { id: "library", label: "Library" },
+                { id: "collections", label: "Collections" },
+                { id: "sports", label: "Sports" },
+                { id: "settings", label: "Settings" },
+            ]: Rectangle {
+                property <bool> is-act: eff-tab == ti;
+                property <bool> is-foc: (TvUi.bar-focused && TvUi.focused-tile == ti) || tab-ta.has-hover;
+                width: tab-lbl.preferred-width + 52px * TvUi.u;
+                height: 52px * TvUi.u;
+
+                if is-foc: Rectangle {
+                    x: -6px * TvUi.u;
+                    y: -6px * TvUi.u;
+                    width: parent.width + 12px * TvUi.u;
+                    height: parent.height + 12px * TvUi.u;
+                    border-radius: self.height / 2;
+                    border-width: 4px * TvUi.u;
+                    border-color: OrbitTheme.text;
+                }
+
+                Rectangle {
+                    width: parent.width;
+                    height: parent.height;
+                    border-radius: self.height / 2;
+                    background: is-act ? OrbitTheme.text : is-foc ? OrbitTheme.row-focus : transparent;
+
+                    tab-lbl := Text {
+                        text: tab.label;
+                        font-family: OrbitTheme.font;
+                        font-size: 22px * TvUi.u;
+                        font-weight: is-act ? 600 : 400;
+                        color: is-act ? OrbitTheme.bg : OrbitTheme.text;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                tab-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { TvUi.tab-clicked(ti); }
+                    pointer-event(ev) => {
+                        if ev.kind == PointerEventKind.move {
+                            TvUi.bar-focused = true;
+                            TvUi.focused-tile = ti;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Top-right circular clock badge (190px on Home, 150px elsewhere)
+    Rectangle {
+        x: parent.width - 80px * TvUi.u - clock-sz;
+        y: 30px * TvUi.u;
+        width: clock-sz;
+        height: clock-sz;
+        border-radius: self.width / 2;
+        background: OrbitTheme.glass;
+        border-width: 1px;
+        border-color: OrbitTheme.glass-border;
+
+        VerticalLayout {
+            width: parent.width;
+            height: parent.height;
+            alignment: center;
+            spacing: 4px * TvUi.u;
+
+            Text {
+                text: Dash.clock-hh + ":" + Dash.clock-mm;
+                font-family: OrbitTheme.font;
+                font-size: (is-home ? 44px : 34px) * TvUi.u;
+                font-weight: 300;
+                color: OrbitTheme.text;
+                horizontal-alignment: center;
+            }
+            Text {
+                text: (Dash.clock-ampm != "" ? Dash.clock-ampm + " · " : "") + Dash.weather-temp;
+                font-family: OrbitTheme.font;
+                font-size: (is-home ? 15px : 13px) * TvUi.u;
+                color: OrbitTheme.sub;
+                horizontal-alignment: center;
+            }
+        }
+    }
+
+    // 5. Sub-page Back pill (x 110, y 130, h46)
+    if is-subpage: OrbitPill {
+        x: 110px * TvUi.u;
+        y: 130px * TvUi.u;
+        label: TvUi.screen == "show" ? "‹ Library"
+            : TvUi.screen == "collection" ? "‹ Collections"
+            : "‹ Back";
+        activated => { TvUi.back-clicked(); }
+    }
+
+    // 6. Quick circles on Home and Library (bottom-left x 110, bottom 34, 58px circles, gap 12)
+    if TvUi.screen == "home" || TvUi.screen == "library": HorizontalLayout {
+        x: 110px * TvUi.u;
+        y: parent.height - 34px * TvUi.u - 58px * TvUi.u;
+        spacing: 12px * TvUi.u;
+
+        for qc[qi] in [
+            { icon: "⌕", label: "Search" },
+            { icon: "◐", label: "Screensaver" },
+            { icon: "☾", label: SleepState.label != "" ? "Sleep · " + SleepState.label : "Sleep · Off" },
+        ]: qc-node := Rectangle {
+            property <bool> is-foc: qc-ta.has-hover;
+            width: 58px * TvUi.u;
+            height: 58px * TvUi.u;
+
+            if qc-node.is-foc: Rectangle {
+                x: -7px * TvUi.u;
+                y: -7px * TvUi.u;
+                width: parent.width + 14px * TvUi.u;
+                height: parent.height + 14px * TvUi.u;
+                border-radius: self.width / 2;
+                border-width: 4px * TvUi.u;
+                border-color: OrbitTheme.text;
+            }
+
+            Rectangle {
+                width: parent.width;
+                height: parent.height;
+                border-radius: self.width / 2;
+                background: qc-node.is-foc ? OrbitTheme.row-focus : OrbitTheme.glass;
+                border-width: 1px;
+                border-color: OrbitTheme.glass-border;
+
+                Text {
+                    text: qc.icon;
+                    font-size: 22px * TvUi.u;
+                    color: OrbitTheme.text;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            qc-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    if qi == 0 { TvUi.tab-clicked(6); }
+                    else if qi == 1 { Dash.open-screensaver(); }
+                    else { SleepState.open-picker(); }
+                }
+            }
+        }
+    }
+
+    // Full-screen in-window video
+    if TvUi.video-on && TvUi.video-full: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: #000000;
+        Image {
+            source: TvUi.video;
+            width: parent.width;
+            height: parent.height;
+            image-fit: contain;
+        }
+    }
+
+    // 7. Startup intro overlay
+    if Intro.stage != IntroStage.done: OrbitIntro {
+        clock-x: parent.width - 80px * TvUi.u - clock-sz;
+        clock-y: 30px * TvUi.u;
+        clock-size: clock-sz;
+    }
+
+    // Key handler
+    keys := FocusScope {
+        key-pressed(ev) => {
+            if TvUi.key(ev.text) {
+                return accept;
+            }
+            return reject;
+        }
+    }
+}

@@ -1,0 +1,551 @@
+import { Scoreboard, ScoreTone, Sports, TvUi } from "../state.slint";
+import { OrbitTheme } from "theme.slint";
+import { OrbitBubble, OrbitPill, OrbitRow } from "controls.slint";
+
+// Orbit Sports page (§7):
+// Sub-switch at y 130: Competitions · Scoreboard (+ date stepper on Scoreboard).
+// Left: filter bubbles; Top-right: focused game/event card (1250x250 r125); Bottom-right: vertical list.
+export component OrbitSports inherits Rectangle {
+    in-out property <int> focused-sb-row: 0;
+    in-out property <int> focused-comp-row: 0;
+    in property <bool> focus-in-bubbles: false;
+    in-out property <int> focused-bubble: 0;
+
+    property <bool> is-scoreboard: TvUi.sports-tab == "scoreboard";
+
+    // ── Sub-switch pills (y 130) ─────────────────────────────────────────────
+    HorizontalLayout {
+        x: 110px * TvUi.u;
+        y: 130px * TvUi.u;
+        spacing: 12px * TvUi.u;
+
+        OrbitPill {
+            label: "Competitions";
+            selected: !is-scoreboard;
+            activated => { TvUi.sports-tab = "competitions"; }
+        }
+        OrbitPill {
+            label: "Scoreboard";
+            selected: is-scoreboard;
+            activated => {
+                TvUi.sports-tab = "scoreboard";
+                Scoreboard.load(Scoreboard.day, Scoreboard.show, Scoreboard.final-only);
+            }
+        }
+
+        // Date stepper + Refresh on Scoreboard (§13 Q2)
+        if is-scoreboard: HorizontalLayout {
+            spacing: 8px * TvUi.u;
+            padding-left: 16px * TvUi.u;
+
+            OrbitPill {
+                label: "‹";
+                h-pad: 14px * TvUi.u;
+                activated => { Scoreboard.prev-day-clicked(); }
+            }
+            OrbitPill {
+                label: Scoreboard.date-label != "" ? Scoreboard.date-label : Scoreboard.day-label;
+                activated => { Scoreboard.today-clicked(); }
+            }
+            OrbitPill {
+                label: "›";
+                h-pad: 14px * TvUi.u;
+                activated => { Scoreboard.next-day-clicked(); }
+            }
+            if !Scoreboard.is-today: OrbitPill {
+                label: "Today";
+                activated => { Scoreboard.today-clicked(); }
+            }
+            OrbitPill {
+                label: "↻";
+                h-pad: 14px * TvUi.u;
+                activated => { Scoreboard.refresh(); }
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 1. SCOREBOARD (§7.2)
+    // ══════════════════════════════════════════════════════════════════════════
+    if is-scoreboard: Rectangle {
+        width: parent.width;
+        height: parent.height;
+
+        property <int> safe-row: Scoreboard.rows.length > 0 ? Math.clamp(focused-sb-row, 0, Scoreboard.rows.length - 1) : 0;
+
+        // Left: League bubbles (x 110, y 210, w 380)
+        Text {
+            x: 110px * TvUi.u;
+            y: 204px * TvUi.u;
+            text: "LEAGUE";
+            font-family: OrbitTheme.font;
+            font-size: 15px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 2.5px * TvUi.u;
+            color: OrbitTheme.sub;
+        }
+
+        Flickable {
+            x: 100px * TvUi.u;
+            y: 234px * TvUi.u;
+            width: 400px * TvUi.u;
+            height: parent.height - 260px * TvUi.u;
+            content-height: Scoreboard.choices.length * 116px * TvUi.u;
+
+            for choice[ci] in Scoreboard.choices: OrbitBubble {
+                x: 10px * TvUi.u;
+                y: ci * 116px * TvUi.u;
+                width: 380px * TvUi.u;
+                circle-size: 96px * TvUi.u;
+                count-text: ci == 0 ? "★" : "•";
+                label: choice.label;
+                meta: choice.group;
+                selected: Scoreboard.show == choice.value;
+                focused: focus-in-bubbles && focused-bubble == ci;
+                activated => { Scoreboard.set-filter(choice.value); }
+                hovered => { root.focused-bubble = ci; }
+            }
+        }
+
+        // Top-right: Focused Game Card (x 560, y 220, 1250 x 250, radius 125)
+        if Scoreboard.rows.length > 0: Rectangle {
+            x: 560px * TvUi.u;
+            y: 220px * TvUi.u;
+            width: 1250px * TvUi.u;
+            height: 250px * TvUi.u;
+            border-radius: 125px * TvUi.u;
+            background: OrbitTheme.row;
+            border-width: 1px;
+            border-color: OrbitTheme.row-border;
+
+            // Left 222px score disc
+            Rectangle {
+                x: 14px * TvUi.u;
+                y: 14px * TvUi.u;
+                width: 222px * TvUi.u;
+                height: 222px * TvUi.u;
+                border-radius: self.width / 2;
+                background: #06080B8C;
+                border-width: 6px * TvUi.u;
+                border-color: Scoreboard.rows[safe-row].is-live ? OrbitTheme.live : #FFFFFF55;
+
+                VerticalLayout {
+                    width: parent.width;
+                    height: parent.height;
+                    alignment: center;
+                    spacing: 4px * TvUi.u;
+
+                    Text {
+                        text: Scoreboard.rows[safe-row].away-initials + "  " + Scoreboard.rows[safe-row].away-score;
+                        font-family: OrbitTheme.font;
+                        font-size: 32px * TvUi.u;
+                        font-weight: 700;
+                        color: OrbitTheme.text;
+                        horizontal-alignment: center;
+                    }
+                    Text {
+                        text: Scoreboard.rows[safe-row].home-initials + "  " + Scoreboard.rows[safe-row].home-score;
+                        font-family: OrbitTheme.font;
+                        font-size: 32px * TvUi.u;
+                        font-weight: 700;
+                        color: OrbitTheme.text;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+
+            // Card details
+            VerticalLayout {
+                x: 264px * TvUi.u;
+                y: 24px * TvUi.u;
+                width: 920px * TvUi.u;
+                spacing: 8px * TvUi.u;
+
+                Text {
+                    text: (Scoreboard.rows[safe-row].is-live ? "● LIVE · " : "")
+                        + Scoreboard.rows[safe-row].league-label
+                        + " · " + Scoreboard.rows[safe-row].status
+                        + (Scoreboard.rows[safe-row].is-following ? " · ★ FOLLOWING" : "");
+                    font-family: OrbitTheme.font;
+                    font-size: 16px * TvUi.u;
+                    font-weight: 600;
+                    letter-spacing: 2px * TvUi.u;
+                    color: Scoreboard.rows[safe-row].is-live ? OrbitTheme.live : OrbitTheme.accent;
+                    overflow: elide;
+                }
+
+                Text {
+                    text: Scoreboard.rows[safe-row].away-name + "  vs  " + Scoreboard.rows[safe-row].home-name;
+                    font-family: OrbitTheme.font;
+                    font-size: 38px * TvUi.u;
+                    font-weight: 700;
+                    color: OrbitTheme.text;
+                    overflow: elide;
+                }
+
+                if Scoreboard.rows[safe-row].details-text != "": Text {
+                    text: Scoreboard.rows[safe-row].details-text;
+                    font-family: OrbitTheme.font;
+                    font-size: 17px * TvUi.u;
+                    color: OrbitTheme.sub;
+                    overflow: elide;
+                }
+
+                HorizontalLayout {
+                    spacing: 12px * TvUi.u;
+                    padding-top: 6px * TvUi.u;
+                    if Scoreboard.rows[safe-row].source-url != "": OrbitPill {
+                        label: "OK · Open game";
+                        primary: true;
+                        activated => {
+                            Scoreboard.open-url(Scoreboard.rows[safe-row].source-url, Scoreboard.rows[safe-row].away-name + " vs " + Scoreboard.rows[safe-row].home-name);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Data age hint
+        if Scoreboard.fresh != "": Text {
+            x: 560px * TvUi.u;
+            y: 478px * TvUi.u;
+            text: Scoreboard.fresh;
+            font-family: OrbitTheme.font;
+            font-size: 14px * TvUi.u;
+            color: Scoreboard.stale ? #F2C66B : OrbitTheme.muted;
+        }
+
+        // Bottom-right: Vertical Scoreboard List (x 560, y 504, 1250 x 540)
+        Flickable {
+            x: 550px * TvUi.u;
+            y: 504px * TvUi.u;
+            width: 1270px * TvUi.u;
+            height: parent.height - 530px * TvUi.u;
+            content-height: Scoreboard.rows.length * 92px * TvUi.u;
+
+            for row[ri] in Scoreboard.rows: Rectangle {
+                x: 10px * TvUi.u;
+                y: ri * 92px * TvUi.u;
+                width: 1250px * TvUi.u;
+                height: 80px * TvUi.u;
+
+                if row.kind == "group": Text {
+                    x: 12px * TvUi.u;
+                    text: row.group-title + (row.group-subtitle != "" ? " · " + row.group-subtitle : "");
+                    font-family: OrbitTheme.font;
+                    font-size: 16px * TvUi.u;
+                    font-weight: 600;
+                    letter-spacing: 2px * TvUi.u;
+                    color: row.is-live ? OrbitTheme.live : OrbitTheme.sub;
+                    vertical-alignment: center;
+                }
+
+                if row.kind == "game": OrbitRow {
+                    width: parent.width;
+                    row-height: 80px * TvUi.u;
+                    focused: !focus-in-bubbles && safe-row == ri;
+                    activated => {
+                        if safe-row == ri && row.source-url != "" {
+                            Scoreboard.open-url(row.source-url, row.away-name + " vs " + row.home-name);
+                        } else {
+                            root.focused-sb-row = ri;
+                        }
+                    }
+                    hovered => { root.focused-sb-row = ri; }
+
+                    HorizontalLayout {
+                        x: 18px * TvUi.u;
+                        width: parent.width - 36px * TvUi.u;
+                        height: parent.height;
+                        spacing: 16px * TvUi.u;
+
+                        // Away circle
+                        Rectangle {
+                            y: 10px * TvUi.u;
+                            width: 60px * TvUi.u;
+                            height: 60px * TvUi.u;
+                            border-radius: self.width / 2;
+                            background: OrbitTheme.glass;
+                            clip: true;
+                            if row.away-has-logo: Image { source: row.away-logo; width: 42px * TvUi.u; height: 42px * TvUi.u; image-fit: contain; }
+                            if !row.away-has-logo: Text { text: row.away-initials; font-size: 15px * TvUi.u; font-weight: 700; color: OrbitTheme.text; horizontal-alignment: center; vertical-alignment: center; }
+                        }
+
+                        Text {
+                            text: row.away-score + "  –  " + row.home-score;
+                            font-family: OrbitTheme.font;
+                            font-size: 22px * TvUi.u;
+                            font-weight: 700;
+                            color: OrbitTheme.text;
+                            vertical-alignment: center;
+                            width: 110px * TvUi.u;
+                            horizontal-alignment: center;
+                        }
+
+                        // Home circle
+                        Rectangle {
+                            y: 10px * TvUi.u;
+                            width: 60px * TvUi.u;
+                            height: 60px * TvUi.u;
+                            border-radius: self.width / 2;
+                            background: OrbitTheme.glass;
+                            clip: true;
+                            if row.home-has-logo: Image { source: row.home-logo; width: 42px * TvUi.u; height: 42px * TvUi.u; image-fit: contain; }
+                            if !row.home-has-logo: Text { text: row.home-initials; font-size: 15px * TvUi.u; font-weight: 700; color: OrbitTheme.text; horizontal-alignment: center; vertical-alignment: center; }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 2px * TvUi.u;
+                            width: 640px * TvUi.u;
+                            Text {
+                                text: row.away-name + " vs " + row.home-name;
+                                font-family: OrbitTheme.font;
+                                font-size: 20px * TvUi.u;
+                                font-weight: 600;
+                                color: OrbitTheme.text;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: row.league-label + " · " + row.status + (row.is-following ? " · ★ Following" : "");
+                                font-family: OrbitTheme.font;
+                                font-size: 15px * TvUi.u;
+                                color: row.is-live ? OrbitTheme.live : OrbitTheme.sub;
+                                overflow: elide;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 2. COMPETITIONS (§7.3)
+    // ══════════════════════════════════════════════════════════════════════════
+    if !is-scoreboard: Rectangle {
+        width: parent.width;
+        height: parent.height;
+
+        property <int> safe-row: Sports.rows.length > 0 ? Math.clamp(focused-comp-row, 0, Sports.rows.length - 1) : 0;
+
+        Text {
+            x: 110px * TvUi.u;
+            y: 204px * TvUi.u;
+            text: "TYPE";
+            font-family: OrbitTheme.font;
+            font-size: 15px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 2.5px * TvUi.u;
+            color: OrbitTheme.sub;
+        }
+
+        Flickable {
+            x: 100px * TvUi.u;
+            y: 234px * TvUi.u;
+            width: 400px * TvUi.u;
+            height: parent.height - 260px * TvUi.u;
+            content-height: Sports.choices.length * 144px * TvUi.u;
+
+            for choice[ci] in Sports.choices: OrbitBubble {
+                x: 10px * TvUi.u;
+                y: ci * 144px * TvUi.u;
+                width: 380px * TvUi.u;
+                circle-size: 120px * TvUi.u;
+                count-text: ci == 0 ? "★" : "•";
+                label: choice.label;
+                meta: "";
+                selected: Sports.schedule == choice.value;
+                focused: focus-in-bubbles && focused-bubble == ci;
+                activated => { Sports.load(choice.value, 0); }
+                hovered => { root.focused-bubble = ci; }
+            }
+        }
+
+        // Top-right Event Card
+        if Sports.rows.length > 0: Rectangle {
+            x: 560px * TvUi.u;
+            y: 220px * TvUi.u;
+            width: 1250px * TvUi.u;
+            height: 250px * TvUi.u;
+            border-radius: 125px * TvUi.u;
+            background: OrbitTheme.row;
+            border-width: 1px;
+            border-color: OrbitTheme.row-border;
+
+            Rectangle {
+                x: 14px * TvUi.u;
+                y: 14px * TvUi.u;
+                width: 222px * TvUi.u;
+                height: 222px * TvUi.u;
+                border-radius: self.width / 2;
+                background: OrbitTheme.glass;
+                border-width: 6px * TvUi.u;
+                border-color: Sports.rows[safe-row].is-neutral ? #FFFFFF40 : OrbitTheme.accent;
+
+                VerticalLayout {
+                    width: parent.width;
+                    height: parent.height;
+                    alignment: center;
+                    spacing: 4px * TvUi.u;
+
+                    Text {
+                        text: Sports.rows[safe-row].time-text != "" ? Sports.rows[safe-row].time-text : "TBD";
+                        font-family: OrbitTheme.font;
+                        font-size: 30px * TvUi.u;
+                        font-weight: 700;
+                        color: OrbitTheme.text;
+                        horizontal-alignment: center;
+                    }
+                    Text {
+                        text: Sports.rows[safe-row].away-initials + " vs " + Sports.rows[safe-row].home-initials;
+                        font-family: OrbitTheme.font;
+                        font-size: 16px * TvUi.u;
+                        color: OrbitTheme.sub;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+
+            VerticalLayout {
+                x: 264px * TvUi.u;
+                y: 24px * TvUi.u;
+                width: 920px * TvUi.u;
+                spacing: 8px * TvUi.u;
+
+                Text {
+                    text: Sports.rows[safe-row].sport + (Sports.rows[safe-row].is-neutral ? " · NEUTRAL" : "");
+                    font-family: OrbitTheme.font;
+                    font-size: 16px * TvUi.u;
+                    font-weight: 600;
+                    letter-spacing: 2px * TvUi.u;
+                    color: OrbitTheme.accent;
+                }
+                Text {
+                    text: Sports.rows[safe-row].away-name + " vs " + Sports.rows[safe-row].home-name;
+                    font-family: OrbitTheme.font;
+                    font-size: 40px * TvUi.u;
+                    font-weight: 700;
+                    color: OrbitTheme.text;
+                    overflow: elide;
+                }
+                Text {
+                    text: Sports.rows[safe-row].venue + (Sports.rows[safe-row].tv != "" ? " · " + Sports.rows[safe-row].tv : "");
+                    font-family: OrbitTheme.font;
+                    font-size: 17px * TvUi.u;
+                    color: OrbitTheme.sub;
+                    overflow: elide;
+                }
+
+                HorizontalLayout {
+                    spacing: 12px * TvUi.u;
+                    padding-top: 6px * TvUi.u;
+                    if Sports.rows[safe-row].stream-url != "": OrbitPill {
+                        label: "Stream";
+                        primary: true;
+                        activated => { Sports.open-url(Sports.rows[safe-row].stream-url, "Stream"); }
+                    }
+                    if Sports.rows[safe-row].stats-url != "": OrbitPill {
+                        label: "Live stats";
+                        activated => { Sports.open-url(Sports.rows[safe-row].stats-url, "Live stats"); }
+                    }
+                    if Sports.rows[safe-row].audio-url != "": OrbitPill {
+                        label: "Audio";
+                        activated => { Sports.open-url(Sports.rows[safe-row].audio-url, "Audio"); }
+                    }
+                    if Sports.rows[safe-row].details-url != "": OrbitPill {
+                        label: "Details";
+                        activated => { Sports.open-url(Sports.rows[safe-row].details-url, "Details"); }
+                    }
+                }
+            }
+        }
+
+        // Bottom-right Event List
+        Flickable {
+            x: 550px * TvUi.u;
+            y: 500px * TvUi.u;
+            width: 1270px * TvUi.u;
+            height: parent.height - 526px * TvUi.u;
+            content-height: Sports.rows.length * 92px * TvUi.u;
+
+            for row[ri] in Sports.rows: Rectangle {
+                x: 10px * TvUi.u;
+                y: ri * 92px * TvUi.u;
+                width: 1250px * TvUi.u;
+                height: 80px * TvUi.u;
+
+                if row.kind != "game": Text {
+                    x: 12px * TvUi.u;
+                    text: row.header-text;
+                    font-family: OrbitTheme.font;
+                    font-size: 16px * TvUi.u;
+                    font-weight: 600;
+                    letter-spacing: 2px * TvUi.u;
+                    color: OrbitTheme.sub;
+                    vertical-alignment: center;
+                }
+
+                if row.kind == "game": OrbitRow {
+                    width: parent.width;
+                    row-height: 80px * TvUi.u;
+                    focused: !focus-in-bubbles && safe-row == ri;
+                    activated => {
+                        root.focused-comp-row = ri;
+                        if ri + 1 >= Sports.rows.length && Sports.page + 1 < Sports.total-pages {
+                            Sports.load(Sports.schedule, Sports.page + 1);
+                        }
+                    }
+                    hovered => { root.focused-comp-row = ri; }
+
+                    HorizontalLayout {
+                        x: 14px * TvUi.u;
+                        width: parent.width - 28px * TvUi.u;
+                        height: parent.height;
+                        spacing: 18px * TvUi.u;
+
+                        Rectangle {
+                            y: 8px * TvUi.u;
+                            width: 64px * TvUi.u;
+                            height: 64px * TvUi.u;
+                            border-radius: self.width / 2;
+                            border-width: 3px * TvUi.u;
+                            border-color: row.is-neutral ? #FFFFFF40 : OrbitTheme.accent;
+                            background: OrbitTheme.glass;
+                            Text {
+                                text: row.time-text != "" ? row.time-text : "TBD";
+                                font-family: OrbitTheme.font;
+                                font-size: 13px * TvUi.u;
+                                font-weight: 600;
+                                color: OrbitTheme.text;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 2px * TvUi.u;
+                            width: 820px * TvUi.u;
+                            Text {
+                                text: row.away-name + " vs " + row.home-name;
+                                font-family: OrbitTheme.font;
+                                font-size: 20px * TvUi.u;
+                                font-weight: 600;
+                                color: OrbitTheme.text;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: row.sport + " · " + row.venue + (row.tv != "" ? " · " + row.tv : "");
+                                font-family: OrbitTheme.font;
+                                font-size: 15px * TvUi.u;
+                                color: OrbitTheme.sub;
+                                overflow: elide;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

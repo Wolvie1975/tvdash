@@ -80,6 +80,7 @@ pub enum DashboardUi {
     Classic,
     Blades,
     Ps5,
+    Orbit,
 }
 
 impl DashboardUi {
@@ -88,6 +89,7 @@ impl DashboardUi {
             Self::Classic => "classic",
             Self::Blades => "blades",
             Self::Ps5 => "ps5",
+            Self::Orbit => "orbit",
         }
     }
 
@@ -95,6 +97,7 @@ impl DashboardUi {
         match s {
             "blades" => Self::Blades,
             "ps5" => Self::Ps5,
+            "orbit" => Self::Orbit,
             _ => Self::Classic,
         }
     }
@@ -104,7 +107,8 @@ impl DashboardUi {
         match self {
             Self::Classic => Self::Blades,
             Self::Blades => Self::Ps5,
-            Self::Ps5 => Self::Classic,
+            Self::Ps5 => Self::Orbit,
+            Self::Orbit => Self::Classic,
         }
     }
 
@@ -113,6 +117,7 @@ impl DashboardUi {
             Self::Classic => "Classic · top tabs",
             Self::Blades => "Blades · side tabs",
             Self::Ps5 => "PS5 · header tabs · app row",
+            Self::Orbit => "Orbit · pill nav · dials · rings",
         }
     }
 }
@@ -875,5 +880,21 @@ mod tests {
         d.night_end = "05:00".into();
         assert!(d.is_night_now(t(3, 0)));
         assert!(!d.is_night_now(t(23, 0)));
+    }
+
+    #[test]
+    fn dashboard_ui_orbit_round_trips_and_cycles() {
+        assert_eq!(DashboardUi::parse("orbit"), DashboardUi::Orbit);
+        assert_eq!(DashboardUi::Orbit.as_str(), "orbit");
+        assert_eq!(DashboardUi::Classic.next(), DashboardUi::Blades);
+        assert_eq!(DashboardUi::Blades.next(), DashboardUi::Ps5);
+        assert_eq!(DashboardUi::Ps5.next(), DashboardUi::Orbit);
+        assert_eq!(DashboardUi::Orbit.next(), DashboardUi::Classic);
+
+        let mut c = Config::default();
+        c.display.dashboard_ui = DashboardUi::Orbit;
+        let text = toml::to_string_pretty(&c).unwrap();
+        let back: Config = toml::from_str(&text).unwrap();
+        assert_eq!(back.display.dashboard_ui, DashboardUi::Orbit);
     }
 }

@@ -493,7 +493,7 @@ export component V3Settings inherits Rectangle {
 
             // Classic preview option
             Rectangle {
-                property <bool> selected: Display.dashboard-ui != "blades" && Display.dashboard-ui != "ps5";
+                property <bool> selected: Display.dashboard-ui != "blades" && Display.dashboard-ui != "ps5" && Display.dashboard-ui != "orbit";
                 x: 22px * TvUi.u;
                 y: 74px * TvUi.u;
                 width: parent.width - 44px * TvUi.u;
@@ -676,6 +676,41 @@ export component V3Settings inherits Rectangle {
                 TouchArea {
                     mouse-cursor: pointer;
                     clicked => { Display.set-dashboard-ui("ps5"); }
+                }
+            }
+
+            // Orbit preview option
+            Rectangle {
+                property <bool> selected: Display.dashboard-ui == "orbit";
+                x: 22px * TvUi.u;
+                y: 360px * TvUi.u;
+                width: parent.width - 44px * TvUi.u;
+                height: 44px * TvUi.u;
+                border-radius: 12px * TvUi.u;
+                background: V3Theme.surface-raised;
+                border-width: self.selected ? 3px : 1px;
+                border-color: self.selected ? V3Theme.accent : V3Theme.border;
+
+                Text {
+                    x: 16px * TvUi.u;
+                    text: "Orbit · pill nav · dials · rings";
+                    font-family: V3Theme.font;
+                    font-size: 14px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-primary;
+                    vertical-alignment: center;
+                }
+                if self.selected: Text {
+                    x: parent.width - 28px * TvUi.u;
+                    text: "✓";
+                    font-size: 15px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.accent;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Display.set-dashboard-ui("orbit"); }
                 }
             }
         }
