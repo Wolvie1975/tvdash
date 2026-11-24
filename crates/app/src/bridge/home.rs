@@ -110,6 +110,7 @@ pub(super) fn on_poster(
             }
         }
     }
+    super::browse::on_image(s, source, &key.1, &img);
     let ll = laptop.global::<crate::LibraryLanding>();
     let shelf2 = ll.get_shelf2();
     for i in 0..shelf2.row_count() {
@@ -383,9 +384,20 @@ pub(super) fn refresh_home_state(s: &mut UiState, laptop: &LaptopWindow) {
         s.backdrops.peek(&key).or_else(|| s.posters.peek(&key)).cloned()
     };
 
+    let hero_ring = |progress: f32| {
+        if progress > 0.0 {
+            let pct = (progress * 100.0).round().clamp(1.0, 100.0) as usize;
+            crate::orbit::rings::ring_paths(100, pct, 52.0, 0.0)
+        } else {
+            crate::orbit::rings::RingPaths::default()
+        }
+    };
+
     let (whats_on, hero_id, hero_is_ep) = match &pick {
         HeroPick::Player(st) => {
             let art = art_of(&st.item);
+            let prog = format::fraction(st);
+            let rp = hero_ring(prog);
             s.hero_item = None;
             (
                 crate::WhatsOn {
@@ -396,7 +408,9 @@ pub(super) fn refresh_home_state(s: &mut UiState, laptop: &LaptopWindow) {
                     plot: st.item.summary.as_deref().unwrap_or_default().into(),
                     has_art: art.is_some(),
                     art: art.unwrap_or_default(),
-                    progress: format::fraction(st),
+                    progress: prog,
+                    ring_lit: rp.lit.into(),
+                    ring_unlit: rp.unlit.into(),
                     status: status.into(),
                     is_app: false,
                     ..Default::default()
@@ -430,6 +444,8 @@ pub(super) fn refresh_home_state(s: &mut UiState, laptop: &LaptopWindow) {
         }
         HeroPick::Unfinished(item) | HeroPick::UpNext(item) => {
             let art = art_of(item);
+            let prog = item.progress().filter(|&p| p > 0.0).unwrap_or(-1.0);
+            let rp = hero_ring(prog);
             s.hero_item = Some((*item).clone());
             (
                 crate::WhatsOn {
@@ -440,7 +456,9 @@ pub(super) fn refresh_home_state(s: &mut UiState, laptop: &LaptopWindow) {
                     plot: item.summary.as_deref().unwrap_or_default().into(),
                     has_art: art.is_some(),
                     art: art.unwrap_or_default(),
-                    progress: item.progress().filter(|&p| p > 0.0).unwrap_or(-1.0),
+                    progress: prog,
+                    ring_lit: rp.lit.into(),
+                    ring_unlit: rp.unlit.into(),
                     status: status.into(),
                     is_app: false,
                     ..Default::default()

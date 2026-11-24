@@ -52,6 +52,7 @@ fn page_name(page: &Page) -> &'static str {
         Page::Sports => "sports",
         Page::Search => "search",
         Page::Settings => "settings",
+        Page::DashboardPicker => "dashboard_picker",
     }
 }
 
@@ -60,6 +61,7 @@ fn hint_for(page: &Page) -> &'static str {
         Page::Home => "OK Select · Back Home · F12 Return from service",
         Page::Apps => "OK Launch app · Back Home",
         Page::Collections => "OK Open collection · Back Home",
+        Page::DashboardPicker => "OK Switch · ‹ › Pick · Back Cancel",
         _ => "OK Select · Back Return",
     }
 }
@@ -227,6 +229,42 @@ pub fn tick(laptop: &LaptopWindow) {
     }
 }
 
+pub fn push_show(laptop: &LaptopWindow) {
+    STATE.with_borrow_mut(|s| {
+        if !matches!(s.shell.current(), Page::Show(_)) {
+            s.shell.push(Page::Show(String::new()));
+        }
+    });
+    sync(laptop);
+}
+
+pub fn push_collection(laptop: &LaptopWindow) {
+    STATE.with_borrow_mut(|s| {
+        if !matches!(s.shell.current(), Page::Collection(_)) {
+            s.shell.push(Page::Collection(String::new()));
+        }
+    });
+    sync(laptop);
+}
+
+pub fn pop_picker(laptop: &LaptopWindow) {
+    STATE.with_borrow_mut(|s| {
+        if matches!(s.shell.current(), Page::DashboardPicker) {
+            s.shell.back();
+        }
+    });
+    sync(laptop);
+}
+
+pub fn open_settings_display_focused_on_picker(laptop: &LaptopWindow) {
+    laptop.global::<TvUi>().set_settings_tab("display".into());
+    STATE.with_borrow_mut(|s| {
+        s.shell.switch_tab(Tab::Settings);
+        s.shell.focused_tile = 13; // Dashboard UI tile in Classic Settings › Display
+    });
+    sync(laptop);
+}
+
 pub fn sync(laptop: &LaptopWindow) {
     let tv = laptop.global::<TvUi>();
     STATE.with_borrow_mut(|s| {
@@ -351,6 +389,33 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 .collect()
         }
         Page::Library => {
+            let lib = laptop.global::<Library>();
+            if lib.get_browse_all() {
+                let mut rects = vec![
+                    Rect { x: 110.0, y: 130.0, w: 130.0, h: 46.0 }, // 0: TV Series
+                    Rect { x: 252.0, y: 130.0, w: 110.0, h: 46.0 }, // 1: Movies
+                    Rect { x: 374.0, y: 130.0, w: 140.0, h: 46.0 }, // 2: Browse all
+                    Rect { x: 526.0, y: 130.0, w: 160.0, h: 46.0 }, // 3: Watching now
+                ];
+                for i in 0..28 {
+                    rects.push(Rect {
+                        x: 112.0,
+                        y: 200.0 + i as f32 * 30.0,
+                        w: 124.0,
+                        h: 80.0,
+                    });
+                }
+                let n = laptop.global::<crate::Browse>().get_items().row_count();
+                for i in 0..n {
+                    rects.push(Rect {
+                        x: 290.0 + (i % 6) as f32 * 266.0,
+                        y: 264.0 + (i / 6) as f32 * 274.0,
+                        w: 190.0,
+                        h: 254.0,
+                    });
+                }
+                return rects;
+            }
             let mut rects = vec![
                 Rect { x: 110.0, y: 420.0, w: 104.0, h: 104.0 }, // 0: Play
                 Rect { x: 340.0, y: 448.0, w: 140.0, h: 46.0 },  // 1: Show page
@@ -403,7 +468,7 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 Rect { x: 110.0 + gx * 108.0, y: 306.0 + gy * 106.0, w: 86.0, h: 86.0 }
             })
             .collect(),
-        Page::Settings => (0..8)
+        Page::Settings | Page::DashboardPicker => (0..8)
             .map(|i| Rect { x: 110.0, y: 196.0 + i as f32 * 88.0, w: 380.0, h: 80.0 })
             .collect(),
     }
@@ -498,7 +563,7 @@ fn ps5_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             }
             rects
         }
-        Page::Settings => (0..6)
+        Page::Settings | Page::DashboardPicker => (0..6)
             .map(|i| Rect {
                 x: 540.0,
                 y: 150.0 + i as f32 * 88.0,
@@ -807,6 +872,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             }
             rects
         }
+        Page::DashboardPicker => vec![],
         Page::Settings => {
             let ox = 364.0;
             let oy = 24.0;
@@ -1207,6 +1273,17 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             }
             rects
         }
+        Page::DashboardPicker => {
+            let n = laptop.global::<Display>().get_dashboard_choices().row_count();
+            (0..n)
+                .map(|i| Rect {
+                    x: 96.0 + i as f32 * 436.0,
+                    y: 330.0,
+                    w: 420.0,
+                    h: 600.0,
+                })
+                .collect()
+        }
         Page::Settings => {
             // 0..=6: SubTabs (Display, Accounts, Sites, Sports, Server, Diagnostics, What's new)
             let mut rects = vec![
@@ -1557,6 +1634,15 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             }
             let is_tv = lib.get_media_tab() == "tv";
             if lib.get_browse_all() {
+                if laptop.global::<Display>().get_dashboard_ui() == "orbit" {
+                    let br = laptop.global::<crate::Browse>();
+                    if idx < 32 {
+                        br.invoke_set_letter((idx - 4) as i32);
+                    } else if let Some(item) = br.get_items().row_data(idx - 32) {
+                        br.invoke_activate(item.key);
+                    }
+                    return;
+                }
                 if idx < 32 {
                     let li = idx - 4;
                     let letter = match li {
@@ -1688,6 +1774,12 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 _ => {}
             }
         }
+        Page::DashboardPicker => {
+            let disp = laptop.global::<Display>();
+            if let Some(ch) = disp.get_dashboard_choices().row_data(idx) {
+                disp.invoke_choose_dashboard(ch.id);
+            }
+        }
         Page::Settings => {
             if idx < 7 {
                 let next_tab = match idx {
@@ -1803,7 +1895,15 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                         }
                         6 => {
                             let cur = tvdash_core::config::DashboardUi::parse(&disp.get_dashboard_ui());
-                            disp.invoke_set_dashboard_ui(cur.next().as_str().into());
+                            let cur_idx = tvdash_core::config::DashboardUi::ALL
+                                .iter()
+                                .position(|&u| u == cur)
+                                .unwrap_or(0);
+                            STATE.with_borrow_mut(|s| {
+                                s.shell.push(Page::DashboardPicker);
+                                s.shell.focused_tile = cur_idx;
+                            });
+                            sync(laptop);
                         }
                         7 => {
                             let sl = laptop.global::<SleepState>();
@@ -2324,6 +2424,8 @@ mod tests {
                     .into_iter()
                     .map(site)
                     .collect(),
+                browse_sort_tv: "title_asc".into(),
+                browse_sort_movies: "title_asc".into(),
             },
         );
         let (tx, rx) = mpsc::channel();

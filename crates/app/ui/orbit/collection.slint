@@ -17,14 +17,16 @@ export component OrbitCollection inherits Rectangle {
     Rectangle {
         width: parent.width;
         height: parent.height;
-        background: @radial-gradient(circle, #F2C66B22 0%, #07070A00 60%);
+        background: @radial-gradient(circle, #2E5F6A44 0%, #15292E30 36%, #2C3A4020 66%, #2B313D00 100%);
     }
 
     // Header controls (next to Back pill at x 110, y 130)
     HorizontalLayout {
         x: 310px * TvUi.u;
         y: 130px * TvUi.u;
+        height: 46px * TvUi.u;
         spacing: 10px * TvUi.u;
+        alignment: start;
 
         Text {
             text: "ORDER";

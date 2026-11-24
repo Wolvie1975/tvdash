@@ -280,6 +280,34 @@ export global Library {
     callback close-detail();
 }
 
+export struct BrowseItem {
+    key: string,
+    title: string,
+    meta: string,
+    status: string,
+    poster: image,
+    has-poster: bool,
+    ring-lit: string,
+    ring-unlit: string,
+    watched: bool,
+    is-movie: bool,
+}
+
+export global Browse {
+    in property <string> library: "tv";
+    in property <int> letter: 0;
+    in property <[int]> letter-counts;
+    in property <[BrowseItem]> items;
+    in property <string> sort-label: "A–Z";
+    in property <string> genre-label: "All genres";
+    in property <string> note;
+    callback set-library(string);
+    callback set-letter(int);
+    callback cycle-sort();
+    callback pick-genre();
+    callback activate(string);
+}
+
 export struct FocusInfoData {
     kicker: string,
     title: string,
@@ -299,6 +327,8 @@ export struct Shelf1TileData {
     progress: float,
     segments: int,
     watched-segments: int,
+    ring-lit: string,
+    ring-unlit: string,
 }
 
 export struct RankedTileData {
@@ -612,6 +642,14 @@ export global Watch {
     callback close-detail();
 }
 
+export struct DashboardChoice {
+    id: string,
+    name: string,
+    sub: string,
+    description: string,
+    current: bool,
+}
+
 // Settings › Display.
 export global Display {
     in-out property <bool> celsius: false;
@@ -629,9 +667,12 @@ export global Display {
     in property <[string]> places;          // matches to pick from
     in-out property <string> layout-setting: "auto"; // "auto" | "dual" | "tv"
     in-out property <string> dashboard-ui: "classic"; // "classic" | "blades" | "ps5" | "orbit"
+    in property <string> dashboard-ui-label: "Classic · Top tabs · tile hub";
+    in property <[DashboardChoice]> dashboard-choices;
     callback set-layout(bool);  // true = TV only
     callback set-layout-setting(string);
     callback set-dashboard-ui(string);
+    callback choose-dashboard(string);
     callback find-place(string);
     callback pick-place(int);
 }
@@ -670,6 +711,8 @@ export struct WhatsOn {
     art: image,
     has-art: bool,
     progress: float,          // 0..1, <0 = hide
+    ring-lit: string,
+    ring-unlit: string,
     status: string,
     is-app: bool,
     app-color: color,
@@ -871,6 +914,7 @@ export global Sports {
     in property <int> total-pages: 1;
     in property <string> last-updated;
     in property <[SportsRowData]> rows;
+    in property <int> first-game-index: -1;
     callback load(string, int);
     callback open-url(string, string);
 }
@@ -971,6 +1015,7 @@ export global Scoreboard {
     in property <string> fresh;
     in property <bool> stale: false;
     in property <[ScoreboardRowData]> rows;
+    in property <int> first-game-index: -1;
     in property <[ScoreGroup]> groups;
     callback load(string, string, bool);
     callback prev-day-clicked();

@@ -818,6 +818,15 @@ impl Controller {
                 self.refresh();
                 self.load_library_shelves(is_tv, sort, popular_days);
             }
+            Command::SetBrowseSort { is_tv, sort } => {
+                self.update_config(|c| {
+                    if is_tv {
+                        c.general.browse_sort_tv = sort.clone();
+                    } else {
+                        c.general.browse_sort_movies = sort.clone();
+                    }
+                });
+            }
             Command::OpenShow(rating_key) => {
                 self.open_show(rating_key);
             }

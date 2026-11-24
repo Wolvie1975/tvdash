@@ -6,8 +6,9 @@ use tracing::{error, warn};
 use tvdash_core::{Command, models::SourceKind};
 
 use crate::{
-    Accounts, Artwork, CollectionPageState, Dash, Display, LaptopWindow, Library, Nav, Scoreboard, Server, Setup,
-    ShowPageState, SiteEditor, SleepState, Sports, SportsAlertState, SportsAlertsSettings, Watch, bridge, watch_ui,
+    Accounts, Artwork, Browse, CollectionPageState, Dash, Display, LaptopWindow, Library, Nav, Scoreboard, Server,
+    Setup, ShowPageState, SiteEditor, SleepState, Sports, SportsAlertState, SportsAlertsSettings, Watch, bridge,
+    watch_ui,
 };
 use tvdash_core::config::StreamingSite;
 
@@ -448,12 +449,33 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     });
 
     let (weak, s) = (laptop.as_weak(), send.clone());
-    laptop.global::<crate::Display>().on_set_dashboard_ui(move |ui| {
-        let mode = tvdash_core::config::DashboardUi::parse(&ui);
-        if let Some(l) = weak.upgrade() {
-            l.global::<crate::Display>().set_dashboard_ui(mode.as_str().into());
+    let set_ui = move |ui: &str, l: &LaptopWindow, s: &dyn Fn(Command)| {
+        let mode = tvdash_core::config::DashboardUi::parse(ui);
+        if !tvdash_core::config::DashboardUi::ALL.contains(&mode) {
+            return;
         }
+        let d = l.global::<crate::Display>();
+        if d.get_dashboard_ui().as_str() == mode.as_str() {
+            crate::tv_nav::pop_picker(l);
+            return;
+        }
+        bridge::display::refresh_dashboard_choices(l, mode);
         s(Command::SetDashboardUi(mode));
+        crate::tv_nav::open_settings_display_focused_on_picker(l);
+        bridge::toast(l, &format!("Switched to {}", mode.name()));
+    };
+
+    let (weak1, s1, set_ui1) = (weak.clone(), s.clone(), set_ui.clone());
+    laptop.global::<crate::Display>().on_set_dashboard_ui(move |ui| {
+        if let Some(l) = weak1.upgrade() {
+            set_ui1(&ui, &l, &s1);
+        }
+    });
+
+    laptop.global::<crate::Display>().on_choose_dashboard(move |ui| {
+        if let Some(l) = weak.upgrade() {
+            set_ui(&ui, &l, &s);
+        }
     });
 
     let s = send.clone();
@@ -531,6 +553,7 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
             sp.set_loading(true);
             sp.set_episodes(slint::ModelRc::default());
             sp.set_selected_season("".into());
+            crate::tv_nav::push_show(&l);
         }
         s(Command::OpenShow(key.to_string()));
     });
@@ -539,6 +562,7 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     lib.on_open_collection(move |key| {
         if let Some(l) = weak.upgrade() {
             l.global::<CollectionPageState>().set_loading(true);
+            crate::tv_nav::push_collection(&l);
         }
         s(Command::OpenCollection(key.to_string()));
     });
@@ -546,6 +570,81 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     let s = send.clone();
     lib.on_play_key(move |key, resume| {
         s(Command::PlayRatingKey { rating_key: key.to_string(), resume });
+    });
+
+    // ── Orbit · Library › Browse all ─────────────────────────────────────────
+    let br = laptop.global::<Browse>();
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    br.on_set_library(move |tab| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<Library>().invoke_set_media_tab(tab);
+            let missing = bridge::browse::missing_posters();
+            if !missing.is_empty() {
+                s(Command::FetchPosters(missing));
+            }
+        }
+    });
+
+    thread_local! {
+        static BROWSE_LETTER_TIMER: std::cell::RefCell<Option<slint::Timer>> = const { std::cell::RefCell::new(None) };
+    }
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    br.on_set_letter(move |idx| {
+        let Some(l) = weak.upgrade() else { return };
+        bridge::browse::set_letter_immediate(&l, idx.max(0) as usize);
+        let weak2 = l.as_weak();
+        let s2 = s.clone();
+        BROWSE_LETTER_TIMER.with_borrow_mut(|slot| {
+            let timer = slot.get_or_insert_with(slint::Timer::default);
+            timer.start(
+                slint::TimerMode::SingleShot,
+                std::time::Duration::from_millis(300),
+                move || {
+                    if let Some(l) = weak2.upgrade() {
+                        bridge::browse::rebuild_grid(&l);
+                        let missing = bridge::browse::missing_posters();
+                        if !missing.is_empty() {
+                            s2(Command::FetchPosters(missing));
+                        }
+                    }
+                },
+            );
+        });
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    br.on_cycle_sort(move || {
+        if let Some(l) = weak.upgrade() {
+            let (is_tv, sort) = bridge::browse::cycle_sort(&l);
+            s(Command::SetBrowseSort { is_tv, sort });
+            let missing = bridge::browse::missing_posters();
+            if !missing.is_empty() {
+                s(Command::FetchPosters(missing));
+            }
+        }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    br.on_pick_genre(move || {
+        if let Some(l) = weak.upgrade() {
+            bridge::browse::pick_genre(&l);
+            let missing = bridge::browse::missing_posters();
+            if !missing.is_empty() {
+                s(Command::FetchPosters(missing));
+            }
+        }
+    });
+
+    let weak = laptop.as_weak();
+    br.on_activate(move |key: slint::SharedString| {
+        if let Some(l) = weak.upgrade() {
+            let lib = l.global::<Library>();
+            if bridge::browse::item_is_movie(&key).unwrap_or(false) {
+                lib.invoke_play_key(key, true);
+            } else {
+                lib.invoke_open_show(key);
+            }
+        }
     });
 
     let sp = laptop.global::<ShowPageState>();

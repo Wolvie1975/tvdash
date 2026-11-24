@@ -1,0 +1,282 @@
+import { Browse, TvUi } from "../state.slint";
+import { OrbitTheme } from "theme.slint";
+import { OrbitRing } from "ring.slint";
+
+// Orbit · Library › Browse all (§addendum):
+// Left: 124px glass letter column (x 112, y 200, 9 visible slots, focused letter 100px centered).
+// Right: label (x 290, y 214) + 6-across 190px OrbitRing poster grid (x 290, y 260, col gap 76, row gap 26).
+export component OrbitBrowse inherits Rectangle {
+    in-out property <int> focused-item: 0;
+    in-out property <bool> focus-in-grid: false;
+
+    property <[string]> letters: [
+        "All", "#", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
+        "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
+    ];
+    property <int> win-start: Math.clamp(Browse.letter - 4, 0, 19);
+    property <int> focused-count: Browse.letter >= 0 && Browse.letter < Browse.letter-counts.length
+        ? Browse.letter-counts[Browse.letter]
+        : Browse.items.length;
+    property <string> active-letter-label: Browse.letter >= 0 && Browse.letter < letters.length
+        ? letters[Browse.letter]
+        : "All";
+    property <string> noun-upper: Browse.library == "movies" ? "MOVIES" : "SHOWS";
+    property <int> row-count: Math.ceil(Browse.items.length / 6);
+
+    // ── Letter Column (x 112, y 200, w 124) ──────────────────────────────────
+    Rectangle {
+        property <length> wheel-accum: 0px;
+
+        x: 112px * TvUi.u;
+        y: 200px * TvUi.u;
+        width: 124px * TvUi.u;
+        height: parent.height - 310px * TvUi.u;
+        border-radius: 62px * TvUi.u;
+        background: OrbitTheme.glass;
+        border-width: 1px;
+        border-color: OrbitTheme.glass-border;
+
+        TouchArea {
+            scroll-event(ev) => {
+                parent.wheel-accum += ev.delta-y;
+                if parent.wheel-accum <= -40px {
+                    parent.wheel-accum = 0px;
+                    if Browse.letter + 1 < letters.length {
+                        root.focus-in-grid = false;
+                        root.focused-item = 0;
+                        Browse.set-letter(Browse.letter + 1);
+                    }
+                    return accept;
+                }
+                if parent.wheel-accum >= 40px {
+                    parent.wheel-accum = 0px;
+                    if Browse.letter > 0 {
+                        root.focus-in-grid = false;
+                        root.focused-item = 0;
+                        Browse.set-letter(Browse.letter - 1);
+                    }
+                    return accept;
+                }
+                accept
+            }
+        }
+
+        for si in 9: Rectangle {
+            property <int> li: win-start + si;
+            property <int> dist: Math.abs(li - Browse.letter);
+            property <bool> is-center: li == Browse.letter;
+            property <length> circle-sz: (is-center ? 100px : dist == 1 ? 70px : 54px) * TvUi.u;
+            property <length> slot-h: (parent.height - 24px * TvUi.u) / 9;
+
+            x: 0;
+            y: 12px * TvUi.u + si * slot-h;
+            width: parent.width;
+            height: slot-h;
+            opacity: Math.max(0.25, 1.0 - dist * 0.15);
+
+            // Focus ring around active centered letter or hovered slot
+            if (is-center && !focus-in-grid) || letter-ta.has-hover: Rectangle {
+                x: (parent.width - circle-sz) / 2 - 7px * TvUi.u;
+                y: (parent.height - circle-sz) / 2 - 7px * TvUi.u;
+                width: circle-sz + 14px * TvUi.u;
+                height: circle-sz + 14px * TvUi.u;
+                border-radius: self.width / 2;
+                border-width: 3px * TvUi.u;
+                border-color: OrbitTheme.text;
+            }
+
+            Rectangle {
+                x: (parent.width - circle-sz) / 2;
+                y: (parent.height - circle-sz) / 2;
+                width: circle-sz;
+                height: circle-sz;
+                border-radius: self.width / 2;
+                background: is-center ? OrbitTheme.text : (letter-ta.has-hover ? OrbitTheme.row-focus : #FFFFFF10);
+                border-width: is-center ? 0px : 1px;
+                border-color: OrbitTheme.glass-border;
+
+                VerticalLayout {
+                    width: parent.width;
+                    height: parent.height;
+                    alignment: center;
+                    spacing: 2px * TvUi.u;
+
+                    Text {
+                        text: letters[li];
+                        font-family: OrbitTheme.font;
+                        font-size: (is-center ? (li == 0 ? 28px : 34px) : dist == 1 ? 20px : 16px) * TvUi.u;
+                        font-weight: is-center ? 700 : 500;
+                        color: is-center ? OrbitTheme.bg : OrbitTheme.text;
+                        horizontal-alignment: center;
+                    }
+                    if is-center: Text {
+                        text: focused-count;
+                        font-family: OrbitTheme.font;
+                        font-size: 14px * TvUi.u;
+                        font-weight: 600;
+                        color: OrbitTheme.bg;
+                        opacity: 0.72;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+
+            letter-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    root.focus-in-grid = false;
+                    root.focused-item = 0;
+                    Browse.set-letter(li);
+                }
+            }
+        }
+    }
+
+    // ── Header Label (x 290, y 214) ──────────────────────────────────────────
+    HorizontalLayout {
+        x: 290px * TvUi.u;
+        y: 214px * TvUi.u;
+        height: 28px * TvUi.u;
+        spacing: 18px * TvUi.u;
+        alignment: start;
+
+        Text {
+            text: active-letter-label + " · " + focused-count + " " + noun-upper;
+            font-family: OrbitTheme.font;
+            font-size: 16px * TvUi.u;
+            font-weight: 700;
+            letter-spacing: 2.2px * TvUi.u;
+            color: OrbitTheme.text;
+            vertical-alignment: center;
+        }
+        if Browse.note != "": Text {
+            text: Browse.note;
+            font-family: OrbitTheme.font;
+            font-size: 15px * TvUi.u;
+            color: OrbitTheme.sub;
+            vertical-alignment: center;
+        }
+    }
+
+    // ── 6-Across Poster Ring Grid (x 290, y 260) ─────────────────────────────
+    Flickable {
+        x: 274px * TvUi.u;
+        y: 252px * TvUi.u;
+        width: parent.width - 300px * TvUi.u;
+        height: parent.height - 292px * TvUi.u;
+        content-height: Math.max(self.height, row-count * 274px * TvUi.u + 48px * TvUi.u);
+
+        for item[idx] in Browse.items: Rectangle {
+            property <int> grid-col: Math.mod(idx, 6);
+            property <int> grid-row: Math.floor(idx / 6);
+            property <bool> is-foc: (focus-in-grid && focused-item == idx) || item-ta.has-hover;
+
+            x: 16px * TvUi.u + grid-col * 266px * TvUi.u;
+            y: 12px * TvUi.u + grid-row * 274px * TvUi.u;
+            width: 190px * TvUi.u;
+            height: 254px * TvUi.u;
+
+            if is-foc: Rectangle {
+                x: -10px * TvUi.u;
+                y: -10px * TvUi.u;
+                width: 210px * TvUi.u;
+                height: 210px * TvUi.u;
+                border-radius: self.width / 2;
+                border-width: 4px * TvUi.u;
+                border-color: OrbitTheme.text;
+            }
+
+            OrbitRing {
+                x: 0;
+                y: 0;
+                size: 190px * TvUi.u;
+                viewbox-size: 190;
+                thickness: 6px * TvUi.u;
+                lit-path: item.ring-lit;
+                unlit-path: item.ring-unlit;
+                opacity: item.watched ? 0.7 : 1.0;
+
+                Rectangle {
+                    width: parent.width;
+                    height: parent.height;
+                    border-radius: self.width / 2;
+                    background: OrbitTheme.glass;
+                    clip: true;
+
+                    if item.has-poster: Image {
+                        source: item.poster;
+                        width: parent.width;
+                        height: parent.height;
+                        image-fit: cover;
+                    }
+                    if !item.has-poster: Text {
+                        text: item.title;
+                        font-family: OrbitTheme.font;
+                        font-size: 16px * TvUi.u;
+                        font-weight: 600;
+                        color: OrbitTheme.sub;
+                        wrap: word-wrap;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        width: parent.width - 24px * TvUi.u;
+                        x: 12px * TvUi.u;
+                    }
+                }
+            }
+
+            Text {
+                x: -12px * TvUi.u;
+                y: 200px * TvUi.u;
+                width: 214px * TvUi.u;
+                text: item.title;
+                font-family: OrbitTheme.font;
+                font-size: 19px * TvUi.u;
+                font-weight: 600;
+                color: OrbitTheme.text;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+
+            Text {
+                x: -12px * TvUi.u;
+                y: 226px * TvUi.u;
+                width: 214px * TvUi.u;
+                text: item.meta;
+                font-family: OrbitTheme.font;
+                font-size: 14px * TvUi.u;
+                color: OrbitTheme.sub;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+
+            item-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { Browse.activate(item.key); }
+                pointer-event(ev) => {
+                    if ev.kind == PointerEventKind.move {
+                        root.focus-in-grid = true;
+                        root.focused-item = idx;
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Bottom Fade & Hint ───────────────────────────────────────────────────
+    Rectangle {
+        x: 274px * TvUi.u;
+        y: parent.height - 90px * TvUi.u;
+        width: parent.width - 274px * TvUi.u;
+        height: 90px * TvUi.u;
+        background: OrbitTheme.fade;
+    }
+
+    Text {
+        x: 290px * TvUi.u;
+        y: parent.height - 34px * TvUi.u;
+        text: "↑ ↓ letters · → into the grid · All shows the first 10 A–Z · a letter loads everything under it";
+        font-family: OrbitTheme.font;
+        font-size: 14px * TvUi.u;
+        color: OrbitTheme.muted;
+    }
+}

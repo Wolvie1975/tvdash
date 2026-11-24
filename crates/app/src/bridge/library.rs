@@ -41,7 +41,7 @@ fn sort_title(title: &str) -> &str {
     t
 }
 
-fn matches_letter(title: &str, letter: &str) -> bool {
+pub(super) fn matches_letter(title: &str, letter: &str) -> bool {
     if letter.is_empty() {
         return true;
     }
@@ -54,7 +54,7 @@ fn matches_letter(title: &str, letter: &str) -> bool {
     first.to_ascii_uppercase().to_string() == letter
 }
 
-fn browse_sort_key(title: &str) -> (u8, String) {
+pub(super) fn browse_sort_key(title: &str) -> (u8, String) {
     let trimmed = sort_title(title);
     let group = match trimmed.chars().next() {
         Some(c) if c.is_ascii_alphabetic() => 1,
@@ -63,7 +63,7 @@ fn browse_sort_key(title: &str) -> (u8, String) {
     (group, trimmed.to_ascii_lowercase())
 }
 
-fn format_count(n: usize) -> String {
+pub(super) fn format_count(n: usize) -> String {
     let s = n.to_string();
     let mut out = String::with_capacity(s.len() + s.len() / 3);
     for (i, ch) in s.chars().rev().enumerate() {
@@ -108,6 +108,7 @@ fn rebuild_browse(s: &mut UiState, laptop: &LaptopWindow) {
     lib.set_browse_status(status.into());
     s.lib_browse = items;
     s.lib_browse_cards.set_vec(cards_for(s, &s.lib_browse));
+    super::browse::rebuild(s, laptop);
 }
 
 pub(super) fn rebuild(s: &mut UiState, laptop: &LaptopWindow) {
@@ -632,8 +633,15 @@ pub(super) fn on_collection_detail(s: &mut UiState, laptop: &LaptopWindow, res: 
     cp.set_rating_key(detail.collection.rating_key.as_str().into());
     cp.set_title(detail.collection.title.as_str().into());
     cp.set_meta(format!("{} movies", detail.items.len()).into());
+    let watched_count = detail.collection.watched_count.max(
+        detail
+            .items
+            .iter()
+            .filter(|i| i.resume_ms.is_none() && detail.watched_keys.contains(&i.id))
+            .count() as u32,
+    );
     cp.set_progress_text(
-        format!("{} of {} watched", detail.collection.watched_count, detail.items.len()).into(),
+        format!("{watched_count} of {} watched", detail.items.len()).into(),
     );
     cp.set_summary(detail.collection.summary.as_deref().unwrap_or("").into());
     if let Some(k) = &detail.up_next_key {
@@ -890,6 +898,12 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
                     } else {
                         0.0
                     };
+                    let rp = crate::orbit::rings::ring_paths(
+                        f.total_episodes as usize,
+                        f.watched_episodes as usize,
+                        52.0,
+                        crate::orbit::rings::gap_for_count(f.total_episodes as usize),
+                    );
                     Shelf1TileData {
                         rating_key: f.item.id.as_str().into(),
                         title: f.item.title.as_str().into(),
@@ -899,6 +913,8 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
                         progress: frac,
                         segments: f.total_episodes as i32,
                         watched_segments: f.watched_episodes as i32,
+                        ring_lit: rp.lit.into(),
+                        ring_unlit: rp.unlit.into(),
                     }
                 })
                 .collect();
@@ -910,15 +926,24 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
                 .map(|item| {
                     let key = (item.source, item.id.clone());
                     let art = s.backdrops.peek(&key).or_else(|| s.posters.peek(&key));
+                    let prog = item.progress().unwrap_or(0.0);
+                    let rp = if prog > 0.0 {
+                        let pct = (prog * 100.0).round().clamp(1.0, 100.0) as usize;
+                        crate::orbit::rings::ring_paths(100, pct, 52.0, 0.0)
+                    } else {
+                        Default::default()
+                    };
                     Shelf1TileData {
                         rating_key: item.id.as_str().into(),
                         title: item.title.as_str().into(),
                         right_label: format::time_left(item).unwrap_or_default().into(),
                         has_art: art.is_some(),
                         art: art.cloned().unwrap_or_default(),
-                        progress: item.progress().unwrap_or(0.0),
+                        progress: prog,
                         segments: 0,
                         watched_segments: 0,
+                        ring_lit: rp.lit.into(),
+                        ring_unlit: rp.unlit.into(),
                     }
                 })
                 .collect();
@@ -947,15 +972,24 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
             .map(|item| {
                 let key = (item.source, item.id.clone());
                 let art = s.backdrops.peek(&key).or_else(|| s.posters.peek(&key));
+                let prog = item.progress().unwrap_or(0.0);
+                let rp = if prog > 0.0 {
+                    let pct = (prog * 100.0).round().clamp(1.0, 100.0) as usize;
+                    crate::orbit::rings::ring_paths(100, pct, 52.0, 0.0)
+                } else {
+                    Default::default()
+                };
                 Shelf1TileData {
                     rating_key: item.id.as_str().into(),
                     title: item.title.as_str().into(),
                     right_label: format::time_left(item).unwrap_or_default().into(),
                     has_art: art.is_some(),
                     art: art.cloned().unwrap_or_default(),
-                    progress: item.progress().unwrap_or(0.0),
+                    progress: prog,
                     segments: 0,
                     watched_segments: 0,
+                    ring_lit: rp.lit.into(),
+                    ring_unlit: rp.unlit.into(),
                 }
             })
             .collect();

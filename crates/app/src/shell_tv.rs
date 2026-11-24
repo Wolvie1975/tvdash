@@ -70,6 +70,7 @@ pub enum Page {
     Sports,
     Search,
     Settings,
+    DashboardPicker,
 }
 
 #[derive(Debug, Clone)]

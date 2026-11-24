@@ -6,8 +6,8 @@ import { OrbitBubble, OrbitPill, OrbitRow } from "controls.slint";
 // Sub-switch at y 130: Competitions · Scoreboard (+ date stepper on Scoreboard).
 // Left: filter bubbles; Top-right: focused game/event card (1250x250 r125); Bottom-right: vertical list.
 export component OrbitSports inherits Rectangle {
-    in-out property <int> focused-sb-row: 0;
-    in-out property <int> focused-comp-row: 0;
+    in-out property <int> focused-sb-row: -1;
+    in-out property <int> focused-comp-row: -1;
     in property <bool> focus-in-bubbles: false;
     in-out property <int> focused-bubble: 0;
 
@@ -41,25 +41,40 @@ export component OrbitSports inherits Rectangle {
             OrbitPill {
                 label: "‹";
                 h-pad: 14px * TvUi.u;
-                activated => { Scoreboard.prev-day-clicked(); }
+                activated => {
+                    root.focused-sb-row = -1;
+                    Scoreboard.prev-day-clicked();
+                }
             }
             OrbitPill {
                 label: Scoreboard.date-label != "" ? Scoreboard.date-label : Scoreboard.day-label;
-                activated => { Scoreboard.today-clicked(); }
+                activated => {
+                    root.focused-sb-row = -1;
+                    Scoreboard.today-clicked();
+                }
             }
             OrbitPill {
                 label: "›";
                 h-pad: 14px * TvUi.u;
-                activated => { Scoreboard.next-day-clicked(); }
+                activated => {
+                    root.focused-sb-row = -1;
+                    Scoreboard.next-day-clicked();
+                }
             }
             if !Scoreboard.is-today: OrbitPill {
                 label: "Today";
-                activated => { Scoreboard.today-clicked(); }
+                activated => {
+                    root.focused-sb-row = -1;
+                    Scoreboard.today-clicked();
+                }
             }
             OrbitPill {
                 label: "↻";
                 h-pad: 14px * TvUi.u;
-                activated => { Scoreboard.refresh(); }
+                activated => {
+                    root.focused-sb-row = -1;
+                    Scoreboard.refresh();
+                }
             }
         }
     }
@@ -71,7 +86,12 @@ export component OrbitSports inherits Rectangle {
         width: parent.width;
         height: parent.height;
 
-        property <int> safe-row: Scoreboard.rows.length > 0 ? Math.clamp(focused-sb-row, 0, Scoreboard.rows.length - 1) : 0;
+        property <int> fallback-row: Scoreboard.first-game-index >= 0 ? Scoreboard.first-game-index : 0;
+        property <int> safe-row: Scoreboard.rows.length > 0
+            ? (focused-sb-row >= 0 && focused-sb-row < Scoreboard.rows.length && Scoreboard.rows[focused-sb-row].kind == "game"
+                ? focused-sb-row
+                : fallback-row)
+            : 0;
 
         // Left: League bubbles (x 110, y 210, w 380)
         Text {
@@ -104,13 +124,16 @@ export component OrbitSports inherits Rectangle {
                 meta: choice.group;
                 selected: Scoreboard.show == choice.value;
                 focused: focus-in-bubbles && focused-bubble == ci;
-                activated => { Scoreboard.set-filter(choice.value); }
+                activated => {
+                    root.focused-sb-row = -1;
+                    Scoreboard.set-filter(choice.value);
+                }
                 hovered => { root.focused-bubble = ci; }
             }
         }
 
         // Top-right: Focused Game Card (x 560, y 220, 1250 x 250, radius 125)
-        if Scoreboard.rows.length > 0: Rectangle {
+        if Scoreboard.rows.length > 0 && Scoreboard.rows[safe-row].kind == "game": Rectangle {
             x: 560px * TvUi.u;
             y: 220px * TvUi.u;
             width: 1250px * TvUi.u;
@@ -127,7 +150,7 @@ export component OrbitSports inherits Rectangle {
                 width: 222px * TvUi.u;
                 height: 222px * TvUi.u;
                 border-radius: self.width / 2;
-                background: #06080B8C;
+                background: #2B313D8C;
                 border-width: 6px * TvUi.u;
                 border-color: Scoreboard.rows[safe-row].is-live ? OrbitTheme.live : #FFFFFF55;
 
@@ -329,7 +352,12 @@ export component OrbitSports inherits Rectangle {
         width: parent.width;
         height: parent.height;
 
-        property <int> safe-row: Sports.rows.length > 0 ? Math.clamp(focused-comp-row, 0, Sports.rows.length - 1) : 0;
+        property <int> fallback-row: Sports.first-game-index >= 0 ? Sports.first-game-index : 0;
+        property <int> safe-row: Sports.rows.length > 0
+            ? (focused-comp-row >= 0 && focused-comp-row < Sports.rows.length && Sports.rows[focused-comp-row].kind == "game"
+                ? focused-comp-row
+                : fallback-row)
+            : 0;
 
         Text {
             x: 110px * TvUi.u;
@@ -361,13 +389,16 @@ export component OrbitSports inherits Rectangle {
                 meta: "";
                 selected: Sports.schedule == choice.value;
                 focused: focus-in-bubbles && focused-bubble == ci;
-                activated => { Sports.load(choice.value, 0); }
+                activated => {
+                    root.focused-comp-row = -1;
+                    Sports.load(choice.value, 0);
+                }
                 hovered => { root.focused-bubble = ci; }
             }
         }
 
         // Top-right Event Card
-        if Sports.rows.length > 0: Rectangle {
+        if Sports.rows.length > 0 && Sports.rows[safe-row].kind == "game": Rectangle {
             x: 560px * TvUi.u;
             y: 220px * TvUi.u;
             width: 1250px * TvUi.u;

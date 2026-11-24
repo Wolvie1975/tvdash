@@ -1,21 +1,24 @@
 # tvdash: where things stand
 
-Last updated 2026-11-23 (post-`v0.1.70` on `feature/add-uis`). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-24 (`v0.1.71` bumped on `feature/add-uis`, ready for final tests + RPM build). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-- **Orbit Dashboard UI (`feature/add-uis`) — currently in live testing** (not yet bumped to `0.1.71` or packaged into an RPM):
-  - **Done tonight:**
-    - Fixed `orbit_tile_rects` `Page` match arms in `crates/app/src/tv_nav.rs` (`cargo test -j 2 -p tvdash -- --test-threads=1` passed).
-    - Fixed Orbit Home hero `alignment: start` (revealing `OrbitPlay` + `From start` + `···`), vertical centering of the Play controls row, `OrbitPill` label centering (`controls.slint`), bottom dial label position and clearance from `Next Game` / `Just Added`, Up Next row contrast backing and right margin, jumpy dial hover behavior (`home.slint` & `library.slint`), and a centered vector Search magnifying glass in `shell.slint`.
-    - Fixed Orbit Collections hero `alignment: start` (and matching hero `VerticalLayout`s in `apps.slint`, `collection.slint`, `show.slint`, `settings.slint`).
-    - Added team logos beside team names in Orbit Sports Competitions (top event card + event rows) and league logos (plus the NCAA logo for `top25` / college leagues) to the Sports filter bubbles (`state.slint`, `controls.slint`, `sports.slint`, `bridge/mod.rs`, `controller.rs`), including the `&u.to_string()` `sports_logos.peek` compile fix in `bridge/mod.rs`.
-    - Added **Live Testing Before Release** to `GEMINI.md` as a standard step before version bump & RPM build.
-  - **Next when picking back up (uncommitted changes are in the working tree):**
-    1. Run `cargo run -j 2 -- --windowed --layout tv` to verify the Sports league/NCAA logos compile/render cleanly and check any remaining Orbit screens (`Apps`, `Library`, `Show`, `Collection`, `Search`, `Settings`).
-    2. Re-run `cargo test -j 2 -p tvdash -- --test-threads=1`, then bump to `0.1.71` and build the RPM.
-- **PS5 Dashboard UI (`v0.1.70`)** is complete on `feature/add-uis` with [tvdash-0.1.70-1.x86_64.rpm](releases/tvdash-0.1.70-1.x86_64.rpm) already built.
+- **`v0.1.71` (`feature/add-uis`) — version bumped, ready for final tests & RPM build:**
+  - **Done on 2026-11-24:**
+    - **Orbit: Storm grey background (`#2B313D`):** Updated `OrbitTheme` (`bg: #2B313D`, `muted: #9CA3AE`, `accent: #8FC1FF`, `row: #FFFFFF12`), backdrop glows, and contrast backing on Home Up Next / Just Added capsules; removed the Orbit theme selector from `OrbitSettings`.
+    - **Orbit Sports (`sports.slint`, `bridge/mod.rs`, `state.slint`):** Populated the featured matchup card on landing and league/filter switches with the first `"game"` row (`first-game-index`) instead of header rows.
+    - **Orbit Library › Browse all (`orbit/letters.rs`, `bridge/browse.rs`, `orbit/browse.slint`, `orbit/library.slint`, `orbit/ring.slint`):** Built the 9-slot centered letter rail (`All · # · A–Z`, 300 ms debounced grid reload, wheel-stepped), 6-across 190 px `OrbitRing` poster grid, `TV Series` / `Movies` switch, per-library persisted `Sort`, and `Genre` filter.
+    - **Orbit Home, Apps, Library, Collections & Video:** Wired progress rings to `OrbitPlay` on Home and Library landing; unified full-brightness dials (`parent.width / 2` centering, dialed-down hover scale without overlap); removed `"More shelves"` and Home dial label; fixed Collection click navigation (`push_show` / `push_collection`), `ORDER` header layout, and `watched_count` from `watched_keys`; mounted `TvPlayerHud` on Orbit full-screen video; centered `OrbitIntro` vertically.
+    - **Classic: Choose a dashboard (UI picker):** Added `DashboardUi::ALL`, `TvDashboardPicker` (`ui/tv/dashboard_picker.slint`), `bridge/display.rs`, unified `set_dashboard_ui`, and `Page::DashboardPicker` remote navigation.
+  - **Next (on host):**
+    1. Run `cargo test -j 2 -p tvdash-core` and `cargo test -j 2 -p tvdash -- --test-threads=1`.
+    2. Build and package `v0.1.71`:
+       - `cargo build --release -j 2`
+       - `./packaging/rpm.sh`
+       - `cp dist/tvdash-0.1.71-1.x86_64.rpm releases/`
+- **PS5 Dashboard UI (`v0.1.70`)** is complete on `feature/add-uis` with [tvdash-0.1.70-1.x86_64.rpm](releases/tvdash-0.1.70-1.x86_64.rpm).
 - **macOS Stage Dashboard UI (`macos`)** has a build spec in `docs/new concepts/` and is on hold for now.
 - Reference to build/upgrade an RPM on the TV machine:
   ```bash

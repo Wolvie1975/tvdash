@@ -42,7 +42,7 @@ export component OrbitIntro inherits Rectangle {
         // Center play button + wordmark
         VerticalLayout {
             x: (parent.width - 420px * TvUi.u) / 2;
-            y: (parent.height - 320px * TvUi.u) / 2;
+            y: (parent.height - self.preferred-height) / 2;
             width: 420px * TvUi.u;
             spacing: 28px * TvUi.u;
             alignment: center;

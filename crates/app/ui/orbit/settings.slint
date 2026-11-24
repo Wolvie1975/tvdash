@@ -1,6 +1,5 @@
 import { Accounts, Dash, Diagnostics, Display, Server, SiteEditor, SportsAlertsSettings, TvUi } from "../state.slint";
 import { Intro } from "../shared/intro.slint";
-import { Theme, UiTheme } from "../theme.slint";
 import { OrbitTheme } from "theme.slint";
 import { OrbitPill, OrbitRow, OrbitToggle } from "controls.slint";
 import { OrbitQuitDialog } from "quit_dialog.slint";
@@ -10,12 +9,6 @@ import { OrbitQuitDialog } from "quit_dialog.slint";
 // Right (x 560, w 1250): section title 44/700 + OrbitRow settings rows
 export component OrbitSettings inherits Rectangle {
     in-out property <bool> quit-dialog-open: false;
-
-    property <string> theme-label: Theme.mode == UiTheme.dark ? "Kansas Dark"
-        : Theme.mode == UiTheme.aubergine ? "Aubergine"
-        : Theme.mode == UiTheme.ku ? "KU Crimson"
-        : Theme.mode == UiTheme.stone ? "Stone"
-        : "Mist";
 
     // Left section column (x 110, y 196, w 380)
     Text {
@@ -240,14 +233,6 @@ export component OrbitSettings inherits Rectangle {
                         }
                     }
                 }
-            }
-
-            OrbitRow {
-                width: parent.width;
-                row-height: 74px * TvUi.u;
-                activated => { TvUi.tile-activated(1); }
-                Text { x: 28px * TvUi.u; text: "Theme"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
-                OrbitPill { x: parent.width - self.width - 20px * TvUi.u; y: 14px * TvUi.u; label: theme-label + " ›"; activated => { TvUi.tile-activated(1); } }
             }
 
             OrbitRow {

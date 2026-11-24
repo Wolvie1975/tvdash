@@ -4,6 +4,7 @@ import { OrbitTheme } from "theme.slint";
 // Rust builds `lit-path` and `unlit-path` via `orbit::rings::ring_paths`.
 export component OrbitRing inherits Rectangle {
     in property <length> size: 108px;
+    in property <float> viewbox-size: size / 1px;
     in property <length> thickness: 6px;
     in property <string> lit-path;
     in property <string> unlit-path;
@@ -19,8 +20,8 @@ export component OrbitRing inherits Rectangle {
         fill: transparent;
         stroke: OrbitTheme.track;
         stroke-width: thickness;
-        viewbox-width: size / 1px;
-        viewbox-height: size / 1px;
+        viewbox-width: viewbox-size;
+        viewbox-height: viewbox-size;
     }
 
     if lit-path != "": Path {
@@ -31,8 +32,8 @@ export component OrbitRing inherits Rectangle {
         stroke: lit-color;
         stroke-width: thickness;
         stroke-line-cap: round;
-        viewbox-width: size / 1px;
-        viewbox-height: size / 1px;
+        viewbox-width: viewbox-size;
+        viewbox-height: viewbox-size;
     }
 
     Rectangle {

@@ -1,6 +1,7 @@
-import { Library, LibraryLanding, TvUi } from "../state.slint";
+import { Browse, Library, LibraryLanding, TvUi } from "../state.slint";
 import { OrbitTheme } from "theme.slint";
 import { OrbitPill, OrbitPlay, OrbitRow } from "controls.slint";
+import { OrbitBrowse } from "browse.slint";
 
 // Orbit Library page (§5):
 // Sub-tabs (TV Series · Movies · Browse all + Watching now),
@@ -24,33 +25,56 @@ export component OrbitLibrary inherits Rectangle {
 
         OrbitPill {
             label: "TV Series";
+            primary: is-browse && Browse.library != "movies";
             selected: !is-browse && !is-movies;
             activated => {
-                Library.browse-all = false;
-                Library.set-media-tab("tv");
+                if is-browse {
+                    Browse.set-library("tv");
+                } else {
+                    Library.set-media-tab("tv");
+                }
             }
         }
         OrbitPill {
             label: "Movies";
+            primary: is-browse && Browse.library == "movies";
             selected: !is-browse && is-movies;
             activated => {
-                Library.browse-all = false;
-                Library.set-media-tab("movies");
+                if is-browse {
+                    Browse.set-library("movies");
+                } else {
+                    Library.set-media-tab("movies");
+                }
             }
         }
         OrbitPill {
             label: "Browse all";
             selected: is-browse;
             activated => {
-                Library.browse-all = true;
+                Library.browse-all = !Library.browse-all;
             }
         }
-        if LibraryLanding.watching-now-count > 0: OrbitPill {
+        if !is-browse && LibraryLanding.watching-now-count > 0: OrbitPill {
             label: "Watching now";
             badge: LibraryLanding.watching-now-count;
             accent-color: #30D158;
             selected: LibraryLanding.watching-now-open;
             activated => { LibraryLanding.open-watching-now(); }
+        }
+        if is-browse: Rectangle {
+            width: 1px;
+            height: 28px * TvUi.u;
+            y: 9px * TvUi.u;
+            background: OrbitTheme.glass-border;
+        }
+        if is-browse: OrbitPill {
+            label: "Sort · " + Browse.sort-label;
+            activated => { Browse.cycle-sort(); }
+        }
+        if is-browse: OrbitPill {
+            label: Browse.genre-label;
+            selected: Browse.genre-label != "All genres";
+            activated => { Browse.pick-genre(); }
         }
     }
 
@@ -106,6 +130,8 @@ export component OrbitLibrary inherits Rectangle {
                 alignment: start;
 
                 OrbitPlay {
+                    lit-path: LibraryLanding.shelf1.length > 0 ? LibraryLanding.shelf1[0].ring-lit : "";
+                    unlit-path: LibraryLanding.shelf1.length > 0 ? LibraryLanding.shelf1[0].ring-unlit : "";
                     focused: root.focused-area == 0;
                     activated => {
                         if LibraryLanding.shelf1.length > 0 {
@@ -251,8 +277,7 @@ export component OrbitLibrary inherits Rectangle {
             x: (parent.width - 700px * TvUi.u) / 2;
             y: 700px * TvUi.u;
             width: 700px * TvUi.u;
-            text: (shelf-pair == 0 ? LibraryLanding.shelf2-title : LibraryLanding.shelf3-title)
-                + (LibraryLanding.shelf3.length > 0 ? (shelf-pair == 0 ? "  ·  ↓ More shelves" : "  ·  ↑ Back") : "");
+            text: shelf-pair == 0 ? LibraryLanding.shelf2-title : LibraryLanding.shelf3-title;
             font-family: OrbitTheme.font;
             font-size: 15px * TvUi.u;
             font-weight: 600;
@@ -266,16 +291,16 @@ export component OrbitLibrary inherits Rectangle {
             property <int> idx: dial-count > 0 ? Math.mod(safe-dial + slot + dial-count * 4, dial-count) : 0;
             property <bool> is-top: slot == 0;
             property <bool> is-foc: (self.is-top && root.focused-area == 6) || lib-dial-ta.has-hover;
-            property <length> node-sz: (self.is-top ? 160px : 120px) * TvUi.u;
+            property <length> node-sz: (self.is-top ? 160px : self.is-foc ? 140px : 120px) * TvUi.u;
             property <angle> ang: slot * 10.5deg - 90deg;
-            property <length> cx: 960px * TvUi.u + 950px * TvUi.u * Math.cos(self.ang);
+            property <length> cx: parent.width / 2 + 950px * TvUi.u * Math.cos(self.ang);
             property <length> cy: 1780px * TvUi.u + 950px * TvUi.u * Math.sin(self.ang);
 
             x: self.cx - self.node-sz / 2;
             y: self.cy - self.node-sz / 2;
             width: self.node-sz;
             height: self.node-sz;
-            opacity: (slot == -2 || slot == 2) ? 0.65 : slot == 3 ? 0.35 : 1.0;
+            animate width, height { duration: 150ms; easing: ease-out; }
 
             if lib-dial-node.is-foc: Rectangle {
                 x: -9px * TvUi.u;
@@ -346,77 +371,9 @@ export component OrbitLibrary inherits Rectangle {
         }
     }
 
-    // ── Browse All (vertical list) ───────────────────────────────────────────
-    if is-browse: Rectangle {
-        x: 110px * TvUi.u;
-        y: 204px * TvUi.u;
-        width: parent.width - 220px * TvUi.u;
-        height: parent.height - 240px * TvUi.u;
-
-        HorizontalLayout {
-            x: 0;
-            y: 0;
-            spacing: 6px * TvUi.u;
-            for ch in ["", "#", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]: OrbitPill {
-                label: ch == "" ? "All" : ch;
-                pill-height: 36px * TvUi.u;
-                h-pad: 12px * TvUi.u;
-                selected: Library.browse-letter == ch;
-                activated => { Library.set-browse-letter(ch); }
-            }
-        }
-
-        Flickable {
-            x: 0;
-            y: 54px * TvUi.u;
-            width: parent.width;
-            height: parent.height - 54px * TvUi.u;
-            content-height: Library.browse-items.length * 84px * TvUi.u;
-
-            for item[i] in Library.browse-items: OrbitRow {
-                x: 0;
-                y: i * 84px * TvUi.u;
-                width: parent.width;
-                row-height: 72px * TvUi.u;
-                activated => { Library.select("browse", i); }
-
-                Rectangle {
-                    x: 8px * TvUi.u;
-                    y: 6px * TvUi.u;
-                    width: 60px * TvUi.u;
-                    height: 60px * TvUi.u;
-                    border-radius: self.width / 2;
-                    clip: true;
-                    background: OrbitTheme.glass;
-                    if item.has-poster: Image {
-                        source: item.poster;
-                        width: parent.width;
-                        height: parent.height;
-                        image-fit: cover;
-                    }
-                }
-                Text {
-                    x: 88px * TvUi.u;
-                    width: parent.width - 320px * TvUi.u;
-                    text: item.title;
-                    font-family: OrbitTheme.font;
-                    font-size: 21px * TvUi.u;
-                    font-weight: 600;
-                    color: OrbitTheme.text;
-                    vertical-alignment: center;
-                    overflow: elide;
-                }
-                Text {
-                    x: parent.width - 210px * TvUi.u;
-                    width: 180px * TvUi.u;
-                    text: item.subtitle;
-                    font-family: OrbitTheme.font;
-                    font-size: 16px * TvUi.u;
-                    color: OrbitTheme.sub;
-                    horizontal-alignment: right;
-                    vertical-alignment: center;
-                }
-            }
-        }
+    // ── Browse All (letter rail + 6-across OrbitRing grid) ──────────────────
+    if is-browse: OrbitBrowse {
+        width: parent.width;
+        height: parent.height;
     }
 }

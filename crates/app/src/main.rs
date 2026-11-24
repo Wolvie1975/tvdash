@@ -321,6 +321,8 @@ fn main() -> anyhow::Result<()> {
             dashboard_ui: config.display.dashboard_ui,
             tv_connected: decision.tv_connected,
             sites: config.streaming.clone(),
+            browse_sort_tv: config.general.browse_sort_tv.clone(),
+            browse_sort_movies: config.general.browse_sort_movies.clone(),
         },
     );
     bridge::set_night_config(&laptop, config.display.clone());

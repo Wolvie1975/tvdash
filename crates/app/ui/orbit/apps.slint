@@ -13,12 +13,19 @@ export component OrbitApps inherits Rectangle {
     property <bool> has-apps: AppsPage.apps.length > 0;
     property <length> node-base: AppsPage.apps.length > 16 ? 96px * TvUi.u : 124px * TvUi.u;
     property <angle> hand-angle: (safe-idx * 360deg / count) - 90deg;
+    property <length> clock-cx: root.width / 2;
+    property <length> clock-cy: (root.height + 80px * TvUi.u) / 2;
 
-    // Faint glow in focused app's text-color
+    // Neutral glow + faint glow in focused app's text-color
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: @radial-gradient(circle, #2B2F3A 0%, #2B313D00 70%);
+    }
     if has-apps: Rectangle {
         width: parent.width;
         height: parent.height;
-        background: @radial-gradient(circle, AppsPage.apps[safe-idx].text-color 0%, #07070A00 60%);
+        background: @radial-gradient(circle, AppsPage.apps[safe-idx].text-color 0%, #2B313D00 60%);
         opacity: 0.20;
     }
 
@@ -48,8 +55,8 @@ export component OrbitApps inherits Rectangle {
 
     // Outer guide ring (760px)
     Rectangle {
-        x: 960px * TvUi.u - 380px * TvUi.u;
-        y: 590px * TvUi.u - 380px * TvUi.u;
+        x: root.clock-cx - 380px * TvUi.u;
+        y: root.clock-cy - 380px * TvUi.u;
         width: 760px * TvUi.u;
         height: 760px * TvUi.u;
         border-radius: self.width / 2;
@@ -60,8 +67,8 @@ export component OrbitApps inherits Rectangle {
 
     // Inner glass disc (500px)
     Rectangle {
-        x: 960px * TvUi.u - 250px * TvUi.u;
-        y: 590px * TvUi.u - 250px * TvUi.u;
+        x: root.clock-cx - 250px * TvUi.u;
+        y: root.clock-cy - 250px * TvUi.u;
         width: 500px * TvUi.u;
         height: 500px * TvUi.u;
         border-radius: self.width / 2;
@@ -109,8 +116,8 @@ export component OrbitApps inherits Rectangle {
 
     // Clock hand: 8px accent dot/segment on r 287 (outer 50px: r 262 -> 312)
     if has-apps: Rectangle {
-        property <length> hx: 960px * TvUi.u + 287px * TvUi.u * Math.cos(hand-angle);
-        property <length> hy: 590px * TvUi.u + 287px * TvUi.u * Math.sin(hand-angle);
+        property <length> hx: root.clock-cx + 287px * TvUi.u * Math.cos(hand-angle);
+        property <length> hy: root.clock-cy + 287px * TvUi.u * Math.sin(hand-angle);
         x: self.hx - 10px * TvUi.u;
         y: self.hy - 10px * TvUi.u;
         width: 20px * TvUi.u;
@@ -123,10 +130,10 @@ export component OrbitApps inherits Rectangle {
     // App circles around the clock face
     for app[i] in AppsPage.apps: app-node := Rectangle {
         property <bool> is-foc: (root.safe-idx == i) || app-ta.has-hover;
-        property <length> sz: self.is-foc ? 176px * TvUi.u : root.node-base;
+        property <length> sz: self.is-foc ? 154px * TvUi.u : root.node-base;
         property <angle> ang: (i * 360deg / count) - 90deg;
-        property <length> cx: 960px * TvUi.u + 380px * TvUi.u * Math.cos(self.ang);
-        property <length> cy: 590px * TvUi.u + 380px * TvUi.u * Math.sin(self.ang);
+        property <length> cx: root.clock-cx + 380px * TvUi.u * Math.cos(self.ang);
+        property <length> cy: root.clock-cy + 380px * TvUi.u * Math.sin(self.ang);
 
         x: self.cx - self.sz / 2;
         y: self.cy - self.sz / 2;

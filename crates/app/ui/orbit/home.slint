@@ -73,6 +73,8 @@ export component OrbitHome inherits Rectangle {
             alignment: start;
 
             OrbitPlay {
+                lit-path: HomeState.whats-on.ring-lit;
+                unlit-path: HomeState.whats-on.ring-unlit;
                 focused: root.focused-area == 0;
                 activated => { HomeState.activate-hero(); }
                 hovered => { root.focused-area = 0; }
@@ -149,7 +151,7 @@ export component OrbitHome inherits Rectangle {
             width: parent.width;
             height: parent.height;
             border-radius: self.height / 2;
-            background: up-row.is-foc ? OrbitTheme.row-focus : #0D101799;
+            background: up-row.is-foc ? #1A202CD9 : OrbitTheme.glass;
         }
 
         // Round poster 100px
@@ -229,7 +231,7 @@ export component OrbitHome inherits Rectangle {
             width: parent.width;
             height: parent.height;
             border-radius: self.height / 2;
-            background: ng-card.is-foc ? OrbitTheme.row-focus : OrbitTheme.row;
+            background: ng-card.is-foc ? #1A202CD9 : OrbitTheme.glass;
             border-width: 1px;
             border-color: OrbitTheme.row-border;
         }
@@ -343,35 +345,21 @@ export component OrbitHome inherits Rectangle {
     }
 
     // ── 3. Bottom Apps Dial (cx 960, cy 1815, r 950, 9.5° steps) ─────────────
-    Text {
-        x: (parent.width - 360px * TvUi.u) / 2;
-        y: 752px * TvUi.u;
-        width: 360px * TvUi.u;
-        text: root.dial-idx < Math.min(HomeState.apps-bar.length, 7)
-            ? HomeState.apps-bar[root.dial-idx].name
-            : "All apps";
-        font-family: OrbitTheme.font;
-        font-size: 20px * TvUi.u;
-        font-weight: 600;
-        color: OrbitTheme.text;
-        horizontal-alignment: center;
-    }
-
     for slot in [-3, -2, -1, 0, 1, 2, 3]: dial-node := Rectangle {
         property <int> idx: Math.mod(root.dial-idx + slot + root.dial-count * 4, root.dial-count);
         property <bool> is-all: self.idx >= Math.min(HomeState.apps-bar.length, 7);
         property <bool> is-top: slot == 0;
         property <bool> is-foc: (self.is-top && root.focused-area == 8) || dial-ta.has-hover;
-        property <length> node-sz: (self.is-top ? 150px : 104px) * TvUi.u;
+        property <length> node-sz: (self.is-top ? 150px : self.is-foc ? 124px : 104px) * TvUi.u;
         property <angle> ang: slot * 9.5deg - 90deg;
-        property <length> cx: 960px * TvUi.u + 950px * TvUi.u * Math.cos(self.ang);
+        property <length> cx: parent.width / 2 + 950px * TvUi.u * Math.cos(self.ang);
         property <length> cy: 1815px * TvUi.u + 950px * TvUi.u * Math.sin(self.ang);
 
         x: self.cx - self.node-sz / 2;
         y: self.cy - self.node-sz / 2;
         width: self.node-sz;
         height: self.node-sz;
-        opacity: slot == -3 || slot == 3 ? 0.35 : slot == -2 || slot == 2 ? 0.65 : 1.0;
+        animate width, height { duration: 150ms; easing: ease-out; }
 
         if dial-node.is-foc: Rectangle {
             x: -9px * TvUi.u;
@@ -401,7 +389,7 @@ export component OrbitHome inherits Rectangle {
             if !dial-node.is-all && !HomeState.apps-bar[dial-node.idx].has-logo: Text {
                 text: HomeState.apps-bar[dial-node.idx].name;
                 font-family: OrbitTheme.font;
-                font-size: (dial-node.is-top ? 22px : 15px) * TvUi.u;
+                font-size: (dial-node.is-top || dial-node.is-foc ? 22px : 15px) * TvUi.u;
                 font-weight: 800;
                 color: HomeState.apps-bar[dial-node.idx].text-color;
                 horizontal-alignment: center;
@@ -410,7 +398,7 @@ export component OrbitHome inherits Rectangle {
             }
             if dial-node.is-all: Text {
                 text: "•••";
-                font-size: (dial-node.is-top ? 28px : 20px) * TvUi.u;
+                font-size: (dial-node.is-top || dial-node.is-foc ? 28px : 20px) * TvUi.u;
                 color: OrbitTheme.text;
                 horizontal-alignment: center;
                 vertical-alignment: center;

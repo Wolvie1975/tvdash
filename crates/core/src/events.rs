@@ -466,6 +466,11 @@ pub enum Command {
         sort: crate::models::LibrarySort,
         popular_days: u32,
     },
+    /// Persist Browse all sort per library (`tv` vs `movies`).
+    SetBrowseSort {
+        is_tv: bool,
+        sort: String,
+    },
     /// Open Show page for `rating_key`.
     OpenShow(String),
     /// Load episodes for `season_key`.

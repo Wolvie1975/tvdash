@@ -13,6 +13,8 @@ mod accounts;
 pub mod alerts;
 mod ambient;
 pub use ambient::start_ambient;
+pub mod browse;
+pub mod display;
 mod home;
 mod library;
 pub use library::{ensure_library_loaded, on_season_selected, start_watching};
@@ -68,7 +70,8 @@ pub use library::{
 };
 
 use crate::{
-    AccountPrompt, AccountRow, Accounts, Artwork, ArtworkRow, Dash, Diagnostics, Display, LaptopWindow, Library, Nav,
+    AccountPrompt, AccountRow, Accounts, Artwork, ArtworkRow, Browse, BrowseItem, Dash, Diagnostics, Display,
+    LaptopWindow, Library, Nav,
     PosterCardData, Scoreboard, ScoreboardChoiceData, ScoreboardRowData, Server, ServerActivityRow, ServerLibraryRow,
     ServerStreamRow, SessionRow, Setup, SiteRow, SleepState, Sports, SportsChoiceData, SportsRowData, Theme, TvWindow, UiTheme, tint::Hue,
 };
@@ -146,6 +149,13 @@ pub struct UiState {
     lib_watch_again: Vec<MediaItem>,
     lib_browse_all: Vec<MediaItem>,
     lib_browse: Vec<MediaItem>,
+    orbit_browse_items: Vec<MediaItem>,
+    browse_sort_tv: String,
+    browse_sort_movies: String,
+    browse_letter_tv: usize,
+    browse_letter_movies: usize,
+    browse_genre: String,
+    orbit_counts: crate::orbit::counts::OrbitCountCache,
     lib_finish_season: Vec<tvdash_core::models::FinishSeasonItem>,
     lib_shelf1_items: Vec<MediaItem>,
     lib_shelf2_items: Vec<MediaItem>,
@@ -168,6 +178,7 @@ pub struct UiState {
     lib_added_week_cards: Rc<VecModel<PosterCardData>>,
     lib_watch_again_cards: Rc<VecModel<PosterCardData>>,
     lib_browse_cards: Rc<VecModel<PosterCardData>>,
+    orbit_browse_cards: Rc<VecModel<BrowseItem>>,
     account_rows: Rc<VecModel<AccountRow>>,
     site_rows: Rc<VecModel<SiteRow>>,
     toast_timer: Option<Timer>,
@@ -253,6 +264,8 @@ pub struct UiConfig {
     pub dashboard_ui: tvdash_core::config::DashboardUi,
     pub tv_connected: bool,
     pub sites: Vec<StreamingSite>,
+    pub browse_sort_tv: String,
+    pub browse_sort_movies: String,
 }
 
 /// Call once on the UI thread before the event loop starts.
@@ -335,6 +348,8 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         s.system_dark = true;
         s.cw_filter = "tv".into();
         s.sites = c.sites;
+        s.browse_sort_tv = if c.browse_sort_tv.is_empty() { "title_asc".into() } else { c.browse_sort_tv };
+        s.browse_sort_movies = if c.browse_sort_movies.is_empty() { "title_asc".into() } else { c.browse_sort_movies };
         let dash = laptop.global::<Dash>();
         dash.set_version(env!("CARGO_PKG_VERSION").into());
         dash.set_changelog(ModelRc::new(VecModel::from(parse_changelog(include_str!(
@@ -352,12 +367,13 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         lib.set_added_week(ModelRc::from(s.lib_added_week_cards.clone()));
         lib.set_watch_again(ModelRc::from(s.lib_watch_again_cards.clone()));
         lib.set_browse_items(ModelRc::from(s.lib_browse_cards.clone()));
+        laptop.global::<Browse>().set_items(ModelRc::from(s.orbit_browse_cards.clone()));
         let acc = laptop.global::<Accounts>();
         acc.set_accounts(ModelRc::from(s.account_rows.clone()));
         acc.set_sites(ModelRc::from(s.site_rows.clone()));
         let d = laptop.global::<Display>();
         d.set_layout_setting(c.layout_setting.as_str().into());
-        d.set_dashboard_ui(c.dashboard_ui.as_str().into());
+        display::refresh_dashboard_choices(laptop, c.dashboard_ui);
         d.set_celsius(c.units == Units::Celsius);
         d.set_h12(c.clock == ClockFormat::H12);
         d.set_seconds(c.seconds);
@@ -905,6 +921,11 @@ fn refresh_sports(s: &UiState, laptop: &LaptopWindow) {
         }
     }
 
+    let first_game_index = rows
+        .iter()
+        .position(|r| r.kind == "game")
+        .map(|i| i as i32)
+        .unwrap_or(-1);
     sp.set_schedule(page.schedule.as_str().into());
     sp.set_schedule_label(label.into());
     sp.set_choices(ModelRc::new(VecModel::from(choices)));
@@ -912,6 +933,7 @@ fn refresh_sports(s: &UiState, laptop: &LaptopWindow) {
     sp.set_page(page.page as i32);
     sp.set_total_pages(page.total_pages as i32);
     sp.set_last_updated(page.last_updated.as_str().into());
+    sp.set_first_game_index(first_game_index);
     sp.set_rows(ModelRc::new(VecModel::from(rows)));
 }
 
@@ -1003,6 +1025,11 @@ fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
         }
     }
 
+    let first_game_index = rows
+        .iter()
+        .position(|r| r.kind == "game")
+        .map(|i| i as i32)
+        .unwrap_or(-1);
     sb.set_day(page.day.as_str().into());
     sb.set_day_label(page.day_label.as_str().into());
     sb.set_prev_day(page.prev_day.as_str().into());
@@ -1014,6 +1041,7 @@ fn refresh_scoreboard(s: &UiState, laptop: &LaptopWindow) {
     sb.set_choices(ModelRc::new(VecModel::from(choices)));
     sb.set_coverage_warning(page.coverage_warning.as_str().into());
     sb.set_empty_message(page.empty_message.as_str().into());
+    sb.set_first_game_index(first_game_index);
     sb.set_rows(ModelRc::new(VecModel::from(rows)));
 
     // Build shared ScoreboardView (§10)
@@ -1150,6 +1178,10 @@ fn ago(t: DateTime<Utc>) -> String {
         m @ ..120 => format!("{m} min ago"),
         m => format!("{} h ago", m / 60),
     }
+}
+
+pub fn toast(laptop: &LaptopWindow, msg: &str) {
+    STATE.with_borrow_mut(|s| show_toast(s, laptop, msg.to_owned(), TOAST_FOR));
 }
 
 fn show_toast(s: &mut UiState, laptop: &LaptopWindow, msg: String, duration: Duration) {
