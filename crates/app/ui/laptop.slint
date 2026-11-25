@@ -6,8 +6,9 @@ import { SleepPicker, SleepWarning } from "shared/sleep.slint";
 import { SportsAlertCard } from "shared/sports_alert.slint";
 import { NextEpisodeCard } from "shared/up_next_card.slint";
 import { WeatherBanner } from "shared/weather_banner.slint";
+import { WeatherCard } from "shared/weather_card.slint";
 import { WeatherWarning } from "shared/weather_warning.slint";
-import { WeatherAlertState } from "state.slint";
+import { WeatherAlertState, WeatherCardState } from "state.slint";
 // Resolved by build.rs: the real shell, or ui/stubs/* when its Cargo feature is off.
 import { TvShell } from "@shell-classic";
 import { V3Theme } from "v3/theme.slint";
@@ -56,6 +57,11 @@ export component LaptopWindow inherits Window {
         x: parent.width - self.width - 96px * TvUi.u - (SportsAlertState.visible ? 0px : -24px * TvUi.u);
         y: parent.height - self.height - (TvUi.hud-open ? 250px : 120px) * TvUi.u;
         animate x { duration: 180ms; easing: ease-out; }
+    }
+
+    if WeatherCardState.visible: WeatherCard {
+        x: parent.width - self.width - 96px * TvUi.u;
+        y: parent.height - self.height - (TvUi.hud-open ? 250px : 120px) * TvUi.u;
     }
 
     if Dash.next-ep-open: NextEpisodeCard {

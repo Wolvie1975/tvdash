@@ -1,0 +1,136 @@
+// Shared NWS Watch / Warning action card in the SportsAlertCard slot.
+
+import { WeatherCardState, TvUi } from "../state.slint";
+
+export component WeatherCard inherits Rectangle {
+    width: 560px * TvUi.u;
+    height: card-col.preferred-height + 44px * TvUi.u;
+    border-radius: 26px * TvUi.u;
+    background: #1C2026;
+    border-width: 1px;
+    border-color: #2A303A;
+    drop-shadow-blur: 40px;
+    drop-shadow-offset-y: 12px;
+    drop-shadow-color: #00000099;
+
+    TouchArea { }
+
+    card-col := VerticalLayout {
+        x: 24px * TvUi.u;
+        y: 22px * TvUi.u;
+        width: parent.width - 48px * TvUi.u;
+        spacing: 12px * TvUi.u;
+
+        HorizontalLayout {
+            alignment: space-between;
+
+            Text {
+                text: "WEATHER · WATCH";
+                font-size: 16px * TvUi.u;
+                font-weight: 900;
+                letter-spacing: 2px * TvUi.u;
+                color: #E5A84B;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                width: loc-lbl.preferred-width + 20px * TvUi.u;
+                height: 28px * TvUi.u;
+                border-radius: 9px * TvUi.u;
+                background: #E5A84B28;
+
+                loc-lbl := Text {
+                    text: "Your location";
+                    font-size: 14px * TvUi.u;
+                    font-weight: 800;
+                    color: #E5A84B;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        Text {
+            text: WeatherCardState.title;
+            font-size: 30px * TvUi.u;
+            font-weight: 800;
+            color: #E8EAED;
+            wrap: word-wrap;
+            overflow: elide;
+        }
+
+        if WeatherCardState.sub != "": Text {
+            text: WeatherCardState.sub;
+            font-size: 17px * TvUi.u;
+            font-weight: 600;
+            color: #A3ABB6;
+            overflow: elide;
+        }
+
+        Rectangle {
+            height: 1px;
+            background: #2A303A;
+        }
+
+        HorizontalLayout {
+            spacing: 12px * TvUi.u;
+            alignment: start;
+
+            Rectangle {
+                width: dis-lbl.preferred-width + 44px * TvUi.u;
+                height: 54px * TvUi.u;
+                border-radius: 27px * TvUi.u;
+                background: #E5A84B;
+                border-width: WeatherCardState.focus != 1 ? 3px * TvUi.u : 0px;
+                border-color: #FFFFFF;
+
+                dis-lbl := Text {
+                    text: "Dismiss";
+                    font-size: 19px * TvUi.u;
+                    font-weight: 900;
+                    color: #1A1200;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { WeatherCardState.dismiss(); }
+                }
+            }
+
+            Rectangle {
+                width: det-lbl.preferred-width + 44px * TvUi.u;
+                height: 54px * TvUi.u;
+                border-radius: 27px * TvUi.u;
+                background: #252A31;
+                border-width: WeatherCardState.focus == 1 ? 3px * TvUi.u : 1px;
+                border-color: WeatherCardState.focus == 1 ? #FFFFFF : #2A303A;
+
+                det-lbl := Text {
+                    text: "Details";
+                    font-size: 19px * TvUi.u;
+                    font-weight: 800;
+                    color: #E8EAED;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { WeatherCardState.details(); }
+                }
+            }
+
+            Text {
+                horizontal-stretch: 1;
+                text: "Closes in " + WeatherCardState.closes-in + " s";
+                font-size: 16px * TvUi.u;
+                font-weight: 700;
+                color: #A3ABB6;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+            }
+        }
+    }
+}

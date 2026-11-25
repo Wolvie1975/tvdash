@@ -1029,6 +1029,15 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
 }
 
 fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
+    if laptop.global::<crate::WeatherCardState>().get_visible() {
+        let bottom = if laptop.global::<TvUi>().get_hud_open() { 250.0 } else { 120.0 };
+        let card_x = 1920.0 - 96.0 - 560.0;
+        let btn_y = 1080.0 - bottom - 22.0 - 54.0;
+        return vec![
+            Rect { x: card_x + 24.0, y: btn_y, w: 140.0, h: 54.0 },
+            Rect { x: card_x + 176.0, y: btn_y, w: 140.0, h: 54.0 },
+        ];
+    }
     let al = laptop.global::<SportsAlertState>();
     if al.get_visible() {
         let bottom = if laptop.global::<TvUi>().get_hud_open() { 250.0 } else { 120.0 };
@@ -2154,6 +2163,34 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
                 wa.invoke_resume();
             } else {
                 wa.invoke_got_it();
+            }
+            return true;
+        }
+        return true;
+    }
+
+    let wc = laptop.global::<crate::WeatherCardState>();
+    if wc.get_visible() {
+        if is_back(text) {
+            wc.invoke_dismiss();
+            return true;
+        }
+        match decode_dir(text) {
+            Some(Dir::Left) => {
+                wc.set_focus(0);
+                return true;
+            }
+            Some(Dir::Right) => {
+                wc.set_focus(1);
+                return true;
+            }
+            _ => {}
+        }
+        if is_ok(text) {
+            if wc.get_focus() == 1 {
+                wc.invoke_details();
+            } else {
+                wc.invoke_dismiss();
             }
             return true;
         }
