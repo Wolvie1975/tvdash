@@ -22,8 +22,15 @@ export component OrbitLibrary inherits Rectangle {
     HorizontalLayout {
         x: 110px * TvUi.u;
         y: 130px * TvUi.u;
+        height: 46px * TvUi.u;
         spacing: 12px * TvUi.u;
 
+        if is-browse: OrbitPill {
+            label: Browse.library == "movies" ? "‹ Movies" : "‹ TV Series";
+            activated => {
+                Library.set-browse-all(false);
+            }
+        }
         OrbitPill {
             label: "Movies";
             primary: is-browse && Browse.library == "movies";
@@ -52,7 +59,7 @@ export component OrbitLibrary inherits Rectangle {
             label: "Browse all";
             selected: is-browse;
             activated => {
-                Library.browse-all = !Library.browse-all;
+                Library.set-browse-all(!Library.browse-all);
             }
         }
         if !is-browse && LibraryLanding.watching-now-count > 0: OrbitPill {
@@ -71,11 +78,6 @@ export component OrbitLibrary inherits Rectangle {
         if is-browse: OrbitPill {
             label: "Sort · " + Browse.sort-label;
             activated => { Browse.cycle-sort(); }
-        }
-        if is-browse: OrbitPill {
-            label: Browse.genre-label;
-            selected: Browse.genre-label != "All genres";
-            activated => { Browse.pick-genre(); }
         }
     }
 

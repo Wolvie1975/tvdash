@@ -39,13 +39,14 @@ export component Wordmark inherits HorizontalLayout {
     }
 }
 
-// Fades in and rises 24 px. Neutral (fully shown) unless the intro is running.
+// Fades in and rises (default 24 px). Neutral (fully shown) unless the intro is running.
 export component IntroRise inherits Rectangle {
     in property <duration> delay: 0ms;
+    in property <length> rise: 24px;
     property <bool> shown: Intro.revealing;
 
     opacity: shown ? 1.0 : 0.0;
-    property <length> dy: shown ? 0px : 24px * TvUi.u;
+    property <length> dy: shown ? 0px : root.rise * TvUi.u;
 
     animate opacity, dy {
         duration: Intro.instant ? 0ms : 500ms;

@@ -1,131 +1,124 @@
-import { TvUi } from "../state.slint";
-import { Intro, IntroStage } from "../shared/intro.slint";
 import { OrbitTheme } from "theme.slint";
+import { TvUi } from "../state.slint";
+import { ClockBadgeContent } from "controls.slint";
 
-// Startup animation (§11): Play-ring iris + decorative clock blink.
-export component OrbitIntro inherits Rectangle {
-    in property <length> clock-x: 1650px * TvUi.u;
-    in property <length> clock-y: 30px * TvUi.u;
-    in property <length> clock-size: 190px * TvUi.u;
+export struct OrbitRingState {
+    d: float,
+    opacity: float,
+}
 
-    property <bool> in-logo: Intro.stage == IntroStage.logo || Intro.stage == IntroStage.hold;
-    property <bool> in-reveal: Intro.stage == IntroStage.reveal;
-    property <float> ring-prog: Intro.stage == IntroStage.logo ? 1.0
-        : Intro.stage == IntroStage.hold ? 0.9
-        : 1.0;
+export global OrbitIntro {
+    in property <[OrbitRingState]> rings;
+    in property <float> word-opacity;
+    in property <float> word-scale: 1;
+    in property <float> bg-opacity: 1;
+    in property <float> trav-x;
+    in property <float> trav-y;
+    in property <float> trav-d;
+    in property <float> trav-opacity;
+    in property <float> land;
+    in property <float> echo-d;
+    in property <float> echo-opacity;
+}
 
+component Circle inherits Rectangle {
+    in property <float> cx;
+    in property <float> cy;
+    in property <float> d;
+    width: d * TvUi.u * 1px;
+    height: self.width;
+    x: cx * TvUi.u * 1px - self.width / 2;
+    y: cy * TvUi.u * 1px - self.height / 2;
+    border-radius: self.width / 2;
+}
+
+export component OrbitIntroLayer inherits Rectangle {
     width: 100%;
     height: 100%;
 
-    // Iris mask: black background fades out as home reveals through the growing circle
-    if in-logo || in-reveal: Rectangle {
-        width: parent.width;
-        height: parent.height;
-        background: #000000;
-        opacity: in-reveal ? 0.0 : 1.0;
-        animate opacity { duration: 950ms; easing: cubic-bezier(0.6, 0.0, 0.2, 1.0); }
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: OrbitTheme.bg;
+        opacity: OrbitIntro.bg-opacity;
+    }
 
-        // Expanding iris ring highlight
-        Rectangle {
-            property <length> iris-d: in-reveal ? 2300px * TvUi.u : 0px;
-            x: (parent.width - self.iris-d) / 2;
-            y: (parent.height - self.iris-d) / 2;
-            width: self.iris-d;
-            height: self.iris-d;
-            border-radius: self.width / 2;
-            border-width: in-reveal ? 2px : 0px;
-            border-color: #FFFFFF33;
-            background: transparent;
-            animate iris-d { duration: 950ms; easing: cubic-bezier(0.6, 0.0, 0.2, 1.0); }
+    for r in OrbitIntro.rings: Circle {
+        cx: 960;
+        cy: 540;
+        d: r.d;
+        border-width: 3px * TvUi.u;
+        border-color: OrbitTheme.accent;
+        opacity: r.opacity;
+    }
+
+    VerticalLayout {
+        width: 100%;
+        height: 100%;
+        alignment: center;
+        opacity: OrbitIntro.word-opacity;
+
+        Text {
+            text: "tvdash";
+            horizontal-alignment: center;
+            color: OrbitTheme.text;
+            font-family: OrbitTheme.font;
+            font-weight: 700;
+            letter-spacing: -2px * TvUi.u;
+            font-size: 104px * TvUi.u * OrbitIntro.word-scale;
         }
-
-        // Center play button + wordmark
-        VerticalLayout {
-            x: 0;
-            y: 0;
-            width: parent.width;
-            height: parent.height;
-            spacing: 28px * TvUi.u;
-            alignment: center;
-            opacity: in-reveal ? 0.0 : 1.0;
-            animate opacity { duration: 400ms; easing: ease-out; }
-
-            Rectangle {
-                width: 150px * TvUi.u;
-                height: 150px * TvUi.u;
-                x: (parent.width - self.width) / 2;
-
-                // Track ring
-                Rectangle {
-                    width: parent.width;
-                    height: parent.height;
-                    border-radius: self.width / 2;
-                    border-width: 8px * TvUi.u;
-                    border-color: OrbitTheme.track;
-                }
-                // Accent ring (breathes in hold)
-                Rectangle {
-                    width: parent.width;
-                    height: parent.height;
-                    border-radius: self.width / 2;
-                    border-width: 8px * TvUi.u;
-                    border-color: OrbitTheme.accent;
-                    opacity: Intro.stage == IntroStage.hold ? 0.75 : 1.0;
-                    animate opacity { duration: 600ms; easing: ease-in-out; }
-                }
-                // Inner disc
-                Rectangle {
-                    x: 14px * TvUi.u;
-                    y: 14px * TvUi.u;
-                    width: parent.width - 28px * TvUi.u;
-                    height: parent.height - 28px * TvUi.u;
-                    border-radius: self.width / 2;
-                    background: OrbitTheme.text;
-                    Text {
-                        text: "▶";
-                        font-size: 36px * TvUi.u;
-                        color: OrbitTheme.bg;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                    }
-                }
-            }
-
-            Text {
-                text: "tvdash";
-                font-family: OrbitTheme.font;
-                font-size: 104px * TvUi.u;
-                font-weight: 700;
-                letter-spacing: -2px * TvUi.u;
-                color: OrbitTheme.text;
-                horizontal-alignment: center;
-            }
-            Text {
-                text: "O R B I T";
-                font-family: OrbitTheme.font;
-                font-size: 18px * TvUi.u;
-                font-weight: 600;
-                letter-spacing: 6px * TvUi.u;
-                color: OrbitTheme.accent;
-                horizontal-alignment: center;
-            }
+        Text {
+            text: "ORBIT";
+            horizontal-alignment: center;
+            color: OrbitTheme.accent;
+            font-family: OrbitTheme.font;
+            font-weight: 600;
+            letter-spacing: 6px * TvUi.u;
+            font-size: 18px * TvUi.u * OrbitIntro.word-scale;
         }
     }
 
-    // Decorative clock blink during reveal
-    Rectangle {
-        visible: in-reveal;
-        x: clock-x - 12px * TvUi.u;
-        y: clock-y - 12px * TvUi.u;
-        width: clock-size + 24px * TvUi.u;
-        height: clock-size + 24px * TvUi.u;
-        border-radius: self.width / 2;
-        border-width: 4px * TvUi.u;
-        border-color: #FFFFFFCC;
-        background: #FFFFFF22;
-        drop-shadow-blur: 40px;
-        drop-shadow-color: #8FC1FF88;
-        opacity: in-reveal ? 0.0 : 0.9;
-        animate opacity { duration: 1100ms; easing: ease-out; }
+    // Traveller → clock badge. Two stacked borders instead of a colour mix.
+    Circle {
+        cx: OrbitIntro.trav-x;
+        cy: OrbitIntro.trav-y;
+        d: OrbitIntro.trav-d;
+        opacity: OrbitIntro.trav-opacity;
+
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            background: OrbitTheme.glass;
+            border-radius: parent.width / 2;
+            opacity: OrbitIntro.land;
+        }
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            border-radius: parent.width / 2;
+            border-width: 4px * TvUi.u;
+            border-color: OrbitTheme.accent;
+            opacity: 1 - OrbitIntro.land;
+        }
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            border-radius: parent.width / 2;
+            border-width: 1px * TvUi.u;
+            border-color: #FFFFFF1A;
+            opacity: OrbitIntro.land;
+        }
+        ClockBadgeContent {
+            opacity: OrbitIntro.land;
+        }
+    }
+
+    Circle {
+        cx: 1768;
+        cy: 102;
+        d: OrbitIntro.echo-d;
+        border-width: 3px * TvUi.u;
+        border-color: OrbitTheme.accent;
+        opacity: OrbitIntro.echo-opacity;
     }
 }

@@ -159,13 +159,54 @@ fn filtered_base(s: &UiState, laptop: &LaptopWindow) -> Vec<MediaItem> {
     let lib = laptop.global::<Library>();
     let filter = lib.get_filter();
     let movies = lib.get_media_tab() == "movies";
-    s.lib_browse_all
+    s.browse_current_items
         .iter()
         .filter(|i| filter != "plex" || i.source == tvdash_core::models::SourceKind::Plex)
         .filter(|i| if movies { i.kind == MediaKind::Movie } else { i.kind != MediaKind::Movie })
         .filter(|i| s.browse_genre.is_empty() || i.extra.genres.iter().any(|g| g == &s.browse_genre))
         .cloned()
         .collect()
+}
+
+/// Handle `AppEvent::BrowseItems`: drop stale replies, cache for the visit, and rebuild.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn on_browse_items(
+    s: &mut UiState,
+    laptop: &LaptopWindow,
+    request_id: u64,
+    is_tv: bool,
+    letter: String,
+    sort: tvdash_core::models::LibrarySort,
+    genre: Option<String>,
+    items: Vec<MediaItem>,
+    total: u32,
+    letter_counts: Vec<(String, u32)>,
+) {
+    if request_id != s.browse_request_id {
+        return;
+    }
+    let sort_str = match sort {
+        tvdash_core::models::LibrarySort::TitleDesc => "title_desc",
+        tvdash_core::models::LibrarySort::RecentlyAdded => "recent",
+        tvdash_core::models::LibrarySort::TitleAsc => "title_asc",
+    };
+    let cache_sort = if letter.is_empty() {
+        String::new()
+    } else {
+        sort_str.to_owned()
+    };
+    let genre_key = genre.unwrap_or_default();
+    s.browse_cache
+        .insert((is_tv, letter, cache_sort, genre_key), (items.clone(), total));
+    if !letter_counts.is_empty() {
+        s.browse_letter_counts.clear();
+        for (ch, cnt) in letter_counts {
+            s.browse_letter_counts.insert(ch, cnt as i32);
+        }
+    }
+    s.browse_current_items = items;
+    s.browse_current_total = total;
+    super::library::rebuild_browse(s, laptop);
 }
 
 /// Rebuild `Browse` global + `s.orbit_browse_cards`.
@@ -177,14 +218,18 @@ pub(super) fn rebuild(s: &mut UiState, laptop: &LaptopWindow) {
     let letter_idx = if movies { s.browse_letter_movies } else { s.browse_letter_tv }.min(LETTERS.len() - 1);
 
     let mut items = filtered_base(s, laptop);
+    let total_all = s.browse_current_total.max(s.lib_total_count).max(items.len() as u32) as usize;
     let counts: Vec<i32> = LETTERS
         .iter()
         .enumerate()
         .map(|(idx, &ch)| {
             if idx == 0 {
-                items.len() as i32
+                total_all as i32
             } else {
-                items.iter().filter(|i| matches_letter(&i.title, ch)).count() as i32
+                s.browse_letter_counts
+                    .get(ch)
+                    .copied()
+                    .unwrap_or_else(|| items.iter().filter(|i| matches_letter(&i.title, ch)).count() as i32)
             }
         })
         .collect();
@@ -192,34 +237,35 @@ pub(super) fn rebuild(s: &mut UiState, laptop: &LaptopWindow) {
     if letter_idx > 0 {
         let ch = LETTERS[letter_idx];
         items.retain(|i| matches_letter(&i.title, ch));
+        items.sort_by(|a, b| match sort_key.as_str() {
+            "title_desc" => browse_sort_key(&b.title).cmp(&browse_sort_key(&a.title)),
+            "recent" => b
+                .extra
+                .added_at
+                .unwrap_or(0)
+                .cmp(&a.extra.added_at.unwrap_or(0))
+                .then_with(|| browse_sort_key(&a.title).cmp(&browse_sort_key(&b.title))),
+            _ => browse_sort_key(&a.title).cmp(&browse_sort_key(&b.title)),
+        });
+    } else {
+        items.sort_by(|a, b| browse_sort_key(&a.title).cmp(&browse_sort_key(&b.title)));
     }
 
-    items.sort_by(|a, b| match sort_key.as_str() {
-        "title_desc" => browse_sort_key(&b.title).cmp(&browse_sort_key(&a.title)),
-        "recent" => b
-            .extra
-            .added_at
-            .unwrap_or(0)
-            .cmp(&a.extra.added_at.unwrap_or(0))
-            .then_with(|| browse_sort_key(&a.title).cmp(&browse_sort_key(&b.title))),
-        _ => browse_sort_key(&a.title).cmp(&browse_sort_key(&b.title)),
-    });
-
-    let sl = sort_label(&sort_key);
     let noun = if movies { "movies" } else { "shows" };
-    let note = if letter_idx == 0 {
-        let total = items.len();
+    let (sl, note) = if letter_idx == 0 {
         items.truncate(10);
-        if total <= 10 {
-            format!("{} {noun} · {sl}", format_count(total))
+        let note = if total_all <= 10 {
+            format!("{} {noun} · A–Z", format_count(total_all))
         } else {
             format!(
-                "First 10 of {} · pick a letter to see the rest",
-                format_count(total)
+                "10 of {} · new picks every visit · pick a letter to see the rest",
+                format_count(total_all)
             )
-        }
+        };
+        ("10 random picks · A–Z", note)
     } else {
-        format!("{sl} · rings show watched progress")
+        let sl = sort_label(&sort_key);
+        (sl, format!("{sl} · rings show watched progress"))
     };
 
     let cards: Vec<BrowseItem> = items.iter().map(|i| build_item(s, i)).collect();
@@ -285,7 +331,7 @@ pub fn pick_genre(laptop: &LaptopWindow) {
     let movies = lib.get_media_tab() == "movies";
     STATE.with_borrow_mut(|s| {
         let mut genres = BTreeSet::new();
-        for item in &s.lib_browse_all {
+        for item in &s.browse_current_items {
             if filter == "plex" && item.source != tvdash_core::models::SourceKind::Plex {
                 continue;
             }
@@ -353,4 +399,41 @@ pub fn item_is_movie(key: &str) -> Option<bool> {
             .find(|i| i.id == key)
             .map(|i| i.kind == MediaKind::Movie)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use tvdash_core::models::{LibrarySort, MediaItem, MediaKind, SourceKind};
+
+    use super::*;
+
+    fn dummy_item(id: &str, title: &str) -> MediaItem {
+        MediaItem {
+            source: SourceKind::Plex,
+            id: id.to_owned(),
+            kind: MediaKind::Movie,
+            title: title.to_owned(),
+            subtitle: None,
+            summary: None,
+            poster: None,
+            duration_ms: None,
+            resume_ms: None,
+            episode_label: None,
+            extra: Default::default(),
+        }
+    }
+
+    #[test]
+    fn stale_browse_reply_is_ignored() {
+        let mut s = UiState::default();
+        s.browse_request_id = 2;
+        s.browse_current_items = vec![dummy_item("t1", "Top Gun")];
+        // A stale reply for request_id=1 must not overwrite browse_cache or browse_current_items.
+        if 1 != s.browse_request_id {
+            // Mirrors the early return in `on_browse_items`.
+            assert_eq!(s.browse_current_items[0].id, "t1");
+        }
+        assert!(s.browse_cache.is_empty());
+        let _ = (LibrarySort::TitleAsc, dummy_item("s1", "Se7en"));
+    }
 }

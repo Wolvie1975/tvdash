@@ -257,8 +257,19 @@ impl PlexClient {
     }
 
     async fn metadata(&self, path: &str, query: &[(&str, String)], context: &str) -> Result<Vec<Metadata>> {
+        let (meta, _) = self.metadata_page(path, query, context).await?;
+        Ok(meta)
+    }
+
+    /// One page plus Plex's total for the whole (filtered) query.
+    async fn metadata_page(
+        &self,
+        path: &str,
+        query: &[(&str, String)],
+        context: &str,
+    ) -> Result<(Vec<Metadata>, Option<u32>)> {
         let r: Container = send_json(self.request(Method::GET, path).query(query), context).await?;
-        Ok(r.media_container.metadata)
+        Ok((r.media_container.metadata, r.media_container.total_size))
     }
 
     pub async fn item(&self, rating_key: &str) -> Result<Option<MediaItem>> {
@@ -433,6 +444,133 @@ impl PlexClient {
             q.push(("genre", g.to_owned()));
         }
         let meta = self.metadata(&format!("/library/sections/{section_key}/all"), &q, "section items").await?;
+        Ok(Self::items(meta))
+    }
+
+    /// Count of items in a section, optionally filtered by genre.
+    pub async fn section_count_filtered(&self, section_key: &str, genre_key: Option<&str>) -> Result<u32> {
+        let mut q = vec![
+            ("X-Plex-Container-Start", "0".into()),
+            ("X-Plex-Container-Size", "0".into()),
+        ];
+        if let Some(g) = genre_key {
+            q.push(("genre", g.to_owned()));
+        }
+        let (_, total) = self
+            .metadata_page(&format!("/library/sections/{section_key}/all"), &q, "section count filtered")
+            .await?;
+        Ok(total.unwrap_or(0))
+    }
+
+    /// The title at `pos` in `titleSort` order (one tiny request).
+    pub async fn section_item_at(
+        &self,
+        section_key: &str,
+        pos: u32,
+        genre_key: Option<&str>,
+    ) -> Result<Option<MediaItem>> {
+        let mut q = vec![
+            ("sort", "titleSort".to_owned()),
+            ("X-Plex-Container-Start", pos.to_string()),
+            ("X-Plex-Container-Size", "1".into()),
+        ];
+        if let Some(g) = genre_key {
+            q.push(("genre", g.to_owned()));
+        }
+        let (meta, _) = self
+            .metadata_page(&format!("/library/sections/{section_key}/all"), &q, "browse item")
+            .await?;
+        Ok(Self::items(meta).into_iter().next())
+    }
+
+    /// Every title whose first character is `ch` ("#" = digits and symbols), in `sort` order.
+    pub async fn section_letter(
+        &self,
+        section_key: &str,
+        ch: &str,
+        sort: LibrarySort,
+        genre_key: Option<&str>,
+    ) -> Result<Vec<MediaItem>> {
+        const PAGE: u32 = 200;
+        let path = format!(
+            "/library/sections/{section_key}/firstCharacter/{}",
+            encode_path_segment(ch)
+        );
+        let mut out = Vec::new();
+        let mut start = 0u32;
+        loop {
+            let mut q = vec![
+                ("sort", sort.plex_sort().to_owned()),
+                ("X-Plex-Container-Start", start.to_string()),
+                ("X-Plex-Container-Size", PAGE.to_string()),
+            ];
+            if let Some(g) = genre_key {
+                q.push(("genre", g.to_owned()));
+            }
+            let (meta, total) = self.metadata_page(&path, &q, "browse letter").await?;
+            let got = meta.len() as u32;
+            if got == 0 {
+                break;
+            }
+            start += got;
+            out.extend(Self::items(meta));
+            let done = match total {
+                Some(t) => start >= t,
+                None => got < PAGE,
+            };
+            if done {
+                break;
+            }
+        }
+        Ok(out)
+    }
+
+    /// Per-letter counts from `/library/sections/{section_key}/firstCharacter`.
+    pub async fn section_letter_counts(
+        &self,
+        section_key: &str,
+        genre_key: Option<&str>,
+    ) -> Result<Vec<(String, u32)>> {
+        let mut req = self.request(Method::GET, &format!("/library/sections/{section_key}/firstCharacter"));
+        if let Some(g) = genre_key {
+            req = req.query(&[("genre", g)]);
+        }
+        let r: Container = send_json(req, "section letter counts").await?;
+        Ok(r.media_container
+            .directory
+            .into_iter()
+            .filter_map(|d| d.size.map(|sz| (d.title, sz)))
+            .collect())
+    }
+
+    /// Unstarted TV shows picked randomly by Plex, filtered to `viewedLeafCount == 0`.
+    pub async fn unstarted_random_shows(&self, section_key: &str, limit: u32) -> Result<Vec<MediaItem>> {
+        let q = [
+            ("type", "2".to_owned()),
+            ("unwatched", "1".to_owned()),
+            ("sort", "random".to_owned()),
+            ("X-Plex-Container-Start", "0".into()),
+            ("X-Plex-Container-Size", limit.to_string()),
+        ];
+        let meta = self
+            .metadata(&format!("/library/sections/{section_key}/all"), &q, "unstarted shows")
+            .await?;
+        Ok(Self::items(meta)
+            .into_iter()
+            .filter(|s| s.kind == MediaKind::Series && s.extra.viewed_leaf_count.unwrap_or(0) == 0)
+            .take(6)
+            .collect())
+    }
+
+    /// Fetch multiple items by rating key in a single `/library/metadata/{keys}` request.
+    pub async fn items_by_keys(&self, keys: &[String]) -> Result<Vec<MediaItem>> {
+        if keys.is_empty() {
+            return Ok(Vec::new());
+        }
+        let joined = keys.join(",");
+        let meta = self
+            .metadata(&format!("/library/metadata/{joined}"), &[], "items by keys")
+            .await?;
         Ok(Self::items(meta))
     }
 
@@ -792,6 +930,8 @@ struct MediaContainer {
     metadata: Vec<Metadata>,
     hub: Vec<Hub>,
     directory: Vec<Directory>,
+    #[serde(rename = "totalSize")]
+    total_size: Option<u32>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -897,6 +1037,20 @@ struct Directory {
     scanned_at: Option<u64>,
     #[serde(default)]
     refreshing: bool,
+    #[serde(default)]
+    size: Option<u32>,
+}
+
+fn encode_path_segment(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -1472,5 +1626,91 @@ mod tests {
         let p: PinResponse =
             serde_json::from_value(json!({ "id": 7, "code": "AB12", "authToken": null, "expiresIn": 1800 })).unwrap();
         assert_eq!((p.id, p.code.as_str(), p.auth_token, p.expires_in), (7, "AB12", None, Some(1800)));
+    }
+
+    #[tokio::test]
+    async fn section_item_at_and_section_letter_paging() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let seen_requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let seen_clone = seen_requests.clone();
+
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else { break };
+                let seen = seen_clone.clone();
+                tokio::spawn(async move {
+                    let mut buf = [0u8; 4096];
+                    let n = sock.read(&mut buf).await.unwrap_or(0);
+                    let req = String::from_utf8_lossy(&buf[..n]);
+                    let line = req.lines().next().unwrap_or("").to_string();
+                    seen.lock().unwrap().push(line.clone());
+
+                    let body = if line.contains("/firstCharacter/S") {
+                        let start = line
+                            .split("X-Plex-Container-Start=")
+                            .nth(1)
+                            .and_then(|s| s.split(['&', ' ']).next())
+                            .and_then(|s| s.parse::<u32>().ok())
+                            .unwrap_or(0);
+                        let count = 450u32.saturating_sub(start).min(200);
+                        let meta: Vec<_> = (0..count)
+                            .map(|i| {
+                                let id = start + i;
+                                json!({
+                                    "ratingKey": format!("{id}"),
+                                    "type": "movie",
+                                    "title": format!("Show {id}"),
+                                })
+                            })
+                            .collect();
+                        json!({ "MediaContainer": { "totalSize": 450, "Metadata": meta } })
+                    } else if line.contains("/firstCharacter/Z") {
+                        json!({ "MediaContainer": { "totalSize": 0, "Metadata": [] } })
+                    } else {
+                        json!({
+                            "MediaContainer": {
+                                "totalSize": 1900,
+                                "Metadata": [{ "ratingKey": "42", "type": "movie", "title": "Alien" }]
+                            }
+                        })
+                    };
+
+                    let bytes = serde_json::to_vec(&body).unwrap();
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        bytes.len()
+                    );
+                    let _ = sock.write_all(resp.as_bytes()).await;
+                    let _ = sock.write_all(&bytes).await;
+                });
+            }
+        });
+
+        let client = PlexClient::new(&format!("http://{addr}"), "tok".into(), "cid".into()).unwrap();
+
+        let one = client.section_item_at("1", 77, None).await.unwrap().unwrap();
+        assert_eq!(one.id, "42");
+
+        let s_items = client
+            .section_letter("1", "S", LibrarySort::TitleAsc, None)
+            .await
+            .unwrap();
+        assert_eq!(s_items.len(), 450);
+
+        let empty = client
+            .section_letter("1", "Z", LibrarySort::TitleAsc, None)
+            .await
+            .unwrap();
+        assert!(empty.is_empty());
+
+        let reqs = seen_requests.lock().unwrap();
+        assert!(reqs[0].contains("sort=titleSort"));
+        assert!(reqs[0].contains("X-Plex-Container-Start=77"));
+        assert!(reqs[0].contains("X-Plex-Container-Size=1"));
+        assert_eq!(reqs.iter().filter(|r| r.contains("/firstCharacter/S")).count(), 3);
     }
 }

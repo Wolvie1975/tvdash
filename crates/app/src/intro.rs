@@ -1,11 +1,18 @@
 //! Startup intro stage machine (`idle -> logo -> (hold) -> reveal -> done`).
 
-use std::{cell::RefCell, rc::Rc, time::Duration};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::{Duration, Instant},
+};
 
-use slint::{ComponentHandle, Timer};
+use slint::{ComponentHandle, Model, Timer, TimerMode, VecModel};
 use tvdash_core::config::{DashboardUi, StartupConfig};
 
-use crate::{Intro, IntroStage, LaptopWindow, TvUi};
+use crate::orbit::intro_frame::{self, Frame, SLOTS};
+use crate::{Intro, IntroStage, LaptopWindow, OrbitIntro, OrbitRingState, TvUi};
+
+const ORBIT_BADGE: (f32, f32, f32) = (1768.0, 102.0, 144.0);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Skin {
@@ -26,7 +33,6 @@ impl From<DashboardUi> for Skin {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntroGate {
     pub logo_done: bool,
     pub data_ready: bool,
@@ -34,6 +40,8 @@ pub struct IntroGate {
     pub skin: Skin,
     pub generation: u64,
     pub preview_return_focus: Option<i32>,
+    pub reveal_started: Option<Instant>,
+    pub orbit_timer: Option<Timer>,
 }
 
 impl IntroGate {
@@ -45,6 +53,8 @@ impl IntroGate {
             skin,
             generation: 0,
             preview_return_focus: None,
+            reveal_started: None,
+            orbit_timer: None,
         }
     }
 
@@ -53,7 +63,7 @@ impl IntroGate {
             Skin::Tiles => Duration::from_millis(2400),
             Skin::Blades => Duration::from_millis(1600),
             Skin::Ps5 => Duration::from_millis(2000),
-            Skin::Orbit => Duration::from_millis(2250),
+            Skin::Orbit => Duration::from_millis(1800),
         }
     }
 
@@ -62,7 +72,7 @@ impl IntroGate {
             Skin::Tiles => Duration::from_millis(1300),
             Skin::Blades => Duration::from_millis(2000),
             Skin::Ps5 => Duration::from_millis(2125),
-            Skin::Orbit => Duration::from_millis(2700),
+            Skin::Orbit => Duration::from_millis(1900),
         }
     }
 
@@ -124,12 +134,47 @@ pub fn preview(laptop: &LaptopWindow, skin: Skin) {
     begin_run(laptop, &gate, 6, true);
 }
 
+fn push_orbit_frame(
+    orbit: &OrbitIntro<'_>,
+    rings: &VecModel<OrbitRingState>,
+    f: &Frame,
+) {
+    for (i, r) in f.rings.iter().enumerate() {
+        rings.set_row_data(
+            i,
+            OrbitRingState {
+                d: r.d,
+                opacity: r.opacity,
+            },
+        );
+    }
+    orbit.set_word_opacity(f.word_opacity);
+    orbit.set_word_scale(f.word_scale);
+    orbit.set_bg_opacity(f.bg_opacity);
+    orbit.set_trav_x(f.trav_x);
+    orbit.set_trav_y(f.trav_y);
+    orbit.set_trav_d(f.trav_d);
+    orbit.set_trav_opacity(f.trav_opacity);
+    orbit.set_land(f.land);
+    orbit.set_echo_d(f.echo_d);
+    orbit.set_echo_opacity(f.echo_opacity);
+}
+
 fn begin_run(laptop: &LaptopWindow, gate: &SharedGate, max_hold_secs: u64, is_preview: bool) {
-    let run_id = {
+    let (run_id, skin) = {
         let mut g = gate.borrow_mut();
         g.generation = g.generation.wrapping_add(1);
-        g.generation
+        g.reveal_started = None;
+        g.orbit_timer = None;
+        (g.generation, g.skin)
     };
+
+    if skin == Skin::Orbit {
+        let rings = Rc::new(VecModel::from(vec![OrbitRingState::default(); SLOTS]));
+        let orbit = laptop.global::<OrbitIntro>();
+        orbit.set_rings(rings.clone().into());
+        push_orbit_frame(&orbit, &rings, &intro_frame::frame_to(0.0, None, ORBIT_BADGE));
+    }
 
     let intro = laptop.global::<Intro>();
     intro.set_instant(true);
@@ -145,6 +190,30 @@ fn begin_run(laptop: &LaptopWindow, gate: &SharedGate, max_hold_secs: u64, is_pr
             return;
         }
         app.global::<Intro>().set_stage(IntroStage::Logo);
+
+        if skin == Skin::Orbit {
+            let started = Instant::now();
+            let weak_t = app.as_weak();
+            let g_t = g.clone();
+            let rings = Rc::new(VecModel::from(vec![OrbitRingState::default(); SLOTS]));
+            app.global::<OrbitIntro>().set_rings(rings.clone().into());
+            let timer = Timer::default();
+            timer.start(TimerMode::Repeated, Duration::from_millis(16), move || {
+                let Some(app) = weak_t.upgrade() else { return };
+                if g_t.borrow().generation != run_id {
+                    return;
+                }
+                let t = started.elapsed().as_secs_f32();
+                let reveal_at = g_t
+                    .borrow()
+                    .reveal_started
+                    .map(|i| i.saturating_duration_since(started).as_secs_f32());
+                let f = intro_frame::frame_to(t, reveal_at, ORBIT_BADGE);
+                push_orbit_frame(&app.global::<OrbitIntro>(), &rings, &f);
+            });
+            g.borrow_mut().orbit_timer = Some(timer);
+        }
+
         let len = g.borrow().logo_len();
         let (w2, g2) = (app.as_weak(), g.clone());
         Timer::single_shot(len, move || {
@@ -204,6 +273,7 @@ fn try_reveal(laptop: &LaptopWindow, gate: &SharedGate) {
     let Some(stage) = next else { return };
     laptop.global::<Intro>().set_stage(stage);
     if stage == IntroStage::Reveal {
+        gate.borrow_mut().reveal_started = Some(Instant::now());
         let weak = laptop.as_weak();
         let g = gate.clone();
         Timer::single_shot(reveal_len, move || {
@@ -212,7 +282,9 @@ fn try_reveal(laptop: &LaptopWindow, gate: &SharedGate) {
             }
             if let Some(app) = weak.upgrade() {
                 app.global::<Intro>().set_stage(IntroStage::Done);
-                if let Some(foc) = g.borrow_mut().preview_return_focus.take() {
+                let mut gb = g.borrow_mut();
+                gb.orbit_timer = None;
+                if let Some(foc) = gb.preview_return_focus.take() {
                     app.global::<TvUi>().set_focused_tile(foc);
                 }
             }

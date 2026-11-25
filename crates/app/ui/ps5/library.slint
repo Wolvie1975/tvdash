@@ -16,13 +16,13 @@ export component PsLibrary inherits Rectangle {
         current: root.seg-idx;
         selected(idx) => {
             if idx == 0 {
-                Library.browse-all = false;
+                Library.set-browse-all(false);
                 Library.set-media-tab("tv");
             } else if idx == 1 {
-                Library.browse-all = false;
+                Library.set-browse-all(false);
                 Library.set-media-tab("movies");
             } else {
-                Library.browse-all = true;
+                Library.set-browse-all(true);
             }
         }
     }

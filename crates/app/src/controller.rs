@@ -60,6 +60,11 @@ pub enum Internal {
     Refresh,
     /// TMDB provider IDs matched by name for sites that had none: (site name, IDs).
     FillProviders(Vec<(String, Vec<u32>)>),
+    SaveBrowseRotation {
+        key: String,
+        rotation: tvdash_core::state::BrowseRotation,
+    },
+    SaveStartWatching(tvdash_core::state::StartWatchingCache),
 }
 
 /// What plays a Plex item: mpv in its own window, or libmpv drawing
@@ -349,6 +354,14 @@ impl Controller {
                     self.watch.refresh_library(self.sources(), true);
                 }
                 Step::Internal(Internal::FillProviders(fills)) => self.fill_providers(fills),
+                Step::Internal(Internal::SaveBrowseRotation { key, rotation }) => {
+                    self.state.browse_rotations.insert(key, rotation);
+                    self.save_state();
+                }
+                Step::Internal(Internal::SaveStartWatching(cache)) => {
+                    self.state.start_watching = Some(cache);
+                    self.save_state();
+                }
                 Step::Internal(Internal::Refresh) | Step::Refresh => {
                     self.refresh();
                     self.watch.refresh_library(self.sources(), false);
@@ -818,6 +831,9 @@ impl Controller {
                 self.refresh();
                 self.load_library_shelves(is_tv, sort, popular_days);
             }
+            Command::BrowseLetter { request_id, is_tv, letter, sort, genre } => {
+                self.browse_letter(request_id, is_tv, letter, sort, genre);
+            }
             Command::SetBrowseSort { is_tv, sort } => {
                 self.update_config(|c| {
                     if is_tv {
@@ -1240,12 +1256,14 @@ impl Controller {
         let tautulli = self.tautulli.clone();
         let cache = self.tautulli_cache.clone();
         let events = self.events.clone();
+        let internal = self.internal.clone();
         let requested = self.posters_requested.clone();
         let backdrops_req = self.backdrops_requested.clone();
+        let saved_sw = self.state.start_watching.clone();
         let days = if popular_days == 7 { 7 } else { 30 };
 
         tokio::spawn(async move {
-            let shelves_key = format!("plex:shelves:v5:{is_tv}:{}:{days}", sort.plex_sort());
+            let shelves_key = format!("plex:shelves:v6:{is_tv}:{}:{days}", sort.plex_sort());
             if let Some(cached_shelves) =
                 cache.as_ref().and_then(|c| c.get::<tvdash_core::models::LibraryShelves>(&shelves_key, Duration::from_secs(300)))
             {
@@ -1254,9 +1272,7 @@ impl Controller {
                 fetch_posters(source.clone(), cached_shelves.recently_released.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), cached_shelves.watch_again.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), collection_poster_items(&cached_shelves.collections), requested.clone(), events.clone());
-                let browse_sample: Vec<_> = cached_shelves.browse_items.iter().take(48).cloned().collect();
-                fetch_posters(source.clone(), browse_sample, requested.clone(), events.clone());
-                fetch_posters(source.clone(), crate::bridge::start_watching(&cached_shelves.browse_items), requested, events.clone());
+                fetch_posters(source.clone(), cached_shelves.start_watching.clone(), requested, events.clone());
                 let bd_items: Vec<_> = cached_shelves
                     .finish_season
                     .iter()
@@ -1278,6 +1294,7 @@ impl Controller {
             let section = sections.into_iter().find(|s| s.kind == target_type);
 
             if let Some(sec) = section {
+                shelves.total_count = sec.item_count;
                 // Start of current week (Monday 00:00 local).
                 let today = chrono::Local::now().date_naive();
                 let days_from_mon = today.weekday().num_days_from_monday() as i64;
@@ -1291,6 +1308,32 @@ impl Controller {
                 if is_tv {
                     shelves.genres = plex.section_genres(&sec.key).await.unwrap_or_default();
                     shelves.added_this_week = plex.added_since(&sec.key, since_epoch, sort, 6).await.unwrap_or_default();
+
+                    let iso = chrono::Local::now().iso_week();
+                    let (cur_year, cur_week) = (iso.year(), iso.week());
+                    let cached_keys = saved_sw
+                        .as_ref()
+                        .filter(|sw| sw.year == cur_year && sw.week == cur_week && !sw.keys.is_empty())
+                        .map(|sw| sw.keys.clone());
+                    let mut sw_items = if let Some(keys) = cached_keys {
+                        plex.items_by_keys(&keys).await.unwrap_or_default()
+                    } else {
+                        Vec::new()
+                    };
+                    if sw_items.is_empty() {
+                        sw_items = plex.unstarted_random_shows(&sec.key, 40).await.unwrap_or_default();
+                        if !sw_items.is_empty() {
+                            let keys = sw_items.iter().map(|i| i.id.clone()).collect();
+                            let _ = internal.send(Internal::SaveStartWatching(
+                                tvdash_core::state::StartWatchingCache {
+                                    year: cur_year,
+                                    week: cur_week,
+                                    keys,
+                                },
+                            ));
+                        }
+                    }
+                    shelves.start_watching = sw_items;
                 } else {
                     for m_sec in &movie_sections {
                         match plex.collections(&m_sec.key).await {
@@ -1305,15 +1348,12 @@ impl Controller {
                 }
                 shelves.recently_released = plex.recently_released(&sec.key, is_tv, 6).await.unwrap_or_default();
                 shelves.watch_again = plex.watch_again(&sec.key, is_tv, sort, 6).await.unwrap_or_default();
-                shelves.browse_items = plex.section_items(&sec.key, sort, None, 1000).await.unwrap_or_default();
                 let source: Arc<dyn MediaSource> = plex;
                 fetch_posters(source.clone(), shelves.added_this_week.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), shelves.recently_released.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), shelves.watch_again.clone(), requested.clone(), events.clone());
                 fetch_posters(source.clone(), collection_poster_items(&shelves.collections), requested.clone(), events.clone());
-                let browse_sample: Vec<_> = shelves.browse_items.iter().take(48).cloned().collect();
-                fetch_posters(source.clone(), browse_sample, requested.clone(), events.clone());
-                fetch_posters(source.clone(), crate::bridge::start_watching(&shelves.browse_items), requested, events.clone());
+                fetch_posters(source.clone(), shelves.start_watching.clone(), requested, events.clone());
                 let bd_items: Vec<_> = shelves
                     .finish_season
                     .iter()
@@ -1346,6 +1386,108 @@ impl Controller {
                 c.put(&shelves_key, &shelves);
             }
             let _ = events.send(AppEvent::LibraryShelves(shelves));
+        });
+    }
+
+    fn browse_letter(
+        &self,
+        request_id: u64,
+        is_tv: bool,
+        letter: String,
+        sort: tvdash_core::models::LibrarySort,
+        genre: Option<String>,
+    ) {
+        let Some(plex) = self.plex.clone() else { return };
+        let events = self.events.clone();
+        let internal = self.internal.clone();
+        let requested = self.posters_requested.clone();
+        let rotations = self.state.browse_rotations.clone();
+
+        tokio::spawn(async move {
+            let target_type = if is_tv { "show" } else { "movie" };
+            let sections = plex.sections().await.unwrap_or_default();
+            let Some(sec) = sections.into_iter().find(|s| s.kind == target_type) else {
+                let _ = events.send(AppEvent::BrowseItems {
+                    request_id,
+                    is_tv,
+                    letter,
+                    sort,
+                    genre,
+                    items: Vec::new(),
+                    total: 0,
+                    letter_counts: Vec::new(),
+                });
+                return;
+            };
+
+            let genre_ref = genre.as_deref().filter(|g| !g.is_empty());
+            let (items, total, letter_counts) = if letter.is_empty() {
+                let total = plex
+                    .section_count_filtered(&sec.key, genre_ref)
+                    .await
+                    .unwrap_or(0);
+                let rot_key = format!("{}:{}", sec.key, genre_ref.unwrap_or(""));
+                let mut rot = rotations
+                    .get(&rot_key)
+                    .cloned()
+                    .map(crate::browse_rotation::Rotation::from);
+                let positions = {
+                    let mut rng = rand::thread_rng();
+                    crate::browse_rotation::take_visit_positions(&mut rot, total, 10, &mut rng)
+                };
+                if let Some(updated) = rot.as_ref() {
+                    let _ = internal.send(Internal::SaveBrowseRotation {
+                        key: rot_key,
+                        rotation: updated.into(),
+                    });
+                }
+
+                use futures_util::stream::{self, StreamExt};
+                let fetched: Vec<tvdash_core::models::MediaItem> = stream::iter(positions)
+                    .map(|pos| {
+                        let plex = plex.clone();
+                        let sec_key = sec.key.clone();
+                        let g = genre_ref.map(str::to_owned);
+                        async move {
+                            plex.section_item_at(&sec_key, pos, g.as_deref())
+                                .await
+                                .ok()
+                                .flatten()
+                        }
+                    })
+                    .buffer_unordered(4)
+                    .filter_map(|x| async move { x })
+                    .collect()
+                    .await;
+
+                let counts = plex
+                    .section_letter_counts(&sec.key, genre_ref)
+                    .await
+                    .unwrap_or_default();
+                (fetched, total, counts)
+            } else {
+                let items = plex
+                    .section_letter(&sec.key, &letter, sort, genre_ref)
+                    .await
+                    .unwrap_or_default();
+                let total = items.len() as u32;
+                (items, total, Vec::new())
+            };
+
+            let prefetch: Vec<_> = items.iter().take(48).cloned().collect();
+            let source: Arc<dyn MediaSource> = plex;
+            fetch_posters(source, prefetch, requested, events.clone());
+
+            let _ = events.send(AppEvent::BrowseItems {
+                request_id,
+                is_tv,
+                letter,
+                sort,
+                genre,
+                items,
+                total,
+                letter_counts,
+            });
         });
     }
 

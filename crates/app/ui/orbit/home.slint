@@ -1,4 +1,5 @@
 import { Dash, GameState, HomeState, TvUi } from "../state.slint";
+import { IntroRise } from "../shared/intro.slint";
 import { OrbitTheme } from "theme.slint";
 import { OrbitPill, OrbitPlay } from "controls.slint";
 
@@ -17,12 +18,17 @@ export component OrbitHome inherits Rectangle {
     property <bool> has-just-added: !has-game && HomeState.just-added.visible;
 
     // ── 1. What's On Hero (left) ─────────────────────────────────────────────
-    VerticalLayout {
-        x: 110px * TvUi.u;
-        y: 230px * TvUi.u;
-        width: 780px * TvUi.u;
-        alignment: start;
-        spacing: 14px * TvUi.u;
+    IntroRise {
+        delay: 600ms;
+        width: parent.width;
+        height: parent.height;
+
+        VerticalLayout {
+            x: 110px * TvUi.u;
+            y: 230px * TvUi.u;
+            width: 780px * TvUi.u;
+            alignment: start;
+            spacing: 14px * TvUi.u;
 
         Text {
             text: HomeState.whats-on.has-item
@@ -124,13 +130,19 @@ export component OrbitHome inherits Rectangle {
                 }
             }
         }
+        }
     }
 
     // ── 2. Up Next Curved Column (right) ─────────────────────────────────────
-    for item[i] in HomeState.up-next: up-row := Rectangle {
+    for item[i] in HomeState.up-next: IntroRise {
         visible: i < 4;
-        property <length> indent: (i == 0 ? 120px : i == 1 ? 70px : i == 2 ? 40px : 30px) * TvUi.u;
-        property <bool> is-foc: (root.focused-area == 3 + i) || up-ta.has-hover;
+        delay: 700ms + i * 70ms;
+        width: parent.width;
+        height: parent.height;
+
+        up-row := Rectangle {
+            property <length> indent: (i == 0 ? 120px : i == 1 ? 70px : i == 2 ? 40px : 30px) * TvUi.u;
+            property <bool> is-foc: (root.focused-area == 3 + i) || up-ta.has-hover;
 
         x: 1180px * TvUi.u + self.indent;
         y: (185px + i * 110px) * TvUi.u;
@@ -207,11 +219,17 @@ export component OrbitHome inherits Rectangle {
                 }
             }
         }
+        }
     }
 
     // Next Game capsule (or Just Added fallback)
-    if has-game || has-just-added: ng-card := Rectangle {
-        property <bool> is-foc: (root.focused-area == 7) || ng-ta.has-hover;
+    if has-game || has-just-added: IntroRise {
+        delay: 980ms;
+        width: parent.width;
+        height: parent.height;
+
+        ng-card := Rectangle {
+            property <bool> is-foc: (root.focused-area == 7) || ng-ta.has-hover;
         x: 1270px * TvUi.u;
         y: 640px * TvUi.u;
         width: 550px * TvUi.u;
@@ -342,10 +360,17 @@ export component OrbitHome inherits Rectangle {
                 }
             }
         }
+        }
     }
 
     // ── 3. Bottom Apps Dial (cx 960, cy 1815, r 950, 9.5° steps) ─────────────
-    for slot in [-3, -2, -1, 0, 1, 2, 3]: dial-node := Rectangle {
+    IntroRise {
+        delay: 850ms;
+        rise: 40px;
+        width: parent.width;
+        height: parent.height;
+
+        for slot in [-3, -2, -1, 0, 1, 2, 3]: dial-node := Rectangle {
         property <int> idx: Math.mod(root.dial-idx + slot + root.dial-count * 4, root.dial-count);
         property <bool> is-all: self.idx >= Math.min(HomeState.apps-bar.length, 7);
         property <bool> is-top: slot == 0;
@@ -419,6 +444,7 @@ export component OrbitHome inherits Rectangle {
                     root.focused-area = 8;
                 }
             }
+        }
         }
     }
 }
