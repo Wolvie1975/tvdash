@@ -219,6 +219,8 @@ pub enum AppEvent {
     SportsAlertsStatus(SportsAlertsStatusSnapshot),
     /// Home Next Game card update (`None` hides the card).
     NextGame(Option<NextGameDto>),
+    /// Quick switch custom app list (`empty = Automatic`).
+    QuickSwitch(Vec<String>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -545,4 +547,8 @@ pub enum Command {
     RefreshSportsFollows,
     /// Enable or disable the startup intro animation (`[startup] intro = "on" | "off"`).
     SetStartupIntro(bool),
+    /// Open a streaming app by service id (Quick switch overlay).
+    OpenService(String),
+    /// Settings › Quick switch: empty = Automatic.
+    SetQuickSwitch(Vec<String>),
 }

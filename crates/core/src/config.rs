@@ -365,11 +365,25 @@ pub struct PlayerConfig {
 }
 
 /// TV-only hub state persisted in `config.toml` (`[tv]`).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TvConfig {
-    /// Last 3 distinct streaming services opened, newest first.
+    /// Recently opened streaming services, newest first (up to 12).
     pub recent: Vec<RecentService>,
+    /// Quick switch apps (service ids), in order. Empty = Automatic (most recent first).
+    pub quick_switch: Vec<String>,
+    /// Key that opens the Quick switch overlay while watching (a `KeyboardEvent.key` value).
+    pub quick_switch_key: String,
+}
+
+impl Default for TvConfig {
+    fn default() -> Self {
+        Self {
+            recent: Vec::new(),
+            quick_switch: Vec::new(),
+            quick_switch_key: "F9".into(),
+        }
+    }
 }
 
 /// Sleep timer settings (`[sleep]`).
