@@ -741,6 +741,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
                 dash.set_next_ep_open(false);
             }
         }
+        AppEvent::NextEpisodeAtCredits(_) => {}
         AppEvent::CollectionDetail(res) => {
             library::on_collection_detail(s, laptop, res);
         }

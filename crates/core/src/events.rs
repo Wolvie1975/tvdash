@@ -221,6 +221,8 @@ pub enum AppEvent {
     NextGame(Option<NextGameDto>),
     /// Quick switch custom app list (`empty = Automatic`).
     QuickSwitch(Vec<String>),
+    /// Plex episode reached its credits marker; show Up Next with countdown.
+    NextEpisodeAtCredits(MediaItem),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -551,4 +553,8 @@ pub enum Command {
     OpenService(String),
     /// Settings › Quick switch: empty = Automatic.
     SetQuickSwitch(Vec<String>),
+    /// Up Next at credits: stop this episode now and play the next one.
+    PlayNextNow,
+    /// Up Next at credits: keep watching the credits; ask again at end of file.
+    WatchCredits,
 }

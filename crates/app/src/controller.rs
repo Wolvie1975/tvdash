@@ -65,6 +65,14 @@ pub enum Internal {
         rotation: tvdash_core::state::BrowseRotation,
     },
     SaveStartWatching(tvdash_core::state::StartWatchingCache),
+    Markers {
+        item_id: String,
+        markers: Vec<tvdash_media::plex::Marker>,
+    },
+    NextAtCredits {
+        item_id: String,
+        next_ep: MediaItem,
+    },
 }
 
 /// What plays a Plex item: mpv in its own window, or libmpv drawing
@@ -160,6 +168,10 @@ struct Playback {
     decode_hint_shown: bool,
     /// True when playback reached natural end-of-file (rather than user stop).
     ended_eof: bool,
+    /// Intro/credits markers for this item (Plex), loaded after playback starts.
+    markers: Vec<tvdash_media::plex::Marker>,
+    credits_prompted: bool,
+    credits_dismissed: bool,
 }
 
 pub struct Controller {
@@ -174,6 +186,7 @@ pub struct Controller {
     tautulli_cache: Option<Arc<tvdash_discover::cache::Cache>>,
     sign_in: HashMap<SourceKind, JoinHandle<()>>,
     playback: Option<Playback>,
+    pending_next_ep: Option<MediaItem>,
     browser: Option<Browser>,
     inhibit: Option<crate::portal::IdleInhibit>,
     tv_geometry: Option<Geometry>,
@@ -242,6 +255,7 @@ impl Controller {
             tautulli_cache,
             sign_in: HashMap::new(),
             playback: None,
+            pending_next_ep: None,
             browser: None,
             inhibit: None,
             tv_geometry: None,
@@ -406,6 +420,22 @@ impl Controller {
                     self.state.start_watching = Some(cache);
                     self.save_state();
                 }
+                Step::Internal(Internal::Markers { item_id, markers }) => {
+                    if let Some(p) = self.playback.as_mut()
+                        && p.status.item.id == item_id
+                    {
+                        p.markers = markers;
+                    }
+                }
+                Step::Internal(Internal::NextAtCredits { item_id, next_ep }) => {
+                    if let Some(p) = self.playback.as_ref()
+                        && p.status.item.id == item_id
+                        && !p.credits_dismissed
+                    {
+                        self.pending_next_ep = Some(next_ep.clone());
+                        self.emit(AppEvent::NextEpisodeAtCredits(next_ep));
+                    }
+                }
                 Step::Internal(Internal::Refresh) | Step::Refresh => {
                     self.refresh();
                     self.watch.refresh_library(self.sources(), false);
@@ -530,6 +560,9 @@ impl Controller {
                         last_emitted_sec: None,
                         decode_hint_shown: false,
                         ended_eof: false,
+                        markers: Vec::new(),
+                        credits_prompted: false,
+                        credits_dismissed: false,
                     });
                     info!(socket = %sock, "reconnected to running mpv");
                 }
@@ -1090,6 +1123,18 @@ impl Controller {
                 self.update_config(|c| c.tv.quick_switch = ids);
                 self.publish_quick();
                 self.emit(AppEvent::QuickSwitch(self.config.tv.quick_switch.clone()));
+            }
+            Command::PlayNextNow => {
+                if let Some(next_ep) = self.pending_next_ep.take() {
+                    self.stop_playback().await;
+                    self.play(next_ep).await;
+                }
+            }
+            Command::WatchCredits => {
+                if let Some(p) = self.playback.as_mut() {
+                    p.credits_dismissed = true;
+                }
+                self.pending_next_ep = None;
             }
         }
     }
@@ -2313,12 +2358,32 @@ impl Controller {
         let start = item.resume_ms.unwrap_or(0);
         let reporter = spawn_reporter(source, item.clone());
         let _ = reporter.send((start, PlayState::Playing));
+        let is_plex_ep = item.source == SourceKind::Plex && item.kind == tvdash_core::models::MediaKind::Episode;
+        let item_id = item.id.clone();
         let status =
             PlayerStatus { duration_ms: item.duration_ms, item, state: PlayState::Playing, position_ms: start };
+        self.pending_next_ep = None;
         self.emit(AppEvent::NextEpisodePrompt(None));
         self.emit(AppEvent::Player(Some(status.clone())));
-        self.playback =
-            Some(Playback { status, player, reporter, last_emitted_sec: None, decode_hint_shown: false, ended_eof: false });
+        self.playback = Some(Playback {
+            status,
+            player,
+            reporter,
+            last_emitted_sec: None,
+            decode_hint_shown: false,
+            ended_eof: false,
+            markers: Vec::new(),
+            credits_prompted: false,
+            credits_dismissed: false,
+        });
+        if is_plex_ep && let Some(plex) = self.plex.clone() {
+            let internal = self.internal.clone();
+            tokio::spawn(async move {
+                if let Ok(markers) = plex.markers(&item_id).await && !markers.is_empty() {
+                    let _ = internal.send(Internal::Markers { item_id, markers });
+                }
+            });
+        }
         self.save_runtime_state();
         self.update_inhibit().await;
         let internal = self.internal.clone();
@@ -2742,6 +2807,24 @@ impl Controller {
                     return;
                 }
                 p.last_emitted_sec = Some(sec);
+                if p.status.item.kind == tvdash_core::models::MediaKind::Episode
+                    && p.status.item.source == SourceKind::Plex
+                    && should_prompt_credits(p.status.position_ms, &p.markers, p.credits_prompted)
+                    && let Some(plex) = self.plex.clone()
+                {
+                    p.credits_prompted = true;
+                    let item_id = p.status.item.id.clone();
+                    let internal = self.internal.clone();
+                    let events = self.events.clone();
+                    let requested = self.posters_requested.clone();
+                    tokio::spawn(async move {
+                        if let Ok(Some(mut next_ep)) = plex.adjacent_episode(&item_id, true).await {
+                            next_ep.resume_ms = None;
+                            fetch_posters(plex, vec![next_ep.clone()], requested, events);
+                            let _ = internal.send(Internal::NextAtCredits { item_id, next_ep });
+                        }
+                    });
+                }
             }
             Some(MpvEvent::Duration(secs)) => {
                 let first = p.status.duration_ms.is_none() || p.last_emitted_sec.is_none();
@@ -3024,6 +3107,10 @@ fn humanized_scan_age(timestamp: Option<u64>) -> String {
     }
 }
 
+fn should_prompt_credits(pos_ms: u64, markers: &[tvdash_media::plex::Marker], prompted: bool) -> bool {
+    !prompted && markers.iter().any(|m| m.kind == "credits" && pos_ms >= m.start_time_offset)
+}
+
 /// Turn mpv's "can't decode" errors into something actionable. Fedora's own
 /// ffmpeg ("ffmpeg-free") leaves out H.264/HEVC, so audio plays with no picture.
 fn decoder_hint(prefix: &str, text: &str) -> Option<String> {
@@ -3112,7 +3199,21 @@ fn safe_to_delete(dir: &std::path::Path, home: Option<&std::path::Path>) -> bool
 
 #[cfg(test)]
 mod tests {
-    use super::{decoder_hint, graph_path, safe_to_delete};
+    use super::{decoder_hint, graph_path, safe_to_delete, should_prompt_credits};
+    use tvdash_media::plex::Marker;
+
+    #[test]
+    fn credits_prompt_triggers_once_at_marker_start() {
+        let m = vec![
+            Marker { kind: "intro".into(), start_time_offset: 10_000, end_time_offset: 50_000 },
+            Marker { kind: "credits".into(), start_time_offset: 1_200_000, end_time_offset: 1_260_000 },
+        ];
+        assert!(!should_prompt_credits(0, &[], false));
+        assert!(!should_prompt_credits(1_199_999, &m, false));
+        assert!(should_prompt_credits(1_200_000, &m, false));
+        assert!(should_prompt_credits(1_230_000, &m, false));
+        assert!(!should_prompt_credits(1_230_000, &m, true));
+    }
 
     #[test]
     fn graph_paths_map_samples_to_the_viewbox() {
