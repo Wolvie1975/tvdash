@@ -1,0 +1,22 @@
+// Shared red banner strip across the top while a dismissed NWS takeover warning is still active.
+
+import { WeatherAlertState, TvUi } from "../state.slint";
+
+export component WeatherBanner inherits Rectangle {
+    height: 56px * TvUi.u;
+    background: #F0605D;
+
+    Text {
+        x: 32px * TvUi.u;
+        y: 0;
+        width: parent.width - 64px * TvUi.u;
+        height: parent.height;
+        text: WeatherAlertState.banner;
+        font-size: 22px * TvUi.u;
+        font-weight: 800;
+        color: #140A0A;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}

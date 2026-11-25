@@ -34,6 +34,8 @@ pub enum Message {
     AlertTest(String),
     /// Sports alerts status: `alerts status`.
     AlertsStatus,
+    /// Weather alert test: `weather-test <takeover|card|advisory|clear>`.
+    WeatherTest(String),
 }
 
 impl Message {
@@ -44,6 +46,7 @@ impl Message {
             Self::Sleep(arg) => writeln!(w, "sleep {arg}"),
             Self::AlertTest(kind) => writeln!(w, "alert-test {kind}"),
             Self::AlertsStatus => writeln!(w, "alerts status"),
+            Self::WeatherTest(kind) => writeln!(w, "weather-test {kind}"),
         }
     }
 
@@ -69,6 +72,13 @@ impl Message {
             }
         } else if trimmed == "alerts" || trimmed == "alerts status" {
             Some(Self::AlertsStatus)
+        } else if let Some(rest) = trimmed.strip_prefix("weather-test") {
+            let kind = rest.trim();
+            if kind.is_empty() {
+                Some(Self::WeatherTest("takeover".into()))
+            } else {
+                Some(Self::WeatherTest(kind.to_owned()))
+            }
         } else {
             None
         }

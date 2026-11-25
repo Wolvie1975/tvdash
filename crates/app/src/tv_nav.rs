@@ -2132,6 +2132,34 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
     let tv = laptop.global::<TvUi>();
     STATE.with_borrow_mut(|s| s.last_key = Instant::now());
 
+    let wa = laptop.global::<crate::WeatherAlertState>();
+    if wa.get_visible() {
+        if is_back(text) {
+            wa.invoke_got_it();
+            return true;
+        }
+        match decode_dir(text) {
+            Some(Dir::Left) => {
+                wa.set_focus(0);
+                return true;
+            }
+            Some(Dir::Right) if wa.get_can_resume() => {
+                wa.set_focus(1);
+                return true;
+            }
+            _ => {}
+        }
+        if is_ok(text) {
+            if wa.get_focus() == 1 && wa.get_can_resume() {
+                wa.invoke_resume();
+            } else {
+                wa.invoke_got_it();
+            }
+            return true;
+        }
+        return true;
+    }
+
     let alert_open = laptop.global::<SportsAlertState>().get_visible();
     if tv.get_ambient() && !alert_open {
         tv.set_ambient(false);

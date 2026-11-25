@@ -5,6 +5,9 @@ import { SiteEditorDialog } from "site_editor.slint";
 import { SleepPicker, SleepWarning } from "shared/sleep.slint";
 import { SportsAlertCard } from "shared/sports_alert.slint";
 import { NextEpisodeCard } from "shared/up_next_card.slint";
+import { WeatherBanner } from "shared/weather_banner.slint";
+import { WeatherWarning } from "shared/weather_warning.slint";
+import { WeatherAlertState } from "state.slint";
 // Resolved by build.rs: the real shell, or ui/stubs/* when its Cargo feature is off.
 import { TvShell } from "@shell-classic";
 import { V3Theme } from "v3/theme.slint";
@@ -38,6 +41,9 @@ export component LaptopWindow inherits Window {
     if SiteEditor.open: SiteEditorDialog { width: root.width; height: root.height; }
 
     if Artwork.open: ArtworkPicker { width: root.width; height: root.height; }
+
+    if WeatherAlertState.banner != "" && !WeatherAlertState.visible: WeatherBanner { width: root.width; }
+    if WeatherAlertState.visible: WeatherWarning { width: root.width; height: root.height; }
 
     SleepPicker { width: root.width; height: root.height; }
 

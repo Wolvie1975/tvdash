@@ -53,6 +53,7 @@ Options:
                     bind it to a GNOME keyboard shortcut
   --sleep [ARG]     Control the sleep timer: MINUTES (1-480), end, now, off, or status (default)
   --alert-test KIND Show a sample sports alert card: soon or final
+  --weather-test K  Inject a weather alert: takeover, card, advisory, or clear
   --alerts [status] Print followed teams, starred count, and last poll status
   --check-keyring   Test GNOME Keyring read/write, list which secrets are set, and exit
   --set-secret KEY  Read a value from stdin and store it in the keyring, e.g.
@@ -69,6 +70,7 @@ struct Args {
     home: bool,
     sleep: Option<String>,
     alert_test: Option<String>,
+    weather_test: Option<String>,
     alerts_status: bool,
     layout: Option<tvdash_core::config::Layout>,
     check_keyring: bool,
@@ -101,6 +103,13 @@ fn parse_args() -> anyhow::Result<Args> {
                     bail!("--alert-test takes soon or final\n\n{USAGE}");
                 }
                 args.alert_test = Some(kind);
+            }
+            "--weather-test" => {
+                let kind = argv.next().unwrap_or_else(|| "takeover".into());
+                if !matches!(kind.as_str(), "takeover" | "card" | "advisory" | "clear") {
+                    bail!("--weather-test takes takeover, card, advisory, or clear\n\n{USAGE}");
+                }
+                args.weather_test = Some(kind);
             }
             "--alerts" => {
                 if let Some(v) = argv.peek()
@@ -210,6 +219,13 @@ fn main() -> anyhow::Result<()> {
     }
     if let Some(kind) = args.alert_test {
         return match instance::send(&socket, instance::Message::AlertTest(kind)) {
+            Ok(true) => Ok(()),
+            Ok(false) => bail!("tvdash isn't running"),
+            Err(e) => Err(e).context("talking to the running tvdash"),
+        };
+    }
+    if let Some(kind) = args.weather_test {
+        return match instance::send(&socket, instance::Message::WeatherTest(kind)) {
             Ok(true) => Ok(()),
             Ok(false) => bail!("tvdash isn't running"),
             Err(e) => Err(e).context("talking to the running tvdash"),
@@ -443,6 +459,15 @@ fn main() -> anyhow::Result<()> {
                 None
             }
             instance::Message::AlertsStatus => Some(alert_status_rx.borrow().clone()),
+            instance::Message::WeatherTest(kind) => {
+                let weak = laptop.as_weak();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(l) = weak.upgrade() {
+                        bridge::weather_alerts::inject_test(&l, &kind);
+                    }
+                });
+                None
+            }
         });
         if let Err(e) = listening {
             warn!(error = %e, "no instance socket; tvdash --home won't work");

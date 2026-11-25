@@ -414,3 +414,68 @@ fn publish_http(s: &UiState, laptop: &LaptopWindow) {
     };
     tx.send_replace(st);
 }
+
+/// Inject a synthetic NWS alert state for `tvdash --weather-test takeover|card|advisory|clear`.
+pub fn inject_test(laptop: &LaptopWindow, kind: &str) {
+    let now = Utc::now();
+    let alerts = match kind {
+        "clear" => {
+            STATE.with_borrow_mut(|s| {
+                s.weather_alerts.dismissed.clear();
+                s.weather_alerts.seen.clear();
+                s.weather_alerts.card_queue.clear();
+                s.weather_alerts.showing_card = None;
+                s.weather_alerts.active_takeover = None;
+                save_dismissed(&s.weather_alerts);
+            });
+            laptop.global::<WeatherAlertState>().set_visible(false);
+            laptop.global::<WeatherAlertState>().set_banner("".into());
+            laptop.global::<WeatherCardState>().set_visible(false);
+            Vec::new()
+        }
+        "card" => vec![NwsAlert {
+            id: format!("test-card-{}", now.timestamp()),
+            event: "Winter Storm Watch".into(),
+            headline: Some("Heavy snow possible late tonight through Thursday.".into()),
+            area: "Douglas County, KS".into(),
+            severity: "Moderate".into(),
+            effective: Some(now - chrono::Duration::minutes(10)),
+            expires: Some(now + chrono::Duration::hours(6)),
+            ends: Some(now + chrono::Duration::hours(6)),
+            instruction: Some("Plan ahead for hazardous travel conditions.".into()),
+            description: None,
+            message_type: "Alert".into(),
+        }],
+        "advisory" => vec![NwsAlert {
+            id: format!("test-adv-{}", now.timestamp()),
+            event: "Wind Advisory".into(),
+            headline: Some("Gusts up to 45 mph expected.".into()),
+            area: "Douglas County, KS".into(),
+            severity: "Minor".into(),
+            effective: Some(now - chrono::Duration::minutes(10)),
+            expires: Some(now + chrono::Duration::hours(4)),
+            ends: Some(now + chrono::Duration::hours(4)),
+            instruction: None,
+            description: None,
+            message_type: "Alert".into(),
+        }],
+        _ => vec![NwsAlert {
+            id: format!("test-takeover-{}", now.timestamp()),
+            event: "Tornado Warning".into(),
+            headline: Some("Tornado Warning issued for Douglas County.".into()),
+            area: "Douglas County, KS".into(),
+            severity: "Extreme".into(),
+            effective: Some(now - chrono::Duration::minutes(3)),
+            expires: Some(now + chrono::Duration::minutes(33)),
+            ends: Some(now + chrono::Duration::minutes(33)),
+            instruction: Some(
+                "TAKE COVER NOW! Move to a basement or an interior room on the lowest floor of a sturdy building."
+                    .into(),
+            ),
+            description: None,
+            message_type: "Alert".into(),
+        }],
+    };
+    STATE.with_borrow_mut(|s| on_alerts(s, laptop, alerts));
+}
+
