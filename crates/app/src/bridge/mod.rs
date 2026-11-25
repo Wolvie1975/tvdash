@@ -862,8 +862,8 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
 fn show_next_ep_card(s: &mut UiState, laptop: &LaptopWindow, item: &MediaItem, mode: &str) {
     let dash = laptop.global::<Dash>();
     let poster = s.posters.get(&(item.source, item.id.clone()));
-    let kicker = match (item.parent_index, item.index) {
-        (Some(season), Some(ep)) => format!("UP NEXT · S{season} · E{ep}"),
+    let kicker = match &item.episode_label {
+        Some(ep) if !ep.is_empty() => format!("UP NEXT · {ep}"),
         _ => "UP NEXT".to_string(),
     };
     let meta = item
