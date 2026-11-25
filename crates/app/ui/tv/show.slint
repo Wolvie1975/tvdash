@@ -414,6 +414,38 @@ export component TvShow inherits Rectangle {
             }
         }
 
+        // Trailer button (shown when show has a trailer)
+        if ShowPageState.has-trailer: Tile {
+            property <int> t-idx: 2 + ShowPageState.seasons.length + ShowPageState.episodes.length + (ShowPageState.next-season-label != "" ? 1 : 0);
+            x: 828px * TvUi.u;
+            y: 452px * TvUi.u;
+            base-width: 240px * TvUi.u;
+            base-height: 120px * TvUi.u;
+            focused: TvUi.focused-tile == t-idx;
+            fill: Theme.surface;
+            activated => {
+                TvUi.focused-tile = t-idx;
+                ShowPageState.play-trailer();
+            }
+
+            Text {
+                x: 24px * TvUi.u;
+                y: 26px * TvUi.u;
+                text: "Trailer";
+                font-size: 24px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+            }
+
+            Text {
+                x: 24px * TvUi.u;
+                y: 62px * TvUi.u;
+                text: ShowPageState.trailer-meta != "" ? ShowPageState.trailer-meta : "Play trailer";
+                font-size: 17px * TvUi.u;
+                color: Theme.text-muted;
+            }
+        }
+
         // Season tabs: y = 620, 26px
         HorizontalLayout {
             x: 96px * TvUi.u;
@@ -437,7 +469,7 @@ export component TvShow inherits Rectangle {
                 Text {
                     width: parent.width;
                     height: parent.height - 6px * TvUi.u;
-                    text: root.season-count <= 6 ? tab.title : (tab.index == 0 ? "Sp" : "S" + tab.index);
+                    text: root.season-count <= 6 ? tab.title : (tab.index == -1 ? "Extras" : (tab.index == 0 ? "Sp" : "S" + tab.index));
                     font-size: root.season-count <= 6 ? 26px * TvUi.u : 20px * TvUi.u;
                     font-weight: is-selected ? 600 : 400;
                     color: is-selected ? Theme.text-primary : Theme.text-muted;
@@ -705,7 +737,7 @@ export component TvShow inherits Rectangle {
                     Text {
                         width: parent.width;
                         height: parent.height;
-                        text: root.season-count <= 6 ? tab.title : (tab.index == 0 ? "Sp" : "S" + tab.index);
+                        text: root.season-count <= 6 ? tab.title : (tab.index == -1 ? "Extras" : (tab.index == 0 ? "Sp" : "S" + tab.index));
                         font-size: 22px * TvUi.u;
                         font-weight: tab.rating-key == ShowPageState.selected-season ? 600 : 400;
                         color: tab.rating-key == ShowPageState.selected-season ? Theme.text-primary : Theme.text-muted;

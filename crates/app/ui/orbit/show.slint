@@ -97,6 +97,13 @@ export component OrbitShow inherits Rectangle {
                     activated => { ShowPageState.play-from-start(); }
                 }
             }
+            if ShowPageState.has-trailer: VerticalLayout {
+                alignment: center;
+                OrbitPill {
+                    label: "Trailer";
+                    activated => { ShowPageState.play-trailer(); }
+                }
+            }
             VerticalLayout {
                 alignment: center;
                 OrbitPill {

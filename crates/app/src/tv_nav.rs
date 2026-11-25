@@ -833,6 +833,14 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                     h: 204.0,
                 });
             }
+            if show.get_has_trailer() {
+                rects.push(Rect {
+                    x: ox + 530.0,
+                    y: oy + 304.0,
+                    w: 180.0,
+                    h: 52.0,
+                });
+            }
             rects
         }
         Page::Collection(_) => {
@@ -1313,6 +1321,14 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                     y: 700.0 + (ep_n / 3) as f32 * 380.0,
                     w: 468.0,
                     h: 263.0,
+                });
+            }
+            if show.get_has_trailer() {
+                rects.push(Rect {
+                    x: 828.0,
+                    y: 452.0,
+                    w: 240.0,
+                    h: 120.0,
                 });
             }
             rects
@@ -1813,6 +1829,11 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                     show.invoke_select_season(next_key);
                     STATE.with_borrow_mut(|s| s.shell.focused_tile = grid_base);
                     sync(laptop);
+                }
+                i if show.get_has_trailer()
+                    && i == grid_base + ep_n + usize::from(!show.get_next_season_label().is_empty()) =>
+                {
+                    show.invoke_play_trailer();
                 }
                 _ => {}
             }
