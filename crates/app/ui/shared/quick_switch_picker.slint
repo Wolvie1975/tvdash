@@ -98,12 +98,12 @@ export component QuickSwitchPicker inherits Rectangle {
 
     // App grid: 5 across, starting at y 440 (332 x 186 tiles, 17px gap)
     for choice[i] in QuickSwitch.choices: Rectangle {
-        property <int> col: Math.mod(i, 5);
-        property <int> row: Math.floor(i / 5);
+        property <int> grid-col: Math.mod(i, 5);
+        property <int> grid-row: Math.floor(i / 5);
         property <bool> is-foc: (!TvUi.bar-focused && TvUi.focused-tile == i + 1) || (!QuickSwitch.automatic && tile-ta.has-hover);
 
-        x: (96 + col * 349) * 1px * TvUi.u - (is-foc ? 4px * TvUi.u : 0px);
-        y: (440 + row * 204) * 1px * TvUi.u - (is-foc ? 4px * TvUi.u : 0px);
+        x: (96 + grid-col * 349) * 1px * TvUi.u - (is-foc ? 4px * TvUi.u : 0px);
+        y: (440 + grid-row * 204) * 1px * TvUi.u - (is-foc ? 4px * TvUi.u : 0px);
         width: (is-foc ? 340 : 332) * 1px * TvUi.u;
         height: (is-foc ? 194 : 186) * 1px * TvUi.u;
         border-radius: 14px * TvUi.u;
