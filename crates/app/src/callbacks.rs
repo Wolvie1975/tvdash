@@ -751,14 +751,29 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
             sp.set_selected_season(key.clone());
             crate::bridge::on_season_selected(&l, key.as_str());
         }
-        s(Command::LoadSeasonEpisodes(key.to_string()));
+        if key != "extras" {
+            s(Command::LoadSeasonEpisodes(key.to_string()));
+        }
     });
     let (weak, s) = (laptop.as_weak(), send.clone());
     sp.on_play_episode(move |key, resume| {
-        s(Command::PlayRatingKey { rating_key: key.to_string(), resume });
-        if let Some(l) = weak.upgrade() {
-            l.global::<ShowPageState>().set_open(false);
-            l.global::<Nav>().set_page("home".into());
+        let is_extras = weak
+            .upgrade()
+            .is_some_and(|l| l.global::<ShowPageState>().get_selected_season() == "extras");
+        if is_extras {
+            s(Command::PlayExtra(key.to_string()));
+        } else {
+            s(Command::PlayRatingKey { rating_key: key.to_string(), resume });
+            if let Some(l) = weak.upgrade() {
+                l.global::<ShowPageState>().set_open(false);
+                l.global::<Nav>().set_page("home".into());
+            }
+        }
+    });
+    let s_tr = send.clone();
+    sp.on_play_trailer(move || {
+        if let Some(key) = bridge::library::first_trailer_key() {
+            s_tr(Command::PlayExtra(key));
         }
     });
     let (weak, s) = (laptop.as_weak(), send.clone());

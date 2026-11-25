@@ -402,6 +402,9 @@ export global ShowPageState {
     in property <string> up-next-key;
     in property <bool> can-resume;
     in property <float> up-next-progress: 0.0;
+    in property <bool> has-trailer: false;
+    in property <string> trailer-meta;
+    in property <int> extras-count: 0;
     in property <image> backdrop;
     in property <bool> has-backdrop: false;
     in property <[SeasonTabData]> seasons;
@@ -421,6 +424,7 @@ export global ShowPageState {
     callback select-season(string);
     callback play-episode(string, bool);
     callback play-from-start();
+    callback play-trailer();
     callback close();
 }
 

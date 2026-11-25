@@ -449,6 +449,10 @@ impl ShelvesExt for UiState {
 pub(super) fn on_show_detail(s: &mut UiState, laptop: &LaptopWindow, res: Result<ShowDetail, String>) {
     let sp = laptop.global::<ShowPageState>();
     sp.set_loading(false);
+    s.show_extras.clear();
+    sp.set_has_trailer(false);
+    sp.set_trailer_meta("".into());
+    sp.set_extras_count(0);
     let Ok(detail) = res else { return };
     let hue = s
         .backdrop_hues
@@ -638,7 +642,117 @@ fn update_season_column(s: &UiState, laptop: &LaptopWindow, season_key: &str, ep
 }
 
 pub fn on_season_selected(laptop: &LaptopWindow, season_key: &str) {
+    if season_key == "extras" {
+        STATE.with_borrow(|s| show_extras_tab(s, laptop));
+        return;
+    }
     STATE.with_borrow(|s| update_season_column(s, laptop, season_key, &[]));
+}
+
+pub(super) fn on_show_extras(
+    s: &mut UiState,
+    laptop: &LaptopWindow,
+    show_key: String,
+    extras: Vec<tvdash_core::events::ExtraItem>,
+) {
+    if !s.show_detail.as_ref().is_some_and(|d| d.item.id == show_key) {
+        return;
+    }
+    s.show_extras = extras;
+    let sp = laptop.global::<ShowPageState>();
+    if let Some(tr) = s
+        .show_extras
+        .iter()
+        .find(|e| e.kind == tvdash_core::events::ExtraKind::Trailer)
+    {
+        let meta = match tr.duration_ms {
+            Some(ms) => format!("{} · plays here", format::duration(ms)),
+            None => "Plays here".into(),
+        };
+        sp.set_has_trailer(true);
+        sp.set_trailer_meta(meta.into());
+    } else {
+        sp.set_has_trailer(false);
+        sp.set_trailer_meta("".into());
+    }
+    sp.set_extras_count(s.show_extras.len() as i32);
+
+    if !s.show_extras.is_empty() {
+        let cur = sp.get_seasons();
+        let mut tabs: Vec<SeasonTabData> = (0..cur.row_count())
+            .filter_map(|i| cur.row_data(i))
+            .filter(|t| t.rating_key != "extras")
+            .collect();
+        tabs.push(SeasonTabData {
+            rating_key: "extras".into(),
+            index: -1,
+            title: "Extras".into(),
+            progress: s.show_extras.len().to_string().into(),
+            fraction: 0.0,
+        });
+        sp.set_seasons(ModelRc::new(VecModel::from(tabs)));
+    }
+}
+
+pub fn first_trailer_key() -> Option<String> {
+    STATE.with_borrow(|s| {
+        s.show_extras
+            .iter()
+            .find(|e| e.kind == tvdash_core::events::ExtraKind::Trailer)
+            .map(|e| e.item.id.clone())
+    })
+}
+
+fn show_extras_tab(s: &UiState, laptop: &LaptopWindow) {
+    let sp = laptop.global::<ShowPageState>();
+    let n = s.show_extras.len();
+    let rows: Vec<EpisodeRowData> = s
+        .show_extras
+        .iter()
+        .map(|ex| {
+            let thumb = s.posters.peek(&(ex.item.source, ex.item.id.clone()));
+            let meta = match ex.duration_ms {
+                Some(ms) => format!("{} · {}", ex.kind.label(), format::duration(ms)),
+                None => ex.kind.label().to_string(),
+            };
+            EpisodeRowData {
+                rating_key: ex.item.id.as_str().into(),
+                num: "".into(),
+                title: ex.item.title.as_str().into(),
+                meta: meta.into(),
+                summary: "".into(),
+                progress: 0.0,
+                watched: false,
+                can_resume: false,
+                has_thumb: thumb.is_some(),
+                thumb: thumb.cloned().unwrap_or_default(),
+                ring_lit: "".into(),
+                ring_unlit: "".into(),
+            }
+        })
+        .collect();
+    sp.set_episodes(ModelRc::new(VecModel::from(rows)));
+
+    let show_poster = s
+        .show_detail
+        .as_ref()
+        .and_then(|d| s.posters.peek(&(d.item.source, d.item.id.clone())).cloned());
+    let summary_line = if n == 1 { "1 video".into() } else { format!("{n} videos") };
+    sp.set_season(SeasonColumnData {
+        rating_key: "extras".into(),
+        name: "Extras".into(),
+        meta: summary_line.as_str().into(),
+        summary: "".into(),
+        progress: 0.0,
+        progress_label: "".into(),
+        has_poster: show_poster.is_some(),
+        poster: show_poster.unwrap_or_default(),
+        poster_is_fallback: false,
+        fallback_label: "".into(),
+    });
+    sp.set_season_summary_line(summary_line.into());
+    sp.set_next_season_key("".into());
+    sp.set_next_season_label("".into());
 }
 
 pub(super) fn refresh_show_season_poster(s: &UiState, laptop: &LaptopWindow) {
