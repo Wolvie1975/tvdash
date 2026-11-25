@@ -5,10 +5,11 @@ next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-- **`feature/feature-pack-1` — Parts A–C implemented, Part D next:**
+- **`feature/feature-pack-1` — Parts A–D implemented, ready for host tests & live checks:**
   - **Part A (Quick switch):** Added `[tv] quick_switch` / `quick_switch_key` (`F9`), `GET/POST /quick`, the Back pill **Switch** button & overlay (`extras/back-pill/`), and **Settings › Display › Quick switch** (`QuickSwitchPicker` across Classic, Blades, and Orbit).
   - **Part B (Credits Up Next & shared Up Next card):** Added Plex `credits` marker reading (`includeMarkers=1`), controller `PlayNextNow` / `WatchCredits` handling, and shared `NextEpisodeCard` mounted once in `laptop.slint` (with 10 s countdown at credits, replacing the per-UI modals and fixing the invisible prompt in Orbit).
   - **Part C (Severe-weather alerts):** Added NWS alerts poller (`[weather_alerts]`), `WeatherWarning` takeover + `WeatherBanner` + `WeatherCard` + playback pause + Back pill `/weather` overlay + `--weather-test`.
+  - **Part D (Show trailers & extras):** Added Plex `extras()` reader, `Command::PlayExtra`, `ShowPageState` Trailer button + Extras tab across Classic, Blades, and Orbit.
 - **`v0.1.77` (`development`, efficiency & parity phase 1 + Orbit Library focus fix) — tests & live check passed, version bumped, ready for RPM build:**
   - **Done since `v0.1.75`:**
     - **Orbit Library landing focus (`state.slint`, `orbit/library.slint`, `bridge/library.rs`):** Wired the Play button, time-remaining label, progress ring, and `"Show page"` pill to `LibraryLanding.focus` so hovering other items updates them instead of staying pinned to `shelf1[0]`.
