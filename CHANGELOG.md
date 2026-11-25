@@ -1,5 +1,12 @@
 # tvdash Changelog
 
+## v0.1.74 — 2026-11-24
+- **Orbit Library landing** (`orbit/library.slint`, `orbit/shell.slint`, `state.slint`, `tv_nav.rs`):
+  - Made **Movies** the first pill on the left and the default Library selection (`Library.media-tab = "movies"`).
+  - Restored content backdrop art on Library landing (Movies & TV Series, keeping `Browse all`, `Collections`, and `Show` without backdrops), and wired `LibraryLanding.focus-changed` on hover for Continue Watching and the bottom arc dial.
+- **Sports › Competitions** (`crates/events/src/lib.rs`):
+  - Filtered out matchups whose `StartsAtUtc` is more than 4 hours in the past unless actively in progress or delayed.
+
 ## v0.1.73 — 2026-11-24
 - **Orbit Collection detail polish** (`orbit/collection.slint`, `bridge/library.rs`, `state.slint`):
   - Padded the `Flickable` viewport (`y: 200`, `width: 1092`, `10px` top row offset) so the first row's focus ring isn't clipped.
