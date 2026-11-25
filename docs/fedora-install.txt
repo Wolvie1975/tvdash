@@ -5,10 +5,10 @@ Run these steps in a terminal on the destination Fedora (GNOME Wayland) machine.
 
 Option A: Install from the prebuilt .rpm (recommended — no Rust/source needed)
 ------------------------------------------------------------------------------
-1. Copy releases/tvdash-0.1.75-1.x86_64.rpm (or dist/tvdash-0.1.75-1.x86_64.rpm) from your build machine, then install (or upgrade) it:
-   sudo dnf install ./tvdash-0.1.75-1.x86_64.rpm
+1. Copy releases/tvdash-0.1.77-1.x86_64.rpm (or dist/tvdash-0.1.77-1.x86_64.rpm) from your build machine, then install (or upgrade) it:
+   sudo dnf install ./tvdash-0.1.77-1.x86_64.rpm
    # or if upgrading an existing install:
-   sudo dnf upgrade ./tvdash-0.1.75-1.x86_64.rpm
+   sudo dnf upgrade ./tvdash-0.1.77-1.x86_64.rpm
    (This installs /usr/bin/tvdash, the app-menu entry, mpv, and mpv-libs.)
 
 2. Install full codecs + Brave (see step 3 below).

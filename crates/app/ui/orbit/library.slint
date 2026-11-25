@@ -133,12 +133,12 @@ export component OrbitLibrary inherits Rectangle {
                 alignment: start;
 
                 OrbitPlay {
-                    lit-path: LibraryLanding.shelf1.length > 0 ? LibraryLanding.shelf1[0].ring-lit : "";
-                    unlit-path: LibraryLanding.shelf1.length > 0 ? LibraryLanding.shelf1[0].ring-unlit : "";
+                    lit-path: LibraryLanding.focus.ring-lit;
+                    unlit-path: LibraryLanding.focus.ring-unlit;
                     focused: root.focused-area == 0;
                     activated => {
-                        if LibraryLanding.shelf1.length > 0 {
-                            Library.play-key(LibraryLanding.shelf1[0].rating-key, true);
+                        if LibraryLanding.focus.rating-key != "" {
+                            Library.play-key(LibraryLanding.focus.rating-key, true);
                         }
                     }
                     hovered => { root.focused-area = 0; }
@@ -149,7 +149,7 @@ export component OrbitLibrary inherits Rectangle {
                     alignment: center;
                     spacing: 4px * TvUi.u;
                     Text {
-                        text: LibraryLanding.shelf1.length > 0 ? "Play " + LibraryLanding.shelf1[0].right-label : "Play";
+                        text: LibraryLanding.focus.play-label != "" ? LibraryLanding.focus.play-label : "Play";
                         font-family: OrbitTheme.font;
                         font-size: 22px * TvUi.u;
                         font-weight: 600;
@@ -163,13 +163,13 @@ export component OrbitLibrary inherits Rectangle {
                     }
                 }
 
-                if !is-movies && LibraryLanding.shelf1.length > 0: VerticalLayout {
+                if !is-movies && LibraryLanding.focus.rating-key != "": VerticalLayout {
                     height: 104px * TvUi.u;
                     alignment: center;
                     OrbitPill {
                         label: "Show page";
                         focused: root.focused-area == 1;
-                        activated => { Library.open-show(LibraryLanding.shelf1[0].rating-key); }
+                        activated => { Library.open-show(LibraryLanding.focus.rating-key); }
                         hovered => { root.focused-area = 1; }
                     }
                 }

@@ -950,11 +950,50 @@ fn focus_info_for(s: &UiState, item: &MediaItem, is_shelf1: bool, is_tv: bool) -
         (kicker, parts.join(" · "))
     };
 
+    let (play_label, rp) = if is_tv && is_shelf1 {
+        let fin = s.lib_finish_season.iter().find(|f| f.item.id == item.id);
+        let label = fin
+            .map(|f| {
+                let left = f.total_episodes.saturating_sub(f.watched_episodes);
+                format!("Play {left} left")
+            })
+            .unwrap_or_else(|| "Play".into());
+        let rp = fin
+            .map(|f| {
+                crate::orbit::rings::ring_paths(
+                    f.total_episodes as usize,
+                    f.watched_episodes as usize,
+                    52.0,
+                    crate::orbit::rings::gap_for_count(f.total_episodes as usize),
+                )
+            })
+            .unwrap_or_default();
+        (label, rp)
+    } else if is_tv {
+        ("Play".to_string(), Default::default())
+    } else {
+        let label = format::time_left(item)
+            .map(|t| format!("Play {t}"))
+            .unwrap_or_else(|| "Play".into());
+        let prog = item.progress().unwrap_or(0.0);
+        let rp = if prog > 0.0 {
+            let pct = (prog * 100.0).round().clamp(1.0, 100.0) as usize;
+            crate::orbit::rings::ring_paths(100, pct, 52.0, 0.0)
+        } else {
+            Default::default()
+        };
+        (label, rp)
+    };
+
     FocusInfoData {
+        rating_key: item.id.as_str().into(),
         kicker: kicker.into(),
         title: item.title.as_str().into(),
         meta: meta.into(),
         summary: summary_or_fallback(item).into(),
+        play_label: play_label.into(),
+        ring_lit: rp.lit.into(),
+        ring_unlit: rp.unlit.into(),
         tint_accent: t.accent,
         tint_poster: t.poster,
         tint_card: t.card,
@@ -1145,10 +1184,14 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
         let total = s.lib_total_count as usize;
         let t = tint::card_tint(tint::DEFAULT, s.effective_theme());
         ll.set_focus(FocusInfoData {
+            rating_key: Default::default(),
             kicker: "LIBRARY".into(),
             title: "Nothing in progress".into(),
             meta: format!("{total} titles available").into(),
             summary: "Pick Browse all above to explore everything in your library.".into(),
+            play_label: Default::default(),
+            ring_lit: Default::default(),
+            ring_unlit: Default::default(),
             tint_accent: t.accent,
             tint_poster: t.poster,
             tint_card: t.card,

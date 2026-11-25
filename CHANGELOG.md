@@ -1,5 +1,16 @@
 # tvdash Changelog
 
+## v0.1.77 — 2026-11-25
+- **Orbit Library landing focus fix** (`crates/app/ui/state.slint`, `crates/app/ui/orbit/library.slint`, `crates/app/src/bridge/library.rs`):
+  - Fixed the Orbit Library landing Play button, time-remaining label, progress ring, and `"Show page"` pill to follow the hovered/focused item in `LibraryLanding.focus` instead of staying pinned to `shelf1[0]`.
+
+## v0.1.76 — 2026-11-25
+- **Efficiency & parity, phase 1** (`Cargo.toml`, `crates/app/Cargo.toml`, `crates/app/build.rs`, `crates/app/src/bridge/`, `crates/app/src/callbacks.rs`, `crates/app/src/tv_nav.rs`, `crates/app/ui/`):
+  - **Smaller release binary:** Added `[profile.release] strip = "symbols"`, cutting the release binary from ~100 MB to ~70 MB and the RPM from ~21.2 MB to ~18.0 MB.
+  - **Faster idle & refreshes:** Reduced the Classic and Blades screensaver poster-wall drift from 30 fps (`33ms` / `0.4px`) to 15 fps (`66ms` / `0.8px`), cached decoded bundled league logos in a thread-local `OnceCell` (and matched `espn-championship` in Sports › Competitions), and skipped unchanged empty `NowPlaying` session refreshes.
+  - **Screensaver & Settings focus fixes:** Fixed the Screensaver quick button so it starts ambient and sets `TvUi.ambient = true`, and updated `open_settings_display_focused_on_picker` to focus the Dashboard UI row per UI.
+  - **UI Cargo features:** Added `ui-classic`, `ui-blades`, `ui-ps5`, and `ui-orbit` features with `@shell-*` library paths and stubs for single-UI dev builds; excluded `ui-ps5` from `default` features while its design is reworked (with fallback at startup without modifying `config.toml`).
+
 ## v0.1.75 — 2026-11-25
 - **Orbit Ring ripple startup animation** (`crates/app/src/orbit/intro_frame.rs`, `crates/app/src/intro.rs`, `crates/app/ui/orbit/intro.slint`, `orbit/shell.slint`, `orbit/home.slint`, `shared/intro.slint`):
   - Replaced the Play-ring iris and clock blink in Orbit with the Ring ripple animation (up to 4 pulsing accent rings every 0.6 s, continuing through hold, traveller ring settling onto the 144 px clock badge with echo ripple, and staggered `IntroRise` entry on Home).
