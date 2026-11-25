@@ -2083,6 +2083,7 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
     let alert_open = laptop.global::<SportsAlertState>().get_visible();
     if tv.get_ambient() && !alert_open {
         tv.set_ambient(false);
+        laptop.global::<Dash>().set_screensaver_open(false);
         return true;
     }
 

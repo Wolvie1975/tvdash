@@ -272,6 +272,8 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
             let d = l.global::<Dash>();
             d.set_search_open(false);
             d.set_screensaver_open(true);
+            crate::bridge::start_ambient(&l);
+            l.global::<crate::TvUi>().set_ambient(true);
         }
     });
 
@@ -279,6 +281,7 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     dash.on_close_screensaver(move || {
         if let Some(l) = weak.upgrade() {
             l.global::<Dash>().set_screensaver_open(false);
+            l.global::<crate::TvUi>().set_ambient(false);
         }
     });
 
