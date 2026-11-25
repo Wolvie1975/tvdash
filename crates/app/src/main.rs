@@ -372,7 +372,7 @@ fn main() -> anyhow::Result<()> {
     }
     let (sleep_http_tx, sleep_http_rx) = tokio::sync::watch::channel(home_cmd::SleepHttpState::off());
     controller.set_sleep_tx(sleep_http_tx);
-    let (quick_http_tx, _quick_http_rx) = tokio::sync::watch::channel(home_cmd::QuickHttpState::default());
+    let (quick_http_tx, quick_http_rx) = tokio::sync::watch::channel(home_cmd::QuickHttpState::default());
     controller.set_quick_tx(quick_http_tx);
     runtime.spawn(controller.run(cmd_rx, internal_rx));
     callbacks::wire(&laptop, cmd_tx.clone());
@@ -449,6 +449,7 @@ fn main() -> anyhow::Result<()> {
             laptop.as_weak(),
             sleep_http_rx,
             alert_http_rx,
+            quick_http_rx,
         );
     }
 
