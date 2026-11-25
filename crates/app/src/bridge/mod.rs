@@ -572,8 +572,11 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         }
         AppEvent::Browser(site) => home::on_browser(s, laptop, tv, site),
         AppEvent::NowPlaying(sessions) => {
-            library::on_sessions(s, laptop, &sessions);
-            home::on_sessions(s, sessions);
+            // Polled every 10 s; when nobody was watching and still isn't, leave the models alone.
+            if !(sessions.is_empty() && s.raw_sessions.is_empty()) {
+                library::on_sessions(s, laptop, &sessions);
+                home::on_sessions(s, sessions);
+            }
         }
         AppEvent::Weather(weather) => {
             status::on_weather(s, laptop, weather);
