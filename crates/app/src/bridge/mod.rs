@@ -730,18 +730,15 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             s.next_ep = opt.clone();
             let dash = laptop.global::<Dash>();
             if let Some(item) = opt {
-                let poster = s.posters.get(&(item.source, item.id.clone()));
-                dash.set_next_ep_title(item.title.as_str().into());
-                dash.set_next_ep_subtitle(crate::format::item_detail(&item).into());
-                dash.set_next_ep_has_poster(poster.is_some());
-                dash.set_next_ep_poster(poster.unwrap_or_default());
-                dash.set_next_ep_open(true);
-                laptop.global::<crate::TvUi>().set_focused_tile(0);
+                show_next_ep_card(s, laptop, &item, "end");
             } else {
                 dash.set_next_ep_open(false);
             }
         }
-        AppEvent::NextEpisodeAtCredits(_) => {}
+        AppEvent::NextEpisodeAtCredits(item) => {
+            s.next_ep = Some(item.clone());
+            show_next_ep_card(s, laptop, &item, "credits");
+        }
         AppEvent::CollectionDetail(res) => {
             library::on_collection_detail(s, laptop, res);
         }
@@ -862,6 +859,29 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
 ///
 /// Each PNG is decoded once per process (on first use) and the same `Image` is reused
 /// afterwards, so Sports/Scoreboard refreshes don't re-decode or re-upload the texture.
+fn show_next_ep_card(s: &mut UiState, laptop: &LaptopWindow, item: &MediaItem, mode: &str) {
+    let dash = laptop.global::<Dash>();
+    let poster = s.posters.get(&(item.source, item.id.clone()));
+    let kicker = match (item.parent_index, item.index) {
+        (Some(season), Some(ep)) => format!("UP NEXT · S{season} · E{ep}"),
+        _ => "UP NEXT".to_string(),
+    };
+    let meta = item
+        .duration_ms
+        .map(crate::format::duration)
+        .unwrap_or_default();
+    dash.set_next_ep_kicker(kicker.into());
+    dash.set_next_ep_title(item.title.as_str().into());
+    dash.set_next_ep_subtitle(crate::format::item_detail(item).into());
+    dash.set_next_ep_meta(meta.into());
+    dash.set_next_ep_has_poster(poster.is_some());
+    dash.set_next_ep_poster(poster.unwrap_or_default());
+    dash.set_next_ep_mode(mode.into());
+    dash.set_next_ep_countdown(10);
+    dash.set_next_ep_open(true);
+    laptop.global::<crate::TvUi>().set_focused_tile(0);
+}
+
 fn bundled_league_logo(value: &str) -> Option<(Image, bool)> {
     use std::cell::OnceCell;
     use std::thread::LocalKey;

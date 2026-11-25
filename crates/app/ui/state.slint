@@ -125,10 +125,14 @@ export global Dash {
 
     // Next episode prompt when an episode finishes naturally.
     in-out property <bool> next-ep-open: false;
+    in property <string> next-ep-kicker: "UP NEXT";
     in property <string> next-ep-title;
     in property <string> next-ep-subtitle;
+    in property <string> next-ep-meta;
     in property <image> next-ep-poster;
     in property <bool> next-ep-has-poster;
+    in-out property <string> next-ep-mode: "end"; // "credits" | "end"
+    in-out property <int> next-ep-countdown: 10;
 
     callback open-site(int);
     callback transport(string); // "back" | "forward" | "restart" | "play-pause" | "stop" | ...

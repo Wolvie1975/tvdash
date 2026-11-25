@@ -1,0 +1,175 @@
+// Shared Up Next card for end-of-episode and credits-start prompts.
+// Mounted once in laptop.slint so it renders identically across Classic, Blades, and Orbit.
+
+import { Theme } from "../theme.slint";
+import { Dash, TvUi } from "../state.slint";
+
+export component NextEpisodeCard inherits Rectangle {
+    property <bool> credits-mode: Dash.next-ep-mode == "credits";
+
+    width: 600px * TvUi.u;
+    height: card-col.preferred-height + 44px * TvUi.u;
+    border-radius: 26px * TvUi.u;
+    background: #1C2026;
+    border-width: 1px;
+    border-color: #2A303A;
+    drop-shadow-blur: 40px;
+    drop-shadow-offset-y: 16px;
+    drop-shadow-color: #00000099;
+
+    Timer {
+        interval: 1s;
+        running: Dash.next-ep-open && root.credits-mode;
+        triggered => {
+            if Dash.next-ep-countdown <= 1 {
+                Dash.play-next-ep();
+            } else {
+                Dash.next-ep-countdown -= 1;
+            }
+        }
+    }
+
+    // Absorb stray clicks on the card surface
+    TouchArea { }
+
+    card-col := VerticalLayout {
+        x: 24px * TvUi.u;
+        y: 22px * TvUi.u;
+        width: parent.width - 48px * TvUi.u;
+        spacing: 14px * TvUi.u;
+
+        // Kicker + countdown
+        HorizontalLayout {
+            alignment: space-between;
+            Text {
+                text: Dash.next-ep-kicker != "" ? Dash.next-ep-kicker : "UP NEXT";
+                font-size: 15px * TvUi.u;
+                font-weight: 800;
+                letter-spacing: 1.6px * TvUi.u;
+                color: Theme.accent;
+                vertical-alignment: center;
+            }
+            if root.credits-mode: Text {
+                text: "Playing in " + Dash.next-ep-countdown + " s";
+                font-size: 15px * TvUi.u;
+                font-weight: 700;
+                color: #A3ABB6;
+                vertical-alignment: center;
+            }
+        }
+
+        // 16:9 episode still
+        if Dash.next-ep-has-poster: Rectangle {
+            width: parent.width;
+            height: 220px * TvUi.u;
+            border-radius: 14px * TvUi.u;
+            background: #12151A;
+            clip: true;
+
+            Image {
+                width: parent.width;
+                height: parent.height;
+                source: Dash.next-ep-poster;
+                image-fit: cover;
+            }
+        }
+
+        // Title & subtitle/meta
+        VerticalLayout {
+            spacing: 4px * TvUi.u;
+
+            Text {
+                text: Dash.next-ep-title;
+                font-size: 26px * TvUi.u;
+                font-weight: 700;
+                color: #E8EAED;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+
+            if Dash.next-ep-subtitle != "": Text {
+                text: Dash.next-ep-subtitle;
+                font-size: 17px * TvUi.u;
+                color: #A3ABB6;
+                overflow: elide;
+            }
+
+            if Dash.next-ep-meta != "": Text {
+                text: Dash.next-ep-meta;
+                font-size: 15px * TvUi.u;
+                color: #7E8794;
+                overflow: elide;
+            }
+        }
+
+        // Countdown bar in credits mode
+        if root.credits-mode: Rectangle {
+            width: parent.width;
+            height: 4px * TvUi.u;
+            border-radius: 2px * TvUi.u;
+            background: #2A303A;
+            clip: true;
+
+            Rectangle {
+                x: 0;
+                y: 0;
+                width: parent.width * clamp(Dash.next-ep-countdown / 10.0, 0.0, 1.0);
+                height: parent.height;
+                border-radius: 2px * TvUi.u;
+                background: Theme.accent;
+                animate width { duration: 250ms; easing: linear; }
+            }
+        }
+
+        // Action buttons
+        HorizontalLayout {
+            spacing: 12px * TvUi.u;
+
+            Rectangle {
+                horizontal-stretch: 1;
+                height: 52px * TvUi.u;
+                border-radius: 26px * TvUi.u;
+                background: Theme.accent;
+                border-width: TvUi.focused-tile != 1 ? 3px * TvUi.u : 0px;
+                border-color: #FFFFFF;
+
+                Text {
+                    text: root.credits-mode ? "Play now" : "Play Next";
+                    font-size: 18px * TvUi.u;
+                    font-weight: 800;
+                    color: #0B0D10;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.play-next-ep(); }
+                }
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                height: 52px * TvUi.u;
+                border-radius: 26px * TvUi.u;
+                background: #252A31;
+                border-width: TvUi.focused-tile == 1 ? 3px * TvUi.u : 1px;
+                border-color: TvUi.focused-tile == 1 ? #FFFFFF : #2A303A;
+
+                Text {
+                    text: root.credits-mode ? "Watch credits" : "Back to Dashboard";
+                    font-size: 18px * TvUi.u;
+                    font-weight: 700;
+                    color: #E8EAED;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Dash.dismiss-next-ep(); }
+                }
+            }
+        }
+    }
+}

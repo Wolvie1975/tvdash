@@ -4,6 +4,7 @@ import { Artwork, Dash, Display, SiteEditor, SleepState, SportsAlertState, TvUi 
 import { SiteEditorDialog } from "site_editor.slint";
 import { SleepPicker, SleepWarning } from "shared/sleep.slint";
 import { SportsAlertCard } from "shared/sports_alert.slint";
+import { NextEpisodeCard } from "shared/up_next_card.slint";
 // Resolved by build.rs: the real shell, or ui/stubs/* when its Cargo feature is off.
 import { TvShell } from "@shell-classic";
 import { V3Theme } from "v3/theme.slint";
@@ -49,6 +50,11 @@ export component LaptopWindow inherits Window {
         x: parent.width - self.width - 96px * TvUi.u - (SportsAlertState.visible ? 0px : -24px * TvUi.u);
         y: parent.height - self.height - (TvUi.hud-open ? 250px : 120px) * TvUi.u;
         animate x { duration: 180ms; easing: ease-out; }
+    }
+
+    if Dash.next-ep-open: NextEpisodeCard {
+        x: parent.width - self.width - 96px * TvUi.u;
+        y: parent.height - self.height - 96px * TvUi.u;
     }
 
     if Dash.toast != "": Rectangle {

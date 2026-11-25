@@ -243,20 +243,32 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
 
     let (weak, s) = (laptop.as_weak(), send.clone());
     dash.on_play_next_ep(move || {
+        let mut credits = false;
         if let Some(l) = weak.upgrade() {
-            l.global::<Dash>().set_next_ep_open(false);
+            let d = l.global::<Dash>();
+            credits = d.get_next_ep_mode() == "credits";
+            d.set_next_ep_open(false);
         }
-        if let Some(item) = bridge::take_next_ep() {
+        if credits {
+            let _ = bridge::take_next_ep();
+            s(Command::PlayNextNow);
+        } else if let Some(item) = bridge::take_next_ep() {
             s(Command::Play(item));
         }
     });
 
-    let weak = laptop.as_weak();
+    let (weak, s) = (laptop.as_weak(), send.clone());
     dash.on_dismiss_next_ep(move || {
+        let mut credits = false;
         if let Some(l) = weak.upgrade() {
-            l.global::<Dash>().set_next_ep_open(false);
+            let d = l.global::<Dash>();
+            credits = d.get_next_ep_mode() == "credits";
+            d.set_next_ep_open(false);
         }
         bridge::clear_next_ep();
+        if credits {
+            s(Command::WatchCredits);
+        }
     });
 
     let weak = laptop.as_weak();
