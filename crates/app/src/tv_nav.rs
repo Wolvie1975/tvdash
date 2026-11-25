@@ -249,7 +249,7 @@ pub fn push_collection(laptop: &LaptopWindow) {
 
 pub fn open_dashboard_picker(laptop: &LaptopWindow) {
     let cur = tvdash_core::config::DashboardUi::parse(&laptop.global::<Display>().get_dashboard_ui());
-    let cur_idx = tvdash_core::config::DashboardUi::ALL
+    let cur_idx = crate::bridge::display::enabled_uis()
         .iter()
         .position(|&u| u == cur)
         .unwrap_or(0);
@@ -1947,7 +1947,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                         }
                         6 => {
                             let cur = tvdash_core::config::DashboardUi::parse(&disp.get_dashboard_ui());
-                            let cur_idx = tvdash_core::config::DashboardUi::ALL
+                            let cur_idx = crate::bridge::display::enabled_uis()
                                 .iter()
                                 .position(|&u| u == cur)
                                 .unwrap_or(0);

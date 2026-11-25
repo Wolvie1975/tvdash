@@ -300,6 +300,8 @@ fn main() -> anyhow::Result<()> {
     let tv = TvWindow::new()?;
     let laptop = LaptopWindow::new()?;
 
+    let dashboard_ui = bridge::display::usable_ui(config.display.dashboard_ui);
+
     bridge::init(
         &laptop,
         bridge::UiConfig {
@@ -319,7 +321,7 @@ fn main() -> anyhow::Result<()> {
             units: config.general.units,
             theme: config.general.theme,
             layout_setting: config.display.layout,
-            dashboard_ui: config.display.dashboard_ui,
+            dashboard_ui,
             tv_connected: decision.tv_connected,
             sites: config.streaming.clone(),
             browse_sort_tv: config.general.browse_sort_tv.clone(),
@@ -497,7 +499,7 @@ fn main() -> anyhow::Result<()> {
         displays::on_displays_changed(&laptop);
     }
 
-    intro::start(&laptop, config.display.dashboard_ui.into(), &config.startup);
+    intro::start(&laptop, dashboard_ui.into(), &config.startup);
 
     slint::run_event_loop_until_quit()?;
     instance::cleanup(&socket);

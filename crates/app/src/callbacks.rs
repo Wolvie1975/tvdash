@@ -454,7 +454,7 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     let (weak, s) = (laptop.as_weak(), send.clone());
     let set_ui = move |ui: &str, l: &LaptopWindow, s: &dyn Fn(Command)| {
         let mode = tvdash_core::config::DashboardUi::parse(ui);
-        if !tvdash_core::config::DashboardUi::ALL.contains(&mode) {
+        if !bridge::display::enabled_uis().contains(&mode) {
             return;
         }
         let d = l.global::<crate::Display>();

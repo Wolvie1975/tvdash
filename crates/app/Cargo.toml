@@ -10,6 +10,16 @@ publish.workspace = true
 name = "tvdash"
 path = "src/main.rs"
 
+[features]
+# Which dashboard UIs to compile. Release builds include Classic, Blades, and Orbit;
+# PS5 is excluded from default builds while its design is being reworked.
+# For a lighter dev loop: --no-default-features --features ui-orbit (or ui-ps5)
+default = ["ui-classic", "ui-blades", "ui-orbit"]
+ui-classic = []
+ui-blades = []
+ui-ps5 = []
+ui-orbit = []
+
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
