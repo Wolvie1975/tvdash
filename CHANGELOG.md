@@ -5,6 +5,8 @@
   - Added `[tv] quick_switch` and `[tv] quick_switch_key` (`F9`) in `config.toml`, `GET/POST /quick` in the pill HTTP endpoint, a **Switch** button + full-screen Quick switch overlay in `extras/back-pill/`, and **Settings › Display › Quick switch** with a shared `QuickSwitchPicker` (Automatic 4 most recent, or Custom 1–4, excluding Google Meet).
 - **Up Next at credits & shared Up Next card (`feature/feature-pack-1`):**
   - Read Plex `credits` markers (`includeMarkers=1`) and surface a shared `NextEpisodeCard` (`ui/shared/up_next_card.slint`, mounted once in `laptop.slint`) with a 10 s countdown, **Play now**, and **Watch credits**, replacing the per-UI modals in Classic and Blades and fixing the invisible Up Next prompt in Orbit.
+- **Severe-weather alerts (`feature/feature-pack-1`):**
+  - Polled NWS active alerts (`crates/widgets/src/nws.rs`, `[weather_alerts]`) for the saved location: full-screen **WeatherWarning** takeover + playback pause + persistent **WeatherBanner**, **WeatherCard** in the sports alert slot (with priority over sports alerts), Back pill `/weather` takeover & card over streaming apps, advisory line on Classic/Blades Home, and `--weather-test takeover|card|advisory|clear`.
 
 ## v0.1.77 — 2026-11-25
 - **Orbit Library landing focus fix** (`crates/app/ui/state.slint`, `crates/app/ui/orbit/library.slint`, `crates/app/src/bridge/library.rs`):

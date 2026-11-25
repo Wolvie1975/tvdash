@@ -375,13 +375,14 @@ export component V3Home inherits Rectangle {
                         }
                     }
 
-                    if Dash.weather-on && Dash.weather-detail != "": Text {
-                        text: Dash.weather-detail;
+                    if Dash.weather-on && (Dash.weather-alert-line != "" || Dash.weather-detail != ""): Text {
+                        text: Dash.weather-alert-line != "" ? Dash.weather-alert-line : Dash.weather-detail;
                         font-family: V3Theme.font;
                         font-size: 19px * TvUi.u;
                         font-weight: 700;
-                        color: V3Theme.text-secondary;
+                        color: Dash.weather-alert-line != "" ? #E5A84B : V3Theme.text-secondary;
                         vertical-alignment: center;
+                        overflow: elide;
                     }
                 }
             }

@@ -326,11 +326,14 @@ export component TvHome inherits Rectangle {
                 Rectangle { vertical-stretch: 1; }
 
                 Text {
-                    text: Dash.weather-on
-                        ? (Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail)
-                        : "Set location in Settings";
+                    text: Dash.weather-alert-line != ""
+                        ? Dash.weather-alert-line
+                        : (Dash.weather-on
+                            ? (Dash.weather-note != "" ? Dash.weather-note : Dash.weather-detail)
+                            : "Set location in Settings");
                     font-size: 15px * TvUi.u;
-                    color: Dash.tint.sec;
+                    font-weight: Dash.weather-alert-line != "" ? 700 : 400;
+                    color: Dash.weather-alert-line != "" ? #E5A84B : Dash.tint.sec;
                     overflow: elide;
                 }
             }
