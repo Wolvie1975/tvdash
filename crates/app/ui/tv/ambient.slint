@@ -30,14 +30,15 @@ component PosterWall inherits Rectangle {
         }
     }
 
+    // 15 fps: same drift speed as 0.4 px / 33 ms, half the full-screen repaints.
     Timer {
-        interval: 33ms;
+        interval: 66ms;
         running: root.has-wall;
         triggered => {
             if root.offset >= root.repeat-height {
                 root.offset -= root.repeat-height;
             }
-            root.offset += 0.4px;
+            root.offset += 0.8px;
         }
     }
 }

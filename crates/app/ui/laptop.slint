@@ -4,13 +4,14 @@ import { Artwork, Dash, Display, SiteEditor, SleepState, SportsAlertState, TvUi 
 import { SiteEditorDialog } from "site_editor.slint";
 import { SleepPicker, SleepWarning } from "shared/sleep.slint";
 import { SportsAlertCard } from "shared/sports_alert.slint";
-import { TvShell } from "tv/shell.slint";
+// Resolved by build.rs: the real shell, or ui/stubs/* when its Cargo feature is off.
+import { TvShell } from "@shell-classic";
 import { V3Theme } from "v3/theme.slint";
-import { V3Shell } from "v3/shell.slint";
+import { V3Shell } from "@shell-blades";
 import { PsTheme } from "ps5/theme.slint";
-import { Ps5Shell } from "ps5/shell.slint";
+import { Ps5Shell } from "@shell-ps5";
 import { OrbitTheme } from "orbit/theme.slint";
-import { OrbitShell } from "orbit/shell.slint";
+import { OrbitShell } from "@shell-orbit";
 
 // The main window. Renders Classic (TvShell), Blades (V3Shell), PS5 (Ps5Shell), or Orbit (OrbitShell)
 // based on Display.dashboard-ui ("classic" | "blades" | "ps5" | "orbit").

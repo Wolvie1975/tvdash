@@ -31,14 +31,15 @@ export component V3Ambient inherits Rectangle {
         }
     }
 
+    // 15 fps: same drift speed as 0.4 px / 33 ms, half the full-screen repaints.
     Timer {
-        interval: 33ms;
+        interval: 66ms;
         running: AmbientState.has-wall;
         triggered => {
             if root.wall-offset >= AmbientState.repeat-height {
                 root.wall-offset -= AmbientState.repeat-height;
             }
-            root.wall-offset += 0.4px;
+            root.wall-offset += 0.8px;
         }
     }
 

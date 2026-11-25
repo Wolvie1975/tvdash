@@ -13,6 +13,10 @@
 
 ## Live Testing Before Release
 - **Always run a live test on the host before bumping the version or building an RPM** (e.g., `cargo run -j 2 -- --windowed --layout tv` or `cargo run -j 2 -- --windowed`).
+- **Working on one dashboard UI?** Build only that one; it needs about half the RAM and compiles much faster:
+  - `cargo run -j 2 -p tvdash --no-default-features --features ui-orbit -- --windowed --layout tv`
+  - Features: `ui-classic`, `ui-blades`, `ui-ps5`, `ui-orbit` (`ui-ps5` is excluded from default builds while its design is reworked). Combine them with commas.
+  - **Always do the final live test and the release/RPM build with default features.**
 - Verify the changed UI/feature interactively (navigation, layout, focus, playback/controls) and fix any issues before moving to the version bump and RPM build.
 
 ## Releases & Versioning

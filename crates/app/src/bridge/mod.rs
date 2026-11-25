@@ -572,8 +572,11 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         }
         AppEvent::Browser(site) => home::on_browser(s, laptop, tv, site),
         AppEvent::NowPlaying(sessions) => {
-            library::on_sessions(s, laptop, &sessions);
-            home::on_sessions(s, sessions);
+            // Polled every 10 s; when nobody was watching and still isn't, leave the models alone.
+            if !(sessions.is_empty() && s.raw_sessions.is_empty()) {
+                library::on_sessions(s, laptop, &sessions);
+                home::on_sessions(s, sessions);
+            }
         }
         AppEvent::Weather(weather) => {
             status::on_weather(s, laptop, weather);
@@ -843,24 +846,41 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
 }
 
 /// Bundled league logo overrides (`(image, is_tall)`). Wins over remote ESPN CDN URLs.
+///
+/// Each PNG is decoded once per process (on first use) and the same `Image` is reused
+/// afterwards, so Sports/Scoreboard refreshes don't re-decode or re-upload the texture.
 fn bundled_league_logo(value: &str) -> Option<(Image, bool)> {
+    use std::cell::OnceCell;
+    use std::thread::LocalKey;
+
+    thread_local! {
+        static EFL: OnceCell<Option<Image>> = const { OnceCell::new() };
+        static EPL: OnceCell<Option<Image>> = const { OnceCell::new() };
+    }
+
     let lower = value.to_ascii_lowercase();
-    let (bytes, tall): (&[u8], bool) = if lower.contains("eng.2") || lower.contains("efl") {
-        (include_bytes!("../../../../assets/logos/leagues/efl-championship.png"), true)
-    } else if lower.contains("eng.1") || lower.contains("epl") {
-        (include_bytes!("../../../../assets/logos/leagues/premier-league.png"), false)
-    } else {
-        return None;
-    };
+    let (cell, bytes, tall): (&'static LocalKey<OnceCell<Option<Image>>>, &'static [u8], bool) =
+        if lower.contains("eng.2") || lower.contains("efl") || lower.contains("championship") {
+            (&EFL, include_bytes!("../../../../assets/logos/leagues/efl-championship.png"), true)
+        } else if lower.contains("eng.1") || lower.contains("epl") {
+            (&EPL, include_bytes!("../../../../assets/logos/leagues/premier-league.png"), false)
+        } else {
+            return None;
+        };
+    let img = cell.with(|c| c.get_or_init(|| decode_bundled_png(bytes)).clone())?;
+    Some((img, tall))
+}
+
+fn decode_bundled_png(bytes: &[u8]) -> Option<Image> {
     let img = image::load_from_memory(bytes).ok()?;
     let rgba = img.to_rgba8();
     let buf = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&rgba, rgba.width(), rgba.height());
-    Some((Image::from_rgba8(buf), tall))
+    Some(Image::from_rgba8(buf))
 }
 
 fn league_monogram(value: &str, label: &str) -> String {
     let lower = value.to_ascii_lowercase();
-    if lower.contains("eng.2") || lower.contains("efl") {
+    if lower.contains("eng.2") || lower.contains("efl") || lower.contains("championship") {
         return "EFL".into();
     }
     if lower.contains("eng.1") || lower.contains("epl") {
@@ -913,7 +933,7 @@ pub(crate) fn league_logo_url(value: &str) -> Option<&'static str> {
     if lower.contains("epl") || lower.contains("eng.1") {
         return Some("https://a.espncdn.com/i/leaguelogos/soccer/500/23.png");
     }
-    if lower.contains("efl") || lower.contains("eng.2") {
+    if lower.contains("efl") || lower.contains("eng.2") || lower.contains("championship") {
         return Some("https://a.espncdn.com/i/leaguelogos/soccer/500/24.png");
     }
     if lower.contains("uefa.champions") || lower.contains("ucl") {

@@ -14,6 +14,8 @@ import { PsSearch } from "search.slint";
 import { PsSettings } from "settings.slint";
 import { PsIntro } from "intro.slint";
 import { TvDashboardPicker } from "../tv/dashboard_picker.slint";
+import { TvPlayerHud } from "../tv/player_hud.slint";
+import { TvAmbient } from "../tv/ambient.slint";
 
 // PS5 Dashboard shell (§2.3).
 // Owns full-screen backdrop + scrims, y44 header (tabs + quick actions + weather + clock),
@@ -292,7 +294,24 @@ export component Ps5Shell inherits Rectangle {
             height: parent.height;
             image-fit: contain;
         }
+        TouchArea {
+            clicked => {
+                TvUi.hud-open = true;
+                TvUi.overlay();
+            }
+            moved => {
+                if !TvUi.hud-open {
+                    TvUi.focused-tile = 1;
+                    TvUi.hud-open = true;
+                    TvUi.overlay();
+                }
+            }
+        }
+        if TvUi.hud-open: TvPlayerHud { }
     }
+
+    // 4b. Ambient screensaver overlay (Classic's, as in Orbit)
+    if TvUi.ambient: TvAmbient { }
 
     // 5. Startup animation
     PsIntro {
