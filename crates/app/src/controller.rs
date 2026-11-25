@@ -207,6 +207,7 @@ pub struct Controller {
     layout: Layout,
     /// In-window drawing failed this run: use mpv's window from now on.
     video_failed: bool,
+    paused_for_weather: bool,
     sleep: crate::sleep::Sleep,
     sleep_tx: Option<tokio::sync::watch::Sender<crate::home_cmd::SleepHttpState>>,
     quick_tx: Option<tokio::sync::watch::Sender<crate::home_cmd::QuickHttpState>>,
@@ -270,6 +271,7 @@ impl Controller {
             video: None,
             layout: Layout::Dual,
             video_failed: false,
+            paused_for_weather: false,
             watch: Watch::new(events.clone(), cache_path),
             sleep: crate::sleep::Sleep::default(),
             sleep_tx: None,
@@ -1136,7 +1138,23 @@ impl Controller {
                 }
                 self.pending_next_ep = None;
             }
-            Command::WeatherTakeover(_) => {}
+            Command::WeatherTakeover(open) => {
+                if open {
+                    if let Some(p) = self.playback.as_mut()
+                        && p.status.state == PlayState::Playing
+                        && p.player.set_pause(true).await.is_ok()
+                    {
+                        self.paused_for_weather = true;
+                    }
+                } else if self.paused_for_weather {
+                    self.paused_for_weather = false;
+                    if let Some(p) = self.playback.as_mut()
+                        && p.status.state == PlayState::Paused
+                    {
+                        let _ = p.player.set_pause(false).await;
+                    }
+                }
+            }
         }
     }
 
@@ -2586,6 +2604,7 @@ impl Controller {
     }
 
     async fn stop_playback(&mut self) {
+        self.paused_for_weather = false;
         if let Some(p) = self.playback.take() {
             let _ = p.reporter.send((p.status.position_ms, PlayState::Stopped));
             self.detach_video(&p.player);

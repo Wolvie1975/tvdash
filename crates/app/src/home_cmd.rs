@@ -36,6 +36,35 @@ pub struct QuickHttpTile {
     pub logo_svg: Option<String>,
 }
 
+/// What the Back pill extension shows for NWS weather alerts (`GET /weather`).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct WeatherHttpState {
+    /// `"takeover" | "card" | "none"`
+    pub level: String,
+    pub id: String,
+    pub event: String,
+    pub area_until: String,
+    pub instruction: String,
+    pub issued_line: String,
+    pub expires_in: String,
+    pub closes_in: i64,
+}
+
+impl Default for WeatherHttpState {
+    fn default() -> Self {
+        Self {
+            level: "none".into(),
+            id: String::new(),
+            event: String::new(),
+            area_until: String::new(),
+            instruction: String::new(),
+            issued_line: String::new(),
+            expires_in: String::new(),
+            closes_in: 0,
+        }
+    }
+}
+
 /// Live state shared with the loopback HTTP server and `--sleep` socket.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct SleepHttpState {

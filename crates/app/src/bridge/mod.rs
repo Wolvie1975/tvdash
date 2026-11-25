@@ -19,6 +19,7 @@ mod home;
 mod library;
 pub use library::{clear_browse_visit, ensure_collections_loaded, ensure_library_loaded, on_season_selected, request_browse};
 mod status;
+pub mod weather_alerts;
 #[cfg(test)]
 mod tests;
 
@@ -191,6 +192,7 @@ pub struct UiState {
     quick_switch_choices: Rc<VecModel<crate::QuickSwitchChoice>>,
     toast_timer: Option<Timer>,
     sports_alerts: alerts::SportsAlertsUi,
+    weather_alerts: weather_alerts::WeatherAlertsUi,
 }
 
 impl UiState {
@@ -588,7 +590,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             status::on_weather(s, laptop, weather);
             crate::intro::mark_data_ready(laptop);
         }
-        AppEvent::WeatherAlerts(_) => {}
+        AppEvent::WeatherAlerts(alerts) => weather_alerts::on_alerts(s, laptop, alerts),
         AppEvent::Places { query, result } => status::on_places(s, laptop, &query, result),
         AppEvent::Location { name, timezone } => status::on_location(s, laptop, name, &timezone),
         AppEvent::Tmdb(status) => accounts::on_tmdb(s, laptop, status),

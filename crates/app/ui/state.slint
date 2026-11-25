@@ -79,6 +79,7 @@ export global Dash {
     in property <string> weather-temp: "—";
     in property <string> weather-detail;
     in property <string> weather-condition;
+    in property <string> weather-alert-line;
     // Icon name (see icons.slint): "clear" | "partly" | "cloud" | "fog" | "rain" | "snow" | "storm"
     in property <string> weather-icon: "partly";
     // Last value is old (shown dimmed) / the last fetch failed (amber dot).
@@ -1119,6 +1120,33 @@ export global SportsAlertState {
 
     callback primary-clicked();
     callback dismiss-clicked();
+}
+
+export global WeatherAlertState {
+    in-out property <bool> visible: false;      // takeover on screen
+    in property <string> alert-id;
+    in property <string> event;                 // "Tornado Warning"
+    in property <string> area-until;            // "[county] · until 9:45 PM"
+    in property <string> instruction;
+    in property <string> issued-line;           // "Issued 9:12 PM · Source: weather.gov · Alerts for your saved location"
+    in-out property <string> expires-in;        // "33"
+    in property <string> banner;                // "" = no banner
+    in-out property <int> focus: 0;             // 0 Got it, 1 Resume playback
+    in property <bool> can-resume;              // playback was paused for this
+    in property <bool> details-mode: false;     // true when opened from Watch card Details
+    callback got-it();
+    callback resume();
+}
+
+export global WeatherCardState {
+    in-out property <bool> visible: false;
+    in property <string> alert-id;
+    in property <string> title;
+    in property <string> sub;
+    in-out property <int> focus: 0;             // 0 Dismiss, 1 Details
+    in-out property <int> closes-in: 12;
+    callback dismiss();
+    callback details();
 }
 
 export struct FollowedTeamRow {

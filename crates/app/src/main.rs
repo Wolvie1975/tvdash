@@ -374,6 +374,10 @@ fn main() -> anyhow::Result<()> {
     controller.set_sleep_tx(sleep_http_tx);
     let (quick_http_tx, quick_http_rx) = tokio::sync::watch::channel(home_cmd::QuickHttpState::default());
     controller.set_quick_tx(quick_http_tx);
+    let (weather_http_tx, _weather_http_rx) = tokio::sync::watch::channel(home_cmd::WeatherHttpState::default());
+    bridge::weather_alerts::set_channel(weather_http_tx);
+    bridge::weather_alerts::set_takeover_list(config.weather_alerts.takeover.clone());
+    bridge::weather_alerts::start_timer(laptop.as_weak());
     runtime.spawn(controller.run(cmd_rx, internal_rx));
     callbacks::wire(&laptop, cmd_tx.clone());
     laptop.global::<SleepState>().set_warn_before(config.sleep.warn_before.clone().into());

@@ -43,6 +43,7 @@ pub fn request_quit(cmd_tx: &UnboundedSender<Command>) {
 
 pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
     bridge::alerts::set_cmd_tx(cmd_tx.clone());
+    bridge::weather_alerts::set_cmd_tx(cmd_tx.clone());
     let send = move |cmd: Command| {
         if cmd_tx.send(cmd).is_err() {
             error!("command handler stopped");
@@ -52,6 +53,7 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
     wire_site_editor(laptop, send.clone());
     wire_sleep(laptop, send.clone());
     wire_sports_alert(laptop, send.clone());
+    wire_weather_alert(laptop);
     wire_intro(laptop, send.clone());
 
     let home_state = laptop.global::<crate::HomeState>();
@@ -1435,6 +1437,36 @@ fn wire_intro(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     intro.on_skip(move || {
         if let Some(l) = weak.upgrade() {
             crate::intro::skip(&l);
+        }
+    });
+}
+
+fn wire_weather_alert(laptop: &LaptopWindow) {
+    let wa = laptop.global::<crate::WeatherAlertState>();
+    let w1 = laptop.as_weak();
+    wa.on_got_it(move || {
+        if let Some(l) = w1.upgrade() {
+            bridge::weather_alerts::got_it(&l);
+        }
+    });
+    let w2 = laptop.as_weak();
+    wa.on_resume(move || {
+        if let Some(l) = w2.upgrade() {
+            bridge::weather_alerts::resume(&l);
+        }
+    });
+
+    let wc = laptop.global::<crate::WeatherCardState>();
+    let w3 = laptop.as_weak();
+    wc.on_dismiss(move || {
+        if let Some(l) = w3.upgrade() {
+            bridge::weather_alerts::dismiss_card(&l);
+        }
+    });
+    let w4 = laptop.as_weak();
+    wc.on_details(move || {
+        if let Some(l) = w4.upgrade() {
+            bridge::weather_alerts::open_details(&l);
         }
     });
 }
