@@ -273,9 +273,16 @@ pub fn pop_picker(laptop: &LaptopWindow) {
 
 pub fn open_settings_display_focused_on_picker(laptop: &LaptopWindow) {
     laptop.global::<TvUi>().set_settings_tab("display".into());
+    let picker_tile = match tvdash_core::config::DashboardUi::parse(&laptop.global::<Display>().get_dashboard_ui()) {
+        tvdash_core::config::DashboardUi::Classic => 13,
+        tvdash_core::config::DashboardUi::Blades => 13,
+        tvdash_core::config::DashboardUi::Ps5 => 0,
+        // Orbit's Settings focus table only covers the left-rail categories (0 = Display).
+        tvdash_core::config::DashboardUi::Orbit => 0,
+    };
     STATE.with_borrow_mut(|s| {
         s.shell.switch_tab(Tab::Settings);
-        s.shell.focused_tile = 13; // Dashboard UI tile in Classic Settings › Display
+        s.shell.focused_tile = picker_tile; // "Dashboard UI" row in each UI's Settings › Display
     });
     sync(laptop);
 }
