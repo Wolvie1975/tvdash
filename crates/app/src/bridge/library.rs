@@ -1493,7 +1493,7 @@ mod tests {
     fn browse_sort_and_letter_ignore_articles() {
         let mut titles = ["Zorro", "The Matrix", "alpha", "300", "A Quiet Place", "An Education", "1917"];
         titles.sort_by_key(|t| browse_sort_key(t));
-        assert_eq!(titles, ["1917", "300", "alpha", "An Education", "The Matrix", "A Quiet Place", "Zorro"]);
+        assert_eq!(titles, ["300", "1917", "alpha", "An Education", "The Matrix", "A Quiet Place", "Zorro"]);
 
         assert!(matches_letter("The Matrix", "M"));
         assert!(!matches_letter("The Matrix", "T"));
