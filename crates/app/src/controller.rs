@@ -1155,6 +1155,7 @@ impl Controller {
                     }
                 }
             }
+            Command::PlayExtra(_) => {}
         }
     }
 

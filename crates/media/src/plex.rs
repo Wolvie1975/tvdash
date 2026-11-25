@@ -385,6 +385,47 @@ impl PlexClient {
             .unwrap_or_default())
     }
 
+    /// Extras for a show or movie, trailers first, then in Plex's order.
+    pub async fn extras(&self, rating_key: &str) -> Result<Vec<tvdash_core::events::ExtraItem>> {
+        use tvdash_core::events::{ExtraItem, ExtraKind};
+        let meta = self
+            .metadata(&format!("/library/metadata/{rating_key}/extras"), &[], "extras")
+            .await?;
+        let mut trailers = Vec::new();
+        let mut rest = Vec::new();
+        for m in meta {
+            let kind = match m.subtype.as_deref() {
+                Some("trailer") => ExtraKind::Trailer,
+                Some("behindTheScenes") => ExtraKind::BehindTheScenes,
+                Some("interview") => ExtraKind::Interview,
+                Some("featurette") => ExtraKind::Featurette,
+                Some("deletedScene") => ExtraKind::DeletedScene,
+                Some("short") => ExtraKind::Short,
+                _ => match m.extra_type {
+                    Some(1) => ExtraKind::Trailer,
+                    Some(2) => ExtraKind::DeletedScene,
+                    Some(5) => ExtraKind::BehindTheScenes,
+                    Some(6) => ExtraKind::Interview,
+                    Some(7) => ExtraKind::Featurette,
+                    Some(8) => ExtraKind::Short,
+                    _ => ExtraKind::Other,
+                },
+            };
+            let duration_ms = m.duration;
+            if let Some(mut item) = m.into_media_item() {
+                item.resume_ms = None;
+                let entry = ExtraItem { item, kind, duration_ms };
+                if kind == ExtraKind::Trailer {
+                    trailers.push(entry);
+                } else {
+                    rest.push(entry);
+                }
+            }
+        }
+        trailers.extend(rest);
+        Ok(trailers)
+    }
+
     pub async fn collections(&self, section_key: &str) -> Result<Vec<CollectionInfo>> {
         let meta = self
             .metadata(&format!("/library/sections/{section_key}/collections"), &[], "collections")
@@ -1134,6 +1175,8 @@ pub struct Activity {
     uuid: String,
     #[serde(rename = "type")]
     kind: String,
+    subtype: Option<String>,
+    extra_type: Option<u32>,
     title: String,
     subtitle: String,
     progress: Option<f32>,
@@ -1246,6 +1289,8 @@ struct Metadata {
     rating_key: String,
     #[serde(rename = "type")]
     kind: String,
+    subtype: Option<String>,
+    extra_type: Option<u32>,
     title: String,
     grandparent_title: Option<String>,
     parent_rating_key: Option<String>,
@@ -1797,5 +1842,51 @@ mod tests {
             ]
         );
         assert!(client.markers("102").await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn extras_maps_kinds_and_sorts_trailers_first() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tvdash_core::events::ExtraKind;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else { break };
+                tokio::spawn(async move {
+                    let mut buf = [0u8; 4096];
+                    let n = sock.read(&mut buf).await.unwrap_or(0);
+                    let req = String::from_utf8_lossy(&buf[..n]);
+                    let body = if req.contains("/library/metadata/200/extras") {
+                        json!({
+                            "MediaContainer": {
+                                "Metadata": [
+                                    { "ratingKey": "e1", "type": "clip", "subtype": "behindTheScenes", "title": "Making Of", "duration": 240000 },
+                                    { "ratingKey": "e2", "type": "clip", "extraType": 1, "title": "Official Trailer", "duration": 134000 }
+                                ]
+                            }
+                        })
+                    } else {
+                        json!({ "MediaContainer": { "Metadata": [] } })
+                    };
+                    let bytes = serde_json::to_vec(&body).unwrap();
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        bytes.len()
+                    );
+                    let _ = sock.write_all(resp.as_bytes()).await;
+                    let _ = sock.write_all(&bytes).await;
+                });
+            }
+        });
+
+        let client = PlexClient::new(&format!("http://{addr}"), "tok".into(), "cid".into()).unwrap();
+        let ex = client.extras("200").await.unwrap();
+        assert_eq!(ex.len(), 2);
+        assert_eq!(ex[0].kind, ExtraKind::Trailer);
+        assert_eq!(ex[0].item.id, "e2");
+        assert_eq!(ex[1].kind, ExtraKind::BehindTheScenes);
+        assert!(client.extras("201").await.unwrap().is_empty());
     }
 }

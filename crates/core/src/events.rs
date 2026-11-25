@@ -225,6 +225,44 @@ pub enum AppEvent {
     NextEpisodeAtCredits(MediaItem),
     /// Active NWS severe-weather alerts for the saved location.
     WeatherAlerts(Vec<NwsAlert>),
+    /// Trailers and extras for an open show.
+    ShowExtras {
+        show_key: String,
+        extras: Vec<ExtraItem>,
+    },
+}
+
+/// A Plex trailer or extra item.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExtraItem {
+    pub item: MediaItem,
+    pub kind: ExtraKind,
+    pub duration_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExtraKind {
+    Trailer,
+    BehindTheScenes,
+    Interview,
+    Featurette,
+    DeletedScene,
+    Short,
+    Other,
+}
+
+impl ExtraKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Trailer => "Trailer",
+            Self::BehindTheScenes => "Behind the scenes",
+            Self::Interview => "Interview",
+            Self::Featurette => "Featurette",
+            Self::DeletedScene => "Deleted scene",
+            Self::Short => "Short",
+            Self::Other => "Extra",
+        }
+    }
 }
 
 /// Active National Weather Service alert (`api.weather.gov`).
@@ -594,4 +632,6 @@ pub enum Command {
     WatchCredits,
     /// Weather takeover opened (`true`) or dismissed (`false`).
     WeatherTakeover(bool),
+    /// Play a show extra or trailer by rating key (no resume, no Up Next, no recents).
+    PlayExtra(String),
 }
