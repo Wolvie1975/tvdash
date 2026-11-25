@@ -237,7 +237,7 @@ export struct CollectionItemData {
 export global Library {
     // "all" | "plex"
     in-out property <string> filter: "all";
-    in-out property <string> media-tab: "tv"; // "tv" | "movies"
+    in-out property <string> media-tab: "movies"; // "tv" | "movies"
     in-out property <string> sort: "recent";  // "recent" | "title_asc" | "title_desc"
     in-out property <int> popular-days: 30;   // 7 | 30
     in-out property <bool> browse-all: false;
@@ -294,7 +294,7 @@ export struct BrowseItem {
 }
 
 export global Browse {
-    in property <string> library: "tv";
+    in property <string> library: "movies";
     in property <int> letter: 0;
     in property <[int]> letter-counts;
     in property <[BrowseItem]> items;

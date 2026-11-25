@@ -1,4 +1,4 @@
-import { CollectionPageState, Dash, HomeState, LibraryLanding, ShowPageState, SleepState, TvUi } from "../state.slint";
+import { CollectionPageState, Dash, HomeState, Library, LibraryLanding, ShowPageState, SleepState, TvUi } from "../state.slint";
 import { Intro, IntroStage } from "../shared/intro.slint";
 import { OrbitTheme } from "theme.slint";
 import { OrbitPill } from "controls.slint";
@@ -40,9 +40,15 @@ export component OrbitShell inherits Rectangle {
         : 0;
     property <length> clock-sz: 144px * TvUi.u;
 
-    // 1. Full-screen backdrop (Home only)
+    // 1. Full-screen backdrop (Home and Library landing only)
     if TvUi.screen == "home" && HomeState.whats-on.has-item && !HomeState.whats-on.is-app && HomeState.whats-on.has-art: Image {
         source: HomeState.whats-on.art;
+        width: parent.width;
+        height: parent.height;
+        image-fit: cover;
+    }
+    if TvUi.screen == "library" && !Library.browse-all && LibraryLanding.has-backdrop: Image {
+        source: LibraryLanding.backdrop-show-b ? LibraryLanding.backdrop-b : LibraryLanding.backdrop-a;
         width: parent.width;
         height: parent.height;
         image-fit: cover;

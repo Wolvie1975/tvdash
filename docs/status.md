@@ -1,19 +1,20 @@
 # tvdash: where things stand
 
-Last updated 2026-11-24 (`v0.1.73` bumped on `feature/add-uis`, ready for final tests + RPM build). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-24 (`v0.1.74` bumped on `feature/orbit-library-landing`, ready for RPM build). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-- **`v0.1.73` (`feature/add-uis`) — version bumped, ready for final tests & RPM build:**
-  - **Done since `v0.1.72`:**
-    - **Orbit Collection detail (`orbit/collection.slint`, `bridge/library.rs`, `state.slint`):** Padded the `Flickable` so the first row's focus ring isn't clipped, moved `X of Y watched` below the title, and displayed the collection's poster inside the 260 px gold circle.
+- **`v0.1.74` (`feature/orbit-library-landing`) — tests passed, version bumped, ready for RPM build:**
+  - **Done since `v0.1.73`:**
+    - **Orbit Library landing (`orbit/library.slint`, `orbit/shell.slint`, `state.slint`, `tv_nav.rs`):** Made **Movies** first on the left and default (`media-tab = "movies"`), restored Library landing backdrop art, and wired `LibraryLanding.focus-changed` on hover for Continue Watching and the bottom arc dial.
+    - **Sports › Competitions (`crates/events/src/lib.rs`):** Filtered out matchups whose `StartsAtUtc` is more than 4 hours in the past unless actively in progress or delayed.
+    - **Tests:** `cargo test -j 2 -p tvdash -- --test-threads=1` passed on the host.
   - **Next (on host):**
-    1. Run `cargo test -j 2 -p tvdash-core` and `cargo test -j 2 -p tvdash -- --test-threads=1`.
-    2. Build and package `v0.1.73`:
-       - `cargo build --release -j 2`
-       - `./packaging/rpm.sh`
-       - `cp dist/tvdash-0.1.73-1.x86_64.rpm releases/`
+    - Build and package `v0.1.74`:
+      - `cargo build --release -j 2`
+      - `./packaging/rpm.sh`
+      - `cp dist/tvdash-0.1.74-1.x86_64.rpm releases/`
 - **PS5 Dashboard UI (`v0.1.70`)** is complete on `feature/add-uis` with [tvdash-0.1.70-1.x86_64.rpm](releases/tvdash-0.1.70-1.x86_64.rpm).
 - **macOS Stage Dashboard UI (`macos`)** has a build spec in `docs/new concepts/` and is on hold for now.
 - Reference to build/upgrade an RPM on the TV machine:

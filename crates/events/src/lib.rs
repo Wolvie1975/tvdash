@@ -36,6 +36,11 @@ WHERE e.EventDate BETWEEN @P1 AND DATEADD(day, 3, @P1)
         e.ScheduleStatus NOT IN ('STATUS_CANCELED','STATUS_CANCELLED','STATUS_UNNECESSARY','STATUS_FULL_TIME')
         AND e.ScheduleStatus NOT LIKE 'STATUS[_]FINAL%'))
   AND (
+        e.StartsAtUtc IS NULL
+     OR e.StartsAtUtc >= DATEADD(hour, -4, SYSUTCDATETIME())
+     OR e.ScheduleStatus IN ('STATUS_IN_PROGRESS','STATUS_HALFTIME','STATUS_END_PERIOD','STATUS_DELAYED','STATUS_RAIN_DELAY')
+      )
+  AND (
         (e.ProviderKey IN ('espn-nwsl','espn-wnba','espn-mlb','espn-championship','espn-epl','espn-mls')
           AND t.Enabled = 1 AND t.ProviderKey = e.ProviderKey
           AND (   (e.ProviderKey = 'espn-nwsl' AND t.ProviderSchoolId = 20907)
@@ -59,6 +64,11 @@ WHERE e.EventDate >= @P1
   AND (e.ScheduleStatus IS NULL OR (
         e.ScheduleStatus NOT IN ('STATUS_CANCELED','STATUS_CANCELLED','STATUS_UNNECESSARY','STATUS_FULL_TIME')
         AND e.ScheduleStatus NOT LIKE 'STATUS[_]FINAL%'))
+  AND (
+        e.StartsAtUtc IS NULL
+     OR e.StartsAtUtc >= DATEADD(hour, -4, SYSUTCDATETIME())
+     OR e.ScheduleStatus IN ('STATUS_IN_PROGRESS','STATUS_HALFTIME','STATUS_END_PERIOD','STATUS_DELAYED','STATUS_RAIN_DELAY')
+      )
   AND (
         (e.ProviderKey IN ('espn-nwsl','espn-wnba','espn-mlb','espn-championship','espn-epl','espn-mls')
           AND t.Enabled = 1 AND t.ProviderKey = e.ProviderKey

@@ -1661,16 +1661,17 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             if idx < 4 {
                 STATE.with_borrow_mut(|s| s.lib_scroll = 0.0);
                 tv.set_lib_scroll(0.0);
+                let is_orbit = laptop.global::<Display>().get_dashboard_ui() == "orbit";
                 match idx {
                     0 => {
                         lib.set_browse_all(false);
-                        lib.invoke_set_media_tab("tv".into());
+                        lib.invoke_set_media_tab(if is_orbit { "movies" } else { "tv" }.into());
                         STATE.with_borrow_mut(|s| s.shell.focused_tile = 4);
                         sync(laptop);
                     }
                     1 => {
                         lib.set_browse_all(false);
-                        lib.invoke_set_media_tab("movies".into());
+                        lib.invoke_set_media_tab(if is_orbit { "tv" } else { "movies" }.into());
                         STATE.with_borrow_mut(|s| s.shell.focused_tile = 4);
                         sync(laptop);
                     }
@@ -2504,7 +2505,7 @@ mod tests {
         assert_eq!(tv.get_screen(), "library");
         assert!(matches!(
             rx.recv_timeout(Duration::from_secs(2)).unwrap(),
-            Command::LoadLibraryShelves { is_tv: true, .. }
+            Command::LoadLibraryShelves { is_tv: false, .. }
         ));
         assert!(key(&l, &SharedString::from(Key::Escape)));
         assert_eq!(tv.get_screen(), "home");

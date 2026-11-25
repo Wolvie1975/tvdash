@@ -11,6 +11,7 @@ export component OrbitLibrary inherits Rectangle {
     in-out property <int> dial-idx: 0;
     in-out property <int> shelf-pair: 0;      // 0 = shelf2 (Start watching), 1 = shelf3 (Added/Popular)
     in-out property <int> focused-area: 0;       // 0=play, 1=show-page, 2..5=curve, 6=dial
+    in-out property <int> last-dial-hover: -1;
 
     property <bool> is-movies: Library.media-tab == "movies";
     property <bool> is-browse: Library.browse-all;
@@ -24,18 +25,6 @@ export component OrbitLibrary inherits Rectangle {
         spacing: 12px * TvUi.u;
 
         OrbitPill {
-            label: "TV Series";
-            primary: is-browse && Browse.library != "movies";
-            selected: !is-browse && !is-movies;
-            activated => {
-                if is-browse {
-                    Browse.set-library("tv");
-                } else {
-                    Library.set-media-tab("tv");
-                }
-            }
-        }
-        OrbitPill {
             label: "Movies";
             primary: is-browse && Browse.library == "movies";
             selected: !is-browse && is-movies;
@@ -44,6 +33,18 @@ export component OrbitLibrary inherits Rectangle {
                     Browse.set-library("movies");
                 } else {
                     Library.set-media-tab("movies");
+                }
+            }
+        }
+        OrbitPill {
+            label: "TV Series";
+            primary: is-browse && Browse.library != "movies";
+            selected: !is-browse && !is-movies;
+            activated => {
+                if is-browse {
+                    Browse.set-library("tv");
+                } else {
+                    Library.set-media-tab("tv");
                 }
             }
         }
@@ -265,8 +266,10 @@ export component OrbitLibrary inherits Rectangle {
                     }
                 }
                 pointer-event(ev) => {
-                    if ev.kind == PointerEventKind.move {
+                    if ev.kind == PointerEventKind.move && root.focused-area != 2 + i {
                         root.focused-area = 2 + i;
+                        root.last-dial-hover = -1;
+                        LibraryLanding.focus-changed(4 + i);
                     }
                 }
             }
@@ -363,8 +366,12 @@ export component OrbitLibrary inherits Rectangle {
                     }
                 }
                 pointer-event(ev) => {
-                    if ev.kind == PointerEventKind.move {
+                    if ev.kind == PointerEventKind.move && (root.focused-area != 6 || root.last-dial-hover != lib-dial-node.idx) {
                         root.focused-area = 6;
+                        root.last-dial-hover = lib-dial-node.idx;
+                        LibraryLanding.focus-changed(
+                            4 + LibraryLanding.shelf1.length + (shelf-pair == 0 ? lib-dial-node.idx : LibraryLanding.shelf2.length + lib-dial-node.idx)
+                        );
                     }
                 }
             }

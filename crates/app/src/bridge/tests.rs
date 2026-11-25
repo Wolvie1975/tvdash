@@ -227,7 +227,9 @@ fn library_filter_search_and_detail() {
     let lib = l.global::<Library>();
     send(&l, &t, AppEvent::ContinueWatching(SourceKind::Plex, vec![item(SourceKind::Plex, "p1", "Plex Film")]));
     send(&l, &t, AppEvent::RecentlyAdded(SourceKind::Plex, vec![item(SourceKind::Plex, "p2", "New One")]));
-    // Default media-tab is "tv", so Movie items are filtered out until switched to "movies".
+    // Default media-tab is "movies", so Movie items are shown immediately; switching to "tv" filters them out.
+    assert_eq!((lib.get_continue_watching().row_count(), lib.get_recently_added().row_count()), (1, 1));
+    set_media_tab(&l, "tv");
     assert_eq!((lib.get_continue_watching().row_count(), lib.get_recently_added().row_count()), (0, 0));
     set_media_tab(&l, "movies");
     assert_eq!((lib.get_continue_watching().row_count(), lib.get_recently_added().row_count()), (1, 1));
