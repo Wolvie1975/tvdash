@@ -460,7 +460,7 @@ fn main() -> anyhow::Result<()> {
             }
             instance::Message::AlertsStatus => Some(alert_status_rx.borrow().clone()),
             instance::Message::WeatherTest(kind) => {
-                let weak = laptop.as_weak();
+                let weak = weak.clone();
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(l) = weak.upgrade() {
                         bridge::weather_alerts::inject_test(&l, &kind);
