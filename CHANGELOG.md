@@ -1,5 +1,9 @@
 # tvdash Changelog
 
+## Unreleased
+- **Quick switch (`feature/feature-pack-1`):**
+  - Added `[tv] quick_switch` and `[tv] quick_switch_key` (`F9`) in `config.toml`, `GET/POST /quick` in the pill HTTP endpoint, a **Switch** button + full-screen Quick switch overlay in `extras/back-pill/`, and **Settings › Display › Quick switch** with a shared `QuickSwitchPicker` (Automatic 4 most recent, or Custom 1–4, excluding Google Meet).
+
 ## v0.1.77 — 2026-11-25
 - **Orbit Library landing focus fix** (`crates/app/ui/state.slint`, `crates/app/ui/orbit/library.slint`, `crates/app/src/bridge/library.rs`):
   - Fixed the Orbit Library landing Play button, time-remaining label, progress ring, and `"Show page"` pill to follow the hovered/focused item in `LibraryLanding.focus` instead of staying pinned to `shelf1[0]`.

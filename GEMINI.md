@@ -18,6 +18,7 @@
   - Features: `ui-classic`, `ui-blades`, `ui-ps5`, `ui-orbit` (`ui-ps5` is excluded from default builds while its design is reworked). Combine them with commas.
   - **Always do the final live test and the release/RPM build with default features.**
 - Verify the changed UI/feature interactively (navigation, layout, focus, playback/controls) and fix any issues before moving to the version bump and RPM build.
+- **Editing `extras/back-pill/`?** tvdash loads the extension unpacked with `--load-extension`, so changes require restarting Brave to take effect.
 
 ## Releases & Versioning
 - **When unit tests and live testing are finished, bump the version number** before building a release/RPM so `dnf upgrade` picks up the new package cleanly.
