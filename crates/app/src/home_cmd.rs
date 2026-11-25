@@ -146,7 +146,7 @@ struct AlertReq {
     action: String,
 }
 
-/// Bind `127.0.0.1:{port}` and listen for `/home`, `/sleep`, `/alerts`, and `/quick`. Call inside a tokio runtime.
+/// Bind `127.0.0.1:{port}` and listen for `/home`, `/sleep`, `/alerts`, `/quick`, and `/weather`. Call inside a tokio runtime.
 pub fn serve_pill(
     port: u16,
     cmd_tx: UnboundedSender<Command>,
@@ -154,6 +154,7 @@ pub fn serve_pill(
     sleep_rx: watch::Receiver<SleepHttpState>,
     alert_rx: watch::Receiver<Option<AlertHttpState>>,
     quick_rx: watch::Receiver<QuickHttpState>,
+    weather_rx: watch::Receiver<WeatherHttpState>,
 ) {
     tokio::spawn(async move {
         let addr = format!("127.0.0.1:{port}");
@@ -175,7 +176,8 @@ pub fn serve_pill(
                     let srx = sleep_rx.clone();
                     let arx = alert_rx.clone();
                     let qrx = quick_rx.clone();
-                    tokio::spawn(handle_conn(stream, tx, weak, srx, arx, qrx));
+                    let wrx = weather_rx.clone();
+                    tokio::spawn(handle_conn(stream, tx, weak, srx, arx, qrx, wrx));
                 }
                 Err(e) => warn!(error = %e, "pill listener accept failed"),
             }
@@ -212,6 +214,7 @@ async fn handle_conn(
     mut sleep_rx: watch::Receiver<SleepHttpState>,
     alert_rx: watch::Receiver<Option<AlertHttpState>>,
     quick_rx: watch::Receiver<QuickHttpState>,
+    weather_rx: watch::Receiver<WeatherHttpState>,
 ) {
     let (reader, mut writer) = stream.into_split();
     let mut buf = BufReader::new(reader);
@@ -361,6 +364,29 @@ async fn handle_conn(
             }
             _ => ("400 Bad Request", "application/json", r#"{"error":"not a quick switch app"}"#.into()),
         }
+    } else if method == "GET" && path == "/weather" {
+        let st = weather_rx.borrow().clone();
+        let json = serde_json::to_string(&st).unwrap_or_else(|_| "{}".into());
+        ("200 OK", "application/json", json)
+    } else if method == "POST" && path == "/weather" {
+        #[derive(serde::Deserialize)]
+        struct Req {
+            id: String,
+            action: String,
+        }
+        match serde_json::from_slice::<Req>(&req_body) {
+            Ok(req) if matches!(req.action.as_str(), "got-it" | "resume" | "dismiss" | "details") => {
+                let id = req.id;
+                let action = req.action;
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(l) = laptop.upgrade() {
+                        crate::bridge::weather_alerts::on_http_action(&l, &id, &action);
+                    }
+                });
+                ("204 No Content", "text/plain", String::new())
+            }
+            _ => ("400 Bad Request", "application/json", r#"{"error":"invalid weather request"}"#.into()),
+        }
     } else {
         ("404 Not Found", "text/plain", "not found\n".into())
     };
@@ -391,10 +417,11 @@ mod tests {
         let (_sleep_tx, sleep_rx) = watch::channel(SleepHttpState::off());
         let (_alert_tx, alert_rx) = watch::channel(None);
         let (_quick_tx, quick_rx) = watch::channel(QuickHttpState::default());
+        let (_weather_tx, weather_rx) = watch::channel(WeatherHttpState::default());
 
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
-            handle_conn(stream, tx, Weak::default(), sleep_rx, alert_rx, quick_rx).await;
+            handle_conn(stream, tx, Weak::default(), sleep_rx, alert_rx, quick_rx, weather_rx).await;
         });
 
         let mut client = TcpStream::connect(addr).await.unwrap();
@@ -426,6 +453,7 @@ mod tests {
         tokio::spawn(async move {
             let (_alert_tx, alert_rx) = watch::channel(None);
             let (_quick_tx, quick_rx) = watch::channel(QuickHttpState::default());
+            let (_weather_tx, weather_rx) = watch::channel(WeatherHttpState::default());
             loop {
                 let Ok((stream, _)) = listener.accept().await else { break };
                 tokio::spawn(handle_conn(
@@ -435,6 +463,7 @@ mod tests {
                     sleep_rx.clone(),
                     alert_rx.clone(),
                     quick_rx.clone(),
+                    weather_rx.clone(),
                 ));
             }
         });
@@ -483,10 +512,11 @@ mod tests {
         let (_sleep_tx, sleep_rx) = watch::channel(SleepHttpState::off());
         let (_alert_tx, alert_rx) = watch::channel(None);
         let (_quick_tx, quick_rx) = watch::channel(QuickHttpState::default());
+        let (_weather_tx, weather_rx) = watch::channel(WeatherHttpState::default());
 
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
-            handle_conn(stream, tx, Weak::default(), sleep_rx, alert_rx, quick_rx).await;
+            handle_conn(stream, tx, Weak::default(), sleep_rx, alert_rx, quick_rx, weather_rx).await;
         });
 
         let mut client = TcpStream::connect(addr).await.unwrap();
@@ -521,6 +551,7 @@ mod tests {
                 logo_svg: None,
             }],
         });
+        let (_weather_tx, weather_rx) = watch::channel(WeatherHttpState::default());
 
         tokio::spawn(async move {
             loop {
@@ -532,6 +563,7 @@ mod tests {
                     sleep_rx.clone(),
                     alert_rx.clone(),
                     quick_rx.clone(),
+                    weather_rx.clone(),
                 ));
             }
         });

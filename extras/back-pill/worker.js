@@ -37,4 +37,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
       body: JSON.stringify({ id: msg.id }),
     }).catch(() => {});
   }
+  if (msg?.t === 'weather?') {
+    fetch(BASE + '/weather').then((r) => r.json()).then(reply, () => reply(null));
+    return true;
+  }
+  if (msg?.t === 'weather') {
+    fetch(BASE + '/weather', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: msg.id, action: msg.action }),
+    }).catch(() => {});
+  }
 });
