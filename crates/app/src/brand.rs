@@ -67,6 +67,47 @@ fn bundled_logo(id: &str) -> Option<Image> {
     Image::load_from_svg_data(svg).ok()
 }
 
+/// Bundled SVG logo as text, for the Back pill extension.
+pub fn logo_svg(id: &str) -> Option<&'static str> {
+    Some(match id {
+        "youtube-tv" => include_str!("../../../assets/logos/youtube-tv.svg"),
+        "youtube-music" => include_str!("../../../assets/logos/youtube-music.svg"),
+        "youtube" => include_str!("../../../assets/logos/youtube.svg"),
+        "disney-plus" => include_str!("../../../assets/logos/disney-plus.svg"),
+        "hulu" => include_str!("../../../assets/logos/hulu.svg"),
+        "apple-tv" => include_str!("../../../assets/logos/apple-tv.svg"),
+        "netflix" => include_str!("../../../assets/logos/netflix.svg"),
+        "fandango-at-home" => include_str!("../../../assets/logos/fandango-at-home.svg"),
+        "prime-video" => include_str!("../../../assets/logos/prime-video.svg"),
+        "crunchyroll" => include_str!("../../../assets/logos/crunchyroll.svg"),
+        "tubi" => include_str!("../../../assets/logos/tubi.svg"),
+        _ => return None,
+    })
+}
+
+pub fn hex(c: slint::Color) -> String {
+    format!("#{:02X}{:02X}{:02X}", c.red(), c.green(), c.blue())
+}
+
+/// Brand `(fill, ink)` colours for a service ID (safe on background threads; no `Image`).
+pub fn colors(id: &str) -> (Color, Color) {
+    match id {
+        "youtube-tv" => (rgb(0x000000), rgb(0xFFFFFF)),
+        "youtube-music" => (rgb(0xFF0000), rgb(0xFFFFFF)),
+        "youtube" => (rgb(0xF1F1F1), rgb(0x1F1F1F)),
+        "disney-plus" => (rgb(0x0B2E6B), rgb(0xFFFFFF)),
+        "hulu" => (rgb(0x16191E), rgb(0x1CE783)),
+        "apple-tv" => (rgb(0x1C1C1E), rgb(0xFFFFFF)),
+        "netflix" => (rgb(0x121212), rgb(0xE50914)),
+        "fandango-at-home" => (rgb(0x1B2A5C), rgb(0xFF7300)),
+        "prime-video" => (rgb(0x1A8CFF), rgb(0xFFFFFF)),
+        "crunchyroll" => (rgb(0xF47521), rgb(0xFFFFFF)),
+        "tubi" => (rgb(0x7408FF), rgb(0xFFF200)),
+        "google-meet" => (rgb(0x000000), rgb(0xFBBC04)),
+        _ => (rgb(0x1B1F26), rgb(0xE8EAED)),
+    }
+}
+
 /// Brand styling for a service ID or display name. Falls back to neutral surface for custom sites.
 pub fn brand_for(id_or_name: &str, display_name: &str) -> Brand {
     brand_for_with_logo(id_or_name, display_name, None)

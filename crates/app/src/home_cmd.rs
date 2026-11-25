@@ -15,6 +15,27 @@ use crate::{LaptopWindow, Nav, tv_nav};
 
 pub const PILL_PORT: u16 = 47800;
 
+/// What the Back pill extension shows in the Quick switch overlay (`GET /quick`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct QuickHttpState {
+    /// `KeyboardEvent.key` that opens the overlay.
+    pub key: String,
+    /// Service id of the app on the TV right now, if any.
+    pub current: Option<String>,
+    pub tiles: Vec<QuickHttpTile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct QuickHttpTile {
+    pub id: String,
+    pub name: String,
+    /// Brand colours as `#RRGGBB`.
+    pub fill: String,
+    pub ink: String,
+    /// The bundled SVG logo as text, if there is one (drawn inline by the extension).
+    pub logo_svg: Option<String>,
+}
+
 /// Live state shared with the loopback HTTP server and `--sleep` socket.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct SleepHttpState {

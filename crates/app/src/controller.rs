@@ -196,6 +196,7 @@ pub struct Controller {
     video_failed: bool,
     sleep: crate::sleep::Sleep,
     sleep_tx: Option<tokio::sync::watch::Sender<crate::home_cmd::SleepHttpState>>,
+    quick_tx: Option<tokio::sync::watch::Sender<crate::home_cmd::QuickHttpState>>,
     sleep_episode_finished: bool,
     sleep_finished_key: Option<String>,
     sleep_held: bool,
@@ -258,6 +259,7 @@ impl Controller {
             watch: Watch::new(events.clone(), cache_path),
             sleep: crate::sleep::Sleep::default(),
             sleep_tx: None,
+            quick_tx: None,
             sleep_episode_finished: false,
             sleep_finished_key: None,
             sleep_held: false,
@@ -271,6 +273,48 @@ impl Controller {
     pub fn set_sleep_tx(&mut self, tx: tokio::sync::watch::Sender<crate::home_cmd::SleepHttpState>) {
         self.sleep_tx = Some(tx);
         self.emit_sleep();
+    }
+
+    pub fn set_quick_tx(&mut self, tx: tokio::sync::watch::Sender<crate::home_cmd::QuickHttpState>) {
+        self.quick_tx = Some(tx);
+        self.publish_quick();
+        self.emit(AppEvent::QuickSwitch(self.config.tv.quick_switch.clone()));
+    }
+
+    fn publish_quick(&self) {
+        let Some(tx) = &self.quick_tx else { return };
+        let all: Vec<String> = self
+            .config
+            .streaming
+            .iter()
+            .map(|s| crate::brand::service_id(&s.name))
+            .collect();
+        let recent: Vec<String> = self.config.tv.recent.iter().map(|r| r.id.clone()).collect();
+        let set = crate::apps::quick_switch_set(&self.config.tv.quick_switch, &recent, &all);
+        let tiles = set
+            .iter()
+            .filter_map(|id| {
+                let site = self
+                    .config
+                    .streaming
+                    .iter()
+                    .find(|s| crate::brand::service_id(&s.name) == *id)?;
+                let (fill, ink) = crate::brand::colors(id);
+                Some(crate::home_cmd::QuickHttpTile {
+                    id: id.clone(),
+                    name: site.name.clone(),
+                    fill: crate::brand::hex(fill),
+                    ink: crate::brand::hex(ink),
+                    logo_svg: crate::brand::logo_svg(id).map(str::to_owned),
+                })
+            })
+            .collect();
+        let current = self.browser.as_ref().map(|b| crate::brand::service_id(&b.site));
+        tx.send_replace(crate::home_cmd::QuickHttpState {
+            key: self.config.tv.quick_switch_key.clone(),
+            current,
+            tiles,
+        });
     }
 
     /// Play inside the tvdash window (through `slot`) whenever the layout is TV only.
@@ -666,6 +710,7 @@ impl Controller {
             Command::ClearRecentServices => {
                 self.update_config(|c| c.tv.recent.clear());
                 self.emit(AppEvent::RecentServices(Vec::new()));
+                self.publish_quick();
                 self.toast("Recent services cleared");
             }
             Command::SaveSite { index, site } => self.save_site(index, site),
@@ -1025,6 +1070,26 @@ impl Controller {
             }
             Command::SetStartupIntro(on) => {
                 self.update_config(|c| c.startup.intro = if on { "on".into() } else { "off".into() });
+            }
+            Command::OpenService(id) => {
+                match self
+                    .config
+                    .streaming
+                    .iter()
+                    .position(|s| crate::brand::service_id(&s.name) == id)
+                {
+                    Some(i) => {
+                        let name = self.config.streaming[i].name.clone();
+                        self.emit(AppEvent::Toast(format!("Opening {name}…")));
+                        self.open_site(i).await;
+                    }
+                    None => warn!(%id, "quick switch: no such app"),
+                }
+            }
+            Command::SetQuickSwitch(ids) => {
+                self.update_config(|c| c.tv.quick_switch = ids);
+                self.publish_quick();
+                self.emit(AppEvent::QuickSwitch(self.config.tv.quick_switch.clone()));
             }
         }
     }
@@ -2400,6 +2465,7 @@ impl Controller {
         let now = chrono::Utc::now().timestamp();
         self.update_config(|c| crate::recent::push_recent(&mut c.tv.recent, &service_id, now));
         self.emit(AppEvent::RecentServices(self.config.tv.recent.clone()));
+        self.publish_quick();
         let opts = self.browser_options();
 
         if self.state.mark_opened(&site.name, chrono::Utc::now()) {
@@ -2434,6 +2500,7 @@ impl Controller {
             self.save_runtime_state();
             self.update_inhibit().await;
             self.emit(AppEvent::Browser(None));
+            self.publish_quick();
         }
     }
 
@@ -2442,6 +2509,7 @@ impl Controller {
         self.save_runtime_state();
         self.update_inhibit().await;
         self.emit(AppEvent::Browser(None));
+        self.publish_quick();
         if b.exited_immediately() {
             warn!(site = %b.site, "browser exited at once; another instance probably owns the profile");
             self.toast("The browser handed off to a window that was already open. Close it and try again.");

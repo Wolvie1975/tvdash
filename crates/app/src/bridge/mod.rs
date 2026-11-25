@@ -833,6 +833,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             s.recent = recent;
             home::refresh_tiles(s, laptop);
         }
+        AppEvent::QuickSwitch(_) => {}
         AppEvent::ShowSetup => {
             laptop.global::<Setup>().set_step(0);
             laptop.global::<Nav>().set_page("setup".into());
