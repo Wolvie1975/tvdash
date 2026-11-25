@@ -373,6 +373,18 @@ impl PlexClient {
         Ok(None)
     }
 
+    /// Intro/credits markers for one item. Empty when the server hasn't analysed it.
+    pub async fn markers(&self, rating_key: &str) -> Result<Vec<Marker>> {
+        let meta = self
+            .metadata(&format!("/library/metadata/{rating_key}"), &[("includeMarkers", "1".into())], "markers")
+            .await?;
+        Ok(meta
+            .into_iter()
+            .next()
+            .map(|m| m.marker.into_iter().filter(|k| k.kind == "intro" || k.kind == "credits").collect())
+            .unwrap_or_default())
+    }
+
     pub async fn collections(&self, section_key: &str) -> Result<Vec<CollectionInfo>> {
         let meta = self
             .metadata(&format!("/library/sections/{section_key}/collections"), &[], "collections")
@@ -1218,6 +1230,16 @@ struct Hub {
     metadata: Vec<Metadata>,
 }
 
+/// A Plex intro/credits marker on an episode or movie (milliseconds).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Marker {
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub start_time_offset: u64,
+    pub end_time_offset: u64,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct Metadata {
@@ -1260,6 +1282,8 @@ struct Metadata {
     genre: Vec<Tag>,
     #[serde(rename = "Role")]
     role: Vec<Tag>,
+    #[serde(default, rename = "Marker")]
+    marker: Vec<Marker>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -1712,5 +1736,65 @@ mod tests {
         assert!(reqs[0].contains("X-Plex-Container-Start=77"));
         assert!(reqs[0].contains("X-Plex-Container-Size=1"));
         assert_eq!(reqs.iter().filter(|r| r.contains("/firstCharacter/S")).count(), 3);
+    }
+
+    #[tokio::test]
+    async fn markers_parses_intro_credits_and_drops_unknown() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else { break };
+                tokio::spawn(async move {
+                    let mut buf = [0u8; 4096];
+                    let n = sock.read(&mut buf).await.unwrap_or(0);
+                    let req = String::from_utf8_lossy(&buf[..n]);
+                    let body = if req.contains("/library/metadata/101?") {
+                        json!({
+                            "MediaContainer": {
+                                "Metadata": [{
+                                    "ratingKey": "101",
+                                    "type": "episode",
+                                    "title": "Pilot",
+                                    "Marker": [
+                                        { "type": "intro", "startTimeOffset": 12000, "endTimeOffset": 52000 },
+                                        { "type": "commercial", "startTimeOffset": 60000, "endTimeOffset": 90000 },
+                                        { "type": "credits", "startTimeOffset": 1320000, "endTimeOffset": 1380000 }
+                                    ]
+                                }]
+                            }
+                        })
+                    } else {
+                        json!({
+                            "MediaContainer": {
+                                "Metadata": [{
+                                    "ratingKey": "102",
+                                    "type": "episode",
+                                    "title": "Two"
+                                }]
+                            }
+                        })
+                    };
+                    let bytes = serde_json::to_vec(&body).unwrap();
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        bytes.len()
+                    );
+                    let _ = sock.write_all(resp.as_bytes()).await;
+                    let _ = sock.write_all(&bytes).await;
+                });
+            }
+        });
+
+        let client = PlexClient::new(&format!("http://{addr}"), "tok".into(), "cid".into()).unwrap();
+        let m = client.markers("101").await.unwrap();
+        assert_eq!(
+            m,
+            vec![
+                Marker { kind: "intro".into(), start_time_offset: 12000, end_time_offset: 52000 },
+                Marker { kind: "credits".into(), start_time_offset: 1320000, end_time_offset: 1380000 },
+            ]
+        );
+        assert!(client.markers("102").await.unwrap().is_empty());
     }
 }
