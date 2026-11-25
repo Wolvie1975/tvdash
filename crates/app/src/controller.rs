@@ -73,6 +73,10 @@ pub enum Internal {
         item_id: String,
         next_ep: MediaItem,
     },
+    ShowExtras {
+        show_key: String,
+        extras: Vec<tvdash_core::events::ExtraItem>,
+    },
 }
 
 /// What plays a Plex item: mpv in its own window, or libmpv drawing
@@ -172,6 +176,7 @@ struct Playback {
     markers: Vec<tvdash_media::plex::Marker>,
     credits_prompted: bool,
     credits_dismissed: bool,
+    playing_extra: bool,
 }
 
 pub struct Controller {
@@ -187,6 +192,7 @@ pub struct Controller {
     sign_in: HashMap<SourceKind, JoinHandle<()>>,
     playback: Option<Playback>,
     pending_next_ep: Option<MediaItem>,
+    show_extras: Vec<tvdash_core::events::ExtraItem>,
     browser: Option<Browser>,
     inhibit: Option<crate::portal::IdleInhibit>,
     tv_geometry: Option<Geometry>,
@@ -257,6 +263,7 @@ impl Controller {
             sign_in: HashMap::new(),
             playback: None,
             pending_next_ep: None,
+            show_extras: Vec::new(),
             browser: None,
             inhibit: None,
             tv_geometry: None,
@@ -438,6 +445,10 @@ impl Controller {
                         self.emit(AppEvent::NextEpisodeAtCredits(next_ep));
                     }
                 }
+                Step::Internal(Internal::ShowExtras { show_key, extras }) => {
+                    self.show_extras = extras.clone();
+                    self.emit(AppEvent::ShowExtras { show_key, extras });
+                }
                 Step::Internal(Internal::Refresh) | Step::Refresh => {
                     self.refresh();
                     self.watch.refresh_library(self.sources(), false);
@@ -565,6 +576,7 @@ impl Controller {
                         markers: Vec::new(),
                         credits_prompted: false,
                         credits_dismissed: false,
+                        playing_extra: false,
                     });
                     info!(socket = %sock, "reconnected to running mpv");
                 }
@@ -1155,7 +1167,13 @@ impl Controller {
                     }
                 }
             }
-            Command::PlayExtra(_) => {}
+            Command::PlayExtra(key) => {
+                if let Some(ex) = self.show_extras.iter().find(|e| e.item.id == key).cloned() {
+                    let mut item = ex.item;
+                    item.resume_ms = None;
+                    self.play_item(item, true).await;
+                }
+            }
         }
     }
 
@@ -1650,6 +1668,7 @@ impl Controller {
             }
             .await;
             let initial_season = res.as_ref().ok().and_then(|d| d.up_next_season_key.clone());
+            let show_id_for_extras = res.as_ref().ok().map(|d| d.item.id.clone());
             if let Ok(detail) = &res {
                 let source: Arc<dyn MediaSource> = plex.clone();
                 fetch_backdrops(source.clone(), vec![detail.item.clone()], backdrops_req, events.clone());
@@ -1674,6 +1693,21 @@ impl Controller {
                 fetch_posters(source, season_items, requested.clone(), events.clone());
             }
             let _ = events.send(AppEvent::ShowDetail(res));
+            if let Some(show_key) = show_id_for_extras {
+                let plex_ex = plex.clone();
+                let req_ex = requested.clone();
+                let ev_ex = events.clone();
+                let int_ex = internal.clone();
+                tokio::spawn(async move {
+                    if let Ok(extras) = plex_ex.extras(&show_key).await {
+                        let poster_items: Vec<MediaItem> = extras.iter().map(|e| e.item.clone()).collect();
+                        if !poster_items.is_empty() {
+                            fetch_posters(plex_ex, poster_items, req_ex, ev_ex);
+                        }
+                        let _ = int_ex.send(Internal::ShowExtras { show_key, extras });
+                    }
+                });
+            }
             if let Some(season_key) = initial_season {
                 fetch_season_episodes(plex, season_key, requested, events).await;
             }
@@ -2299,7 +2333,11 @@ impl Controller {
 
     // ── Playback ────────────────────────────────────────────────────
 
-    async fn play(&mut self, mut item: MediaItem) {
+    async fn play(&mut self, item: MediaItem) {
+        self.play_item(item, false).await;
+    }
+
+    async fn play_item(&mut self, mut item: MediaItem, is_extra: bool) {
         self.clear_tv().await;
         if item.kind == tvdash_core::models::MediaKind::Series
             && let Some(plex) = &self.plex
@@ -2375,10 +2413,10 @@ impl Controller {
         info!(title = %item.title, resume_ms = ?item.resume_ms, where_, "playing on the TV");
         self.health(Service::Player, Ok(format!("playing {} ({where_})", item.title)));
 
-        let start = item.resume_ms.unwrap_or(0);
+        let start = if is_extra { 0 } else { item.resume_ms.unwrap_or(0) };
         let reporter = spawn_reporter(source, item.clone());
         let _ = reporter.send((start, PlayState::Playing));
-        let is_plex_ep = item.source == SourceKind::Plex && item.kind == tvdash_core::models::MediaKind::Episode;
+        let is_plex_ep = !is_extra && item.source == SourceKind::Plex && item.kind == tvdash_core::models::MediaKind::Episode;
         let item_id = item.id.clone();
         let status =
             PlayerStatus { duration_ms: item.duration_ms, item, state: PlayState::Playing, position_ms: start };
@@ -2395,6 +2433,7 @@ impl Controller {
             markers: Vec::new(),
             credits_prompted: false,
             credits_dismissed: false,
+            playing_extra: is_extra,
         });
         if is_plex_ep && let Some(plex) = self.plex.clone() {
             let internal = self.internal.clone();
@@ -2898,7 +2937,7 @@ impl Controller {
                 let _ = p.reporter.send((final_pos, PlayState::Stopped));
                 info!("mpv exited; TV back to idle");
                 self.after_playback().await;
-                if p.ended_eof {
+                if !p.playing_extra && p.ended_eof {
                     let now = crate::sleep::now_unix();
                     let warn = self.config.sleep.warn_secs();
                     if self.sleep.item_finished(&p.status.item.id, now, warn) {
@@ -2908,12 +2947,13 @@ impl Controller {
                         self.emit_sleep();
                         return;
                     }
-                } else if self.sleep.item_stopped() {
+                } else if !p.playing_extra && self.sleep.item_stopped() {
                     self.save_runtime_state();
                     self.emit_sleep();
                     self.toast("Sleep timer off · playback stopped");
                 }
-                if p.ended_eof
+                if !p.playing_extra
+                    && p.ended_eof
                     && p.status.item.kind == tvdash_core::models::MediaKind::Episode
                     && p.status.item.source == SourceKind::Plex
                     && let Some(plex) = self.plex.clone()
