@@ -258,6 +258,10 @@
     const all = st?.tiles || [];
     qTiles = all.filter((tile) => tile.id !== st?.current);
     swBtn.hidden = qTiles.length === 0;
+    if (!swBtn.hidden && btn.style.opacity !== '0') {
+      swBtn.style.opacity = '1';
+      swBtn.style.pointerEvents = 'auto';
+    }
     const kbd = swBtn.querySelector('kbd');
     if (kbd && st?.key) kbd.textContent = st.key;
 

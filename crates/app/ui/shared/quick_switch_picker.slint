@@ -69,24 +69,26 @@ export component QuickSwitchPicker inherits Rectangle {
             }
         }
 
-        // Toggle pill
+        // Toggle switch
         Rectangle {
             x: parent.width - self.width - 28px * TvUi.u;
             y: (parent.height - self.height) / 2;
-            width: 110px * TvUi.u;
-            height: 44px * TvUi.u;
-            border-radius: 22px * TvUi.u;
+            width: 96px * TvUi.u;
+            height: 48px * TvUi.u;
+            border-radius: 24px * TvUi.u;
             background: QuickSwitch.automatic ? Theme.accent : Theme.surface-raised;
             border-width: 1px;
-            border-color: Theme.border;
+            border-color: QuickSwitch.automatic ? Theme.accent : Theme.border;
+            animate background { duration: 120ms; }
 
-            Text {
-                text: QuickSwitch.automatic ? "On" : "Off";
-                font-size: 20px * TvUi.u;
-                font-weight: 700;
-                color: QuickSwitch.automatic ? Theme.on-accent : Theme.text-primary;
-                horizontal-alignment: center;
-                vertical-alignment: center;
+            Rectangle {
+                x: QuickSwitch.automatic ? parent.width - self.width - 5px * TvUi.u : 5px * TvUi.u;
+                y: 5px * TvUi.u;
+                width: 38px * TvUi.u;
+                height: 38px * TvUi.u;
+                border-radius: 19px * TvUi.u;
+                background: QuickSwitch.automatic ? Theme.on-accent : Theme.text-primary;
+                animate x { duration: 120ms; easing: ease-out; }
             }
         }
 
