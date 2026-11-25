@@ -16,7 +16,7 @@ pub use ambient::start_ambient;
 pub mod browse;
 pub mod display;
 mod home;
-mod library;
+pub mod library;
 pub use library::{clear_browse_visit, ensure_collections_loaded, ensure_library_loaded, on_season_selected, request_browse};
 mod status;
 pub mod weather_alerts;

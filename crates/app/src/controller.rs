@@ -1644,6 +1644,7 @@ impl Controller {
         let events = self.events.clone();
         let requested = self.posters_requested.clone();
         let backdrops_req = self.backdrops_requested.clone();
+        let internal = self.internal.clone();
         tokio::spawn(async move {
             let res = async {
                 let show_key = plex.show_key_for(&rating_key).await.unwrap_or(rating_key);

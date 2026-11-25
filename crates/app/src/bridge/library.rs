@@ -726,8 +726,6 @@ fn show_extras_tab(s: &UiState, laptop: &LaptopWindow) {
                 can_resume: false,
                 has_thumb: thumb.is_some(),
                 thumb: thumb.cloned().unwrap_or_default(),
-                ring_lit: "".into(),
-                ring_unlit: "".into(),
             }
         })
         .collect();
