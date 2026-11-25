@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "tvdash — Back to tvdash",
-  "version": "1.0",
+  "version": "1.1",
   "background": { "service_worker": "worker.js" },
   "host_permissions": ["http://127.0.0.1:47800/*"],
   "content_scripts": [{ "matches": ["<all_urls>"], "js": ["pill.js"], "run_at": "document_idle" }]

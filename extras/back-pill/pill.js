@@ -10,17 +10,25 @@
       button:hover { background: #E8EAED; color: #0B0D10; }
       kbd { border: 2px solid currentColor; border-radius: 10px; padding: 4px 12px; font: 700 18px inherit; }
     </style>
-    <button aria-label="Back to tvdash">← Back to tvdash <kbd>F12</kbd></button>`;
+    <button aria-label="Back to tvdash">← Back to tvdash <kbd>F12</kbd></button>
+    <button class="sw-btn" aria-label="Quick switch" hidden>Switch <kbd>F9</kbd></button>`;
   document.documentElement.appendChild(host);
   const btn = root.querySelector('button');
+  const swBtn = root.querySelector('.sw-btn');
   let t;
   const show = () => {
     btn.style.opacity = '1';
     btn.style.pointerEvents = 'auto';
+    if (!swBtn.hidden) {
+      swBtn.style.opacity = '1';
+      swBtn.style.pointerEvents = 'auto';
+    }
     clearTimeout(t);
     t = setTimeout(() => {
       btn.style.opacity = '0';
       btn.style.pointerEvents = 'none';
+      swBtn.style.opacity = '0';
+      swBtn.style.pointerEvents = 'none';
     }, 3000);
   };
   addEventListener('mousemove', show, { passive: true });
@@ -186,4 +194,176 @@
   });
   setInterval(pollAlert, 3000);
   pollAlert();
+
+  // Quick switch overlay
+  const qs = document.createElement('div');
+  qs.className = 'qs';
+  qs.hidden = true;
+  qs.innerHTML = `
+    <div class="qs-box">
+      <div class="qs-k">QUICK SWITCH</div>
+      <div class="qs-sub" hidden></div>
+      <div class="qs-row"></div>
+      <button class="qs-home" type="button">← tvdash Home</button>
+      <div class="qs-msg" hidden></div>
+    </div>`;
+  root.appendChild(qs);
+  root.querySelector('style').textContent += `
+    button.sw-btn { right: 420px; }
+    button.sw-btn[hidden] { display: none; }
+    .qs[hidden] { display: none; }
+    .qs { position: fixed; inset: 0; z-index: 2147483647; background: rgba(0,0,0,.72);
+      display: flex; align-items: center; justify-content: center; font-family: Inter, system-ui, sans-serif; }
+    .qs-box { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 36px; }
+    .qs-k { color: #F5A524; font-size: 18px; font-weight: 900; letter-spacing: 2.5px; }
+    .qs-sub { color: #C9CDD3; font-size: 22px; font-weight: 600; margin-top: -12px; }
+    .qs-sub[hidden] { display: none; }
+    .qs-row { display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; }
+    .qs-tile { position: static; width: 360px; height: 202px; padding: 20px; border-radius: 24px; border: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+      opacity: 1; pointer-events: auto; cursor: pointer; box-sizing: border-box;
+      box-shadow: 0 20px 50px rgba(0,0,0,.5); transition: transform .12s; }
+    .qs-tile:hover { transform: scale(1.02); }
+    .qs-tile:focus, .qs-home:focus { outline: 6px solid #F5A524; outline-offset: 6px; }
+    .qs-logo { display: flex; align-items: center; justify-content: center; width: 100%; height: 101px; }
+    .qs-logo svg { max-width: 60%; max-height: 100%; width: auto; height: auto; display: block; }
+    .qs-name { font-size: 24px; font-weight: 800; }
+    .qs-name.big { font-size: 36px; }
+    .qs-home { position: static; height: 60px; padding: 0 28px; border-radius: 30px; border: 2px solid rgba(232,234,237,.35);
+      background: rgba(11,13,16,.86); color: #E8EAED; font: 700 22px Inter, system-ui, sans-serif;
+      opacity: 1; pointer-events: auto; cursor: pointer; margin-top: 8px; }
+    .qs-home:hover { background: #E8EAED; color: #0B0D10; }
+    .qs-msg { color: #E8EAED; font-size: 28px; font-weight: 700; }
+    .qs-msg[hidden] { display: none; }
+    .qs.busy .qs-row, .qs.busy .qs-home { opacity: .35; pointer-events: none; }`;
+
+  const qsSub = qs.querySelector('.qs-sub');
+  const qsRow = qs.querySelector('.qs-row');
+  const qsHome = qs.querySelector('.qs-home');
+  const qsMsg = qs.querySelector('.qs-msg');
+  let qState = null;
+  let qTiles = [];
+  let qFocus = 0;
+
+  const qsItems = () => [...qsRow.querySelectorAll('.qs-tile'), qsHome];
+  const focusQs = (idx) => {
+    const items = qsItems();
+    if (!items.length) return;
+    qFocus = Math.max(0, Math.min(idx, items.length - 1));
+    items[qFocus].focus();
+  };
+
+  const renderQuick = (st) => {
+    qState = st;
+    const all = st?.tiles || [];
+    qTiles = all.filter((tile) => tile.id !== st?.current);
+    swBtn.hidden = qTiles.length === 0;
+    const kbd = swBtn.querySelector('kbd');
+    if (kbd && st?.key) kbd.textContent = st.key;
+
+    const curTile = all.find((tile) => tile.id === st?.current);
+    if (curTile) {
+      qsSub.textContent = `Now watching · ${curTile.name}`;
+      qsSub.hidden = false;
+    } else {
+      qsSub.hidden = true;
+    }
+
+    qsRow.innerHTML = '';
+    for (const tile of qTiles) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'qs-tile';
+      b.style.background = tile.fill || '#1B1F26';
+      b.style.color = tile.ink || '#E8EAED';
+      let svgOk = false;
+      if (tile.logo_svg) {
+        try {
+          const doc = new DOMParser().parseFromString(tile.logo_svg, 'image/svg+xml');
+          if (!doc.querySelector('parsererror') && doc.documentElement?.tagName.toLowerCase() === 'svg') {
+            const wrap = document.createElement('div');
+            wrap.className = 'qs-logo';
+            wrap.appendChild(document.importNode(doc.documentElement, true));
+            b.appendChild(wrap);
+            svgOk = true;
+          }
+        } catch {}
+      }
+      const nm = document.createElement('div');
+      nm.className = svgOk ? 'qs-name' : 'qs-name big';
+      nm.textContent = tile.name;
+      nm.style.color = tile.ink || '#E8EAED';
+      b.appendChild(nm);
+      b.addEventListener('click', () => chooseQuick(tile));
+      qsRow.appendChild(b);
+    }
+  };
+
+  const chooseQuick = (tile) => {
+    document.querySelectorAll('video').forEach((v) => v.pause());
+    qs.classList.add('busy');
+    qsMsg.textContent = `Opening ${tile.name}…`;
+    qsMsg.hidden = false;
+    chrome.runtime.sendMessage({ t: 'quick', id: tile.id });
+  };
+
+  const closeQuick = () => {
+    qs.hidden = true;
+    qs.classList.remove('busy');
+    qsMsg.hidden = true;
+  };
+
+  const openQuick = () => {
+    if (!card.hidden || !acard.hidden) return;
+    chrome.runtime.sendMessage({ t: 'quick?' }, (st) => {
+      if (st) renderQuick(st);
+      if (!qTiles.length) return;
+      qs.classList.remove('busy');
+      qsMsg.hidden = true;
+      qs.hidden = false;
+      focusQs(0);
+    });
+  };
+
+  swBtn.addEventListener('click', openQuick);
+  qsHome.addEventListener('click', () => {
+    document.querySelectorAll('video').forEach((v) => v.pause());
+    chrome.runtime.sendMessage('home');
+  });
+  qs.addEventListener('click', (e) => {
+    if (e.target === qs) closeQuick();
+  });
+
+  window.addEventListener('keydown', (e) => {
+    const keyName = qState?.key || 'F9';
+    if (qs.hidden) {
+      if (e.key === keyName && card.hidden && acard.hidden && qTiles.length > 0) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        openQuick();
+      }
+      return;
+    }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const items = qsItems();
+    const nTiles = qTiles.length;
+    if (e.key === 'ArrowLeft') {
+      focusQs((qFocus - 1 + items.length) % items.length);
+    } else if (e.key === 'ArrowRight') {
+      focusQs((qFocus + 1) % items.length);
+    } else if (e.key === 'ArrowDown') {
+      if (qFocus < nTiles) focusQs(nTiles);
+    } else if (e.key === 'ArrowUp') {
+      if (qFocus >= nTiles && nTiles > 0) focusQs(0);
+    } else if (e.key === 'Enter') {
+      items[qFocus]?.click();
+    } else if (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'BrowserBack') {
+      closeQuick();
+    }
+  }, true);
+
+  chrome.runtime.sendMessage({ t: 'quick?' }, (st) => {
+    if (st) renderQuick(st);
+  });
 })();
