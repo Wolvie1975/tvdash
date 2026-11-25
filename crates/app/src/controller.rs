@@ -1136,6 +1136,7 @@ impl Controller {
                 }
                 self.pending_next_ep = None;
             }
+            Command::WeatherTakeover(_) => {}
         }
     }
 

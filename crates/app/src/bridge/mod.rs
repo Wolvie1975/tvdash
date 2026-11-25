@@ -588,6 +588,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             status::on_weather(s, laptop, weather);
             crate::intro::mark_data_ready(laptop);
         }
+        AppEvent::WeatherAlerts(_) => {}
         AppEvent::Places { query, result } => status::on_places(s, laptop, &query, result),
         AppEvent::Location { name, timezone } => status::on_location(s, laptop, name, &timezone),
         AppEvent::Tmdb(status) => accounts::on_tmdb(s, laptop, status),

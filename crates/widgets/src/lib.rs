@@ -1,5 +1,6 @@
-//! Header widgets: weather (Open-Meteo), polled on its own tokio task.
+//! Header widgets: weather (Open-Meteo) and NWS active alerts, polled on their own tokio tasks.
 
+pub mod nws;     // every 2 min (1 min while a takeover warning is active)
 pub mod weather; // every 10 min
 
 use thiserror::Error;
@@ -27,11 +28,15 @@ use tvdash_core::{AppEvent, Config, config::GeneralConfig, events::Service};
 #[derive(Debug, Clone)]
 pub struct Endpoints {
     pub weather: String,
+    pub nws: String,
 }
 
 impl Default for Endpoints {
     fn default() -> Self {
-        Self { weather: weather::DEFAULT_BASE.into() }
+        Self {
+            weather: weather::DEFAULT_BASE.into(),
+            nws: nws::DEFAULT_BASE.into(),
+        }
     }
 }
 
@@ -64,7 +69,10 @@ pub fn spawn(
     mut general: watch::Receiver<GeneralConfig>,
 ) -> Widgets {
     let mut tasks = Vec::new();
-    let _ = config; // per-widget settings come from `general`
+    let alerts_cfg = config.weather_alerts.clone();
+    let mut general_nws = general.clone();
+    let events_nws = events.clone();
+    let nws_base = endpoints.nws.clone();
 
     // Weather
     tasks.push(tokio::spawn(async move {
@@ -106,5 +114,52 @@ pub fn spawn(
             }
         }
     }));
+
+    // NWS active weather alerts
+    if alerts_cfg.enabled {
+        tasks.push(tokio::spawn(async move {
+            let http = client();
+            loop {
+                let g = general_nws.borrow_and_update().clone();
+                let wait = match weather::location(g.latitude, g.longitude) {
+                    None => {
+                        let _ = events_nws.send(AppEvent::WeatherAlerts(Vec::new()));
+                        None
+                    }
+                    Some(loc) => match nws::fetch(&http, &nws_base, loc, &alerts_cfg.contact).await {
+                        Ok(alerts) => {
+                            let has_takeover = alerts
+                                .iter()
+                                .any(|a| nws::level(&a.event, &alerts_cfg.takeover) == nws::AlertLevel::Takeover);
+                            let _ = events_nws.send(AppEvent::WeatherAlerts(alerts));
+                            Some(if has_takeover { nws::REFRESH_ACTIVE } else { nws::REFRESH })
+                        }
+                        Err(e) => {
+                            warn!(error = %e, "NWS alerts fetch failed; retrying in 5 min");
+                            let _ = events_nws.send(AppEvent::Health {
+                                service: Service::Weather,
+                                result: Err(format!("alerts: {e}")),
+                            });
+                            Some(std::time::Duration::from_secs(300))
+                        }
+                    },
+                };
+                match wait {
+                    Some(d) => {
+                        tokio::select! {
+                            _ = tokio::time::sleep(d) => {}
+                            changed = general_nws.changed() => if changed.is_err() { return },
+                        }
+                    }
+                    None => {
+                        if general_nws.changed().await.is_err() {
+                            return;
+                        }
+                    }
+                }
+            }
+        }));
+    }
+
     Widgets { tasks }
 }

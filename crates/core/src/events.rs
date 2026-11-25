@@ -223,6 +223,41 @@ pub enum AppEvent {
     QuickSwitch(Vec<String>),
     /// Plex episode reached its credits marker; show Up Next with countdown.
     NextEpisodeAtCredits(MediaItem),
+    /// Active NWS severe-weather alerts for the saved location.
+    WeatherAlerts(Vec<NwsAlert>),
+}
+
+/// Active National Weather Service alert (`api.weather.gov`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NwsAlert {
+    pub id: String,
+    pub event: String,
+    pub headline: Option<String>,
+    pub area: String,
+    pub severity: String,
+    pub effective: Option<DateTime<Utc>>,
+    pub expires: Option<DateTime<Utc>>,
+    pub ends: Option<DateTime<Utc>>,
+    pub instruction: Option<String>,
+    pub description: Option<String>,
+    pub message_type: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AlertLevel {
+    Takeover,
+    Card,
+    Advisory,
+}
+
+pub fn nws_alert_level(event: &str, takeover: &[String]) -> AlertLevel {
+    if takeover.iter().any(|t| t.eq_ignore_ascii_case(event)) {
+        AlertLevel::Takeover
+    } else if event.ends_with("Warning") || event.ends_with("Watch") {
+        AlertLevel::Card
+    } else {
+        AlertLevel::Advisory
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -557,4 +592,6 @@ pub enum Command {
     PlayNextNow,
     /// Up Next at credits: keep watching the credits; ask again at end of file.
     WatchCredits,
+    /// Weather takeover opened (`true`) or dismissed (`false`).
+    WeatherTakeover(bool),
 }
