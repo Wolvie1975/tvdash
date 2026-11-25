@@ -16,6 +16,7 @@ import { V3Sports } from "events.slint";
 import { V3Settings } from "settings.slint";
 import { V3PlayerHud } from "player_hud.slint";
 import { TvDashboardPicker } from "../tv/dashboard_picker.slint";
+import { QuickSwitchPicker } from "../shared/quick_switch_picker.slint";
 import { Theme } from "../theme.slint";
 import { V3Ambient } from "ambient.slint";
 import { Intro, IntroStage } from "../shared/intro.slint";
@@ -100,14 +101,15 @@ export component V3Shell inherits Rectangle {
     }
 
     // ── Blades Shell (hidden while full-screen video is active) ──────────────
-    if !(TvUi.video-on && TvUi.video-full) && TvUi.screen == "dashboard_picker": Rectangle {
+    if !(TvUi.video-on && TvUi.video-full) && (TvUi.screen == "dashboard_picker" || TvUi.screen == "quick_switch_picker"): Rectangle {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         width: 1920px * TvUi.u;
         height: 1080px * TvUi.u;
         background: Theme.bg;
 
-        TvDashboardPicker { width: 100%; height: 100%; }
+        if TvUi.screen == "dashboard_picker": TvDashboardPicker { width: 100%; height: 100%; }
+        if TvUi.screen == "quick_switch_picker": QuickSwitchPicker { width: parent.width; height: parent.height; }
 
         Rectangle {
             x: 96px * TvUi.u;
@@ -132,7 +134,7 @@ export component V3Shell inherits Rectangle {
         }
     }
 
-    if !(TvUi.video-on && TvUi.video-full) && TvUi.screen != "dashboard_picker": Rectangle {
+    if !(TvUi.video-on && TvUi.video-full) && TvUi.screen != "dashboard_picker" && TvUi.screen != "quick_switch_picker": Rectangle {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         width: 1920px * TvUi.u;

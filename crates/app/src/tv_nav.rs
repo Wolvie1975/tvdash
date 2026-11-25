@@ -53,6 +53,7 @@ fn page_name(page: &Page) -> &'static str {
         Page::Search => "search",
         Page::Settings => "settings",
         Page::DashboardPicker => "dashboard_picker",
+        Page::QuickSwitchPicker => "quick_switch_picker",
     }
 }
 
@@ -62,6 +63,7 @@ fn hint_for(page: &Page) -> &'static str {
         Page::Apps => "OK Launch app · Back Home",
         Page::Collections => "OK Open collection · Back Home",
         Page::DashboardPicker => "OK Switch · ‹ › Pick · Back Cancel",
+        Page::QuickSwitchPicker => "OK Add/remove · Back Done",
         _ => "OK Select · Back Return",
     }
 }
@@ -267,6 +269,16 @@ pub fn pop_picker(laptop: &LaptopWindow) {
         if matches!(s.shell.current(), Page::DashboardPicker) {
             s.shell.back();
         }
+    });
+    sync(laptop);
+}
+
+pub fn open_quick_switch_picker(laptop: &LaptopWindow) {
+    STATE.with_borrow_mut(|s| {
+        if !matches!(s.shell.current(), Page::QuickSwitchPicker) {
+            s.shell.push(Page::QuickSwitchPicker);
+        }
+        s.shell.focused_tile = 0;
     });
     sync(laptop);
 }
@@ -498,6 +510,7 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
+        Page::QuickSwitchPicker => Vec::new(),
         Page::Settings => (0..7)
             .map(|i| Rect { x: 110.0, y: 196.0 + i as f32 * 88.0, w: 380.0, h: 80.0 })
             .collect(),
@@ -604,6 +617,7 @@ fn ps5_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
+        Page::QuickSwitchPicker => Vec::new(),
         Page::Settings => (0..6)
             .map(|i| Rect {
                 x: 540.0,
@@ -924,6 +938,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
+        Page::QuickSwitchPicker => Vec::new(),
         Page::Settings => {
             let ox = 364.0;
             let oy = 24.0;
@@ -1005,6 +1020,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                     }
                     rects.push(Rect { x: ox + 1168.0, y: oy + 622.0, w: 392.0, h: 56.0 }); // 19: Startup animation
                     rects.push(Rect { x: ox + 1168.0, y: oy + 690.0, w: 392.0, h: 56.0 }); // 20: Preview startup animation
+                    rects.push(Rect { x: ox + 1168.0, y: oy + 418.0, w: 392.0, h: 152.0 }); // 21: Quick switch
                 }
             }
             rects
@@ -1026,6 +1042,22 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 Rect { x: card_x + 256.0, y: btn_y, w: 140.0, h: 56.0 },
             ]
         };
+    }
+    if matches!(page, Page::QuickSwitchPicker) {
+        let n = laptop.global::<crate::QuickSwitch>().get_choices().row_count();
+        let mut rects = Vec::with_capacity(1 + n);
+        rects.push(Rect { x: 96.0, y: 316.0, w: 1728.0, h: 92.0 });
+        for i in 0..n {
+            let col = (i % 5) as f32;
+            let row = (i / 5) as f32;
+            rects.push(Rect {
+                x: 96.0 + col * 349.0,
+                y: 440.0 + row * 204.0,
+                w: 332.0,
+                h: 186.0,
+            });
+        }
+        return rects;
     }
     let ui = laptop.global::<Display>().get_dashboard_ui();
     if ui == "blades" {
@@ -1335,6 +1367,7 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
+        Page::QuickSwitchPicker => Vec::new(),
         Page::Settings => {
             // 0..=6: SubTabs (Display, Accounts, Sites, Sports, Server, Diagnostics, What's new)
             let mut rects = vec![
@@ -1400,6 +1433,7 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                     }
                     rects.push(Rect { x: 960.0, y: 656.0, w: 416.0, h: 220.0 }); // 19: Startup animation
                     rects.push(Rect { x: 1392.0, y: 656.0, w: 416.0, h: 220.0 }); // 20: Preview startup animation
+                    rects.push(Rect { x: 96.0, y: 892.0, w: 416.0, h: 112.0 }); // 21: Quick switch
                 }
             }
             rects
@@ -1832,6 +1866,16 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 disp.invoke_choose_dashboard(ch.id);
             }
         }
+        Page::QuickSwitchPicker => {
+            let qs = laptop.global::<crate::QuickSwitch>();
+            if idx == 0 {
+                qs.invoke_set_automatic(!qs.get_automatic());
+            } else if !qs.get_automatic() {
+                if let Some(ch) = qs.get_choices().row_data(idx - 1) {
+                    qs.invoke_toggle(ch.id);
+                }
+            }
+        }
         Page::Settings => {
             if idx < 7 {
                 let next_tab = match idx {
@@ -1972,6 +2016,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                             intro.invoke_set_enabled(!intro.get_enabled());
                         }
                         13 => laptop.global::<crate::Intro>().invoke_preview(),
+                        14 => laptop.global::<crate::QuickSwitch>().invoke_open_picker(),
                         _ => {}
                     }
                 }

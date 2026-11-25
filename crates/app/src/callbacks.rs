@@ -488,6 +488,35 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         }
     });
 
+    {
+        let weak_qs = laptop.as_weak();
+        let s_auto = send.clone();
+        let s_tog = send.clone();
+        let qs = laptop.global::<crate::QuickSwitch>();
+        qs.on_open_picker(move || {
+            if let Some(l) = weak_qs.upgrade() {
+                crate::tv_nav::open_quick_switch_picker(&l);
+            }
+        });
+        qs.on_set_automatic(move |auto| {
+            let next = if auto {
+                Vec::new()
+            } else {
+                bridge::display::quick_switch_automatic_set()
+            };
+            s_auto(Command::SetQuickSwitch(next));
+        });
+        qs.on_toggle(move |id| {
+            let mut cur = bridge::display::quick_switch_custom();
+            if let Some(pos) = cur.iter().position(|x| x == id.as_str()) {
+                cur.remove(pos);
+            } else if cur.len() < crate::apps::QUICK_SWITCH_MAX {
+                cur.push(id.to_string());
+            }
+            s_tog(Command::SetQuickSwitch(cur));
+        });
+    }
+
     let s = send.clone();
     dash.on_quit(move || {
         s(Command::Quit);

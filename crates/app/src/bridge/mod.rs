@@ -187,6 +187,8 @@ pub struct UiState {
     orbit_browse_cards: Rc<VecModel<BrowseItem>>,
     account_rows: Rc<VecModel<AccountRow>>,
     site_rows: Rc<VecModel<SiteRow>>,
+    quick_switch_custom: Vec<String>,
+    quick_switch_choices: Rc<VecModel<crate::QuickSwitchChoice>>,
     toast_timer: Option<Timer>,
     sports_alerts: alerts::SportsAlertsUi,
 }
@@ -377,6 +379,10 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         let acc = laptop.global::<Accounts>();
         acc.set_accounts(ModelRc::from(s.account_rows.clone()));
         acc.set_sites(ModelRc::from(s.site_rows.clone()));
+        laptop
+            .global::<crate::QuickSwitch>()
+            .set_choices(ModelRc::from(s.quick_switch_choices.clone()));
+        display::refresh_quick_switch(s, laptop);
         let d = laptop.global::<Display>();
         d.set_layout_setting(c.layout_setting.as_str().into());
         display::refresh_dashboard_choices(laptop, c.dashboard_ui);
@@ -824,6 +830,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             s.sites = sites;
             home::refresh_tiles(s, laptop);
             accounts::refresh(s, laptop);
+            display::refresh_quick_switch(s, laptop);
         }
         AppEvent::Streaming(map) => {
             s.streaming = map;
@@ -832,8 +839,12 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::RecentServices(recent) => {
             s.recent = recent;
             home::refresh_tiles(s, laptop);
+            display::refresh_quick_switch(s, laptop);
         }
-        AppEvent::QuickSwitch(_) => {}
+        AppEvent::QuickSwitch(custom) => {
+            s.quick_switch_custom = custom;
+            display::refresh_quick_switch(s, laptop);
+        }
         AppEvent::ShowSetup => {
             laptop.global::<Setup>().set_step(0);
             laptop.global::<Nav>().set_page("setup".into());

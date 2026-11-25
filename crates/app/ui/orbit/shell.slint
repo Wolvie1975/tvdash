@@ -14,6 +14,7 @@ import { OrbitSearch } from "search.slint";
 import { OrbitSettings } from "settings.slint";
 import { TvPlayerHud } from "../tv/player_hud.slint";
 import { TvDashboardPicker } from "../tv/dashboard_picker.slint";
+import { QuickSwitchPicker } from "../shared/quick_switch_picker.slint";
 import { TvAmbient } from "../tv/ambient.slint";
 
 // Orbit Dashboard shell (§1.3).
@@ -95,6 +96,7 @@ export component OrbitShell inherits Rectangle {
     if TvUi.screen == "search": OrbitSearch { width: parent.width; height: parent.height; }
     if TvUi.screen == "settings": OrbitSettings { width: parent.width; height: parent.height; }
     if TvUi.screen == "dashboard_picker": TvDashboardPicker { width: parent.width; height: parent.height; }
+    if TvUi.screen == "quick_switch_picker": QuickSwitchPicker { width: parent.width; height: parent.height; }
 
     // 3. Centred pill nav (y 40, padding 6, gap 6, glass capsule)
     IntroRise {

@@ -13,6 +13,7 @@ import { TvCollection } from "collection.slint";
 import { TvSearch } from "search.slint";
 import { TvSettings } from "settings.slint";
 import { TvDashboardPicker } from "dashboard_picker.slint";
+import { QuickSwitchPicker } from "../shared/quick_switch_picker.slint";
 import { TvSports } from "events.slint";
 import { TvPlayerHud } from "player_hud.slint";
 import { TvAmbient } from "ambient.slint";
@@ -127,9 +128,10 @@ export component TvShell inherits Rectangle {
         if TvUi.screen == "sports": TvSports { }
         if TvUi.screen == "settings": TvSettings { }
         if TvUi.screen == "dashboard_picker": TvDashboardPicker { }
+        if TvUi.screen == "quick_switch_picker": QuickSwitchPicker { width: parent.width; height: parent.height; }
 
         // Top chrome: optional Back pill + TabBar left, compact clock + weather top-right
-        if TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search" || TvUi.screen == "dashboard_picker": Rectangle {
+        if TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search" || TvUi.screen == "dashboard_picker" || TvUi.screen == "quick_switch_picker": Rectangle {
             x: 96px * TvUi.u;
             y: 52px * TvUi.u;
             width: back-lbl.preferred-width + 32px * TvUi.u;

@@ -48,3 +48,70 @@ pub fn refresh_dashboard_choices(laptop: &LaptopWindow, current: DashboardUi) {
     d.set_dashboard_ui_label(dashboard_ui_label(current).into());
     d.set_dashboard_choices(ModelRc::new(VecModel::from(dashboard_choices(current))));
 }
+
+pub(super) fn refresh_quick_switch(s: &super::UiState, laptop: &LaptopWindow) {
+    let all: Vec<String> = s
+        .sites
+        .iter()
+        .map(|site| crate::brand::service_id(&site.name))
+        .collect();
+    let recent: Vec<String> = s.recent.iter().map(|r| r.id.clone()).collect();
+    let set = crate::apps::quick_switch_set(&s.quick_switch_custom, &recent, &all);
+    let automatic = s.quick_switch_custom.is_empty();
+
+    let mut choices = Vec::new();
+    for site in &s.sites {
+        let id = crate::brand::service_id(&site.name);
+        if crate::apps::QUICK_SWITCH_EXCLUDED.contains(&id.as_str()) {
+            continue;
+        }
+        let slot = set
+            .iter()
+            .position(|x| x == &id)
+            .map(|i| (i + 1) as i32)
+            .unwrap_or(0);
+        let b = crate::brand::brand_for_with_logo(&id, &site.name, s.logos.get(&site.name).cloned());
+        choices.push(crate::QuickSwitchChoice {
+            id: id.into(),
+            name: site.name.as_str().into(),
+            slot,
+            brand: b,
+        });
+    }
+    s.quick_switch_choices.set_vec(choices);
+
+    let names: Vec<&str> = set
+        .iter()
+        .filter_map(|id| {
+            s.sites
+                .iter()
+                .find(|site| crate::brand::service_id(&site.name) == *id)
+                .map(|site| site.name.as_str())
+        })
+        .collect();
+    let prefix = if automatic { "Automatic" } else { "Custom" };
+    let summary = if names.is_empty() {
+        prefix.to_string()
+    } else {
+        format!("{prefix} · {}", names.join(", "))
+    };
+    let qs = laptop.global::<crate::QuickSwitch>();
+    qs.set_automatic(automatic);
+    qs.set_summary(summary.into());
+}
+
+pub fn quick_switch_automatic_set() -> Vec<String> {
+    super::STATE.with_borrow(|s| {
+        let all: Vec<String> = s
+            .sites
+            .iter()
+            .map(|site| crate::brand::service_id(&site.name))
+            .collect();
+        let recent: Vec<String> = s.recent.iter().map(|r| r.id.clone()).collect();
+        crate::apps::quick_switch_set(&[], &recent, &all)
+    })
+}
+
+pub fn quick_switch_custom() -> Vec<String> {
+    super::STATE.with_borrow(|s| s.quick_switch_custom.clone())
+}

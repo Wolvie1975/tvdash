@@ -2,6 +2,7 @@
 // `laptop.global::<Dash>()` etc.; pages read them directly.
 
 import { AccountPrompt, PosterCardData, SessionRow } from "components.slint";
+import { Brand } from "shared/brand.slint";
 import { UiTheme } from "theme.slint";
 
 // Which laptop page is showing.
@@ -656,6 +657,22 @@ export struct DashboardChoice {
     sub: string,
     description: string,
     current: bool,
+}
+
+export struct QuickSwitchChoice {
+    id: string,
+    name: string,
+    slot: int,        // 1-4 in the custom set, 0 = not in it
+    brand: Brand,
+}
+
+export global QuickSwitch {
+    in property <bool> automatic: true;
+    in property <string> summary;              // "Automatic · YouTube TV, Netflix, …" or "Custom · …"
+    in property <[QuickSwitchChoice]> choices;
+    callback set-automatic(bool);
+    callback toggle(string /* id */);          // add at the end of the set, or remove (custom mode)
+    callback open-picker();
 }
 
 // Settings › Display.

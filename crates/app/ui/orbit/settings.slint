@@ -1,4 +1,4 @@
-import { Accounts, Dash, Diagnostics, Display, Server, SiteEditor, TvUi } from "../state.slint";
+import { Accounts, Dash, Diagnostics, Display, QuickSwitch, Server, SiteEditor, TvUi } from "../state.slint";
 import { Intro } from "../shared/intro.slint";
 import { OrbitTheme } from "theme.slint";
 import { OrbitPill, OrbitRow, OrbitToggle } from "controls.slint";
@@ -148,7 +148,7 @@ export component OrbitSettings inherits Rectangle {
         y: 170px * TvUi.u;
         width: 1274px * TvUi.u;
         height: parent.height - 190px * TvUi.u;
-        content-height: 620px * TvUi.u;
+        content-height: 710px * TvUi.u;
 
         // ── Display (§10.1) ──────────────────────────────────────────────────
         if TvUi.settings-tab == "display" || TvUi.settings-tab == "": VerticalLayout {
@@ -172,6 +172,14 @@ export component OrbitSettings inherits Rectangle {
                 activated => { Display.open-dashboard-picker(); }
                 Text { x: 28px * TvUi.u; text: "Dashboard UI"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
                 OrbitPill { x: parent.width - self.width - 20px * TvUi.u; y: 14px * TvUi.u; label: Display.dashboard-ui-label + " ›"; activated => { Display.open-dashboard-picker(); } }
+            }
+
+            OrbitRow {
+                width: parent.width;
+                row-height: 74px * TvUi.u;
+                activated => { QuickSwitch.open-picker(); }
+                Text { x: 28px * TvUi.u; text: "Quick switch"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
+                OrbitPill { x: parent.width - self.width - 20px * TvUi.u; y: 14px * TvUi.u; label: QuickSwitch.summary + " ›"; activated => { QuickSwitch.open-picker(); } }
             }
 
             OrbitRow {

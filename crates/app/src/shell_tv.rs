@@ -71,6 +71,7 @@ pub enum Page {
     Search,
     Settings,
     DashboardPicker,
+    QuickSwitchPicker,
 }
 
 #[derive(Debug, Clone)]
