@@ -227,6 +227,7 @@ export struct CollectionItemData {
     rating-key: string,
     num: string,
     title: string,
+    year: string,
     status: string,
     watched: bool,
     can-resume: bool,
@@ -268,6 +269,7 @@ export global Library {
     callback set-media-tab(string);
     callback set-sort(string);
     callback set-popular-days(int);
+    callback set-browse-all(bool);
     callback set-browse-letter(string);
     callback open-show(string);
     callback open-collection(string);

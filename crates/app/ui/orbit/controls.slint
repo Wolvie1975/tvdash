@@ -1,4 +1,4 @@
-import { TvUi } from "../state.slint";
+import { Dash, TvUi } from "../state.slint";
 import { OrbitTheme } from "theme.slint";
 import { OrbitRing } from "ring.slint";
 
@@ -233,8 +233,6 @@ export component OrbitRow inherits Rectangle {
         animate background { duration: 120ms; }
     }
 
-    @children
-
     ta := TouchArea {
         mouse-cursor: pointer;
         clicked => { root.activated(); }
@@ -244,6 +242,8 @@ export component OrbitRow inherits Rectangle {
             }
         }
     }
+
+    @children
 }
 
 // Filter / section bubble (§1.4): circle with count/icon + segmented ring + label to the right.
@@ -355,5 +355,28 @@ export component OrbitBubble inherits Rectangle {
                 root.hovered();
             }
         }
+    }
+}
+
+export component ClockBadgeContent inherits VerticalLayout {
+    width: 100%;
+    height: 100%;
+    alignment: center;
+    spacing: 4px * TvUi.u;
+
+    Text {
+        text: Dash.clock-hh + ":" + Dash.clock-mm;
+        font-family: OrbitTheme.font;
+        font-size: 34px * TvUi.u;
+        font-weight: 300;
+        color: OrbitTheme.text;
+        horizontal-alignment: center;
+    }
+    Text {
+        text: (Dash.clock-ampm != "" ? Dash.clock-ampm + " · " : "") + Dash.weather-temp;
+        font-family: OrbitTheme.font;
+        font-size: 13px * TvUi.u;
+        color: OrbitTheme.sub;
+        horizontal-alignment: center;
     }
 }

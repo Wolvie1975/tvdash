@@ -365,10 +365,7 @@ pub fn sync(laptop: &LaptopWindow) {
         }
     }
     if tv.get_screen() == "collections" {
-        let lib = laptop.global::<Library>();
-        if lib.get_collections().row_count() == 0 && lib.get_media_tab() != "movies" {
-            lib.invoke_set_media_tab("movies".into());
-        }
+        crate::bridge::ensure_collections_loaded(laptop);
     }
 }
 
@@ -494,7 +491,7 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
-        Page::Settings => (0..8)
+        Page::Settings => (0..7)
             .map(|i| Rect { x: 110.0, y: 196.0 + i as f32 * 88.0, w: 380.0, h: 80.0 })
             .collect(),
     }
@@ -1664,18 +1661,18 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 let is_orbit = laptop.global::<Display>().get_dashboard_ui() == "orbit";
                 match idx {
                     0 => {
-                        lib.set_browse_all(false);
+                        lib.invoke_set_browse_all(false);
                         lib.invoke_set_media_tab(if is_orbit { "movies" } else { "tv" }.into());
                         STATE.with_borrow_mut(|s| s.shell.focused_tile = 4);
                         sync(laptop);
                     }
                     1 => {
-                        lib.set_browse_all(false);
+                        lib.invoke_set_browse_all(false);
                         lib.invoke_set_media_tab(if is_orbit { "tv" } else { "movies" }.into());
                         STATE.with_borrow_mut(|s| s.shell.focused_tile = 4);
                         sync(laptop);
                     }
-                    2 => lib.set_browse_all(!lib.get_browse_all()),
+                    2 => lib.invoke_set_browse_all(!lib.get_browse_all()),
                     _ => ll.invoke_open_watching_now(),
                 }
                 return;

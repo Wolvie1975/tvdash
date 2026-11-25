@@ -1,4 +1,4 @@
-import { Accounts, Dash, Diagnostics, Display, Server, SiteEditor, SportsAlertsSettings, TvUi } from "../state.slint";
+import { Accounts, Dash, Diagnostics, Display, Server, SiteEditor, TvUi } from "../state.slint";
 import { Intro } from "../shared/intro.slint";
 import { OrbitTheme } from "theme.slint";
 import { OrbitPill, OrbitRow, OrbitToggle } from "controls.slint";
@@ -33,7 +33,6 @@ export component OrbitSettings inherits Rectangle {
             { id: "display", icon: "◫", name: "Display" },
             { id: "accounts", icon: "☺", name: "Accounts" },
             { id: "sites", icon: "◈", name: "Sites" },
-            { id: "sports", icon: "★", name: "Sports" },
             { id: "server", icon: "⛁", name: "Server" },
             { id: "diagnostics", icon: "⌖", name: "Diagnostics" },
             { id: "changelog", icon: "✦", name: "What's new" },
@@ -215,7 +214,7 @@ export component OrbitSettings inherits Rectangle {
             }
         }
 
-        // ── Accounts / Sites / Sports / Server / Diagnostics / What's new ───
+        // ── Accounts / Sites / Server / Diagnostics / What's new ────────────
         if TvUi.settings-tab == "accounts": VerticalLayout {
             x: 12px * TvUi.u;
             y: 10px * TvUi.u;
@@ -225,8 +224,119 @@ export component OrbitSettings inherits Rectangle {
             Text { text: "Accounts"; font-family: OrbitTheme.font; font-size: 44px * TvUi.u; font-weight: 700; color: OrbitTheme.text; }
             for acc in Accounts.accounts: OrbitRow {
                 width: parent.width;
-                row-height: 74px * TvUi.u;
-                Text { x: 28px * TvUi.u; text: acc.name + " · " + acc.detail; font-family: OrbitTheme.font; font-size: 20px * TvUi.u; color: OrbitTheme.text; vertical-alignment: center; }
+                row-height: 82px * TvUi.u;
+                activated => {
+                    if acc.primary-id == "edit" {
+                        Accounts.edit-error = "";
+                        Accounts.editing = acc.id;
+                    } else if acc.primary-id != "" {
+                        Accounts.action(acc.id, acc.primary-id);
+                    }
+                }
+                HorizontalLayout {
+                    x: 28px * TvUi.u;
+                    width: parent.width - 48px * TvUi.u;
+                    height: parent.height;
+                    spacing: 12px * TvUi.u;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: center;
+                        spacing: 2px * TvUi.u;
+                        Text {
+                            text: acc.name + (acc.status != "" ? " · " + acc.status : "");
+                            font-family: OrbitTheme.font;
+                            font-size: 20px * TvUi.u;
+                            font-weight: 600;
+                            color: OrbitTheme.text;
+                            overflow: elide;
+                        }
+                        if acc.detail != "": Text {
+                            text: acc.detail;
+                            font-family: OrbitTheme.font;
+                            font-size: 14px * TvUi.u;
+                            color: OrbitTheme.sub;
+                            overflow: elide;
+                        }
+                    }
+                    if acc.primary != "": VerticalLayout {
+                        alignment: center;
+                        OrbitPill {
+                            label: acc.primary;
+                            primary: true;
+                            activated => {
+                                if acc.primary-id == "edit" {
+                                    Accounts.edit-error = "";
+                                    Accounts.editing = acc.id;
+                                } else {
+                                    Accounts.action(acc.id, acc.primary-id);
+                                }
+                            }
+                        }
+                    }
+                    if acc.secondary != "": VerticalLayout {
+                        alignment: center;
+                        OrbitPill {
+                            label: acc.secondary;
+                            activated => {
+                                if acc.secondary-id == "edit" {
+                                    Accounts.edit-error = "";
+                                    Accounts.editing = acc.id;
+                                } else {
+                                    Accounts.action(acc.id, acc.secondary-id);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if Accounts.editing != "": Rectangle {
+                width: parent.width;
+                height: 118px * TvUi.u;
+                border-radius: 24px * TvUi.u;
+                background: OrbitTheme.glass;
+                border-width: 2px;
+                border-color: OrbitTheme.accent;
+
+                VerticalLayout {
+                    padding: 16px * TvUi.u;
+                    spacing: 8px * TvUi.u;
+                    HorizontalLayout {
+                        spacing: 12px * TvUi.u;
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            height: 46px * TvUi.u;
+                            border-radius: 23px * TvUi.u;
+                            background: OrbitTheme.bg;
+                            border-width: 1px;
+                            border-color: OrbitTheme.glass-border;
+                            acc-input := TextInput {
+                                x: 18px * TvUi.u;
+                                width: parent.width - 36px * TvUi.u;
+                                height: parent.height;
+                                font-family: OrbitTheme.font;
+                                font-size: 18px * TvUi.u;
+                                color: OrbitTheme.text;
+                                vertical-alignment: center;
+                                accepted => { Accounts.submit(Accounts.editing, self.text); }
+                            }
+                        }
+                        OrbitPill {
+                            label: "Save";
+                            primary: true;
+                            activated => { Accounts.submit(Accounts.editing, acc-input.text); }
+                        }
+                        OrbitPill {
+                            label: "Cancel";
+                            activated => { Accounts.editing = ""; }
+                        }
+                    }
+                    if Accounts.edit-error != "": Text {
+                        text: Accounts.edit-error;
+                        font-family: OrbitTheme.font;
+                        font-size: 14px * TvUi.u;
+                        color: OrbitTheme.live;
+                    }
+                }
             }
         }
 
@@ -243,22 +353,6 @@ export component OrbitSettings inherits Rectangle {
                 activated => { SiteEditor.index = -1; SiteEditor.open = true; }
                 Text { x: 28px * TvUi.u; text: "Add streaming site"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
                 OrbitPill { x: parent.width - self.width - 20px * TvUi.u; y: 14px * TvUi.u; label: "+ Add"; primary: true; activated => { SiteEditor.index = -1; SiteEditor.open = true; } }
-            }
-        }
-
-        if TvUi.settings-tab == "sports": VerticalLayout {
-            x: 12px * TvUi.u;
-            y: 10px * TvUi.u;
-            width: 1250px * TvUi.u;
-            alignment: start;
-            spacing: 14px * TvUi.u;
-            Text { text: "Sports alerts"; font-family: OrbitTheme.font; font-size: 44px * TvUi.u; font-weight: 700; color: OrbitTheme.text; }
-            OrbitRow {
-                width: parent.width;
-                row-height: 74px * TvUi.u;
-                activated => { SportsAlertsSettings.set-final-on(!SportsAlertsSettings.final-on); }
-                Text { x: 28px * TvUi.u; text: "Final score alerts"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
-                OrbitToggle { x: parent.width - self.width - 20px * TvUi.u; y: 12px * TvUi.u; checked: SportsAlertsSettings.final-on; toggled => { SportsAlertsSettings.set-final-on(!SportsAlertsSettings.final-on); } }
             }
         }
 

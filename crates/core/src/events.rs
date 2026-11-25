@@ -178,6 +178,17 @@ pub enum AppEvent {
     },
     /// Library C smart shelves payload.
     LibraryShelves(crate::models::LibraryShelves),
+    /// Browse all items loaded for one letter (or the rotating 10 for All).
+    BrowseItems {
+        request_id: u64,
+        is_tv: bool,
+        letter: String,
+        sort: crate::models::LibrarySort,
+        genre: Option<String>,
+        items: Vec<MediaItem>,
+        total: u32,
+        letter_counts: Vec<(String, u32)>,
+    },
     /// Show page data.
     ShowDetail(Result<crate::models::ShowDetail, String>),
     /// Episodes for one season on the Show page.
@@ -465,6 +476,14 @@ pub enum Command {
         is_tv: bool,
         sort: crate::models::LibrarySort,
         popular_days: u32,
+    },
+    /// Load Browse all items: rotating 10 for `letter == ""`, or all items for a letter.
+    BrowseLetter {
+        request_id: u64,
+        is_tv: bool,
+        letter: String,
+        sort: crate::models::LibrarySort,
+        genre: Option<String>,
     },
     /// Persist Browse all sort per library (`tv` vs `movies`).
     SetBrowseSort {

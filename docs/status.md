@@ -1,20 +1,20 @@
 # tvdash: where things stand
 
-Last updated 2026-11-24 (`v0.1.74` bumped on `feature/orbit-library-landing`, ready for RPM build). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-25 (`v0.1.75` bumped on `feature/orbit-polish`, ready for RPM build). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-- **`v0.1.74` (`feature/orbit-library-landing`) — tests passed, version bumped, ready for RPM build:**
-  - **Done since `v0.1.73`:**
-    - **Orbit Library landing (`orbit/library.slint`, `orbit/shell.slint`, `state.slint`, `tv_nav.rs`):** Made **Movies** first on the left and default (`media-tab = "movies"`), restored Library landing backdrop art, and wired `LibraryLanding.focus-changed` on hover for Continue Watching and the bottom arc dial.
-    - **Sports › Competitions (`crates/events/src/lib.rs`):** Filtered out matchups whose `StartsAtUtc` is more than 4 hours in the past unless actively in progress or delayed.
-    - **Tests:** `cargo test -j 2 -p tvdash -- --test-threads=1` passed on the host.
+- **`v0.1.75` (`feature/orbit-polish`) — tests & live check passed, version bumped, ready for RPM build:**
+  - **Done since `v0.1.74`:**
+    - **Orbit Ring ripple intro (`orbit/intro_frame.rs`, `intro.rs`, `orbit/intro.slint`, `orbit/shell.slint`, `orbit/home.slint`):** Replaced the iris + clock blink with pulsing accent rings, traveller ring landing on the 144 px clock badge, and staggered `IntroRise` Home entry.
+    - **Orbit Home, Library, Collection & Settings polish:** Restored Home Screensaver (`✦` + `TvAmbient`) alongside Sleep (`☾`), removed `All genres` and added `‹ Movies` / `‹ TV Series` back pill in Browse all, fixed `ensure_collections_loaded` so Collections load directly, updated Collection detail rows (poster + release-year bubbles, removed `Hide watched`), fixed Settings `OrbitRow` Preview click, restored Accounts editing, and removed Settings › Sports.
+    - **Browse all rotating 10 & per-letter paging (`plex.rs`, `browse_rotation.rs`, `controller.rs`, `bridge/browse.rs`, `bridge/library.rs`):** Replaced the 1,000-item section load with repeat-free shuffled 10-item rotation on All, 200-item `firstCharacter` paging per letter, weekly-cached `Start watching`, and per-visit caching.
   - **Next (on host):**
-    - Build and package `v0.1.74`:
+    - Build and package `v0.1.75`:
       - `cargo build --release -j 2`
       - `./packaging/rpm.sh`
-      - `cp dist/tvdash-0.1.74-1.x86_64.rpm releases/`
+      - `cp dist/tvdash-0.1.75-1.x86_64.rpm releases/`
 - **PS5 Dashboard UI (`v0.1.70`)** is complete on `feature/add-uis` with [tvdash-0.1.70-1.x86_64.rpm](releases/tvdash-0.1.70-1.x86_64.rpm).
 - **macOS Stage Dashboard UI (`macos`)** has a build spec in `docs/new concepts/` and is on hold for now.
 - Reference to build/upgrade an RPM on the TV machine:

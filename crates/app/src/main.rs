@@ -3,6 +3,7 @@
 mod apps;
 mod brand;
 mod bridge;
+mod browse_rotation;
 mod callbacks;
 mod clock;
 mod controller;

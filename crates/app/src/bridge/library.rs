@@ -60,7 +60,29 @@ pub(super) fn browse_sort_key(title: &str) -> (u8, String) {
         Some(c) if c.is_ascii_alphabetic() => 1,
         _ => 0,
     };
-    (group, trimmed.to_ascii_lowercase())
+    let mut normalized = String::with_capacity(trimmed.len() + 8);
+    let mut digits = String::new();
+    for ch in trimmed.chars() {
+        if ch.is_ascii_digit() {
+            digits.push(ch);
+        } else {
+            if !digits.is_empty() {
+                for _ in digits.len()..10 {
+                    normalized.push('0');
+                }
+                normalized.push_str(&digits);
+                digits.clear();
+            }
+            normalized.push(ch.to_ascii_lowercase());
+        }
+    }
+    if !digits.is_empty() {
+        for _ in digits.len()..10 {
+            normalized.push('0');
+        }
+        normalized.push_str(&digits);
+    }
+    (group, normalized)
 }
 
 pub(super) fn format_count(n: usize) -> String {
@@ -75,30 +97,40 @@ pub(super) fn format_count(n: usize) -> String {
     out.chars().rev().collect()
 }
 
-fn rebuild_browse(s: &mut UiState, laptop: &LaptopWindow) {
+pub(super) fn rebuild_browse(s: &mut UiState, laptop: &LaptopWindow) {
     let lib = laptop.global::<Library>();
     let filter = lib.get_filter();
     let letter = lib.get_browse_letter();
-    let desc = lib.get_sort() == "title_desc";
+    let sort_str = lib.get_sort();
     let movies = lib.get_media_tab() == "movies";
-    let mut items: Vec<MediaItem> = filter_items(s.lib_browse_all.clone(), &filter)
+    let mut items: Vec<MediaItem> = filter_items(s.browse_current_items.clone(), &filter)
         .into_iter()
         .filter(|i| if movies { i.kind == MediaKind::Movie } else { i.kind != MediaKind::Movie })
         .filter(|i| matches_letter(&i.title, &letter))
         .collect();
-    items.sort_by(|a, b| {
-        let ord = browse_sort_key(&a.title).cmp(&browse_sort_key(&b.title));
-        if desc && !letter.is_empty() { ord.reverse() } else { ord }
-    });
+    if letter.is_empty() {
+        items.sort_by(|a, b| browse_sort_key(&a.title).cmp(&browse_sort_key(&b.title)));
+    } else {
+        items.sort_by(|a, b| match sort_str.as_str() {
+            "title_desc" => browse_sort_key(&b.title).cmp(&browse_sort_key(&a.title)),
+            "recent" => b
+                .extra
+                .added_at
+                .unwrap_or(0)
+                .cmp(&a.extra.added_at.unwrap_or(0))
+                .then_with(|| browse_sort_key(&a.title).cmp(&browse_sort_key(&b.title))),
+            _ => browse_sort_key(&a.title).cmp(&browse_sort_key(&b.title)),
+        });
+    }
     let noun = if movies { "movies" } else { "shows" };
+    let total = s.browse_current_total.max(s.lib_total_count).max(items.len() as u32) as usize;
     let status = if letter.is_empty() {
-        let total = items.len();
         items.truncate(10);
         if total <= 10 {
             format!("{} {noun}, A–Z", format_count(total))
         } else {
             format!(
-                "First 10 of {} {noun}, A–Z · pick a letter to see the rest",
+                "10 of {} {noun}, A–Z · new picks every visit · pick a letter to see the rest",
                 format_count(total)
             )
         }
@@ -233,12 +265,86 @@ pub fn close_detail(laptop: &LaptopWindow) {
     lib.set_selected_index(-1);
 }
 
+/// Clear per-visit Browse all cache when closing Browse all or switching tabs.
+pub fn clear_browse_visit() {
+    STATE.with_borrow_mut(|s| {
+        s.browse_cache.clear();
+    });
+}
+
+/// Request Browse all items for the active UI (classic/v3/ps5 or Orbit), using
+/// the per-visit cache if already loaded.
+pub fn request_browse(laptop: &LaptopWindow) -> Option<tvdash_core::events::Command> {
+    let lib = laptop.global::<Library>();
+    let movies = lib.get_media_tab() == "movies";
+    let is_tv = !movies;
+    let is_orbit = laptop.global::<crate::Display>().get_dashboard_ui() == "orbit";
+    STATE.with_borrow_mut(|s| {
+        let (letter, sort_str, genre) = if is_orbit {
+            let idx = if movies { s.browse_letter_movies } else { s.browse_letter_tv };
+            let ch = crate::orbit::letters::LETTERS.get(idx).copied().unwrap_or("All");
+            let letter = if ch == "All" { String::new() } else { ch.to_owned() };
+            let sort = if movies {
+                s.browse_sort_movies.clone()
+            } else {
+                s.browse_sort_tv.clone()
+            };
+            (letter, sort, s.browse_genre.clone())
+        } else {
+            let letter = lib.get_browse_letter().to_string();
+            let sort = lib.get_sort().to_string();
+            (letter, sort, String::new())
+        };
+        let cache_sort = if letter.is_empty() { String::new() } else { sort_str.clone() };
+        let key = (is_tv, letter.clone(), cache_sort, genre.clone());
+        if let Some((items, total)) = s.browse_cache.get(&key).cloned() {
+            s.browse_current_items = items;
+            s.browse_current_total = total;
+            rebuild_browse(s, laptop);
+            return None;
+        }
+        s.browse_request_id = s.browse_request_id.wrapping_add(1);
+        Some(tvdash_core::events::Command::BrowseLetter {
+            request_id: s.browse_request_id,
+            is_tv,
+            letter,
+            sort: tvdash_core::models::LibrarySort::parse(&sort_str),
+            genre: (!genre.is_empty()).then_some(genre),
+        })
+    })
+}
+
+pub fn ensure_collections_loaded(laptop: &LaptopWindow) {
+    let lib = laptop.global::<Library>();
+    if lib.get_collections().row_count() > 0 {
+        return;
+    }
+    let need = STATE.with(|cell| {
+        let Ok(mut s) = cell.try_borrow_mut() else {
+            return false;
+        };
+        if !s.lib_shelves_loading {
+            s.lib_shelves_loading = true;
+            true
+        } else {
+            false
+        }
+    });
+    if need {
+        lib.invoke_set_media_tab("movies".into());
+    }
+}
+
 pub fn ensure_library_loaded(laptop: &LaptopWindow) {
     let need = STATE.with(|cell| {
         let Ok(mut s) = cell.try_borrow_mut() else {
             return false;
         };
-        if s.lib_browse_all.is_empty() && !s.lib_shelves_loading {
+        if s.lib_total_count == 0
+            && s.lib_continue.is_empty()
+            && s.lib_recent.is_empty()
+            && !s.lib_shelves_loading
+        {
             s.lib_shelves_loading = true;
             true
         } else {
@@ -270,7 +376,8 @@ pub(super) fn on_shelves(s: &mut UiState, laptop: &LaptopWindow, shelves: Librar
     s.lib_added_week = s.added_this_week_or_empty(&shelves).to_vec();
     s.lib_recently_released = shelves.recently_released;
     s.lib_watch_again = shelves.watch_again;
-    s.lib_browse_all = shelves.browse_items;
+    s.lib_start_watching = shelves.start_watching;
+    s.lib_total_count = shelves.total_count;
     s.lib_added_week_cards.set_vec(cards_for(s, &s.lib_added_week));
     s.lib_watch_again_cards.set_vec(cards_for(s, &s.lib_watch_again));
     rebuild_browse(s, laptop);
@@ -323,7 +430,9 @@ pub(super) fn on_shelves(s: &mut UiState, laptop: &LaptopWindow, shelves: Librar
             }
         })
         .collect();
-    lib.set_collections(ModelRc::new(VecModel::from(collections)));
+    if !shelves.is_tv || !shelves.collections.is_empty() {
+        lib.set_collections(ModelRc::new(VecModel::from(collections)));
+    }
     rebuild_landing(s, laptop);
 }
 
@@ -691,10 +800,17 @@ pub(super) fn rebuild_collection_items(s: &UiState, laptop: &LaptopWindow) {
                 "".into()
             };
             let poster = s.posters.peek(&(i.source, i.id.clone()));
+            let year = i
+                .extra
+                .year
+                .map(|y| y.to_string())
+                .or_else(|| i.subtitle.clone())
+                .unwrap_or_default();
             CollectionItemData {
                 rating_key: i.id.as_str().into(),
                 num: format!("#{}", idx + 1).into(),
                 title: i.title.as_str().into(),
+                year: year.into(),
                 status: status.into(),
                 watched,
                 can_resume,
@@ -955,7 +1071,7 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
                 .collect();
             (items, tiles, "CONTINUE WATCHING")
         };
-        let s2_items = start_watching(&s.lib_browse_all);
+        let s2_items = s.lib_start_watching.clone();
         let s2_tiles = ranked_tiles(s, &s2_items);
         let s3_items: Vec<MediaItem> = s.lib_recently_released.iter().take(6).cloned().collect();
         let s3_tiles = ranked_tiles(s, &s3_items);
@@ -1026,7 +1142,7 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
     } else if let Some(first) = s.lib_shelf2_items.first().cloned() {
         apply_focus_item(s, laptop, &first, false, is_tv);
     } else {
-        let total = s.lib_browse_all.len();
+        let total = s.lib_total_count as usize;
         let t = tint::card_tint(tint::DEFAULT, s.effective_theme());
         ll.set_focus(FocusInfoData {
             kicker: "LIBRARY".into(),
@@ -1227,5 +1343,9 @@ mod tests {
         assert!(matches_letter("A Quiet Place", "Q"));
         assert!(matches_letter("An Education", "E"));
         assert!(matches_letter("300", "#"));
+
+        let mut picks = ["The Zoo", "10 Things", "2 Fast", "alien", "Brave"];
+        picks.sort_by_key(|t| browse_sort_key(t));
+        assert_eq!(picks, ["2 Fast", "10 Things", "alien", "Brave", "The Zoo"]);
     }
 }

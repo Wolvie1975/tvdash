@@ -517,8 +517,14 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     let (weak, s) = (laptop.as_weak(), send.clone());
     lib.on_set_media_tab(move |tab| {
         if let Some(l) = weak.upgrade() {
+            bridge::clear_browse_visit();
             bridge::set_media_tab(&l, &tab);
             reload_shelves(&l, &s);
+            if l.global::<Library>().get_browse_all()
+                && let Some(cmd) = bridge::request_browse(&l)
+            {
+                s(cmd);
+            }
             let missing = bridge::missing_browse_posters();
             if !missing.is_empty() {
                 s(Command::FetchPosters(missing));
@@ -531,6 +537,11 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
         if let Some(l) = weak.upgrade() {
             l.global::<Library>().set_sort(sort);
             reload_shelves(&l, &s);
+            if l.global::<Library>().get_browse_all()
+                && let Some(cmd) = bridge::request_browse(&l)
+            {
+                s(cmd);
+            }
         }
     });
 
@@ -543,9 +554,26 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     });
 
     let (weak, s) = (laptop.as_weak(), send.clone());
+    lib.on_set_browse_all(move |open| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<Library>().set_browse_all(open);
+            if open {
+                if let Some(cmd) = bridge::request_browse(&l) {
+                    s(cmd);
+                }
+            } else {
+                bridge::clear_browse_visit();
+            }
+        }
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
     lib.on_set_browse_letter(move |letter| {
         if let Some(l) = weak.upgrade() {
             bridge::set_browse_letter(&l, &letter);
+            if let Some(cmd) = bridge::request_browse(&l) {
+                s(cmd);
+            }
             let missing = bridge::missing_browse_posters();
             if !missing.is_empty() {
                 s(Command::FetchPosters(missing));
@@ -608,7 +636,11 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
                 std::time::Duration::from_millis(300),
                 move || {
                     if let Some(l) = weak2.upgrade() {
-                        bridge::browse::rebuild_grid(&l);
+                        if let Some(cmd) = bridge::request_browse(&l) {
+                            s2(cmd);
+                        } else {
+                            bridge::browse::rebuild_grid(&l);
+                        }
                         let missing = bridge::browse::missing_posters();
                         if !missing.is_empty() {
                             s2(Command::FetchPosters(missing));
@@ -624,6 +656,11 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
         if let Some(l) = weak.upgrade() {
             let (is_tv, sort) = bridge::browse::cycle_sort(&l);
             s(Command::SetBrowseSort { is_tv, sort });
+            if l.global::<Browse>().get_letter() > 0
+                && let Some(cmd) = bridge::request_browse(&l)
+            {
+                s(cmd);
+            }
             let missing = bridge::browse::missing_posters();
             if !missing.is_empty() {
                 s(Command::FetchPosters(missing));
@@ -635,6 +672,9 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     br.on_pick_genre(move || {
         if let Some(l) = weak.upgrade() {
             bridge::browse::pick_genre(&l);
+            if let Some(cmd) = bridge::request_browse(&l) {
+                s(cmd);
+            }
             let missing = bridge::browse::missing_posters();
             if !missing.is_empty() {
                 s(Command::FetchPosters(missing));

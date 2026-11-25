@@ -9,6 +9,21 @@ use std::{collections::BTreeMap, fs, io, path::Path, path::PathBuf};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BrowseRotation {
+    pub total: u32,
+    pub step: u32,
+    pub offset: u32,
+    pub next_i: u32,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StartWatchingCache {
+    pub year: i32,
+    pub week: u32,
+    pub keys: Vec<String>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppState {
@@ -16,6 +31,10 @@ pub struct AppState {
     pub setup_complete: bool,
     /// Site name → last time it was opened on the TV.
     pub streaming_opened: BTreeMap<String, DateTime<Utc>>,
+    /// Per-section/genre Browse all rotation cursors.
+    pub browse_rotations: BTreeMap<String, BrowseRotation>,
+    /// Weekly Start watching TV show rating keys.
+    pub start_watching: Option<StartWatchingCache>,
 }
 
 /// `~/.local/share/tvdash/state.toml` (respects `XDG_DATA_HOME`).

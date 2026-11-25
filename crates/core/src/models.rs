@@ -397,7 +397,10 @@ pub struct LibraryShelves {
     #[serde(default)]
     pub recently_released: Vec<MediaItem>,
     pub watch_again: Vec<MediaItem>,
-    pub browse_items: Vec<MediaItem>,
+    #[serde(default)]
+    pub start_watching: Vec<MediaItem>,
+    #[serde(default)]
+    pub total_count: u32,
     pub popular: Vec<PopularItem>,
     pub genres: Vec<GenreTile>,
     pub collections: Vec<CollectionInfo>,

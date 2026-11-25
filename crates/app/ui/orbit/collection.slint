@@ -47,13 +47,6 @@ export component OrbitCollection inherits Rectangle {
             accent-color: OrbitTheme.collections-accent;
             activated => { CollectionPageState.set-order(ord.id); }
         }
-
-        OrbitPill {
-            label: "Hide watched";
-            selected: CollectionPageState.hide-watched;
-            accent-color: OrbitTheme.collections-accent;
-            activated => { CollectionPageState.set-hide-watched(!CollectionPageState.hide-watched); }
-        }
     }
 
     // Left fixed column (x 110, y 220, w 560)
@@ -140,23 +133,25 @@ export component OrbitCollection inherits Rectangle {
             width: parent.width - 12px * TvUi.u;
             height: 80px * TvUi.u;
 
-            // Node on the timeline
+            // Release year bubble on the timeline (Release date order)
             if show-timeline: Rectangle {
-                x: col-row.is-foc ? 18px * TvUi.u : 30px * TvUi.u;
-                y: col-row.is-foc ? 8px * TvUi.u : 20px * TvUi.u;
-                width: col-row.is-foc ? 64px * TvUi.u : 40px * TvUi.u;
-                height: col-row.is-foc ? 64px * TvUi.u : 40px * TvUi.u;
+                x: col-row.is-foc ? 18px * TvUi.u : 22px * TvUi.u;
+                y: col-row.is-foc ? 8px * TvUi.u : 12px * TvUi.u;
+                width: col-row.is-foc ? 64px * TvUi.u : 56px * TvUi.u;
+                height: col-row.is-foc ? 64px * TvUi.u : 56px * TvUi.u;
                 border-radius: self.width / 2;
                 border-width: 3px * TvUi.u;
                 border-color: item.watched ? OrbitTheme.collections-accent : OrbitTheme.track;
-                background: OrbitTheme.glass;
-                clip: true;
+                background: OrbitTheme.bg;
 
-                if item.has-poster: Image {
-                    source: item.poster;
-                    width: parent.width;
-                    height: parent.height;
-                    image-fit: cover;
+                Text {
+                    text: item.year != "" ? item.year : "—";
+                    font-family: OrbitTheme.font;
+                    font-size: (col-row.is-foc ? 15px : 13px) * TvUi.u;
+                    font-weight: 700;
+                    color: item.watched ? OrbitTheme.collections-accent : OrbitTheme.text;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
                 }
             }
 
@@ -183,6 +178,23 @@ export component OrbitCollection inherits Rectangle {
                         vertical-alignment: center;
                         width: 44px * TvUi.u;
                     }
+                    Rectangle {
+                        y: 10px * TvUi.u;
+                        width: 52px * TvUi.u;
+                        height: 52px * TvUi.u;
+                        border-radius: self.width / 2;
+                        border-width: 2px * TvUi.u;
+                        border-color: item.watched ? OrbitTheme.collections-accent : OrbitTheme.track;
+                        background: OrbitTheme.glass;
+                        clip: true;
+
+                        if item.has-poster: Image {
+                            source: item.poster;
+                            width: parent.width;
+                            height: parent.height;
+                            image-fit: cover;
+                        }
+                    }
                     Text {
                         text: item.title;
                         font-family: OrbitTheme.font;
@@ -190,7 +202,7 @@ export component OrbitCollection inherits Rectangle {
                         font-weight: 600;
                         color: OrbitTheme.text;
                         vertical-alignment: center;
-                        width: 520px * TvUi.u;
+                        width: 450px * TvUi.u;
                         overflow: elide;
                     }
                     Text {

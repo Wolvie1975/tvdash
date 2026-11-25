@@ -17,7 +17,7 @@ pub mod browse;
 pub mod display;
 mod home;
 mod library;
-pub use library::{ensure_library_loaded, on_season_selected, start_watching};
+pub use library::{clear_browse_visit, ensure_collections_loaded, ensure_library_loaded, on_season_selected, request_browse};
 mod status;
 #[cfg(test)]
 mod tests;
@@ -147,7 +147,13 @@ pub struct UiState {
     lib_results: Vec<MediaItem>,
     lib_added_week: Vec<MediaItem>,
     lib_watch_again: Vec<MediaItem>,
-    lib_browse_all: Vec<MediaItem>,
+    lib_start_watching: Vec<MediaItem>,
+    lib_total_count: u32,
+    browse_request_id: u64,
+    browse_cache: HashMap<(bool, String, String, String), (Vec<MediaItem>, u32)>,
+    browse_letter_counts: HashMap<String, i32>,
+    browse_current_items: Vec<MediaItem>,
+    browse_current_total: u32,
     lib_browse: Vec<MediaItem>,
     orbit_browse_items: Vec<MediaItem>,
     browse_sort_tv: String,
@@ -681,6 +687,29 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         }
         AppEvent::LibraryShelves(shelves) => {
             library::on_shelves(s, laptop, shelves);
+        }
+        AppEvent::BrowseItems {
+            request_id,
+            is_tv,
+            letter,
+            sort,
+            genre,
+            items,
+            total,
+            letter_counts,
+        } => {
+            browse::on_browse_items(
+                s,
+                laptop,
+                request_id,
+                is_tv,
+                letter,
+                sort,
+                genre,
+                items,
+                total,
+                letter_counts,
+            );
         }
         AppEvent::ShowDetail(res) => {
             library::on_show_detail(s, laptop, res);

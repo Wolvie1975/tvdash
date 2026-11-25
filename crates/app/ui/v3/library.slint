@@ -600,7 +600,7 @@ export component V3Library inherits Rectangle {
             btl-ta := TouchArea {
                 mouse-cursor: pointer;
                 clicked => {
-                    Library.browse-all = false;
+                    Library.set-browse-all(false);
                     TvUi.lib-scroll = 0;
                 }
             }

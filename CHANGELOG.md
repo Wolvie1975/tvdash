@@ -1,5 +1,16 @@
 # tvdash Changelog
 
+## v0.1.75 — 2026-11-25
+- **Orbit Ring ripple startup animation** (`crates/app/src/orbit/intro_frame.rs`, `crates/app/src/intro.rs`, `crates/app/ui/orbit/intro.slint`, `orbit/shell.slint`, `orbit/home.slint`, `shared/intro.slint`):
+  - Replaced the Play-ring iris and clock blink in Orbit with the Ring ripple animation (up to 4 pulsing accent rings every 0.6 s, continuing through hold, traveller ring settling onto the 144 px clock badge with echo ripple, and staggered `IntroRise` entry on Home).
+- **Orbit polish & bug fixes** (`orbit/shell.slint`, `orbit/library.slint`, `orbit/collection.slint`, `orbit/controls.slint`, `orbit/settings.slint`, `bridge/library.rs`, `tv_nav.rs`):
+  - **Home quick circles:** Kept only **Screensaver** (`✦`, wired to `TvAmbient`) and **Sleep** (`☾`) at bottom-left.
+  - **Library & Collections:** Removed `All genres` from Library › Browse all and added a `‹ Movies` / `‹ TV Series` back pill; fixed `ensure_collections_loaded` so Collections load directly and aren't cleared by TV shelf refreshes; on Collection detail, removed `Hide watched`, added poster and release-year bubbles per row.
+  - **Settings:** Fixed `OrbitRow` `TouchArea` forwarding so **Startup animation › Preview** works, restored **Accounts** editing controls, and removed the **Sports** link.
+- **Browse all: rotating 10 by default, load by letter** (`crates/media/src/plex.rs`, `crates/app/src/browse_rotation.rs`, `crates/core/src/state.rs`, `crates/app/src/controller.rs`, `bridge/browse.rs`, `bridge/library.rs`):
+  - Removed the 1,000-item `section_items` full-library load and switched **All** to a repeat-free shuffled rotation (`Rotation` persisted in `state.toml`) fetching 10 items concurrently in `A–Z / 0–9` order with numeric-run sorting, while `#` and `A`–`Z` page to Plex's `totalSize` with 300 ms debounce, stale-reply dropping, and per-visit caching.
+  - Switched **Start watching** to a weekly-cached `unstarted_random_shows` query.
+
 ## v0.1.74 — 2026-11-24
 - **Orbit Library landing** (`orbit/library.slint`, `orbit/shell.slint`, `state.slint`, `tv_nav.rs`):
   - Made **Movies** the first pill on the left and the default Library selection (`Library.media-tab = "movies"`).
