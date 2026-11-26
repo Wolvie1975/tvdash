@@ -411,7 +411,9 @@ export component V3Movie inherits Rectangle {
                 letter-spacing: 2px * TvUi.u;
                 color: V3Theme.sub;
             }
-            if MoviePageState.tab == "cast": for p[i] in MoviePageState.crew: Rectangle {
+            if MoviePageState.tab == "cast": VerticalLayout {
+                spacing: 12px * TvUi.u;
+                for p[i] in MoviePageState.crew: Rectangle {
                 width: 260px * TvUi.u;
                 height: 72px * TvUi.u;
                 border-radius: 16px * TvUi.u;
@@ -449,6 +451,7 @@ export component V3Movie inherits Rectangle {
                     }
                 }
                 TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.search-person(p.name); } }
+            }
             }
 
             if MoviePageState.tab == "extras" && MoviePageState.extras.length > 0: VerticalLayout {
@@ -520,7 +523,10 @@ export component V3Movie inherits Rectangle {
                 color: V3Theme.sub;
             }
 
-            if MoviePageState.tab == "cast": for p[i] in MoviePageState.cast: Rectangle {
+            if MoviePageState.tab == "cast": Rectangle {
+                width: parent.width;
+                height: parent.height;
+                for p[i] in MoviePageState.cast: Rectangle {
                 property <int> col: Math.mod(i, 6);
                 property <int> row: Math.floor(i / 6);
                 x: col * 160px * TvUi.u;
@@ -574,8 +580,12 @@ export component V3Movie inherits Rectangle {
                 }
                 TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.search-person(p.name); } }
             }
+            }
 
-            if MoviePageState.tab == "extras": for ex[i] in MoviePageState.extras: Rectangle {
+            if MoviePageState.tab == "extras": Rectangle {
+                width: parent.width;
+                height: parent.height;
+                for ex[i] in MoviePageState.extras: Rectangle {
                 property <int> col: Math.mod(i, 3);
                 property <int> row: Math.floor(i / 3);
                 x: col * 322px * TvUi.u;
@@ -655,6 +665,7 @@ export component V3Movie inherits Rectangle {
                     overflow: elide;
                 }
                 TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.play-extra(ex.key); } }
+            }
             }
         }
     }

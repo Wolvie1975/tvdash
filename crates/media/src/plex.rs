@@ -435,7 +435,7 @@ impl PlexClient {
         let m = meta
             .into_iter()
             .next()
-            .ok_or_else(|| MediaError::Unexpected("movie not found".into()))?;
+            .ok_or(MediaError::NotFound)?;
 
         let resolution = m.media.first().and_then(|med| match med.video_resolution.as_deref() {
             Some(r) if r.eq_ignore_ascii_case("4k") => Some("4K".to_string()),
@@ -517,7 +517,7 @@ impl PlexClient {
         });
         let item = m
             .into_media_item()
-            .ok_or_else(|| MediaError::Unexpected("invalid movie metadata".into()))?;
+            .ok_or_else(|| MediaError::Protocol("invalid movie metadata".into()))?;
 
         Ok(MovieDetail {
             item,
@@ -545,13 +545,12 @@ impl PlexClient {
     /// Mark an item watched (`/:/scrobble`) or unwatched (`/:/unscrobble`).
     pub async fn scrobble(&self, rating_key: &str, watched: bool) -> Result<()> {
         let path = if watched { "/:/scrobble" } else { "/:/unscrobble" };
-        let resp = self
-            .get(path, &[("key", rating_key.into()), ("identifier", "com.plexapp.plugins.library".into())])
-            .send()
-            .await?;
-        if !resp.status().is_success() {
-            return Err(MediaError::Unexpected(format!("HTTP {}", resp.status())));
-        }
+        send(
+            self.request(Method::GET, path)
+                .query(&[("key", rating_key), ("identifier", "com.plexapp.plugins.library")]),
+            "scrobble",
+        )
+        .await?;
         Ok(())
     }
 

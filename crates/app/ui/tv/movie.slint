@@ -433,7 +433,9 @@ export component TvMovie inherits Rectangle {
                 letter-spacing: 1.2px * TvUi.u;
                 color: Theme.text-muted;
             }
-            if MoviePageState.tab == "cast": for p[i] in MoviePageState.crew: Tile {
+            if MoviePageState.tab == "cast": VerticalLayout {
+                spacing: 12px * TvUi.u;
+                for p[i] in MoviePageState.crew: Tile {
                 width: 260px * TvUi.u;
                 height: 84px * TvUi.u;
                 focused: TvUi.focused-tile == root.content-base + i;
@@ -468,6 +470,7 @@ export component TvMovie inherits Rectangle {
                         Text { text: p.role; font-size: 16px * TvUi.u; color: Theme.text-muted; overflow: elide; }
                     }
                 }
+            }
             }
 
             if MoviePageState.tab == "extras" && MoviePageState.extras.length > 0: VerticalLayout {
@@ -525,7 +528,10 @@ export component TvMovie inherits Rectangle {
                 color: Theme.text-secondary;
             }
 
-            if MoviePageState.tab == "cast": for p[i] in MoviePageState.cast: Tile {
+            if MoviePageState.tab == "cast": Rectangle {
+                width: parent.width;
+                height: parent.height;
+                for p[i] in MoviePageState.cast: Tile {
                 property <int> col: Math.mod(i, 6);
                 property <int> row: Math.floor(i / 6);
                 x: col * 242px * TvUi.u;
@@ -573,8 +579,12 @@ export component TvMovie inherits Rectangle {
                     overflow: elide;
                 }
             }
+            }
 
-            if MoviePageState.tab == "extras": for ex[i] in MoviePageState.extras: Tile {
+            if MoviePageState.tab == "extras": Rectangle {
+                width: parent.width;
+                height: parent.height;
+                for ex[i] in MoviePageState.extras: Tile {
                 property <int> col: Math.mod(i, 3);
                 property <int> row: Math.floor(i / 3);
                 x: col * 484px * TvUi.u;
@@ -646,6 +656,7 @@ export component TvMovie inherits Rectangle {
                     color: Theme.text-muted;
                     overflow: elide;
                 }
+            }
             }
         }
     }
