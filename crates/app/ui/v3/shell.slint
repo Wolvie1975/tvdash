@@ -10,6 +10,7 @@ import { V3Apps } from "apps.slint";
 import { V3Library } from "library.slint";
 import { V3Collections } from "collections.slint";
 import { V3Show } from "show.slint";
+import { V3Movie } from "movie.slint";
 import { V3Collection } from "collection.slint";
 import { V3Search } from "search.slint";
 import { V3Sports } from "events.slint";
@@ -34,8 +35,8 @@ export component V3Shell inherits Rectangle {
     property <int> focus-ticket: TvUi.focus-ticket;
     changed focus-ticket => { keys.focus(); }
 
-    property <bool> is-subpage: TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search";
-    property <int> parent-tab: TvUi.screen == "show" ? 2 : TvUi.screen == "collection" ? 3 : 0;
+    property <bool> is-subpage: TvUi.screen == "show" || TvUi.screen == "movie" || TvUi.screen == "collection" || TvUi.screen == "search";
+    property <int> parent-tab: (TvUi.screen == "show" || TvUi.screen == "movie") ? TvUi.active-tab : TvUi.screen == "collection" ? 3 : 0;
     property <int> eff-active: root.is-subpage ? root.parent-tab : TvUi.active-tab;
     property <int> left-count: root.is-subpage ? (root.eff-active + 1) : root.eff-active;
     property <length> panel-x: (24px + root.left-count * 68px) * TvUi.u;
@@ -179,6 +180,7 @@ export component V3Shell inherits Rectangle {
             if TvUi.screen == "collections": V3Collections { }
             if TvUi.screen == "library": V3Library { }
             if TvUi.screen == "show": V3Show { }
+            if TvUi.screen == "movie": V3Movie { }
             if TvUi.screen == "collection": V3Collection { }
             if TvUi.screen == "search": V3Search { }
             if TvUi.screen == "sports": V3Sports { }

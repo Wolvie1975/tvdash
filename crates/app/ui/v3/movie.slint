@@ -1,0 +1,670 @@
+// Blades UI (v3) — Movie detail panel (§6).
+
+import { MoviePageState, TvUi } from "../state.slint";
+import { V3Theme } from "theme.slint";
+
+export component V3Movie inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    clip: true;
+
+    property <bool> has-extras: MoviePageState.extras.length > 0;
+    property <int> idx-from-start: 1;
+    property <int> idx-trailer: 1 + (MoviePageState.show-from-start ? 1 : 0);
+    property <int> idx-col: idx-trailer + (MoviePageState.has-trailer ? 1 : 0);
+    property <int> idx-tab-cast: idx-col + (MoviePageState.in-collection ? 1 : 0);
+    property <int> idx-tab-extras: idx-tab-cast + 1;
+    property <int> content-base: idx-tab-cast + 1 + (has-extras ? 1 : 0);
+    property <int> crew-n: MoviePageState.crew.length;
+    property <int> cast-base: content-base + crew-n;
+    property <int> focused-extra-i: (MoviePageState.tab == "extras" && TvUi.focused-tile >= content-base)
+        ? Math.clamp(TvUi.focused-tile - content-base, 0, Math.max(0, MoviePageState.extras.length - 1)) : 0;
+    property <length> y-shift: MoviePageState.in-collection ? 0px : -100px * TvUi.u;
+
+    TouchArea {
+        scroll-event(event) => {
+            TvUi.scroll-panorama(event.delta-y);
+            accept
+        }
+    }
+
+    // Backdrop: right 62% of the panel, top 440 px
+    Rectangle {
+        x: parent.width * 0.38;
+        y: 0;
+        width: parent.width * 0.62;
+        height: 440px * TvUi.u;
+        border-top-right-radius: 28px * TvUi.u;
+        clip: true;
+
+        if MoviePageState.has-backdrop: Image {
+            width: 100%;
+            height: 100%;
+            source: MoviePageState.backdrop;
+            image-fit: cover;
+        }
+        if !MoviePageState.has-backdrop: Rectangle {
+            width: 100%;
+            height: 100%;
+            background: @radial-gradient(circle, MoviePageState.tint.with-alpha(0.32) 0%, V3Theme.panel 75%);
+        }
+
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            background: @linear-gradient(90deg, V3Theme.panel 0%, V3Theme.panel.with-alpha(0.55) 30%, transparent 65%);
+        }
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            background: @linear-gradient(180deg, transparent 45%, V3Theme.panel 100%);
+        }
+    }
+
+    // Vertically scrollable content
+    Rectangle {
+        x: 0;
+        y: -TvUi.show-scroll * TvUi.u;
+        width: parent.width;
+        height: 2600px * TvUi.u;
+        animate y { duration: 180ms; easing: cubic-bezier(0.22, 1, 0.36, 1); }
+
+        // Title block (y 112, x 44, max 760 wide)
+        VerticalLayout {
+            x: 44px * TvUi.u;
+            y: 112px * TvUi.u;
+            width: 760px * TvUi.u;
+            spacing: 12px * TvUi.u;
+            alignment: start;
+
+            if !MoviePageState.loading: Text {
+                text: MoviePageState.title;
+                font-family: V3Theme.font;
+                font-size: 72px * TvUi.u;
+                font-weight: 900;
+                letter-spacing: -1.5px * TvUi.u;
+                color: V3Theme.text;
+                overflow: elide;
+            }
+            if MoviePageState.loading: Rectangle {
+                width: 480px * TvUi.u;
+                height: 68px * TvUi.u;
+                border-radius: 14px * TvUi.u;
+                background: V3Theme.raised;
+            }
+
+            if MoviePageState.chips.length > 0: HorizontalLayout {
+                spacing: 8px * TvUi.u;
+                alignment: start;
+                for chip in MoviePageState.chips: Rectangle {
+                    height: 30px * TvUi.u;
+                    border-radius: 9px * TvUi.u;
+                    background: V3Theme.raised;
+                    HorizontalLayout {
+                        padding-left: 11px * TvUi.u;
+                        padding-right: 11px * TvUi.u;
+                        alignment: center;
+                        Text {
+                            text: chip;
+                            font-family: V3Theme.font;
+                            font-size: 17px * TvUi.u;
+                            font-weight: 800;
+                            color: V3Theme.text;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+
+            if !MoviePageState.loading: Text {
+                text: MoviePageState.summary;
+                font-family: V3Theme.font;
+                font-size: 21px * TvUi.u;
+                line-height: 30px * TvUi.u;
+                color: V3Theme.sub;
+                wrap: word-wrap;
+                height: 60px * TvUi.u;
+                overflow: elide;
+            }
+            if MoviePageState.loading: VerticalLayout {
+                spacing: 8px * TvUi.u;
+                height: 60px * TvUi.u;
+                Rectangle { width: 700px * TvUi.u; height: 18px * TvUi.u; border-radius: 9px * TvUi.u; background: V3Theme.raised; }
+                Rectangle { width: 520px * TvUi.u; height: 18px * TvUi.u; border-radius: 9px * TvUi.u; background: V3Theme.raised; }
+            }
+
+            // Buttons (20 below, h58, pill, gap 12)
+            HorizontalLayout {
+                padding-top: 8px * TvUi.u;
+                height: 66px * TvUi.u;
+                spacing: 12px * TvUi.u;
+                alignment: start;
+
+                // 0: Primary Play / Resume
+                Rectangle {
+                    height: 58px * TvUi.u;
+                    border-radius: 29px * TvUi.u;
+                    background: V3Theme.accent;
+                    border-width: TvUi.focused-tile == 0 ? 4px * TvUi.u : 0px;
+                    border-color: V3Theme.text;
+                    HorizontalLayout {
+                        padding-left: 24px * TvUi.u;
+                        padding-right: 24px * TvUi.u;
+                        alignment: center;
+                        Text {
+                            text: "▶  " + (MoviePageState.play-label != "" ? MoviePageState.play-label : "Play")
+                                + (MoviePageState.play-meta != "" ? (" · " + MoviePageState.play-meta) : "");
+                            font-family: V3Theme.font;
+                            font-size: 22px * TvUi.u;
+                            font-weight: 900;
+                            color: V3Theme.accent-text;
+                            vertical-alignment: center;
+                        }
+                    }
+                    TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.play(); } }
+                }
+
+                // From start
+                if MoviePageState.show-from-start: Rectangle {
+                    height: 58px * TvUi.u;
+                    border-radius: 29px * TvUi.u;
+                    background: V3Theme.raised;
+                    border-width: TvUi.focused-tile == root.idx-from-start ? 4px * TvUi.u : 0px;
+                    border-color: V3Theme.accent;
+                    HorizontalLayout {
+                        padding-left: 22px * TvUi.u;
+                        padding-right: 22px * TvUi.u;
+                        alignment: center;
+                        Text {
+                            text: "From start";
+                            font-family: V3Theme.font;
+                            font-size: 20px * TvUi.u;
+                            font-weight: 800;
+                            color: V3Theme.text;
+                            vertical-alignment: center;
+                        }
+                    }
+                    TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.play-from-start(); } }
+                }
+
+                // Trailer
+                if MoviePageState.has-trailer: Rectangle {
+                    height: 58px * TvUi.u;
+                    border-radius: 29px * TvUi.u;
+                    background: V3Theme.raised;
+                    border-width: TvUi.focused-tile == root.idx-trailer ? 4px * TvUi.u : 0px;
+                    border-color: V3Theme.accent;
+                    HorizontalLayout {
+                        padding-left: 22px * TvUi.u;
+                        padding-right: 22px * TvUi.u;
+                        alignment: center;
+                        Text {
+                            text: "▶  Trailer";
+                            font-family: V3Theme.font;
+                            font-size: 20px * TvUi.u;
+                            font-weight: 800;
+                            color: V3Theme.text;
+                            vertical-alignment: center;
+                        }
+                    }
+                    TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.play-trailer(); } }
+                }
+            }
+        }
+
+        // Collection card (y 404, 760 x 76, radius 18, raised)
+        if MoviePageState.in-collection: Rectangle {
+            x: 44px * TvUi.u;
+            y: 404px * TvUi.u;
+            width: 760px * TvUi.u;
+            height: 76px * TvUi.u;
+            border-radius: 18px * TvUi.u;
+            background: V3Theme.raised;
+            border-width: TvUi.focused-tile == root.idx-col ? 4px * TvUi.u : 0px;
+            border-color: V3Theme.accent;
+
+            HorizontalLayout {
+                padding-left: 14px * TvUi.u;
+                padding-right: 18px * TvUi.u;
+                spacing: 14px * TvUi.u;
+                alignment: start;
+
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 40px * TvUi.u;
+                        height: 60px * TvUi.u;
+                        border-radius: 8px * TvUi.u;
+                        clip: true;
+                        background: V3Theme.panel;
+                        Image { source: MoviePageState.collection-poster; width: 100%; height: 100%; image-fit: cover; }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 6px * TvUi.u;
+                    horizontal-stretch: 1;
+                    HorizontalLayout {
+                        spacing: 8px * TvUi.u;
+                        alignment: start;
+                        Text {
+                            text: "PART OF";
+                            font-family: V3Theme.font;
+                            font-size: 15px * TvUi.u;
+                            font-weight: 900;
+                            letter-spacing: 2px * TvUi.u;
+                            color: V3Theme.accent-ink;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: MoviePageState.collection-title + " · " + MoviePageState.collection-position;
+                            font-family: V3Theme.font;
+                            font-size: 20px * TvUi.u;
+                            font-weight: 900;
+                            color: V3Theme.text;
+                            overflow: elide;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    if MoviePageState.collection-total > 24: Rectangle {
+                        width: 360px * TvUi.u;
+                        height: 7px * TvUi.u;
+                        border-radius: 3.5px * TvUi.u;
+                        background: #FFFFFF59;
+                        Rectangle {
+                            x: 0;
+                            y: 0;
+                            width: parent.width * (MoviePageState.collection-watched / Math.max(1, MoviePageState.collection-total));
+                            height: 100%;
+                            border-radius: 3.5px * TvUi.u;
+                            background: V3Theme.accent;
+                        }
+                    }
+                    if MoviePageState.collection-total <= 24: HorizontalLayout {
+                        width: 360px * TvUi.u;
+                        height: 7px * TvUi.u;
+                        spacing: 4px * TvUi.u;
+                        for seg in MoviePageState.collection-total: Rectangle {
+                            horizontal-stretch: 1;
+                            height: 7px * TvUi.u;
+                            border-radius: 3.5px * TvUi.u;
+                            background: seg < MoviePageState.collection-watched ? V3Theme.accent : #FFFFFF59;
+                        }
+                    }
+                }
+
+                Text {
+                    text: MoviePageState.collection-watched + " of " + MoviePageState.collection-total + " watched  ›";
+                    font-family: V3Theme.font;
+                    font-size: 18px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.sub;
+                    vertical-alignment: center;
+                }
+            }
+
+            TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.open-collection(); } }
+        }
+
+        // Switch row (y 504, or 404 without collection)
+        Rectangle {
+            x: 44px * TvUi.u;
+            y: 504px * TvUi.u + root.y-shift;
+            width: parent.width - 88px * TvUi.u;
+            height: 48px * TvUi.u;
+
+            if root.has-extras: HorizontalLayout {
+                x: 0;
+                y: 0;
+                height: 48px * TvUi.u;
+                spacing: 6px * TvUi.u;
+                alignment: start;
+
+                Rectangle {
+                    height: 48px * TvUi.u;
+                    border-radius: 24px * TvUi.u;
+                    background: MoviePageState.tab == "cast" ? V3Theme.accent : V3Theme.raised;
+                    border-width: TvUi.focused-tile == root.idx-tab-cast ? 4px * TvUi.u : 0px;
+                    border-color: V3Theme.text;
+                    HorizontalLayout {
+                        padding-left: 20px * TvUi.u;
+                        padding-right: 20px * TvUi.u;
+                        alignment: center;
+                        Text {
+                            text: "Cast & crew";
+                            font-family: V3Theme.font;
+                            font-size: 18px * TvUi.u;
+                            font-weight: 900;
+                            color: MoviePageState.tab == "cast" ? V3Theme.accent-text : V3Theme.text;
+                            vertical-alignment: center;
+                        }
+                    }
+                    TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.set-tab("cast"); } }
+                }
+
+                Rectangle {
+                    height: 48px * TvUi.u;
+                    border-radius: 24px * TvUi.u;
+                    background: MoviePageState.tab == "extras" ? V3Theme.accent : V3Theme.raised;
+                    border-width: TvUi.focused-tile == root.idx-tab-extras ? 4px * TvUi.u : 0px;
+                    border-color: V3Theme.text;
+                    HorizontalLayout {
+                        padding-left: 20px * TvUi.u;
+                        padding-right: 20px * TvUi.u;
+                        alignment: center;
+                        Text {
+                            text: "Extras";
+                            font-family: V3Theme.font;
+                            font-size: 18px * TvUi.u;
+                            font-weight: 900;
+                            color: MoviePageState.tab == "extras" ? V3Theme.accent-text : V3Theme.text;
+                            vertical-alignment: center;
+                        }
+                    }
+                    TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.set-tab("extras"); } }
+                }
+            }
+
+            if !root.has-extras: Text {
+                x: 0;
+                y: 0;
+                height: 48px * TvUi.u;
+                text: "Cast & crew";
+                font-family: V3Theme.font;
+                font-size: 22px * TvUi.u;
+                font-weight: 900;
+                color: V3Theme.text;
+                vertical-alignment: center;
+            }
+
+            Text {
+                x: parent.width - self.preferred-width;
+                y: 0;
+                height: 48px * TvUi.u;
+                text: MoviePageState.tab == "extras"
+                    ? (MoviePageState.extras.length + " extras · trailers first")
+                    : (MoviePageState.crew.length + " crew · " + MoviePageState.cast.length + " cast");
+                font-family: V3Theme.font;
+                font-size: 18px * TvUi.u;
+                font-weight: 700;
+                color: V3Theme.sub;
+                vertical-alignment: center;
+            }
+        }
+
+        // Left column (x 44, y 580 + y-shift, w 260)
+        VerticalLayout {
+            x: 44px * TvUi.u;
+            y: 580px * TvUi.u + root.y-shift;
+            width: 260px * TvUi.u;
+            spacing: 12px * TvUi.u;
+            alignment: start;
+
+            if MoviePageState.tab == "cast" && MoviePageState.crew.length > 0: Text {
+                text: "CREW";
+                font-family: V3Theme.font;
+                font-size: 17px * TvUi.u;
+                font-weight: 900;
+                letter-spacing: 2px * TvUi.u;
+                color: V3Theme.sub;
+            }
+            if MoviePageState.tab == "cast": for p[i] in MoviePageState.crew: Rectangle {
+                width: 260px * TvUi.u;
+                height: 72px * TvUi.u;
+                border-radius: 16px * TvUi.u;
+                background: V3Theme.raised;
+                border-width: TvUi.focused-tile == root.content-base + i ? 4px * TvUi.u : 0px;
+                border-color: V3Theme.accent;
+
+                HorizontalLayout {
+                    padding: 12px * TvUi.u;
+                    spacing: 12px * TvUi.u;
+                    alignment: start;
+                    Rectangle {
+                        width: 48px * TvUi.u;
+                        height: 48px * TvUi.u;
+                        border-radius: 24px * TvUi.u;
+                        clip: true;
+                        background: p.tint;
+                        if p.has-photo: Image { source: p.photo; width: 100%; height: 100%; image-fit: cover; }
+                        if !p.has-photo: Text {
+                            text: p.initials;
+                            font-family: V3Theme.font;
+                            font-size: 16px * TvUi.u;
+                            font-weight: 900;
+                            color: V3Theme.text;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 2px * TvUi.u;
+                        horizontal-stretch: 1;
+                        Text { text: p.name; font-family: V3Theme.font; font-size: 20px * TvUi.u; font-weight: 800; color: V3Theme.text; overflow: elide; }
+                        Text { text: p.role; font-family: V3Theme.font; font-size: 16px * TvUi.u; font-weight: 700; color: V3Theme.sub; overflow: elide; }
+                    }
+                }
+                TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.search-person(p.name); } }
+            }
+
+            if MoviePageState.tab == "extras" && MoviePageState.extras.length > 0: VerticalLayout {
+                spacing: 10px * TvUi.u;
+                Rectangle {
+                    width: 260px * TvUi.u;
+                    height: 146px * TvUi.u;
+                    border-radius: 15px * TvUi.u;
+                    clip: true;
+                    background: V3Theme.raised;
+                    Image {
+                        source: MoviePageState.extras[root.focused-extra-i].thumb;
+                        width: 100%;
+                        height: 100%;
+                        image-fit: cover;
+                    }
+                }
+                Text {
+                    text: MoviePageState.extras[root.focused-extra-i].kind;
+                    font-family: V3Theme.font;
+                    font-size: 17px * TvUi.u;
+                    font-weight: 900;
+                    color: V3Theme.accent-ink;
+                }
+                Text {
+                    text: MoviePageState.extras[root.focused-extra-i].title;
+                    font-family: V3Theme.font;
+                    font-size: 24px * TvUi.u;
+                    font-weight: 900;
+                    color: V3Theme.text;
+                    wrap: word-wrap;
+                }
+                Text {
+                    text: (MoviePageState.extras[root.focused-extra-i].duration != "" ? MoviePageState.extras[root.focused-extra-i].duration + " · " : "") + "plays in mpv · Back returns here";
+                    font-family: V3Theme.font;
+                    font-size: 18px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.sub;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        // Right grid (x 334, y 580 + y-shift, w 942)
+        Rectangle {
+            x: 334px * TvUi.u;
+            y: 580px * TvUi.u + root.y-shift;
+            width: parent.width - 378px * TvUi.u;
+            height: 2000px * TvUi.u;
+
+            if MoviePageState.tab == "cast" && MoviePageState.crew.length == 0 && MoviePageState.cast.length == 0 && !MoviePageState.loading: Text {
+                x: 0;
+                y: 8px * TvUi.u;
+                text: "No cast or crew listed";
+                font-family: V3Theme.font;
+                font-size: 20px * TvUi.u;
+                font-weight: 700;
+                color: V3Theme.sub;
+            }
+
+            if MoviePageState.tab == "cast" && MoviePageState.cast.length > 0: Text {
+                x: 0;
+                y: 0;
+                text: "CAST";
+                font-family: V3Theme.font;
+                font-size: 17px * TvUi.u;
+                font-weight: 900;
+                letter-spacing: 2px * TvUi.u;
+                color: V3Theme.sub;
+            }
+
+            if MoviePageState.tab == "cast": for p[i] in MoviePageState.cast: Rectangle {
+                property <int> col: Math.mod(i, 6);
+                property <int> row: Math.floor(i / 6);
+                x: col * 160px * TvUi.u;
+                y: 34px * TvUi.u + row * 288px * TvUi.u;
+                width: 142px * TvUi.u;
+                height: 264px * TvUi.u;
+
+                Rectangle {
+                    x: 0;
+                    y: 0;
+                    width: 142px * TvUi.u;
+                    height: 212px * TvUi.u;
+                    border-radius: 14px * TvUi.u;
+                    clip: true;
+                    background: p.has-photo ? V3Theme.raised : p.tint;
+                    border-width: TvUi.focused-tile == root.cast-base + i ? 4px * TvUi.u : 0px;
+                    border-color: V3Theme.accent;
+
+                    if p.has-photo: Image { source: p.photo; width: 100%; height: 100%; image-fit: cover; }
+                    if !p.has-photo: Text {
+                        text: p.initials;
+                        font-family: V3Theme.font;
+                        font-size: 32px * TvUi.u;
+                        font-weight: 900;
+                        color: V3Theme.text;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+                Text {
+                    x: 0;
+                    y: 220px * TvUi.u;
+                    width: 142px * TvUi.u;
+                    text: p.name;
+                    font-family: V3Theme.font;
+                    font-size: 18px * TvUi.u;
+                    font-weight: 800;
+                    color: V3Theme.text;
+                    overflow: elide;
+                }
+                Text {
+                    x: 0;
+                    y: 244px * TvUi.u;
+                    width: 142px * TvUi.u;
+                    text: p.role;
+                    font-family: V3Theme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.sub;
+                    overflow: elide;
+                }
+                TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.search-person(p.name); } }
+            }
+
+            if MoviePageState.tab == "extras": for ex[i] in MoviePageState.extras: Rectangle {
+                property <int> col: Math.mod(i, 3);
+                property <int> row: Math.floor(i / 3);
+                x: col * 322px * TvUi.u;
+                y: row * 246px * TvUi.u;
+                width: 296px * TvUi.u;
+                height: 222px * TvUi.u;
+
+                Rectangle {
+                    x: 0;
+                    y: 0;
+                    width: 296px * TvUi.u;
+                    height: 166px * TvUi.u;
+                    border-radius: 15px * TvUi.u;
+                    clip: true;
+                    background: V3Theme.raised;
+                    border-width: TvUi.focused-tile == root.content-base + i ? 4px * TvUi.u : 0px;
+                    border-color: V3Theme.accent;
+
+                    Image { source: ex.thumb; width: 100%; height: 100%; image-fit: cover; }
+
+                    Rectangle {
+                        x: 10px * TvUi.u;
+                        y: 10px * TvUi.u;
+                        width: kind-lbl.preferred-width + 16px * TvUi.u;
+                        height: 26px * TvUi.u;
+                        border-radius: 8px * TvUi.u;
+                        background: ex.is-trailer ? V3Theme.accent : #00000099;
+                        kind-lbl := Text {
+                            text: ex.is-trailer ? "TRAILER" : ex.kind;
+                            font-family: V3Theme.font;
+                            font-size: 14px * TvUi.u;
+                            font-weight: 900;
+                            color: ex.is-trailer ? V3Theme.accent-text : #FFFFFF;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    if ex.duration != "": Rectangle {
+                        x: parent.width - self.width - 10px * TvUi.u;
+                        y: parent.height - self.height - 10px * TvUi.u;
+                        width: dur-lbl.preferred-width + 14px * TvUi.u;
+                        height: 24px * TvUi.u;
+                        border-radius: 6px * TvUi.u;
+                        background: #00000099;
+                        dur-lbl := Text {
+                            text: ex.duration;
+                            font-family: V3Theme.font;
+                            font-size: 15px * TvUi.u;
+                            font-weight: 900;
+                            color: #FFFFFF;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+                Text {
+                    x: 0;
+                    y: 174px * TvUi.u;
+                    width: 296px * TvUi.u;
+                    text: ex.title;
+                    font-family: V3Theme.font;
+                    font-size: 21px * TvUi.u;
+                    font-weight: 900;
+                    color: V3Theme.text;
+                    overflow: elide;
+                }
+                Text {
+                    x: 0;
+                    y: 200px * TvUi.u;
+                    width: 296px * TvUi.u;
+                    text: ex.kind;
+                    font-family: V3Theme.font;
+                    font-size: 18px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.sub;
+                    overflow: elide;
+                }
+                TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.play-extra(ex.key); } }
+            }
+        }
+    }
+
+    // 100 px bottom fade
+    Rectangle {
+        x: 0;
+        y: parent.height - 100px * TvUi.u;
+        width: parent.width;
+        height: 100px * TvUi.u;
+        background: @linear-gradient(180deg, transparent 0%, V3Theme.panel 100%);
+    }
+}

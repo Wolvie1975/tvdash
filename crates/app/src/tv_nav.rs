@@ -253,6 +253,54 @@ pub fn push_collection(laptop: &LaptopWindow) {
     sync(laptop);
 }
 
+fn blades_movie_rects(laptop: &LaptopWindow) -> Vec<Rect> {
+    let mp = laptop.global::<MoviePageState>();
+    let ox = 228.0;
+    let oy = 24.0;
+    let mut rects = vec![Rect { x: ox + 44.0, y: oy + 318.0, w: 300.0, h: 58.0 }]; // 0: Play
+    let mut bx = ox + 356.0;
+    if mp.get_show_from_start() {
+        rects.push(Rect { x: bx, y: oy + 318.0, w: 160.0, h: 58.0 });
+        bx += 172.0;
+    }
+    if mp.get_has_trailer() {
+        rects.push(Rect { x: bx, y: oy + 318.0, w: 150.0, h: 58.0 });
+    }
+    let has_col = mp.get_in_collection();
+    if has_col {
+        rects.push(Rect { x: ox + 44.0, y: oy + 404.0, w: 760.0, h: 76.0 });
+    }
+    let y_shift = if has_col { 0.0 } else { -100.0 };
+    rects.push(Rect { x: ox + 44.0, y: oy + 504.0 + y_shift, w: 160.0, h: 48.0 }); // Cast & crew
+    let has_extras = mp.get_extras().row_count() > 0;
+    if has_extras {
+        rects.push(Rect { x: ox + 210.0, y: oy + 504.0 + y_shift, w: 120.0, h: 48.0 }); // Extras
+    }
+    let content_y = oy + 580.0 + y_shift;
+    if mp.get_tab() == "extras" && has_extras {
+        for i in 0..mp.get_extras().row_count() {
+            let col = (i % 3) as f32;
+            let row = (i / 3) as f32;
+            rects.push(Rect { x: ox + 334.0 + col * 322.0, y: content_y + row * 246.0, w: 296.0, h: 222.0 });
+        }
+    } else {
+        for i in 0..mp.get_crew().row_count() {
+            rects.push(Rect { x: ox + 44.0, y: content_y + 34.0 + i as f32 * 84.0, w: 260.0, h: 72.0 });
+        }
+        for i in 0..mp.get_cast().row_count() {
+            let col = (i % 6) as f32;
+            let row = (i / 6) as f32;
+            rects.push(Rect {
+                x: ox + 334.0 + col * 160.0,
+                y: content_y + 34.0 + row * 288.0,
+                w: 142.0,
+                h: 264.0,
+            });
+        }
+    }
+    rects
+}
+
 fn classic_movie_rects(laptop: &LaptopWindow) -> Vec<Rect> {
     let mp = laptop.global::<MoviePageState>();
     let mut rects = vec![Rect { x: 96.0, y: 452.0, w: 440.0, h: 120.0 }]; // 0: Play
@@ -1043,7 +1091,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
-        Page::Movie => Vec::new(),
+        Page::Movie => blades_movie_rects(laptop),
         Page::Show(_) => {
             let ox = 228.0;
             let oy = 24.0;
