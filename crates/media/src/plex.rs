@@ -464,30 +464,27 @@ impl PlexClient {
             _ => None,
         });
 
-        let mut crew = Vec::new();
-        for d in &m.director {
+        // Directors then writers, max 3 people. Someone credited for both gets
+        // one entry ("Director, Writer") instead of using two of the three slots.
+        let mut crew: Vec<Person> = Vec::new();
+        let credits = m.director.iter().map(|d| (d, "Director")).chain(m.writer.iter().map(|w| (w, "Writer")));
+        for (c, role) in credits {
+            if c.tag.is_empty() {
+                continue;
+            }
+            if let Some(p) = crew.iter_mut().find(|p| p.name == c.tag) {
+                if !p.role.split(", ").any(|r| r == role) {
+                    p.role = format!("{}, {role}", p.role);
+                }
+                if p.thumb.is_none() {
+                    p.thumb = c.thumb.clone();
+                }
+                continue;
+            }
             if crew.len() == 3 {
-                break;
+                continue;
             }
-            if !d.tag.is_empty() {
-                crew.push(Person {
-                    name: d.tag.clone(),
-                    role: "Director".into(),
-                    thumb: d.thumb.clone(),
-                });
-            }
-        }
-        for w in &m.writer {
-            if crew.len() == 3 {
-                break;
-            }
-            if !w.tag.is_empty() {
-                crew.push(Person {
-                    name: w.tag.clone(),
-                    role: "Writer".into(),
-                    thumb: w.thumb.clone(),
-                });
-            }
+            crew.push(Person { name: c.tag.clone(), role: role.into(), thumb: c.thumb.clone() });
         }
         let cast: Vec<Person> = m
             .role
@@ -2071,7 +2068,7 @@ mod tests {
                         "primaryExtraKey": "/library/metadata/901",
                         "Genre": [{ "tag": "Drama" }, { "tag": "Thriller" }, { "tag": "Mystery" }],
                         "Director": [{ "tag": "Dir A" }, { "tag": "Dir B" }],
-                        "Writer": [{ "tag": "Wri A" }, { "tag": "Wri B" }],
+                        "Writer": [{ "tag": "Dir A" }, { "tag": "Wri A" }, { "tag": "Wri B" }],
                         "Collection": [{ "tag": "Test Trilogy" }],
                         "Role": roles,
                         "Media": [{
@@ -2099,8 +2096,10 @@ mod tests {
         assert_eq!(d.item.title, "Sample Film");
         assert_eq!(d.genres, vec!["Drama", "Thriller"]);
         assert_eq!(d.crew.len(), 3);
-        assert_eq!(d.crew[0].role, "Director");
-        assert_eq!(d.crew[2].role, "Writer");
+        // Dir A directed and wrote: one entry, so Wri A still makes the cut.
+        assert_eq!((d.crew[0].name.as_str(), d.crew[0].role.as_str()), ("Dir A", "Director, Writer"));
+        assert_eq!((d.crew[1].name.as_str(), d.crew[1].role.as_str()), ("Dir B", "Director"));
+        assert_eq!((d.crew[2].name.as_str(), d.crew[2].role.as_str()), ("Wri A", "Writer"));
         assert_eq!(d.cast.len(), 20);
         assert_eq!(d.resolution.as_deref(), Some("4K"));
         assert_eq!(d.hdr.as_deref(), Some("Dolby Vision"));
