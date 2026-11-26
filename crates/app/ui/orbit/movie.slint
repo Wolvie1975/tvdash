@@ -46,6 +46,13 @@ export component OrbitMovie inherits Rectangle {
         height: parent.height;
         background: OrbitTheme.scrim-bottom;
     }
+    // Right panel scrim (x 1000+): keeps the hint, crew pills and cast names readable on
+    // bright art. Not in the spec's scrim list; added after the live check.
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: @linear-gradient(90deg, #2B313D00 44%, #2B313DB3 56%, #2B313DD1 100%);
+    }
 
     // 2. Left hero (x 110, y 210, w 780)
     VerticalLayout {
@@ -347,18 +354,20 @@ export component OrbitMovie inherits Rectangle {
             alignment: start;
 
             OrbitPill {
-                label: "Cast & crew · " + MoviePageState.cast-count;
+                label: "Cast & crew";
+                badge: MoviePageState.cast-count;
                 pill-height: 48px * TvUi.u;
-                selected: MoviePageState.tab == "cast";
+                primary: MoviePageState.tab == "cast";
                 focused: TvUi.focused-tile == root.idx-tab-cast;
                 activated => { MoviePageState.set-tab("cast"); }
                 hovered => { TvUi.focused-tile = root.idx-tab-cast; }
             }
 
             if root.has-extras: OrbitPill {
-                label: "Extras · " + MoviePageState.extras.length;
+                label: "Extras";
+                badge: "" + MoviePageState.extras.length;
                 pill-height: 48px * TvUi.u;
-                selected: MoviePageState.tab == "extras";
+                primary: MoviePageState.tab == "extras";
                 focused: TvUi.focused-tile == root.idx-tab-extras;
                 activated => { MoviePageState.set-tab("extras"); }
                 hovered => { TvUi.focused-tile = root.idx-tab-extras; }
@@ -593,6 +602,15 @@ export component OrbitMovie inherits Rectangle {
                     }
                 }
             }
+
+            // Bottom fade (spec §4.1 `fade`)
+            Rectangle {
+                x: 0;
+                y: parent.height - 90px * TvUi.u;
+                width: parent.width;
+                height: 90px * TvUi.u;
+                background: OrbitTheme.fade;
+            }
         }
 
         // Extras tab content
@@ -607,6 +625,7 @@ export component OrbitMovie inherits Rectangle {
                 y: -(Math.max(0, root.focused-extra-idx - 3) * 96px * TvUi.u);
                 width: parent.width;
                 spacing: 12px * TvUi.u;
+                alignment: start;
                 animate y { duration: 180ms; easing: cubic-bezier(0.22, 1, 0.36, 1); }
 
                 Text {
