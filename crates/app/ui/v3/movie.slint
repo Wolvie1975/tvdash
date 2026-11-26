@@ -121,7 +121,6 @@ export component V3Movie inherits Rectangle {
                 text: MoviePageState.summary;
                 font-family: V3Theme.font;
                 font-size: 21px * TvUi.u;
-                line-height: 30px * TvUi.u;
                 color: V3Theme.sub;
                 wrap: word-wrap;
                 height: 60px * TvUi.u;
@@ -527,10 +526,10 @@ export component V3Movie inherits Rectangle {
                 width: parent.width;
                 height: parent.height;
                 for p[i] in MoviePageState.cast: Rectangle {
-                property <int> col: Math.mod(i, 6);
-                property <int> row: Math.floor(i / 6);
-                x: col * 160px * TvUi.u;
-                y: 34px * TvUi.u + row * 288px * TvUi.u;
+                property <int> grid-col: Math.mod(i, 6);
+                property <int> grid-row: Math.floor(i / 6);
+                x: grid-col * 160px * TvUi.u;
+                y: 34px * TvUi.u + grid-row * 288px * TvUi.u;
                 width: 142px * TvUi.u;
                 height: 264px * TvUi.u;
 
@@ -586,10 +585,10 @@ export component V3Movie inherits Rectangle {
                 width: parent.width;
                 height: parent.height;
                 for ex[i] in MoviePageState.extras: Rectangle {
-                property <int> col: Math.mod(i, 3);
-                property <int> row: Math.floor(i / 3);
-                x: col * 322px * TvUi.u;
-                y: row * 246px * TvUi.u;
+                property <int> grid-col: Math.mod(i, 3);
+                property <int> grid-row: Math.floor(i / 3);
+                x: grid-col * 322px * TvUi.u;
+                y: grid-row * 246px * TvUi.u;
                 width: 296px * TvUi.u;
                 height: 222px * TvUi.u;
 

@@ -147,7 +147,6 @@ export component TvMovie inherits Rectangle {
             height: 96px * TvUi.u;
             text: MoviePageState.summary;
             font-size: 22px * TvUi.u;
-            line-height: 32px * TvUi.u;
             color: Theme.text-secondary;
             wrap: word-wrap;
             overflow: elide;
@@ -170,7 +169,7 @@ export component TvMovie inherits Rectangle {
             height: 120px * TvUi.u;
             focused: TvUi.focused-tile == 0;
             fill: MoviePageState.tint;
-            clicked => { MoviePageState.play(); }
+            activated => { MoviePageState.play(); }
 
             VerticalLayout {
                 padding-left: 26px * TvUi.u;
@@ -214,7 +213,7 @@ export component TvMovie inherits Rectangle {
             height: 120px * TvUi.u;
             focused: TvUi.focused-tile == root.idx-from-start;
             fill: Theme.surface;
-            clicked => { MoviePageState.play-from-start(); }
+            activated => { MoviePageState.play-from-start(); }
             Text {
                 text: "From start";
                 font-size: 24px * TvUi.u;
@@ -231,7 +230,7 @@ export component TvMovie inherits Rectangle {
             height: 120px * TvUi.u;
             focused: TvUi.focused-tile == root.idx-trailer;
             fill: Theme.surface;
-            clicked => { MoviePageState.play-trailer(); }
+            activated => { MoviePageState.play-trailer(); }
             Text {
                 text: "▶  Trailer";
                 font-size: 24px * TvUi.u;
@@ -248,7 +247,7 @@ export component TvMovie inherits Rectangle {
             height: 120px * TvUi.u;
             focused: TvUi.focused-tile == root.idx-col;
             fill: Theme.surface;
-            clicked => { MoviePageState.open-collection(); }
+            activated => { MoviePageState.open-collection(); }
 
             HorizontalLayout {
                 padding: 15px * TvUi.u;
@@ -440,7 +439,7 @@ export component TvMovie inherits Rectangle {
                 height: 84px * TvUi.u;
                 focused: TvUi.focused-tile == root.content-base + i;
                 fill: Theme.surface;
-                clicked => { MoviePageState.search-person(p.name); }
+                activated => { MoviePageState.search-person(p.name); }
 
                 HorizontalLayout {
                     padding: 12px * TvUi.u;
@@ -532,15 +531,15 @@ export component TvMovie inherits Rectangle {
                 width: parent.width;
                 height: parent.height;
                 for p[i] in MoviePageState.cast: Tile {
-                property <int> col: Math.mod(i, 6);
-                property <int> row: Math.floor(i / 6);
-                x: col * 242px * TvUi.u;
-                y: row * 388px * TvUi.u;
+                property <int> grid-col: Math.mod(i, 6);
+                property <int> grid-row: Math.floor(i / 6);
+                x: grid-col * 242px * TvUi.u;
+                y: grid-row * 388px * TvUi.u;
                 width: 226px * TvUi.u;
                 height: 356px * TvUi.u;
                 focused: TvUi.focused-tile == root.cast-base + i;
                 fill: transparent;
-                clicked => { MoviePageState.search-person(p.name); }
+                activated => { MoviePageState.search-person(p.name); }
 
                 Rectangle {
                     x: 0;
@@ -585,15 +584,15 @@ export component TvMovie inherits Rectangle {
                 width: parent.width;
                 height: parent.height;
                 for ex[i] in MoviePageState.extras: Tile {
-                property <int> col: Math.mod(i, 3);
-                property <int> row: Math.floor(i / 3);
-                x: col * 484px * TvUi.u;
-                y: row * 356px * TvUi.u;
+                property <int> grid-col: Math.mod(i, 3);
+                property <int> grid-row: Math.floor(i / 3);
+                x: grid-col * 484px * TvUi.u;
+                y: grid-row * 356px * TvUi.u;
                 width: 468px * TvUi.u;
                 height: 316px * TvUi.u;
                 focused: TvUi.focused-tile == root.content-base + i;
                 fill: transparent;
-                clicked => { MoviePageState.play-extra(ex.key); }
+                activated => { MoviePageState.play-extra(ex.key); }
 
                 Rectangle {
                     x: 0;
@@ -707,7 +706,7 @@ export component TvMovie inherits Rectangle {
                 width: 240px * TvUi.u;
                 height: 52px * TvUi.u;
                 fill: MoviePageState.tint;
-                clicked => { MoviePageState.play(); }
+                activated => { MoviePageState.play(); }
                 Text {
                     text: "▶  " + (MoviePageState.play-label != "" ? MoviePageState.play-label : "Play");
                     font-size: 20px * TvUi.u;

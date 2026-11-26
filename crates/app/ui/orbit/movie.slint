@@ -94,7 +94,6 @@ export component OrbitMovie inherits Rectangle {
             text: MoviePageState.summary;
             font-family: OrbitTheme.font;
             font-size: 20px * TvUi.u;
-            line-height: 30px * TvUi.u;
             color: OrbitTheme.sub;
             wrap: word-wrap;
             height: 90px * TvUi.u;
@@ -523,11 +522,11 @@ export component OrbitMovie inherits Rectangle {
                     height: Math.ceil(MoviePageState.cast.length / 4) * 238px * TvUi.u;
 
                     for p[i] in MoviePageState.cast: Rectangle {
-                        property <int> col: Math.mod(i, 4);
-                        property <int> row: Math.floor(i / 4);
+                        property <int> grid-col: Math.mod(i, 4);
+                        property <int> grid-row: Math.floor(i / 4);
                         property <int> tile-i: root.cast-base + i;
-                        x: col * 207px * TvUi.u;
-                        y: row * 238px * TvUi.u;
+                        x: grid-col * 207px * TvUi.u;
+                        y: grid-row * 238px * TvUi.u;
                         width: 187px * TvUi.u;
                         height: 210px * TvUi.u;
 
