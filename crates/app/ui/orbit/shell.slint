@@ -7,6 +7,7 @@ import { OrbitHome } from "home.slint";
 import { OrbitApps } from "apps.slint";
 import { OrbitLibrary } from "library.slint";
 import { OrbitShow } from "show.slint";
+import { OrbitMovie } from "movie.slint";
 import { OrbitCollections } from "collections.slint";
 import { OrbitCollection } from "collection.slint";
 import { OrbitSports } from "sports.slint";
@@ -32,9 +33,9 @@ export component OrbitShell inherits Rectangle {
     property <int> focus-ticket: TvUi.focus-ticket;
     changed focus-ticket => { keys.focus(); }
 
-    property <bool> is-subpage: TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search" || TvUi.screen == "dashboard_picker";
+    property <bool> is-subpage: TvUi.screen == "show" || TvUi.screen == "movie" || TvUi.screen == "collection" || TvUi.screen == "search" || TvUi.screen == "dashboard_picker";
     property <int> eff-tab: TvUi.screen == "apps" ? 1
-        : (TvUi.screen == "library" || TvUi.screen == "show") ? 2
+        : (TvUi.screen == "library" || TvUi.screen == "show" || TvUi.screen == "movie") ? 2
         : (TvUi.screen == "collections" || TvUi.screen == "collection") ? 3
         : TvUi.screen == "sports" ? 4
         : (TvUi.screen == "settings" || TvUi.screen == "dashboard_picker") ? 5
@@ -90,6 +91,7 @@ export component OrbitShell inherits Rectangle {
     if TvUi.screen == "apps": OrbitApps { width: parent.width; height: parent.height; }
     if TvUi.screen == "library": OrbitLibrary { width: parent.width; height: parent.height; }
     if TvUi.screen == "show": OrbitShow { width: parent.width; height: parent.height; }
+    if TvUi.screen == "movie": OrbitMovie { width: parent.width; height: parent.height; }
     if TvUi.screen == "collections": OrbitCollections { width: parent.width; height: parent.height; }
     if TvUi.screen == "collection": OrbitCollection { width: parent.width; height: parent.height; }
     if TvUi.screen == "sports": OrbitSports { width: parent.width; height: parent.height; }

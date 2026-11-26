@@ -11,7 +11,11 @@ use tvdash_core::{
 };
 
 use super::{LaptopWindow, STATE, UiState, to_image};
-use crate::{ExtraData, MoviePageState, PersonData, TvUi, movie::play_label, movie::runtime_short};
+use crate::{
+    ExtraData, MoviePageState, PersonData, TvUi,
+    movie::{play_label, runtime_short},
+    orbit::rings::{gap_for_count, ring_paths},
+};
 
 const DISC_TINTS: &[u32] = &[
     0x3B5B7C, 0x6B4C7A, 0x3D6E5C, 0x7A5638, 0x4A5B82, 0x784458, 0x3E6A75, 0x6A613B,
@@ -210,6 +214,9 @@ pub(super) fn on_movie_detail(s: &mut UiState, laptop: &LaptopWindow, detail: Mo
     mp.set_play_label(pl.label.into());
     mp.set_play_meta(pl.meta.into());
     mp.set_progress(pl.progress);
+    let play_ring = ring_paths(100, (pl.progress * 100.0).round() as usize, 47.5, 0.0);
+    mp.set_play_ring_lit(play_ring.lit.into());
+    mp.set_play_ring_unlit(play_ring.unlit.into());
     mp.set_show_from_start(pl.show_from_start);
     mp.set_watched(detail.view_count > 0 && detail.view_offset_ms == 0);
     mp.set_has_trailer(
@@ -282,6 +289,9 @@ pub(super) fn on_movie_collection(
             mp.set_collection_watched(l.watched as i32);
             mp.set_collection_next(l.next_unwatched.unwrap_or_default().into());
             mp.set_collection_poster(poster);
+            let col_ring = ring_paths(l.total, l.watched, 33.0, gap_for_count(l.total));
+            mp.set_col_ring_lit(col_ring.lit.into());
+            mp.set_col_ring_unlit(col_ring.unlit.into());
         }
         None => {
             mp.set_in_collection(false);

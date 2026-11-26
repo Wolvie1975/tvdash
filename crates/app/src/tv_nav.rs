@@ -253,6 +253,113 @@ pub fn push_collection(laptop: &LaptopWindow) {
     sync(laptop);
 }
 
+fn orbit_movie_rects(laptop: &LaptopWindow) -> Vec<Rect> {
+    let mp = laptop.global::<MoviePageState>();
+    let mut rects = vec![Rect { x: 110.0, y: 500.0, w: 104.0, h: 104.0 }]; // 0: Play
+    let mut bx = 430.0;
+    if mp.get_show_from_start() {
+        rects.push(Rect { x: bx, y: 530.0, w: 150.0, h: 44.0 });
+        bx += 168.0;
+    }
+    if mp.get_has_trailer() {
+        rects.push(Rect { x: bx, y: 530.0, w: 140.0, h: 44.0 });
+        bx += 158.0;
+    }
+    rects.push(Rect { x: bx, y: 530.0, w: 56.0, h: 44.0 }); // ···
+    if mp.get_in_collection() {
+        rects.push(Rect { x: 110.0, y: 638.0, w: 600.0, h: 96.0 });
+    }
+    rects.push(Rect { x: 1000.0, y: 220.0, w: 220.0, h: 48.0 }); // Cast & crew tab
+    let has_extras = mp.get_extras().row_count() > 0;
+    if has_extras {
+        rects.push(Rect { x: 1232.0, y: 220.0, w: 180.0, h: 48.0 }); // Extras tab
+    }
+    if mp.get_tab() == "extras" && has_extras {
+        for i in 0..mp.get_extras().row_count() {
+            rects.push(Rect { x: 1000.0, y: 320.0 + i as f32 * 96.0, w: 810.0, h: 88.0 });
+        }
+    } else {
+        let crew_n = mp.get_crew().row_count();
+        for i in 0..crew_n {
+            rects.push(Rect { x: 1000.0 + i as f32 * 274.0, y: 320.0, w: 258.0, h: 72.0 });
+        }
+        let cast_y = if crew_n > 0 { 448.0 } else { 320.0 };
+        for i in 0..mp.get_cast().row_count() {
+            let col = (i % 4) as f32;
+            let row = (i / 4) as f32;
+            rects.push(Rect { x: 1000.0 + col * 207.0, y: cast_y + row * 238.0, w: 187.0, h: 210.0 });
+        }
+    }
+    rects
+}
+
+fn movie_activate_tile(laptop: &LaptopWindow, idx: usize) {
+    let mp = laptop.global::<MoviePageState>();
+    let is_orbit = laptop.global::<Display>().get_dashboard_ui() == "orbit";
+    let mut cur = 0usize;
+    if idx == cur {
+        mp.invoke_play();
+        return;
+    }
+    cur += 1;
+    if mp.get_show_from_start() {
+        if idx == cur {
+            mp.invoke_play_from_start();
+            return;
+        }
+        cur += 1;
+    }
+    if mp.get_has_trailer() {
+        if idx == cur {
+            mp.invoke_play_trailer();
+            return;
+        }
+        cur += 1;
+    }
+    if is_orbit {
+        if idx == cur {
+            mp.invoke_toggle_watched();
+            return;
+        }
+        cur += 1;
+    }
+    if mp.get_in_collection() {
+        if idx == cur {
+            mp.invoke_open_collection();
+            return;
+        }
+        cur += 1;
+    }
+    if idx == cur {
+        mp.invoke_set_tab("cast".into());
+        return;
+    }
+    cur += 1;
+    let has_extras = mp.get_extras().row_count() > 0;
+    if has_extras {
+        if idx == cur {
+            mp.invoke_set_tab("extras".into());
+            return;
+        }
+        cur += 1;
+    }
+    let rel = idx.saturating_sub(cur);
+    if mp.get_tab() == "extras" && has_extras {
+        if let Some(ex) = mp.get_extras().row_data(rel) {
+            mp.invoke_play_extra(ex.key);
+        }
+    } else {
+        let crew_n = mp.get_crew().row_count();
+        if rel < crew_n {
+            if let Some(p) = mp.get_crew().row_data(rel) {
+                mp.invoke_search_person(p.name);
+            }
+        } else if let Some(p) = mp.get_cast().row_data(rel - crew_n) {
+            mp.invoke_search_person(p.name);
+        }
+    }
+}
+
 pub fn push_movie(laptop: &LaptopWindow) {
     STATE.with_borrow_mut(|s| {
         s.show_scroll = 0.0;
@@ -398,7 +505,7 @@ pub fn sync(laptop: &LaptopWindow) {
                     s.lib_scroll = focus::panorama_scroll(vert, s.lib_scroll, 824.0, 16.0);
                 }
                 Page::Movie => {}
-        Page::Show(_) => {
+                Page::Show(_) => {
                     let show = laptop.global::<ShowPageState>();
                     let season_n = show.get_seasons().row_count();
                     let grid_base = 2 + season_n;
@@ -699,6 +806,7 @@ fn ps5_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 h: 76.0,
             })
             .collect(),
+        Page::Movie => orbit_movie_rects(laptop),
         Page::Search => (0..36)
             .map(|i| {
                 let col = (i % 6) as f32;
@@ -1629,7 +1737,7 @@ fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
                 tv.set_lib_scroll(s.lib_scroll);
             }
             Page::Movie => {}
-        Page::Show(_) => {
+            Page::Show(_) => {
                 let show = laptop.global::<ShowPageState>();
                 let ep_n = show.get_episodes().row_count() + usize::from(!show.get_next_season_label().is_empty());
                 let rows = ep_n.div_ceil(3);
@@ -1888,7 +1996,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                 }
             }
         }
-        Page::Movie => {}
+        Page::Movie => movie_activate_tile(laptop, idx),
         Page::Show(_) => {
             let show = laptop.global::<ShowPageState>();
             let season_n = show.get_seasons().row_count();
