@@ -211,7 +211,9 @@ pub(super) fn on_movie_detail(s: &mut UiState, laptop: &LaptopWindow, detail: Mo
     mp.set_play_label(pl.label.into());
     mp.set_play_meta(pl.meta.into());
     mp.set_progress(pl.progress);
-    let play_ring = ring_paths(100, (pl.progress * 100.0).round() as usize, 47.5, 0.0);
+    // `arc` centres on (r, r), so r must be half the ring's viewbox (OrbitPlay: 104),
+    // as on Home / Library; a smaller r drew the arc off-centre, up and to the left.
+    let play_ring = ring_paths(100, (pl.progress * 100.0).round() as usize, 52.0, 0.0);
     mp.set_play_ring_lit(play_ring.lit.into());
     mp.set_play_ring_unlit(play_ring.unlit.into());
     mp.set_show_from_start(pl.show_from_start);
@@ -286,7 +288,8 @@ pub(super) fn on_movie_collection(
             mp.set_collection_watched(l.watched as i32);
             mp.set_collection_next(l.next_unwatched.unwrap_or_default().into());
             mp.set_collection_poster(poster);
-            let col_ring = ring_paths(l.total, l.watched, 33.0, gap_for_count(l.total));
+            // Half the collection ring's 72 viewbox (centred like the play ring above).
+            let col_ring = ring_paths(l.total, l.watched, 36.0, gap_for_count(l.total));
             mp.set_col_ring_lit(col_ring.lit.into());
             mp.set_col_ring_unlit(col_ring.unlit.into());
         }
