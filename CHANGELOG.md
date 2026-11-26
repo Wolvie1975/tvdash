@@ -1,6 +1,6 @@
 # tvdash Changelog
 
-## Unreleased
+## v0.1.78 — 2026-11-25
 - **Quick switch (`feature/feature-pack-1`):**
   - Added `[tv] quick_switch` and `[tv] quick_switch_key` (`F9`) in `config.toml`, `GET/POST /quick` in the pill HTTP endpoint, a **Switch** button + full-screen Quick switch overlay in `extras/back-pill/`, and **Settings › Display › Quick switch** with a shared `QuickSwitchPicker` (Automatic 4 most recent, or Custom 1–4, excluding Google Meet).
 - **Up Next at credits & shared Up Next card (`feature/feature-pack-1`):**
