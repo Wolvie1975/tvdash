@@ -47,6 +47,10 @@ Design reference: [`docs/new concepts/movie_screens/tvdash-movie-page-build.md`]
 | `bf473cf` | Classic (first live check): `Tile` `base-width`/`base-height` sizing, shell Back pill, `on-tint` text, light themes keep the backdrop dark |
 | `6004e40` | Blades (first live check): backdrop edge, segmented switch, +24 px spacing (rects too), grid fills width, breadcrumb, light themes keep the backdrop dark |
 | `c92ed7d` | Orbit (first live check): extras rows under the label, `primary` active tab, right-panel scrim (not in spec), cast bottom fade |
+| `9c02d39` | Classic: remove a block duplicated by `bf473cf` (Slint parse error) |
+| `f02048b` | Shared `FitTitle` (`ui/shared/fit_title.slint`): Movie and Show titles in all three UIs shrink to fit (down to half size), then wrap to two lines, instead of eliding. Classic Movie title/meta column narrowed to 900 px |
+| `3c70c45` | Classic: scrims fade to `Theme.bg` at alpha 0, not `transparent` (grey band on light themes); light-theme left scrim solid under the text column |
+| `02c1f49` | Blades (second live check): framed 16:9 backdrop card replaces the faded backdrop (not in spec); From start / Trailer moved to the right end of the tab row; card height capped above the tab row |
 
 Also fixed in passing: `0dc4724` — Blades Library landing hero text no longer runs under the backdrop; hero runtime reads `2 h 26 min`.
 
@@ -56,6 +60,8 @@ Also fixed in passing: `0dc4724` — Blades Library landing hero text no longer 
 
 ## Known Gaps / Out of Scope
 - **Home** (What's On / Up Next) still plays directly instead of opening the Movie page.
+- **Collection link** sometimes doesn't appear (seen on *The Bourne Ultimatum*, opened from Collections). Not investigated; accepted, since the Collections page covers it. Likely causes: no `Collection` tag on the movie (smart collection) or a title mismatch in `pick_collection`.
+- **Gradients fading to `transparent`** remain in 7 files (Classic Show, Blades Movie/Show/Apps, ambient and focus backdrops); they can show a grey band on light themes.
 - **PS5 UI** has no Movie page: OK on a movie plays it directly (`callbacks.rs`, `on_open_movie` checks `Display.dashboard-ui == "ps5"`).
 
 ---
@@ -68,8 +74,8 @@ Also fixed in passing: `0dc4724` — Blades Library landing hero text no longer 
 | `cargo test -j 2 -p tvdash-media` | Passed (20/20) |
 | `cargo test -j 2 -p tvdash -- --test-threads=1` | Passed (112 passed, 8 ignored) after `2dfac2a` |
 | Live test: Orbit (`--features ui-orbit`) | Pending |
-| Live test: Classic (`--features ui-classic`) | Pending |
-| Live test: Blades (`--features ui-blades`) | Pending |
+| Live test: Classic (`--features ui-classic`) | In progress: layout checked (long titles, light themes); checklist pending |
+| Live test: Blades (`--features ui-blades`) | In progress: layout checked (backdrop card, buttons); checklist pending |
 
 ### Live Test Checklist (run in each UI)
 - [ ] OK on a movie opens the Movie page from: Library shelves, Browse all, Collection page rows, Search results, Watching now
