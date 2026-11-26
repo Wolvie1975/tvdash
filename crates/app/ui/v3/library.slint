@@ -246,7 +246,7 @@ export component V3Library inherits Rectangle {
         background: transparent;
 
         // Top-right rounded backdrop
-        Rectangle {
+        hero-art := Rectangle {
             x: parent.width - 40px * TvUi.u - 820px * TvUi.u;
             y: 4px * TvUi.u;
             width: 820px * TvUi.u;
@@ -280,7 +280,8 @@ export component V3Library inherits Rectangle {
         VerticalLayout {
             x: 40px * TvUi.u;
             y: 22px * TvUi.u;
-            width: 680px * TvUi.u;
+            // Stop 32 px short of the backdrop so text never runs under it in narrower panels.
+            width: min(680px * TvUi.u, hero-art.x - 40px * TvUi.u - 32px * TvUi.u);
             spacing: 10px * TvUi.u;
             alignment: start;
 
@@ -313,7 +314,6 @@ export component V3Library inherits Rectangle {
             }
 
             Text {
-                width: 640px * TvUi.u;
                 height: 82px * TvUi.u;
                 text: LibraryLanding.focus.summary;
                 font-family: V3Theme.font;

@@ -1034,7 +1034,7 @@ fn focus_info_for(s: &UiState, item: &MediaItem, is_shelf1: bool, is_tv: bool) -
             parts.push(g.clone());
         }
         if let Some(d) = item.duration_ms {
-            parts.push(format::duration(d));
+            parts.push(format::length(d));
         }
         if let Some(r) = &item.extra.content_rating {
             parts.push(r.clone());
@@ -1054,7 +1054,7 @@ fn focus_info_for(s: &UiState, item: &MediaItem, is_shelf1: bool, is_tv: bool) -
             parts.push(g.clone());
         }
         if let Some(d) = item.duration_ms {
-            parts.push(format::duration(d));
+            parts.push(format::length(d));
         }
         if let Some(r) = &item.extra.content_rating {
             parts.push(r.clone());
