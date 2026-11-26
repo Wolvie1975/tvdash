@@ -14,6 +14,7 @@ mod home_cmd;
 mod image_cache;
 mod instance;
 mod intro;
+mod movie;
 mod next_game;
 mod orbit;
 mod portal;

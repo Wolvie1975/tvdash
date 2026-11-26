@@ -77,6 +77,14 @@ pub enum Internal {
         show_key: String,
         extras: Vec<tvdash_core::events::ExtraItem>,
     },
+    MovieExtras {
+        movie_key: String,
+        extras: Vec<tvdash_core::events::ExtraItem>,
+    },
+    MovieCollection {
+        movie_key: String,
+        link: Option<tvdash_core::events::CollectionLink>,
+    },
 }
 
 /// What plays a Plex item: mpv in its own window, or libmpv drawing
@@ -193,6 +201,8 @@ pub struct Controller {
     playback: Option<Playback>,
     pending_next_ep: Option<MediaItem>,
     show_extras: Vec<tvdash_core::events::ExtraItem>,
+    movie_extras: Vec<tvdash_core::events::ExtraItem>,
+    open_movie: Option<String>,
     browser: Option<Browser>,
     inhibit: Option<crate::portal::IdleInhibit>,
     tv_geometry: Option<Geometry>,
@@ -264,6 +274,8 @@ impl Controller {
             playback: None,
             pending_next_ep: None,
             show_extras: Vec::new(),
+            movie_extras: Vec::new(),
+            open_movie: None,
             browser: None,
             inhibit: None,
             tv_geometry: None,
@@ -448,6 +460,17 @@ impl Controller {
                 Step::Internal(Internal::ShowExtras { show_key, extras }) => {
                     self.show_extras = extras.clone();
                     self.emit(AppEvent::ShowExtras { show_key, extras });
+                }
+                Step::Internal(Internal::MovieExtras { movie_key, extras }) => {
+                    if self.open_movie.as_deref() == Some(movie_key.as_str()) {
+                        self.movie_extras = extras.clone();
+                        self.emit(AppEvent::MovieExtras { movie_key, extras });
+                    }
+                }
+                Step::Internal(Internal::MovieCollection { movie_key, link }) => {
+                    if self.open_movie.as_deref() == Some(movie_key.as_str()) {
+                        self.emit(AppEvent::MovieCollection { movie_key, link });
+                    }
                 }
                 Step::Internal(Internal::Refresh) | Step::Refresh => {
                     self.refresh();
@@ -1168,13 +1191,45 @@ impl Controller {
                 }
             }
             Command::PlayExtra(key) => {
-                if let Some(ex) = self.show_extras.iter().find(|e| e.item.id == key).cloned() {
+                if let Some(ex) =
+                    self.show_extras.iter().chain(self.movie_extras.iter()).find(|e| e.item.id == key).cloned()
+                {
                     let mut item = ex.item;
                     item.resume_ms = None;
                     self.play_item(item, true).await;
                 }
             }
-            Command::OpenMovie(_) | Command::SetMovieWatched { .. } => {}
+            Command::OpenMovie(key) => {
+                self.open_movie = Some(key.clone());
+                self.movie_extras.clear();
+                self.open_movie(key);
+            }
+            Command::SetMovieWatched { rating_key, watched } => {
+                if let Some(plex) = self.plex.clone() {
+                    let internal = self.internal.clone();
+                    let events = self.events.clone();
+                    let requested = self.posters_requested.clone();
+                    let backdrops_req = self.backdrops_requested.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = plex.scrobble(&rating_key, watched).await {
+                            warn!(key = %rating_key, error = %e, "scrobble failed");
+                            return;
+                        }
+                        let _ = internal.send(Internal::Refresh);
+                        if let Ok(detail) = plex.movie_detail(&rating_key).await {
+                            let source: Arc<dyn MediaSource> = plex.clone();
+                            fetch_backdrops(
+                                source.clone(),
+                                vec![detail.item.clone()],
+                                backdrops_req,
+                                events.clone(),
+                            );
+                            fetch_posters(source, vec![detail.item.clone()], requested, events.clone());
+                            let _ = events.send(AppEvent::MovieDetail(Box::new(detail)));
+                        }
+                    });
+                }
+            }
         }
     }
 
@@ -1764,6 +1819,115 @@ impl Controller {
             }
             .await;
             let _ = events.send(AppEvent::CollectionDetail(res));
+        });
+    }
+
+    fn open_movie(&self, rating_key: String) {
+        let Some(plex) = self.plex.clone() else { return };
+        let events = self.events.clone();
+        let requested = self.posters_requested.clone();
+        let backdrops_req = self.backdrops_requested.clone();
+        let internal = self.internal.clone();
+        tokio::spawn(async move {
+            let detail = match plex.movie_detail(&rating_key).await {
+                Ok(d) => d,
+                Err(e) => {
+                    warn!(key = %rating_key, error = %e, "movie_detail failed");
+                    return;
+                }
+            };
+            let source: Arc<dyn MediaSource> = plex.clone();
+            fetch_backdrops(source.clone(), vec![detail.item.clone()], backdrops_req, events.clone());
+            let mut poster_items = vec![detail.item.clone()];
+            for p in detail.crew.iter().chain(detail.cast.iter()) {
+                if let Some(url) = &p.thumb {
+                    poster_items.push(MediaItem {
+                        source: SourceKind::Plex,
+                        id: format!("person:{url}"),
+                        kind: tvdash_core::models::MediaKind::Other,
+                        title: p.name.clone(),
+                        subtitle: None,
+                        episode_label: None,
+                        duration_ms: None,
+                        resume_ms: None,
+                        poster: Some(url.clone()),
+                        summary: None,
+                        extra: Default::default(),
+                    });
+                }
+            }
+            fetch_posters(source, poster_items, requested.clone(), events.clone());
+            let _ = events.send(AppEvent::MovieDetail(Box::new(detail.clone())));
+
+            // Extras (async, page doesn't wait).
+            {
+                let plex_ex = plex.clone();
+                let req_ex = requested.clone();
+                let ev_ex = events.clone();
+                let int_ex = internal.clone();
+                let key_ex = rating_key.clone();
+                tokio::spawn(async move {
+                    let extras = plex_ex.extras(&key_ex).await.unwrap_or_default();
+                    let items: Vec<MediaItem> = extras.iter().map(|e| e.item.clone()).collect();
+                    if !items.is_empty() {
+                        fetch_posters(plex_ex, items, req_ex, ev_ex);
+                    }
+                    let _ = int_ex.send(Internal::MovieExtras { movie_key: key_ex, extras });
+                });
+            }
+
+            // Collection link (async, page doesn't wait).
+            {
+                let plex_col = plex.clone();
+                let req_col = requested.clone();
+                let ev_col = events.clone();
+                let int_col = internal.clone();
+                let key_col = rating_key.clone();
+                tokio::spawn(async move {
+                    if detail.collections.is_empty() {
+                        let _ = int_col.send(Internal::MovieCollection { movie_key: key_col, link: None });
+                        return;
+                    }
+                    let sections = plex_col.sections().await.unwrap_or_default();
+                    let mut all_cols = Vec::new();
+                    for sec in sections.into_iter().filter(|s| s.kind == "movie") {
+                        if let Ok(cols) = plex_col.collections(&sec.key).await {
+                            all_cols.extend(cols);
+                        }
+                    }
+                    let Some(col) = crate::movie::pick_collection(&detail, &all_cols).cloned() else {
+                        let _ = int_col.send(Internal::MovieCollection { movie_key: key_col, link: None });
+                        return;
+                    };
+                    if let Some(thumb) = &col.thumb {
+                        fetch_posters(
+                            plex_col.clone(),
+                            vec![MediaItem {
+                                source: SourceKind::Plex,
+                                id: col.rating_key.clone(),
+                                kind: tvdash_core::models::MediaKind::Other,
+                                title: col.title.clone(),
+                                subtitle: None,
+                                episode_label: None,
+                                duration_ms: None,
+                                resume_ms: None,
+                                poster: Some(thumb.clone()),
+                                summary: None,
+                                extra: Default::default(),
+                            }],
+                            req_col,
+                            ev_col,
+                        );
+                    }
+                    let link = match plex_col.collection_entries(&col.rating_key).await {
+                        Ok((items, watched_keys)) => {
+                            crate::movie::build_collection_link(&key_col, &col, &items, &watched_keys)
+                        }
+                        Err(_) => None,
+                    };
+                    let _ = int_col.send(Internal::MovieCollection { movie_key: key_col, link });
+                });
+            }
         });
     }
 
@@ -2953,6 +3117,9 @@ impl Controller {
                     self.save_runtime_state();
                     self.emit_sleep();
                     self.toast("Sleep timer off · playback stopped");
+                }
+                if !p.playing_extra && self.open_movie.as_deref() == Some(p.status.item.id.as_str()) {
+                    self.open_movie(p.status.item.id.clone());
                 }
                 if !p.playing_extra
                     && p.ended_eof
