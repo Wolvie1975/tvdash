@@ -2,6 +2,7 @@
 
 import { MoviePageState, TvUi } from "../state.slint";
 import { V3Theme } from "theme.slint";
+import { FitTitle } from "../shared/fit_title.slint";
 
 export component V3Movie inherits Rectangle {
     width: 100%;
@@ -96,14 +97,13 @@ export component V3Movie inherits Rectangle {
             spacing: 12px * TvUi.u;
             alignment: start;
 
-            if !MoviePageState.loading: Text {
+            if !MoviePageState.loading: FitTitle {
                 text: MoviePageState.title;
                 font-family: V3Theme.font;
-                font-size: 72px * TvUi.u;
+                max-size: 72px * TvUi.u;
                 font-weight: 900;
                 letter-spacing: -1.5px * TvUi.u;
                 color: V3Theme.text-primary;
-                overflow: elide;
             }
             if MoviePageState.loading: Rectangle {
                 width: 480px * TvUi.u;

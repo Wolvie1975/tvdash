@@ -1,5 +1,6 @@
 import { MoviePageState, TvUi } from "../state.slint";
 import { OrbitTheme } from "theme.slint";
+import { FitTitle } from "../shared/fit_title.slint";
 import { OrbitPill, OrbitPlay, OrbitRow } from "controls.slint";
 import { OrbitRing } from "ring.slint";
 
@@ -71,14 +72,13 @@ export component OrbitMovie inherits Rectangle {
             color: OrbitTheme.accent;
         }
 
-        if !MoviePageState.loading: Text {
+        if !MoviePageState.loading: FitTitle {
             text: MoviePageState.title;
             font-family: OrbitTheme.font;
-            font-size: 84px * TvUi.u;
+            max-size: 84px * TvUi.u;
             font-weight: 700;
             letter-spacing: -2px * TvUi.u;
             color: OrbitTheme.text;
-            overflow: elide;
         }
         if MoviePageState.loading: Rectangle {
             width: 540px * TvUi.u;

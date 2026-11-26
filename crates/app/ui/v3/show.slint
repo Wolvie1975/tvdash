@@ -3,6 +3,7 @@
 import { Icon } from "../icons.slint";
 import { ShowPageState, TvUi } from "../state.slint";
 import { V3Theme } from "theme.slint";
+import { FitTitle } from "../shared/fit_title.slint";
 
 export component V3Show inherits Rectangle {
     width: 100%;
@@ -214,13 +215,12 @@ export component V3Show inherits Rectangle {
                 spacing: 10px * TvUi.u;
                 alignment: start;
 
-                Text {
+                FitTitle {
                     text: ShowPageState.title;
                     font-family: V3Theme.font;
-                    font-size: 54px * TvUi.u;
+                    max-size: 54px * TvUi.u;
                     font-weight: 700;
                     color: V3Theme.text-primary;
-                    overflow: elide;
                 }
 
                 if ShowPageState.meta != "": Text {

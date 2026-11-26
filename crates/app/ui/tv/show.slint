@@ -1,6 +1,7 @@
 import { Theme } from "../theme.slint";
 import { ShowPageState, TvUi } from "../state.slint";
 import { Tile } from "tile.slint";
+import { FitTitle } from "../shared/fit_title.slint";
 
 export component TvShow inherits Rectangle {
     width: 1920px * TvUi.u;
@@ -295,16 +296,16 @@ export component TvShow inherits Rectangle {
         }
 
         // Title: 88px, weight 400, -1.5px tracking
-        Text {
+        FitTitle {
             x: 96px * TvUi.u;
             y: 192px * TvUi.u;
             width: 1120px * TvUi.u;
+            height: 108px * TvUi.u;
             text: ShowPageState.title;
-            font-size: 88px * TvUi.u;
+            max-size: 88px * TvUi.u;
             font-weight: 400;
             letter-spacing: -1.5px * TvUi.u;
             color: Theme.text-primary;
-            overflow: elide;
         }
 
         // Meta: 24px
