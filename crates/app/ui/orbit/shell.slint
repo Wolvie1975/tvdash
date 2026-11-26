@@ -197,7 +197,7 @@ export component OrbitShell inherits Rectangle {
     if is-subpage: OrbitPill {
         x: 110px * TvUi.u;
         y: 130px * TvUi.u;
-        label: TvUi.screen == "show" ? "‹ Library"
+        label: (TvUi.screen == "show" || TvUi.screen == "movie") ? "‹ Library"
             : TvUi.screen == "collection" ? "‹ Collections"
             : "‹ Back";
         activated => { TvUi.back-clicked(); }

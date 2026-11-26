@@ -47,17 +47,7 @@ export component OrbitMovie inherits Rectangle {
         background: OrbitTheme.scrim-bottom;
     }
 
-    // 2. Back pill (top-left, mouse-clickable)
-    OrbitPill {
-        x: 110px * TvUi.u;
-        y: 130px * TvUi.u;
-        label: "‹ Library";
-        pill-height: 46px * TvUi.u;
-        focused: false;
-        clicked => { TvUi.focus-tile(-1); }
-    }
-
-    // 3. Left hero (x 110, y 210, w 780)
+    // 2. Left hero (x 110, y 210, w 780)
     VerticalLayout {
         x: 110px * TvUi.u;
         y: 210px * TvUi.u;

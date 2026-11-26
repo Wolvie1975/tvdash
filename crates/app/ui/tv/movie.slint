@@ -8,7 +8,7 @@ export component TvMovie inherits Rectangle {
     background: transparent;
     clip: true;
 
-    property <bool> scrolled: TvUi.show-scroll > 40;
+    property <bool> scrolled: TvUi.show-scroll > 40px;
     property <length> content-top: (700px - TvUi.show-scroll) * TvUi.u;
     property <length> left-col-y: root.scrolled ? 244px * TvUi.u : root.content-top;
 
@@ -63,31 +63,6 @@ export component TvMovie inherits Rectangle {
             width: 100%;
             height: 340px * TvUi.u;
             background: @linear-gradient(180deg, transparent 0%, Theme.bg 100%);
-        }
-    }
-
-    // Back pill
-    Rectangle {
-        x: 96px * TvUi.u;
-        y: 118px * TvUi.u;
-        width: 120px * TvUi.u;
-        height: 40px * TvUi.u;
-        border-radius: 6px;
-        background: back-ta.has-hover ? Theme.surface-raised : Theme.surface;
-        border-width: 1px;
-        border-color: Theme.border;
-        opacity: root.scrolled ? 0.0 : 1.0;
-        animate opacity { duration: 200ms; }
-        Text {
-            text: "← Back";
-            font-size: 18px * TvUi.u;
-            color: Theme.text-primary;
-            horizontal-alignment: center;
-            vertical-alignment: center;
-        }
-        back-ta := TouchArea {
-            mouse-cursor: pointer;
-            clicked => { TvUi.focus-tile(-1); }
         }
     }
 
