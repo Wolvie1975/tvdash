@@ -426,6 +426,135 @@ impl PlexClient {
         Ok(trailers)
     }
 
+    /// One movie with everything the Movie page needs (one request).
+    pub async fn movie_detail(&self, rating_key: &str) -> Result<tvdash_core::events::MovieDetail> {
+        use tvdash_core::events::{MovieDetail, Person};
+        let meta = self
+            .metadata(&format!("/library/metadata/{rating_key}"), &[], "movie_detail")
+            .await?;
+        let m = meta
+            .into_iter()
+            .next()
+            .ok_or_else(|| MediaError::Unexpected("movie not found".into()))?;
+
+        let resolution = m.media.first().and_then(|med| match med.video_resolution.as_deref() {
+            Some(r) if r.eq_ignore_ascii_case("4k") => Some("4K".to_string()),
+            Some("1080") => Some("1080p".to_string()),
+            Some("720") => Some("720p".to_string()),
+            _ => None,
+        });
+        let hdr = m
+            .media
+            .first()
+            .and_then(|med| med.part.first())
+            .and_then(|p| p.stream.iter().find(|s| s.stream_type == Some(1)))
+            .and_then(|s| {
+                if s.dovi_present == Some(true) {
+                    Some("Dolby Vision".to_string())
+                } else if s.color_trc.as_deref() == Some("smpte2084") {
+                    Some("HDR".to_string())
+                } else {
+                    None
+                }
+            });
+        let audio = m.media.first().and_then(|med| match med.audio_channels {
+            Some(8) => Some("7.1".to_string()),
+            Some(6) => Some("5.1".to_string()),
+            Some(2) => Some("Stereo".to_string()),
+            _ => None,
+        });
+
+        let mut crew = Vec::new();
+        for d in &m.director {
+            if crew.len() == 3 {
+                break;
+            }
+            if !d.tag.is_empty() {
+                crew.push(Person {
+                    name: d.tag.clone(),
+                    role: "Director".into(),
+                    thumb: d.thumb.clone(),
+                });
+            }
+        }
+        for w in &m.writer {
+            if crew.len() == 3 {
+                break;
+            }
+            if !w.tag.is_empty() {
+                crew.push(Person {
+                    name: w.tag.clone(),
+                    role: "Writer".into(),
+                    thumb: w.thumb.clone(),
+                });
+            }
+        }
+        let cast: Vec<Person> = m
+            .role
+            .iter()
+            .filter(|r| !r.tag.is_empty())
+            .take(20)
+            .map(|r| Person {
+                name: r.tag.clone(),
+                role: r.role.clone().unwrap_or_default(),
+                thumb: r.thumb.clone(),
+            })
+            .collect();
+        let genres: Vec<String> = m.genre.iter().map(|g| g.tag.clone()).take(2).collect();
+        let collections: Vec<String> = m.collection.iter().map(|c| c.tag.clone()).collect();
+        let summary = m.summary.clone().unwrap_or_default();
+        let year = m.year;
+        let content_rating = m.content_rating.clone();
+        let audience_rating = m.audience_rating;
+        let duration_ms = m.duration.unwrap_or(0);
+        let view_offset_ms = m.view_offset.unwrap_or(0);
+        let view_count = m.view_count.unwrap_or(0);
+        let last_viewed_at = m.last_viewed_at;
+        let art = m.art.clone();
+        let thumb = m.thumb.clone();
+        let primary_extra_key = m.primary_extra_key.clone().and_then(|k| {
+            k.rsplit('/').next().filter(|s| !s.is_empty()).map(str::to_owned)
+        });
+        let item = m
+            .into_media_item()
+            .ok_or_else(|| MediaError::Unexpected("invalid movie metadata".into()))?;
+
+        Ok(MovieDetail {
+            item,
+            summary,
+            year,
+            content_rating,
+            audience_rating,
+            genres,
+            duration_ms,
+            view_offset_ms,
+            view_count,
+            last_viewed_at,
+            resolution,
+            hdr,
+            audio,
+            crew,
+            cast,
+            collections,
+            art,
+            thumb,
+            primary_extra_key,
+        })
+    }
+
+    /// Mark an item watched (`/:/scrobble`) or unwatched (`/:/unscrobble`).
+    pub async fn scrobble(&self, rating_key: &str, watched: bool) -> Result<()> {
+        let path = if watched { "/:/scrobble" } else { "/:/unscrobble" };
+        let resp = self
+            .get(path, &[("key", rating_key.into()), ("identifier", "com.plexapp.plugins.library".into())])
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(MediaError::Unexpected(format!("HTTP {}", resp.status())));
+        }
+        Ok(())
+    }
+
     pub async fn collections(&self, section_key: &str) -> Result<Vec<CollectionInfo>> {
         let meta = self
             .metadata(&format!("/library/sections/{section_key}/collections"), &[], "collections")
@@ -1305,7 +1434,10 @@ struct Metadata {
     art: Option<String>,
     grandparent_art: Option<String>,
     content_rating: Option<String>,
+    audience_rating: Option<f32>,
     added_at: Option<i64>,
+    last_viewed_at: Option<i64>,
+    primary_extra_key: Option<String>,
     originally_available_at: Option<String>,
     summary: Option<String>,
     leaf_count: Option<u32>,
@@ -1325,6 +1457,12 @@ struct Metadata {
     guid: Vec<Guid>,
     #[serde(rename = "Genre")]
     genre: Vec<Tag>,
+    #[serde(rename = "Director")]
+    director: Vec<Tag>,
+    #[serde(rename = "Writer")]
+    writer: Vec<Tag>,
+    #[serde(rename = "Collection")]
+    collection: Vec<Tag>,
     #[serde(rename = "Role")]
     role: Vec<Tag>,
     #[serde(default, rename = "Marker")]
@@ -1335,6 +1473,8 @@ struct Metadata {
 #[serde(default)]
 struct Tag {
     tag: String,
+    role: Option<String>,
+    thumb: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -1439,12 +1579,25 @@ struct Media {
     part: Vec<Part>,
     video_decision: Option<String>,
     audio_decision: Option<String>,
+    video_resolution: Option<String>,
+    audio_channels: Option<u32>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 struct Part {
     key: String,
+    #[serde(rename = "Stream")]
+    stream: Vec<Stream>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct Stream {
+    stream_type: Option<u32>,
+    #[serde(rename = "DOVIPresent")]
+    dovi_present: Option<bool>,
+    color_trc: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -1888,5 +2041,72 @@ mod tests {
         assert_eq!(ex[0].item.id, "e2");
         assert_eq!(ex[1].kind, ExtraKind::BehindTheScenes);
         assert!(client.extras("201").await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn movie_detail_maps_fields_and_caps() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let Ok((mut sock, _)) = listener.accept().await else { return };
+            let mut buf = [0u8; 4096];
+            let _ = sock.read(&mut buf).await;
+            let roles: Vec<_> = (1..=25)
+                .map(|i| json!({ "tag": format!("Actor {i}"), "role": format!("Char {i}") }))
+                .collect();
+            let body = json!({
+                "MediaContainer": {
+                    "Metadata": [{
+                        "ratingKey": "555",
+                        "type": "movie",
+                        "title": "Sample Film",
+                        "year": 2019,
+                        "summary": "A test summary.",
+                        "contentRating": "PG-13",
+                        "audienceRating": 7.8,
+                        "duration": 6720000,
+                        "viewOffset": 2400000,
+                        "viewCount": 0,
+                        "primaryExtraKey": "/library/metadata/901",
+                        "Genre": [{ "tag": "Drama" }, { "tag": "Thriller" }, { "tag": "Mystery" }],
+                        "Director": [{ "tag": "Dir A" }, { "tag": "Dir B" }],
+                        "Writer": [{ "tag": "Wri A" }, { "tag": "Wri B" }],
+                        "Collection": [{ "tag": "Test Trilogy" }],
+                        "Role": roles,
+                        "Media": [{
+                            "videoResolution": "4k",
+                            "audioChannels": 6,
+                            "Part": [{
+                                "key": "/library/parts/1/file.mkv",
+                                "Stream": [{ "streamType": 1, "DOVIPresent": true, "colorTrc": "smpte2084" }]
+                            }]
+                        }]
+                    }]
+                }
+            });
+            let bytes = serde_json::to_vec(&body).unwrap();
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                bytes.len()
+            );
+            let _ = sock.write_all(resp.as_bytes()).await;
+            let _ = sock.write_all(&bytes).await;
+        });
+
+        let client = PlexClient::new(&format!("http://{addr}"), "tok".into(), "cid".into()).unwrap();
+        let d = client.movie_detail("555").await.unwrap();
+        assert_eq!(d.item.title, "Sample Film");
+        assert_eq!(d.genres, vec!["Drama", "Thriller"]);
+        assert_eq!(d.crew.len(), 3);
+        assert_eq!(d.crew[0].role, "Director");
+        assert_eq!(d.crew[2].role, "Writer");
+        assert_eq!(d.cast.len(), 20);
+        assert_eq!(d.resolution.as_deref(), Some("4K"));
+        assert_eq!(d.hdr.as_deref(), Some("Dolby Vision"));
+        assert_eq!(d.audio.as_deref(), Some("5.1"));
+        assert_eq!(d.primary_extra_key.as_deref(), Some("901"));
+        assert_eq!(d.collections, vec!["Test Trilogy"]);
     }
 }

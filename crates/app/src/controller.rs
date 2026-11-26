@@ -1174,6 +1174,7 @@ impl Controller {
                     self.play_item(item, true).await;
                 }
             }
+            Command::OpenMovie(_) | Command::SetMovieWatched { .. } => {}
         }
     }
 

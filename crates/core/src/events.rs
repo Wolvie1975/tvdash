@@ -230,6 +230,59 @@ pub enum AppEvent {
         show_key: String,
         extras: Vec<ExtraItem>,
     },
+    /// Movie detail page payload.
+    MovieDetail(Box<MovieDetail>),
+    /// Trailers and extras for an open movie.
+    MovieExtras {
+        movie_key: String,
+        extras: Vec<ExtraItem>,
+    },
+    /// Collection link for an open movie.
+    MovieCollection {
+        movie_key: String,
+        link: Option<CollectionLink>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Person {
+    pub name: String,
+    pub role: String,
+    pub thumb: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MovieDetail {
+    pub item: MediaItem,
+    pub summary: String,
+    pub year: Option<u32>,
+    pub content_rating: Option<String>,
+    pub audience_rating: Option<f32>,
+    pub genres: Vec<String>,
+    pub duration_ms: u64,
+    pub view_offset_ms: u64,
+    pub view_count: u32,
+    pub last_viewed_at: Option<i64>,
+    pub resolution: Option<String>,
+    pub hdr: Option<String>,
+    pub audio: Option<String>,
+    pub crew: Vec<Person>,
+    pub cast: Vec<Person>,
+    pub collections: Vec<String>,
+    pub art: Option<String>,
+    pub thumb: Option<String>,
+    pub primary_extra_key: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CollectionLink {
+    pub key: String,
+    pub title: String,
+    pub position: usize,
+    pub total: usize,
+    pub watched: usize,
+    pub next_unwatched: Option<String>,
+    pub poster: Option<String>,
 }
 
 /// A Plex trailer or extra item.
@@ -634,4 +687,11 @@ pub enum Command {
     WeatherTakeover(bool),
     /// Play a show extra or trailer by rating key (no resume, no Up Next, no recents).
     PlayExtra(String),
+    /// Open the Movie page for a Plex movie rating key.
+    OpenMovie(String),
+    /// Mark a movie watched or unwatched in Plex (`/:/scrobble` or `/:/unscrobble`).
+    SetMovieWatched {
+        rating_key: String,
+        watched: bool,
+    },
 }

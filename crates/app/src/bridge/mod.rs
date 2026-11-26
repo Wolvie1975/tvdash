@@ -593,6 +593,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         }
         AppEvent::WeatherAlerts(alerts) => weather_alerts::on_alerts(s, laptop, alerts),
         AppEvent::ShowExtras { show_key, extras } => library::on_show_extras(s, laptop, show_key, extras),
+        AppEvent::MovieDetail(_) | AppEvent::MovieExtras { .. } | AppEvent::MovieCollection { .. } => {}
         AppEvent::Places { query, result } => status::on_places(s, laptop, &query, result),
         AppEvent::Location { name, timezone } => status::on_location(s, laptop, name, &timezone),
         AppEvent::Tmdb(status) => accounts::on_tmdb(s, laptop, status),
