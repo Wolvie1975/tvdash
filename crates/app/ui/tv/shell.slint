@@ -9,6 +9,7 @@ import { TvApps } from "apps.slint";
 import { TvCollections } from "collections.slint";
 import { TvLibrary } from "library.slint";
 import { TvShow } from "show.slint";
+import { TvMovie } from "movie.slint";
 import { TvCollection } from "collection.slint";
 import { TvSearch } from "search.slint";
 import { TvSettings } from "settings.slint";
@@ -123,6 +124,7 @@ export component TvShell inherits Rectangle {
         if TvUi.screen == "collections": TvCollections { }
         if TvUi.screen == "library": TvLibrary { }
         if TvUi.screen == "show": TvShow { }
+        if TvUi.screen == "movie": TvMovie { }
         if TvUi.screen == "collection": TvCollection { }
         if TvUi.screen == "search": TvSearch { }
         if TvUi.screen == "sports": TvSports { }

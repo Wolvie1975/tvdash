@@ -253,6 +253,45 @@ pub fn push_collection(laptop: &LaptopWindow) {
     sync(laptop);
 }
 
+fn classic_movie_rects(laptop: &LaptopWindow) -> Vec<Rect> {
+    let mp = laptop.global::<MoviePageState>();
+    let mut rects = vec![Rect { x: 96.0, y: 452.0, w: 440.0, h: 120.0 }]; // 0: Play
+    let mut bx = 552.0;
+    if mp.get_show_from_start() {
+        rects.push(Rect { x: bx, y: 452.0, w: 260.0, h: 120.0 });
+        bx += 276.0;
+    }
+    if mp.get_has_trailer() {
+        rects.push(Rect { x: bx, y: 452.0, w: 220.0, h: 120.0 });
+        bx += 236.0;
+    }
+    if mp.get_in_collection() {
+        rects.push(Rect { x: bx, y: 452.0, w: (1824.0 - bx).max(260.0), h: 120.0 });
+    }
+    rects.push(Rect { x: 96.0, y: 612.0, w: 168.0, h: 52.0 }); // Cast & crew tab
+    let has_extras = mp.get_extras().row_count() > 0;
+    if has_extras {
+        rects.push(Rect { x: 300.0, y: 612.0, w: 110.0, h: 52.0 }); // Extras tab
+    }
+    if mp.get_tab() == "extras" && has_extras {
+        for i in 0..mp.get_extras().row_count() {
+            let col = (i % 3) as f32;
+            let row = (i / 3) as f32;
+            rects.push(Rect { x: 388.0 + col * 484.0, y: 700.0 + row * 356.0, w: 468.0, h: 316.0 });
+        }
+    } else {
+        for i in 0..mp.get_crew().row_count() {
+            rects.push(Rect { x: 96.0, y: 740.0 + i as f32 * 96.0, w: 260.0, h: 84.0 });
+        }
+        for i in 0..mp.get_cast().row_count() {
+            let col = (i % 6) as f32;
+            let row = (i / 6) as f32;
+            rects.push(Rect { x: 388.0 + col * 242.0, y: 700.0 + row * 388.0, w: 226.0, h: 356.0 });
+        }
+    }
+    rects
+}
+
 fn orbit_movie_rects(laptop: &LaptopWindow) -> Vec<Rect> {
     let mp = laptop.global::<MoviePageState>();
     let mut rects = vec![Rect { x: 110.0, y: 500.0, w: 104.0, h: 104.0 }]; // 0: Play
@@ -414,9 +453,11 @@ pub fn on_collection_loaded(laptop: &LaptopWindow) {
 
 pub fn focus_movie_tab(laptop: &LaptopWindow, _tab: &str) {
     let mp = laptop.global::<MoviePageState>();
+    let is_orbit = laptop.global::<Display>().get_dashboard_ui() == "orbit";
     let first = 2
         + usize::from(mp.get_show_from_start())
         + usize::from(mp.get_has_trailer())
+        + usize::from(is_orbit)
         + usize::from(mp.get_in_collection())
         + usize::from(mp.get_extras().row_count() > 0);
     STATE.with_borrow_mut(|s| {
@@ -504,7 +545,29 @@ pub fn sync(laptop: &LaptopWindow) {
                     let vert = Rect { x: r.y - 180.0, y: 0.0, w: r.h, h: r.w };
                     s.lib_scroll = focus::panorama_scroll(vert, s.lib_scroll, 824.0, 16.0);
                 }
-                Page::Movie => {}
+                Page::Movie => {
+                    let rects = tile_rects(laptop, &Page::Movie);
+                    let mp = laptop.global::<MoviePageState>();
+                    let content_base = 2
+                        + usize::from(mp.get_show_from_start())
+                        + usize::from(mp.get_has_trailer())
+                        + usize::from(mp.get_in_collection())
+                        + usize::from(mp.get_extras().row_count() > 0);
+                    let crew_n = if mp.get_tab() == "cast" { mp.get_crew().row_count() } else { 0 };
+                    let grid_base = content_base + crew_n;
+                    if s.shell.focused_tile < grid_base {
+                        s.show_scroll = 0.0;
+                    } else if let Some(r) = rects.get(s.shell.focused_tile) {
+                        let rel_y = r.y - 700.0;
+                        let max_scroll = (rects.last().map(|l| l.y + l.h - 1020.0).unwrap_or(0.0)).max(0.0);
+                        if rel_y < s.show_scroll {
+                            s.show_scroll = rel_y.max(0.0);
+                        } else if rel_y + r.h > s.show_scroll + 820.0 {
+                            s.show_scroll = (rel_y + r.h - 820.0).clamp(0.0, max_scroll);
+                        }
+                    }
+                    laptop.global::<TvUi>().set_show_scroll(s.show_scroll);
+                }
                 Page::Show(_) => {
                     let show = laptop.global::<ShowPageState>();
                     let season_n = show.get_seasons().row_count();
@@ -1465,7 +1528,7 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             }
             rects
         }
-        Page::Movie => Vec::new(),
+        Page::Movie => classic_movie_rects(laptop),
         Page::Show(_) => {
             let show = laptop.global::<ShowPageState>();
             let mut rects = vec![
@@ -1736,7 +1799,12 @@ fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
                 s.lib_scroll = (s.lib_scroll + step).clamp(0.0, 4000.0);
                 tv.set_lib_scroll(s.lib_scroll);
             }
-            Page::Movie => {}
+            Page::Movie => {
+                let rects = tile_rects(laptop, &Page::Movie);
+                let max_scroll = rects.last().map(|l| (l.y + l.h - 1020.0).max(0.0)).unwrap_or(0.0);
+                s.show_scroll = (s.show_scroll + step).clamp(0.0, max_scroll);
+                tv.set_show_scroll(s.show_scroll);
+            }
             Page::Show(_) => {
                 let show = laptop.global::<ShowPageState>();
                 let ep_n = show.get_episodes().row_count() + usize::from(!show.get_next_season_label().is_empty());
