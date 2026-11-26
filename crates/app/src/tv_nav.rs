@@ -276,24 +276,29 @@ fn blades_movie_rects(laptop: &LaptopWindow) -> Vec<Rect> {
     let ox = 228.0;
     let oy = 24.0;
     let mut rects = vec![Rect { x: ox + 44.0, y: oy + 318.0, w: 300.0, h: 58.0 }]; // 0: Play
-    let mut bx = ox + 356.0;
+    let has_col = mp.get_in_collection();
+    // Matches V3Movie.y-shift: 24 px below the spec's y 404 / 504 / 580; 100 up without a card.
+    let y_shift = if has_col { 24.0 } else { -76.0 };
+    // From start / Trailer sit at the right end of the switch row (panel 1464 wide, 44 px
+    // margins: right edge at x 1420). Focus indices stay 1 and 2, right after Play.
+    let switch_y = oy + 504.0 + y_shift;
+    let trailer_w = 150.0;
+    let from_start_w = 140.0;
+    let right = ox + 1420.0;
     if mp.get_show_from_start() {
-        rects.push(Rect { x: bx, y: oy + 318.0, w: 160.0, h: 58.0 });
-        bx += 172.0;
+        let trailer_space = if mp.get_has_trailer() { trailer_w + 12.0 } else { 0.0 };
+        rects.push(Rect { x: right - trailer_space - from_start_w, y: switch_y, w: from_start_w, h: 48.0 });
     }
     if mp.get_has_trailer() {
-        rects.push(Rect { x: bx, y: oy + 318.0, w: 150.0, h: 58.0 });
+        rects.push(Rect { x: right - trailer_w, y: switch_y, w: trailer_w, h: 48.0 });
     }
-    let has_col = mp.get_in_collection();
     if has_col {
         rects.push(Rect { x: ox + 44.0, y: oy + 428.0, w: 760.0, h: 76.0 });
     }
-    // Matches V3Movie.y-shift: 24 px below the spec's y 404 / 504 / 580; 100 up without a card.
-    let y_shift = if has_col { 24.0 } else { -76.0 };
-    rects.push(Rect { x: ox + 44.0, y: oy + 504.0 + y_shift, w: 160.0, h: 48.0 }); // Cast & crew
+    rects.push(Rect { x: ox + 44.0, y: switch_y, w: 160.0, h: 48.0 }); // Cast & crew
     let has_extras = mp.get_extras().row_count() > 0;
     if has_extras {
-        rects.push(Rect { x: ox + 210.0, y: oy + 504.0 + y_shift, w: 120.0, h: 48.0 }); // Extras
+        rects.push(Rect { x: ox + 210.0, y: switch_y, w: 120.0, h: 48.0 }); // Extras
     }
     let content_y = oy + 580.0 + y_shift;
     if mp.get_tab() == "extras" && has_extras {

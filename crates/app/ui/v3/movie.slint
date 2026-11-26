@@ -36,51 +36,6 @@ export component V3Movie inherits Rectangle {
         }
     }
 
-    // Backdrop: right 62% of the panel, top 440 px
-    Rectangle {
-        x: parent.width * 0.38;
-        y: 0;
-        width: parent.width * 0.62;
-        height: 440px * TvUi.u;
-        border-top-right-radius: 28px * TvUi.u;
-        clip: true;
-        // Light themes keep the art dark (spec §8.9).
-        background: !V3Theme.is-dark ? #0B0D10 : transparent;
-
-        if MoviePageState.has-backdrop: Image {
-            width: 100%;
-            height: 100%;
-            source: MoviePageState.backdrop;
-            image-fit: cover;
-        }
-        if !MoviePageState.has-backdrop: Rectangle {
-            width: 100%;
-            height: 100%;
-            background: @radial-gradient(circle, MoviePageState.tint.with-alpha(0.32) 0%, (!V3Theme.is-dark ? #0B0D10 : V3Theme.panel) 75%);
-        }
-
-        Rectangle {
-            width: 100%;
-            height: 100%;
-            // Fully opaque for the first 8% so the art's left edge never shows. On the light
-            // themes it is denser under the title block (dark text) and clears sooner.
-            background: !V3Theme.is-dark
-                ? @linear-gradient(90deg, V3Theme.panel 0%, V3Theme.panel 8%, V3Theme.panel.with-alpha(0.85) 32%, transparent 52%)
-                : @linear-gradient(90deg, V3Theme.panel 0%, V3Theme.panel 8%, V3Theme.panel.with-alpha(0.55) 32%, transparent 65%);
-        }
-        Rectangle {
-            width: 100%;
-            height: 100%;
-            background: @linear-gradient(180deg, transparent 45%, V3Theme.panel 100%);
-        }
-        // Light themes: keep the shell's weather + clock (dark text) readable over the art.
-        if !V3Theme.is-dark: Rectangle {
-            width: 100%;
-            height: 120px * TvUi.u;
-            background: @linear-gradient(180deg, V3Theme.panel 0%, V3Theme.panel.with-alpha(0.6) 55%, transparent 100%);
-        }
-    }
-
     // Vertically scrollable content
     Rectangle {
         x: 0;
@@ -88,6 +43,36 @@ export component V3Movie inherits Rectangle {
         width: parent.width;
         height: 2600px * TvUi.u;
         animate y { duration: 180ms; easing: cubic-bezier(0.22, 1, 0.36, 1); }
+
+        // Backdrop as a framed 16:9 card, top right, beside the 760 px title block
+        // (x 44 + 760 + 40 gap). No scrims: the art is never faded into the panel, so it
+        // looks the same on light and dark themes. Replaces the spec's faded backdrop.
+        Rectangle {
+            // Also capped so it ends 24 px above the switch row (which moves up 76 px when
+            // there's no collection card); the width shrinks to keep 16:9.
+            width: Math.min(Math.min(640px * TvUi.u, root.width - 884px * TvUi.u),
+                (504px * TvUi.u + root.y-shift - 24px * TvUi.u - 104px * TvUi.u) * 16 / 9);
+            height: self.width * 9 / 16;
+            x: root.width - 40px * TvUi.u - self.width;
+            y: 104px * TvUi.u;
+            border-radius: 20px * TvUi.u;
+            clip: true;
+            background: V3Theme.surface-raised;
+            border-width: 1px;
+            border-color: V3Theme.border;
+
+            if MoviePageState.has-backdrop: Image {
+                width: 100%;
+                height: 100%;
+                source: MoviePageState.backdrop;
+                image-fit: cover;
+            }
+            if !MoviePageState.has-backdrop: Rectangle {
+                width: 100%;
+                height: 100%;
+                background: @radial-gradient(circle, MoviePageState.tint.with-alpha(0.45) 0%, MoviePageState.tint.with-alpha(0.08) 75%);
+            }
+        }
 
         // Title block (y 112, x 44, max 760 wide)
         VerticalLayout {
@@ -180,52 +165,6 @@ export component V3Movie inherits Rectangle {
                         }
                     }
                     TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.play(); } }
-                }
-
-                // From start
-                if MoviePageState.show-from-start: Rectangle {
-                    height: 58px * TvUi.u;
-                    border-radius: 29px * TvUi.u;
-                    background: V3Theme.surface-raised;
-                    border-width: TvUi.focused-tile == root.idx-from-start ? 4px * TvUi.u : 0px;
-                    border-color: V3Theme.accent;
-                    HorizontalLayout {
-                        padding-left: 22px * TvUi.u;
-                        padding-right: 22px * TvUi.u;
-                        alignment: center;
-                        Text {
-                            text: "From start";
-                            font-family: V3Theme.font;
-                            font-size: 20px * TvUi.u;
-                            font-weight: 800;
-                            color: V3Theme.text-primary;
-                            vertical-alignment: center;
-                        }
-                    }
-                    TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.play-from-start(); } }
-                }
-
-                // Trailer
-                if MoviePageState.has-trailer: Rectangle {
-                    height: 58px * TvUi.u;
-                    border-radius: 29px * TvUi.u;
-                    background: V3Theme.surface-raised;
-                    border-width: TvUi.focused-tile == root.idx-trailer ? 4px * TvUi.u : 0px;
-                    border-color: V3Theme.accent;
-                    HorizontalLayout {
-                        padding-left: 22px * TvUi.u;
-                        padding-right: 22px * TvUi.u;
-                        alignment: center;
-                        Text {
-                            text: "▶  Trailer";
-                            font-family: V3Theme.font;
-                            font-size: 20px * TvUi.u;
-                            font-weight: 800;
-                            color: V3Theme.text-primary;
-                            vertical-alignment: center;
-                        }
-                    }
-                    TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.play-trailer(); } }
                 }
             }
         }
@@ -419,18 +358,77 @@ export component V3Movie inherits Rectangle {
                 vertical-alignment: center;
             }
 
-            Text {
-                x: parent.width - self.preferred-width;
+            // Right end: count, then the secondary actions (From start, Trailer). They sit
+            // here, under the backdrop card, so the Play row stays one wide button.
+            // Spans the whole row; `alignment: end` packs the count and buttons at the right.
+            // (Positioning by preferred-width pushed them off the panel.)
+            HorizontalLayout {
+                x: 0;
                 y: 0;
+                width: parent.width;
                 height: 48px * TvUi.u;
-                text: MoviePageState.tab == "extras"
-                    ? (MoviePageState.extras.length + " extras · trailers first")
-                    : (MoviePageState.crew.length + " crew · " + MoviePageState.cast.length + " cast");
-                font-family: V3Theme.font;
-                font-size: 18px * TvUi.u;
-                font-weight: 700;
-                color: V3Theme.text-secondary;
-                vertical-alignment: center;
+                spacing: 12px * TvUi.u;
+                alignment: end;
+
+                Text {
+                    horizontal-stretch: 0;
+                    text: MoviePageState.tab == "extras"
+                        ? (MoviePageState.extras.length + " extras · trailers first")
+                        : (MoviePageState.crew.length + " crew · " + MoviePageState.cast.length + " cast");
+                    font-family: V3Theme.font;
+                    font-size: 18px * TvUi.u;
+                    font-weight: 700;
+                    color: V3Theme.text-secondary;
+                    vertical-alignment: center;
+                }
+
+                if MoviePageState.show-from-start || MoviePageState.has-trailer: Rectangle { width: 12px * TvUi.u; horizontal-stretch: 0; }
+
+                if MoviePageState.show-from-start: Rectangle {
+                    horizontal-stretch: 0;
+                    height: 48px * TvUi.u;
+                    border-radius: 24px * TvUi.u;
+                    background: V3Theme.surface-raised;
+                    border-width: TvUi.focused-tile == root.idx-from-start ? 4px * TvUi.u : 0px;
+                    border-color: V3Theme.accent;
+                    HorizontalLayout {
+                        padding-left: 20px * TvUi.u;
+                        padding-right: 20px * TvUi.u;
+                        alignment: center;
+                        Text {
+                            text: "From start";
+                            font-family: V3Theme.font;
+                            font-size: 18px * TvUi.u;
+                            font-weight: 800;
+                            color: V3Theme.text-primary;
+                            vertical-alignment: center;
+                        }
+                    }
+                    TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.play-from-start(); } }
+                }
+
+                if MoviePageState.has-trailer: Rectangle {
+                    horizontal-stretch: 0;
+                    height: 48px * TvUi.u;
+                    border-radius: 24px * TvUi.u;
+                    background: V3Theme.surface-raised;
+                    border-width: TvUi.focused-tile == root.idx-trailer ? 4px * TvUi.u : 0px;
+                    border-color: V3Theme.accent;
+                    HorizontalLayout {
+                        padding-left: 20px * TvUi.u;
+                        padding-right: 20px * TvUi.u;
+                        alignment: center;
+                        Text {
+                            text: "▶  Trailer";
+                            font-family: V3Theme.font;
+                            font-size: 18px * TvUi.u;
+                            font-weight: 800;
+                            color: V3Theme.text-primary;
+                            vertical-alignment: center;
+                        }
+                    }
+                    TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.play-trailer(); } }
+                }
             }
         }
 
