@@ -121,7 +121,7 @@ export component V3Movie inherits Rectangle {
                 text: MoviePageState.summary;
                 font-family: V3Theme.font;
                 font-size: 21px * TvUi.u;
-                color: V3Theme.text-primary-secondary;
+                color: V3Theme.text-secondary;
                 wrap: word-wrap;
                 height: 60px * TvUi.u;
                 overflow: elide;
@@ -300,7 +300,7 @@ export component V3Movie inherits Rectangle {
                     font-family: V3Theme.font;
                     font-size: 18px * TvUi.u;
                     font-weight: 700;
-                    color: V3Theme.text-primary-secondary;
+                    color: V3Theme.text-secondary;
                     vertical-alignment: center;
                 }
             }
@@ -389,7 +389,7 @@ export component V3Movie inherits Rectangle {
                 font-family: V3Theme.font;
                 font-size: 18px * TvUi.u;
                 font-weight: 700;
-                color: V3Theme.text-primary-secondary;
+                color: V3Theme.text-secondary;
                 vertical-alignment: center;
             }
         }
@@ -408,7 +408,7 @@ export component V3Movie inherits Rectangle {
                 font-size: 17px * TvUi.u;
                 font-weight: 900;
                 letter-spacing: 2px * TvUi.u;
-                color: V3Theme.text-primary-secondary;
+                color: V3Theme.text-secondary;
             }
             if MoviePageState.tab == "cast": VerticalLayout {
                 spacing: 12px * TvUi.u;
@@ -446,7 +446,7 @@ export component V3Movie inherits Rectangle {
                         spacing: 2px * TvUi.u;
                         horizontal-stretch: 1;
                         Text { text: p.name; font-family: V3Theme.font; font-size: 20px * TvUi.u; font-weight: 800; color: V3Theme.text-primary; overflow: elide; }
-                        Text { text: p.role; font-family: V3Theme.font; font-size: 16px * TvUi.u; font-weight: 700; color: V3Theme.text-primary-secondary; overflow: elide; }
+                        Text { text: p.role; font-family: V3Theme.font; font-size: 16px * TvUi.u; font-weight: 700; color: V3Theme.text-secondary; overflow: elide; }
                     }
                 }
                 TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.search-person(p.name); } }
@@ -488,7 +488,7 @@ export component V3Movie inherits Rectangle {
                     font-family: V3Theme.font;
                     font-size: 18px * TvUi.u;
                     font-weight: 700;
-                    color: V3Theme.text-primary-secondary;
+                    color: V3Theme.text-secondary;
                     wrap: word-wrap;
                 }
             }
@@ -508,7 +508,7 @@ export component V3Movie inherits Rectangle {
                 font-family: V3Theme.font;
                 font-size: 20px * TvUi.u;
                 font-weight: 700;
-                color: V3Theme.text-primary-secondary;
+                color: V3Theme.text-secondary;
             }
 
             if MoviePageState.tab == "cast" && MoviePageState.cast.length > 0: Text {
@@ -519,7 +519,7 @@ export component V3Movie inherits Rectangle {
                 font-size: 17px * TvUi.u;
                 font-weight: 900;
                 letter-spacing: 2px * TvUi.u;
-                color: V3Theme.text-primary-secondary;
+                color: V3Theme.text-secondary;
             }
 
             if MoviePageState.tab == "cast": Rectangle {
@@ -574,7 +574,7 @@ export component V3Movie inherits Rectangle {
                     font-family: V3Theme.font;
                     font-size: 15px * TvUi.u;
                     font-weight: 700;
-                    color: V3Theme.text-primary-secondary;
+                    color: V3Theme.text-secondary;
                     overflow: elide;
                 }
                 TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.search-person(p.name); } }
@@ -660,7 +660,7 @@ export component V3Movie inherits Rectangle {
                     font-family: V3Theme.font;
                     font-size: 18px * TvUi.u;
                     font-weight: 700;
-                    color: V3Theme.text-primary-secondary;
+                    color: V3Theme.text-secondary;
                     overflow: elide;
                 }
                 TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.play-extra(ex.key); } }
