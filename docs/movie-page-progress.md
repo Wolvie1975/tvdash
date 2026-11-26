@@ -74,22 +74,22 @@ Also fixed in passing: `0dc4724` — Blades Library landing hero text no longer 
 | `cargo test -j 2 -p tvdash-core` | Passed (15/15) |
 | `cargo test -j 2 -p tvdash-media` | Passed (20/20) |
 | `cargo test -j 2 -p tvdash -- --test-threads=1` | Passed (112 passed, 8 ignored) after `2dfac2a` |
-| Live test: Orbit (`--features ui-orbit`) | In progress: layout checked (long title, play ring); checklist pending |
-| Live test: Classic (`--features ui-classic`) | In progress: layout checked (long titles, light themes); checklist pending |
-| Live test: Blades (`--features ui-blades`) | In progress: layout checked (backdrop card, buttons); checklist pending |
+| Live test: Orbit (`--features ui-orbit`) | Passed (2026-11-26) |
+| Live test: Classic (`--features ui-classic`) | Passed (2026-11-26) |
+| Live test: Blades (`--features ui-blades`) | Passed (2026-11-26) |
 
-### Live Test Checklist (run in each UI)
-- [ ] OK on a movie opens the Movie page from: Library shelves, Browse all, Collection page rows, Search results, Watching now
-- [ ] Home still plays directly
-- [ ] Back returns to the previous page with focus restored
-- [ ] Play label correct for unwatched, part-watched and watched movies; "ends at" updates while the page stays open
-- [ ] Watched toggle marks watched / unwatched and the play label updates
-- [ ] Page tint matches the backdrop and suits the current theme
-- [ ] Cast & crew: photos load; initials disc shows when a person has no photo
-- [ ] Selecting a person opens Search with focus on the results
-- [ ] Collection link opens the Collection page focused on this movie's row
-- [ ] Extras tab lists extras and plays the selected one; trailer appears when present
-- [ ] After playback exits, the Movie page refreshes (watched state / progress)
+### Live Test Checklist (run in each UI) — passed in Orbit, Classic and Blades, 2026-11-26
+- [x] OK on a movie opens the Movie page from: Library shelves, Browse all, Collection page rows, Search results, Watching now
+- [x] Home still plays directly
+- [x] Back returns to the previous page with focus restored
+- [x] Play label correct for unwatched, part-watched and watched movies; "ends at" updates while the page stays open
+- [x] Watched toggle marks watched / unwatched and the play label updates
+- [x] Page tint matches the backdrop and suits the current theme
+- [x] Cast & crew: photos load; initials disc shows when a person has no photo
+- [x] Selecting a person opens Search with focus on the results
+- [x] Collection link opens the Collection page focused on this movie's row
+- [x] Extras tab lists extras and plays the selected one; trailer appears when present
+- [x] After playback exits, the Movie page refreshes (watched state / progress)
 
 ### Next Commands (Host)
 ```bash
