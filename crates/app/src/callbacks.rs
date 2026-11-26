@@ -826,6 +826,65 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
         }
     });
 
+    let mp = laptop.global::<MoviePageState>();
+    let s = send.clone();
+    mp.on_play(move || {
+        if let Some(item) = bridge::movie::current_item() {
+            s(Command::Play(item));
+        }
+    });
+    let s = send.clone();
+    mp.on_play_from_start(move || {
+        if let Some(mut item) = bridge::movie::current_item() {
+            item.resume_ms = None;
+            s(Command::Play(item));
+        }
+    });
+    let s = send.clone();
+    mp.on_play_trailer(move || {
+        if let Some(key) = bridge::movie::first_trailer_key() {
+            s(Command::PlayExtra(key));
+        }
+    });
+    let s = send.clone();
+    mp.on_play_extra(move |key| {
+        s(Command::PlayExtra(key.to_string()));
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    mp.on_open_collection(move || {
+        if let Some((col_key, _movie_key)) = bridge::movie::collection_target() {
+            s(Command::OpenCollection(col_key));
+            if let Some(_l) = weak.upgrade() {
+                // Navigation push wired in tv_nav.
+            }
+        }
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    mp.on_search_person(move |name| {
+        let q = name.trim().to_string();
+        if q.is_empty() {
+            return;
+        }
+        if let Some(l) = weak.upgrade() {
+            let w = l.global::<Watch>();
+            w.set_query(q.as_str().into());
+            w.set_edited(true);
+        }
+        s(Command::Search(q));
+    });
+    let weak = laptop.as_weak();
+    mp.on_set_tab(move |tab| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<MoviePageState>().set_tab(tab);
+        }
+    });
+    let s = send.clone();
+    mp.on_toggle_watched(move || {
+        if let Some((rating_key, watched)) = bridge::movie::toggle_watched_args() {
+            s(Command::SetMovieWatched { rating_key, watched });
+        }
+    });
+
     let (weak, s) = (laptop.as_weak(), send.clone());
     lib.on_search(move |q| {
         if let Some(l) = weak.upgrade()

@@ -1166,6 +1166,68 @@ export struct StarredGameRow {
     meta: string,
 }
 
+export struct PersonData {
+    name: string,
+    role: string,
+    initials: string,
+    photo: image,
+    has-photo: bool,
+    tint: color,
+}
+
+export struct ExtraData {
+    key: string,
+    title: string,
+    kind: string,
+    duration: string,
+    thumb: image,
+    is-trailer: bool,
+}
+
+export global MoviePageState {
+    in property <string> rating-key;
+    in property <string> title;
+    in property <string> kicker;
+    in property <string> meta-line;
+    in property <[string]> chips;
+    in property <[string]> tech-chips;
+    in property <string> summary;
+    in property <image> backdrop;
+    in property <bool> has-backdrop;
+    in property <color> tint;
+
+    in property <string> play-label;
+    in property <string> play-meta;
+    in property <float> progress;
+    in property <bool> show-from-start;
+    in property <bool> has-trailer;
+    in property <bool> watched;
+
+    in property <bool> in-collection;
+    in property <string> collection-title;
+    in property <string> collection-position;
+    in property <int> collection-total;
+    in property <int> collection-watched;
+    in property <string> collection-next;
+    in property <image> collection-poster;
+
+    in property <[PersonData]> crew;
+    in property <[PersonData]> cast;
+    in property <[ExtraData]> extras;
+    in-out property <string> tab: "cast";
+    in property <string> cast-count;
+    in property <bool> loading: true;
+
+    callback play();
+    callback play-from-start();
+    callback play-trailer();
+    callback play-extra(string);
+    callback open-collection();
+    callback search-person(string);
+    callback set-tab(string);
+    callback toggle-watched();
+}
+
 export global SportsAlertsSettings {
     in-out property <int> soon-minutes: 15; // 0 | 5 | 10 | 15 | 30
     in-out property <bool> final-on: true;
