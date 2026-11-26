@@ -43,6 +43,14 @@ Design reference: [`docs/new concepts/movie_screens/tvdash-movie-page-build.md`]
 | `5668b16`, `4b248f7` | Blades: `V3Theme` token names |
 | `d6649f8` | Orbit: `OrbitPill` `selected`/`primary` and `activated` |
 | `2dfac2a` | App crate compile errors: `MoviePageState` import, cached `slint::Image` used directly, tint via `tint::card_tint`, `HashSet` watched keys |
+| `6b01262` | Crew: a director who also wrote is one entry (`Director, Writer`) |
+| `bf473cf` | Classic (first live check): `Tile` `base-width`/`base-height` sizing, shell Back pill, `on-tint` text, light themes keep the backdrop dark |
+| `6004e40` | Blades (first live check): backdrop edge, segmented switch, +24 px spacing (rects too), grid fills width, breadcrumb, light themes keep the backdrop dark |
+| `c92ed7d` | Orbit (first live check): extras rows under the label, `primary` active tab, right-panel scrim (not in spec), cast bottom fade |
+
+Also fixed in passing: `0dc4724` — Blades Library landing hero text no longer runs under the backdrop; hero runtime reads `2 h 26 min`.
+
+**Not changed:** the Classic/Blades **Show** page still washes its backdrop toward the light page colour in Stone/Mist; only the Movie page keeps it dark.
 
 ---
 
