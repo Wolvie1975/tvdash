@@ -51,6 +51,7 @@ Design reference: [`docs/new concepts/movie_screens/tvdash-movie-page-build.md`]
 | `f02048b` | Shared `FitTitle` (`ui/shared/fit_title.slint`): Movie and Show titles in all three UIs shrink to fit (down to half size), then wrap to two lines, instead of eliding. Classic Movie title/meta column narrowed to 900 px |
 | `3c70c45` | Classic: scrims fade to `Theme.bg` at alpha 0, not `transparent` (grey band on light themes); light-theme left scrim solid under the text column |
 | `02c1f49` | Blades (second live check): framed 16:9 backdrop card replaces the faded backdrop (not in spec); From start / Trailer moved to the right end of the tab row; card height capped above the tab row |
+| `ff48afa` | Orbit (second live check): `OrbitPlay` disc centred (sibling of the ring, not `@children`); Movie play / collection ring radii 52 / 36 so arcs centre on the track. Also fixes the play disc on Home, Library and Show |
 
 Also fixed in passing: `0dc4724` — Blades Library landing hero text no longer runs under the backdrop; hero runtime reads `2 h 26 min`.
 
@@ -73,7 +74,7 @@ Also fixed in passing: `0dc4724` — Blades Library landing hero text no longer 
 | `cargo test -j 2 -p tvdash-core` | Passed (15/15) |
 | `cargo test -j 2 -p tvdash-media` | Passed (20/20) |
 | `cargo test -j 2 -p tvdash -- --test-threads=1` | Passed (112 passed, 8 ignored) after `2dfac2a` |
-| Live test: Orbit (`--features ui-orbit`) | Pending |
+| Live test: Orbit (`--features ui-orbit`) | In progress: layout checked (long title, play ring); checklist pending |
 | Live test: Classic (`--features ui-classic`) | In progress: layout checked (long titles, light themes); checklist pending |
 | Live test: Blades (`--features ui-blades`) | In progress: layout checked (backdrop card, buttons); checklist pending |
 
