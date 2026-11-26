@@ -223,7 +223,9 @@ export component V3Shell inherits Rectangle {
                 Text {
                     x: 156px * TvUi.u;
                     y: 34px * TvUi.u;
-                    text: TvUi.screen == "show"
+                    text: TvUi.screen == "movie"
+                        ? "Library › Movies"
+                        : TvUi.screen == "show"
                         ? ("Library › " + (Library.media-tab == "movies" ? "Movies" : "TV Series"))
                         : TvUi.screen == "collection"
                             ? "Collections"

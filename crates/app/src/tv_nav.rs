@@ -286,9 +286,10 @@ fn blades_movie_rects(laptop: &LaptopWindow) -> Vec<Rect> {
     }
     let has_col = mp.get_in_collection();
     if has_col {
-        rects.push(Rect { x: ox + 44.0, y: oy + 404.0, w: 760.0, h: 76.0 });
+        rects.push(Rect { x: ox + 44.0, y: oy + 428.0, w: 760.0, h: 76.0 });
     }
-    let y_shift = if has_col { 0.0 } else { -100.0 };
+    // Matches V3Movie.y-shift: 24 px below the spec's y 404 / 504 / 580; 100 up without a card.
+    let y_shift = if has_col { 24.0 } else { -76.0 };
     rects.push(Rect { x: ox + 44.0, y: oy + 504.0 + y_shift, w: 160.0, h: 48.0 }); // Cast & crew
     let has_extras = mp.get_extras().row_count() > 0;
     if has_extras {

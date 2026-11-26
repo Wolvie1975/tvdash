@@ -20,7 +20,13 @@ export component V3Movie inherits Rectangle {
     property <int> cast-base: content-base + crew-n;
     property <int> focused-extra-i: (MoviePageState.tab == "extras" && TvUi.focused-tile >= content-base)
         ? Math.clamp(TvUi.focused-tile - content-base, 0, Math.max(0, MoviePageState.extras.length - 1)) : 0;
-    property <length> y-shift: MoviePageState.in-collection ? 0px : -100px * TvUi.u;
+    // The title block ends ~y 402, so everything below starts 24 px later than the spec's
+    // y 404 / 504 / 580; without the collection card it moves up 100 (spec §6.1).
+    property <length> y-shift: (MoviePageState.in-collection ? 24px : -76px) * TvUi.u;
+    // Cast / extras keep fixed tile sizes; the column gap grows so the grid fills the panel.
+    property <length> grid-w: root.width - 378px * TvUi.u;
+    property <length> cast-pitch: Math.max(160px * TvUi.u, (root.grid-w - 142px * TvUi.u) / 5);
+    property <length> extra-pitch: Math.max(322px * TvUi.u, (root.grid-w - 296px * TvUi.u) / 2);
 
     TouchArea {
         scroll-event(event) => {
@@ -37,6 +43,8 @@ export component V3Movie inherits Rectangle {
         height: 440px * TvUi.u;
         border-top-right-radius: 28px * TvUi.u;
         clip: true;
+        // Light themes keep the art dark (spec §8.9).
+        background: !V3Theme.is-dark ? #0B0D10 : transparent;
 
         if MoviePageState.has-backdrop: Image {
             width: 100%;
@@ -47,18 +55,28 @@ export component V3Movie inherits Rectangle {
         if !MoviePageState.has-backdrop: Rectangle {
             width: 100%;
             height: 100%;
-            background: @radial-gradient(circle, MoviePageState.tint.with-alpha(0.32) 0%, V3Theme.panel 75%);
+            background: @radial-gradient(circle, MoviePageState.tint.with-alpha(0.32) 0%, (!V3Theme.is-dark ? #0B0D10 : V3Theme.panel) 75%);
         }
 
         Rectangle {
             width: 100%;
             height: 100%;
-            background: @linear-gradient(90deg, V3Theme.panel 0%, V3Theme.panel.with-alpha(0.55) 30%, transparent 65%);
+            // Fully opaque for the first 8% so the art's left edge never shows. On the light
+            // themes it is denser under the title block (dark text) and clears sooner.
+            background: !V3Theme.is-dark
+                ? @linear-gradient(90deg, V3Theme.panel 0%, V3Theme.panel 8%, V3Theme.panel.with-alpha(0.85) 32%, transparent 52%)
+                : @linear-gradient(90deg, V3Theme.panel 0%, V3Theme.panel 8%, V3Theme.panel.with-alpha(0.55) 32%, transparent 65%);
         }
         Rectangle {
             width: 100%;
             height: 100%;
             background: @linear-gradient(180deg, transparent 45%, V3Theme.panel 100%);
+        }
+        // Light themes: keep the shell's weather + clock (dark text) readable over the art.
+        if !V3Theme.is-dark: Rectangle {
+            width: 100%;
+            height: 120px * TvUi.u;
+            background: @linear-gradient(180deg, V3Theme.panel 0%, V3Theme.panel.with-alpha(0.6) 55%, transparent 100%);
         }
     }
 
@@ -215,7 +233,7 @@ export component V3Movie inherits Rectangle {
         // Collection card (y 404, 760 x 76, radius 18, raised)
         if MoviePageState.in-collection: Rectangle {
             x: 44px * TvUi.u;
-            y: 404px * TvUi.u;
+            y: 428px * TvUi.u;
             width: 760px * TvUi.u;
             height: 76px * TvUi.u;
             border-radius: 18px * TvUi.u;
@@ -315,19 +333,23 @@ export component V3Movie inherits Rectangle {
             width: parent.width - 88px * TvUi.u;
             height: 48px * TvUi.u;
 
-            if root.has-extras: HorizontalLayout {
+            // Segmented control (Blades component): one raised track, active segment filled.
+            if root.has-extras: Rectangle {
                 x: 0;
                 y: 0;
+                width: seg-row.preferred-width;
                 height: 48px * TvUi.u;
-                spacing: 6px * TvUi.u;
-                alignment: start;
+                border-radius: 24px * TvUi.u;
+                background: V3Theme.surface-raised;
 
+                seg-row := HorizontalLayout {
+                    padding: 4px * TvUi.u;
+                    spacing: 4px * TvUi.u;
+                    alignment: start;
                 Rectangle {
-                    height: 48px * TvUi.u;
-                    border-radius: 24px * TvUi.u;
-                    background: MoviePageState.tab == "cast" ? V3Theme.accent : V3Theme.surface-raised;
-                    border-width: TvUi.focused-tile == root.idx-tab-cast ? 4px * TvUi.u : 0px;
-                    border-color: V3Theme.text-primary;
+                    height: 40px * TvUi.u;
+                    border-radius: 20px * TvUi.u;
+                    background: MoviePageState.tab == "cast" ? V3Theme.accent : transparent;
                     HorizontalLayout {
                         padding-left: 20px * TvUi.u;
                         padding-right: 20px * TvUi.u;
@@ -337,19 +359,26 @@ export component V3Movie inherits Rectangle {
                             font-family: V3Theme.font;
                             font-size: 18px * TvUi.u;
                             font-weight: 900;
-                            color: MoviePageState.tab == "cast" ? V3Theme.on-accent : V3Theme.text-primary;
+                            color: MoviePageState.tab == "cast" ? V3Theme.on-accent : V3Theme.text-secondary;
                             vertical-alignment: center;
                         }
                     }
+                    // Focus: 4 px accent outline, offset 5 (Blades rule)
+                    if TvUi.focused-tile == root.idx-tab-cast: Rectangle {
+                        x: -5px * TvUi.u - 4px * TvUi.u;
+                        y: -5px * TvUi.u - 4px * TvUi.u;
+                        width: parent.width + 18px * TvUi.u;
+                        height: parent.height + 18px * TvUi.u;
+                        border-radius: self.height / 2;
+                        border-width: 4px * TvUi.u;
+                        border-color: V3Theme.accent;
+                    }
                     TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.set-tab("cast"); } }
                 }
-
                 Rectangle {
-                    height: 48px * TvUi.u;
-                    border-radius: 24px * TvUi.u;
-                    background: MoviePageState.tab == "extras" ? V3Theme.accent : V3Theme.surface-raised;
-                    border-width: TvUi.focused-tile == root.idx-tab-extras ? 4px * TvUi.u : 0px;
-                    border-color: V3Theme.text-primary;
+                    height: 40px * TvUi.u;
+                    border-radius: 20px * TvUi.u;
+                    background: MoviePageState.tab == "extras" ? V3Theme.accent : transparent;
                     HorizontalLayout {
                         padding-left: 20px * TvUi.u;
                         padding-right: 20px * TvUi.u;
@@ -359,11 +388,22 @@ export component V3Movie inherits Rectangle {
                             font-family: V3Theme.font;
                             font-size: 18px * TvUi.u;
                             font-weight: 900;
-                            color: MoviePageState.tab == "extras" ? V3Theme.on-accent : V3Theme.text-primary;
+                            color: MoviePageState.tab == "extras" ? V3Theme.on-accent : V3Theme.text-secondary;
                             vertical-alignment: center;
                         }
                     }
+                    // Focus: 4 px accent outline, offset 5 (Blades rule)
+                    if TvUi.focused-tile == root.idx-tab-extras: Rectangle {
+                        x: -5px * TvUi.u - 4px * TvUi.u;
+                        y: -5px * TvUi.u - 4px * TvUi.u;
+                        width: parent.width + 18px * TvUi.u;
+                        height: parent.height + 18px * TvUi.u;
+                        border-radius: self.height / 2;
+                        border-width: 4px * TvUi.u;
+                        border-color: V3Theme.accent;
+                    }
                     TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.set-tab("extras"); } }
+                }
                 }
             }
 
@@ -445,8 +485,8 @@ export component V3Movie inherits Rectangle {
                         alignment: center;
                         spacing: 2px * TvUi.u;
                         horizontal-stretch: 1;
-                        Text { text: p.name; font-family: V3Theme.font; font-size: 20px * TvUi.u; font-weight: 800; color: V3Theme.text-primary; overflow: elide; }
-                        Text { text: p.role; font-family: V3Theme.font; font-size: 16px * TvUi.u; font-weight: 700; color: V3Theme.text-secondary; overflow: elide; }
+                        Text { text: p.name; font-family: V3Theme.font; font-size: 18px * TvUi.u; font-weight: 800; color: V3Theme.text-primary; overflow: elide; }
+                        Text { text: p.role; font-family: V3Theme.font; font-size: 15px * TvUi.u; font-weight: 700; color: V3Theme.text-secondary; overflow: elide; }
                     }
                 }
                 TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.search-person(p.name); } }
@@ -528,7 +568,7 @@ export component V3Movie inherits Rectangle {
                 for p[i] in MoviePageState.cast: Rectangle {
                 property <int> grid-col: Math.mod(i, 6);
                 property <int> grid-row: Math.floor(i / 6);
-                x: grid-col * 160px * TvUi.u;
+                x: grid-col * root.cast-pitch;
                 y: 34px * TvUi.u + grid-row * 288px * TvUi.u;
                 width: 142px * TvUi.u;
                 height: 264px * TvUi.u;
@@ -587,7 +627,7 @@ export component V3Movie inherits Rectangle {
                 for ex[i] in MoviePageState.extras: Rectangle {
                 property <int> grid-col: Math.mod(i, 3);
                 property <int> grid-row: Math.floor(i / 3);
-                x: grid-col * 322px * TvUi.u;
+                x: grid-col * root.extra-pitch;
                 y: grid-row * 246px * TvUi.u;
                 width: 296px * TvUi.u;
                 height: 222px * TvUi.u;
