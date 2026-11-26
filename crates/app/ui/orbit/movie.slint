@@ -161,7 +161,7 @@ export component OrbitMovie inherits Rectangle {
                     label: "From start";
                     pill-height: 44px * TvUi.u;
                     focused: TvUi.focused-tile == root.idx-from-start;
-                    clicked => { MoviePageState.play-from-start(); }
+                    activated => { MoviePageState.play-from-start(); }
                     hovered => { TvUi.focused-tile = root.idx-from-start; }
                 }
             }
@@ -172,7 +172,7 @@ export component OrbitMovie inherits Rectangle {
                     label: "▶ Trailer";
                     pill-height: 44px * TvUi.u;
                     focused: TvUi.focused-tile == root.idx-trailer;
-                    clicked => { MoviePageState.play-trailer(); }
+                    activated => { MoviePageState.play-trailer(); }
                     hovered => { TvUi.focused-tile = root.idx-trailer; }
                 }
             }
@@ -183,7 +183,7 @@ export component OrbitMovie inherits Rectangle {
                     label: "···";
                     pill-height: 44px * TvUi.u;
                     focused: TvUi.focused-tile == root.idx-more;
-                    clicked => { root.more-open = !root.more-open; }
+                    activated => { root.more-open = !root.more-open; }
                     hovered => { TvUi.focused-tile = root.idx-more; }
                 }
             }
@@ -349,18 +349,18 @@ export component OrbitMovie inherits Rectangle {
             OrbitPill {
                 label: "Cast & crew · " + MoviePageState.cast-count;
                 pill-height: 48px * TvUi.u;
-                active: MoviePageState.tab == "cast";
+                selected: MoviePageState.tab == "cast";
                 focused: TvUi.focused-tile == root.idx-tab-cast;
-                clicked => { MoviePageState.set-tab("cast"); }
+                activated => { MoviePageState.set-tab("cast"); }
                 hovered => { TvUi.focused-tile = root.idx-tab-cast; }
             }
 
             if root.has-extras: OrbitPill {
                 label: "Extras · " + MoviePageState.extras.length;
                 pill-height: 48px * TvUi.u;
-                active: MoviePageState.tab == "extras";
+                selected: MoviePageState.tab == "extras";
                 focused: TvUi.focused-tile == root.idx-tab-extras;
-                clicked => { MoviePageState.set-tab("extras"); }
+                activated => { MoviePageState.set-tab("extras"); }
                 hovered => { TvUi.focused-tile = root.idx-tab-extras; }
             }
 
@@ -688,8 +688,8 @@ export component OrbitMovie inherits Rectangle {
                             OrbitPill {
                                 label: "OK · Play";
                                 pill-height: 40px * TvUi.u;
-                                active: true;
-                                clicked => { MoviePageState.play-extra(ex.key); }
+                                primary: true;
+                                activated => { MoviePageState.play-extra(ex.key); }
                             }
                         }
                     }
