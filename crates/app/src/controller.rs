@@ -1921,7 +1921,7 @@ impl Controller {
                     }
                     let link = match plex_col.collection_entries(&col.rating_key).await {
                         Ok((items, watched_keys)) => {
-                            crate::movie::build_collection_link(&key_col, &col, &items, &watched_keys)
+                            crate::movie::build_collection_link(&key_col, &col, &items, &watched_keys.into_iter().collect::<HashSet<_>>())
                         }
                         Err(_) => None,
                     };

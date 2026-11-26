@@ -6,7 +6,8 @@ use tracing::{error, warn};
 use tvdash_core::{Command, models::SourceKind};
 
 use crate::{
-    Accounts, Artwork, Browse, CollectionPageState, Dash, Display, LaptopWindow, Library, Nav, Scoreboard, Server,
+    Accounts, Artwork, Browse, CollectionPageState, Dash, Display, LaptopWindow, Library, MoviePageState, Nav,
+    Scoreboard, Server,
     Setup, ShowPageState, SiteEditor, SleepState, Sports, SportsAlertState, SportsAlertsSettings, Watch, bridge,
     watch_ui,
 };

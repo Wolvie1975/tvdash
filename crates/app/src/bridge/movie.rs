@@ -13,6 +13,7 @@ use tvdash_core::{
 use super::{LaptopWindow, STATE, UiState, to_image};
 use crate::{
     ExtraData, MoviePageState, PersonData, TvUi,
+    tint,
     movie::{play_label, runtime_short},
     orbit::rings::{gap_for_count, ring_paths},
 };
@@ -180,21 +181,15 @@ pub(super) fn on_movie_detail(s: &mut UiState, laptop: &LaptopWindow, detail: Mo
     }
 
     let key = (SourceKind::Plex, detail.item.id.clone());
-    if let Some(bd) = s.backdrops.get(&key) {
-        mp.set_backdrop(to_image(bd));
-        mp.set_has_backdrop(true);
-    } else if let Some(poster) = s.posters.get(&key) {
-        mp.set_backdrop(to_image(poster));
+    if let Some(art) = s.backdrops.get(&key).or_else(|| s.posters.get(&key)) {
+        mp.set_backdrop(art);
         mp.set_has_backdrop(true);
     } else {
         mp.set_backdrop(Image::default());
         mp.set_has_backdrop(false);
     }
-    let tint = s
-        .backdrop_hues
-        .get(&key)
-        .map(|h| Color::from_rgb_u8(h.0, h.1, h.2))
-        .unwrap_or_else(|| Color::from_rgb_u8(0x28, 0x70, 0x8C));
+    let hue = s.backdrop_hues.get(&key).or_else(|| s.hues.get(&key)).copied().unwrap_or(tint::DEFAULT);
+    let tint = tint::card_tint(hue, s.effective_theme()).accent;
 
     let crew_rows: Vec<PersonData> = detail.crew.iter().map(|p| person_row(s, p)).collect();
     let cast_rows: Vec<PersonData> = detail.cast.iter().map(|p| person_row(s, p)).collect();
@@ -244,8 +239,8 @@ pub(super) fn on_movie_extras(
         .map(|e| {
             let thumb = s
                 .posters
-                .get(&(SourceKind::Plex, e.item.id.clone()))
-                .map(to_image)
+                .peek(&(SourceKind::Plex, e.item.id.clone()))
+                .cloned()
                 .unwrap_or_default();
             ExtraData {
                 key: e.item.id.as_str().into(),
@@ -279,8 +274,8 @@ pub(super) fn on_movie_collection(
         Some(l) => {
             let poster = s
                 .posters
-                .get(&(SourceKind::Plex, l.key.clone()))
-                .map(to_image)
+                .peek(&(SourceKind::Plex, l.key.clone()))
+                .cloned()
                 .unwrap_or_default();
             mp.set_in_collection(true);
             mp.set_collection_title(l.title.into());
@@ -417,8 +412,8 @@ fn person_row(s: &UiState, p: &Person) -> PersonData {
     let (photo, has_photo) = p
         .thumb
         .as_deref()
-        .and_then(|url| s.posters.get(&(SourceKind::Plex, format!("person:{url}"))))
-        .map(|img| (to_image(img), true))
+        .and_then(|url| s.posters.peek(&(SourceKind::Plex, format!("person:{url}"))))
+        .map(|img| (img.clone(), true))
         .unwrap_or_else(|| (Image::default(), false));
     PersonData {
         name: p.name.as_str().into(),
