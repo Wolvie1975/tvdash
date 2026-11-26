@@ -189,7 +189,8 @@ pub(super) fn on_movie_detail(s: &mut UiState, laptop: &LaptopWindow, detail: Mo
         mp.set_has_backdrop(false);
     }
     let hue = s.backdrop_hues.get(&key).or_else(|| s.hues.get(&key)).copied().unwrap_or(tint::DEFAULT);
-    let tint = tint::card_tint(hue, s.effective_theme()).accent;
+    let card = tint::card_tint(hue, s.effective_theme());
+    let (tint, on_tint) = (card.accent, card.on_accent);
 
     let crew_rows: Vec<PersonData> = detail.crew.iter().map(|p| person_row(s, p)).collect();
     let cast_rows: Vec<PersonData> = detail.cast.iter().map(|p| person_row(s, p)).collect();
@@ -206,6 +207,7 @@ pub(super) fn on_movie_detail(s: &mut UiState, laptop: &LaptopWindow, detail: Mo
     mp.set_tech_chips(ModelRc::new(VecModel::from(tech_chips)));
     mp.set_summary(detail.summary.as_str().into());
     mp.set_tint(tint);
+    mp.set_on_tint(on_tint);
     mp.set_play_label(pl.label.into());
     mp.set_play_meta(pl.meta.into());
     mp.set_progress(pl.progress);
