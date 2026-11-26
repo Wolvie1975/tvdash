@@ -1,5 +1,13 @@
 # tvdash Changelog
 
+## Unreleased
+- **Movie page (`movie-page`):**
+  - Added `PlexClient::movie_detail` (`/library/metadata/{key}`) with cast, crew (directors & writers, max 3), genres, content/audience rating, resolution/HDR/audio badges, collection tags, and `PlexClient::scrobble` (`/:/scrobble` / `/:/unscrobble`).
+  - Added `crates/app/src/movie.rs` (`play_label` with live 1-minute "ends at" countdown and collection link builder), extended `Command::PlayExtra` to movie extras, and re-fetched movie details when returning from playback.
+  - Added shared `MoviePageState`, `PersonData`, and `ExtraData` in `ui/state.slint` with `bridge/movie.rs` (persistent `VecModel`s, transcoded person photos with hashed-tint initials fallback).
+  - Replaced OK-on-a-movie direct playback with `Library.open-movie` across Library, Browse all, Collection page, Search, and Watching now (Home What's On & Up Next unchanged; PS5 falls back to direct playback).
+  - Built the **Movie page** in **Orbit** (`ui/orbit/movie.slint`, including `···` watched toggle), **Classic** (`ui/tv/movie.slint`, with scrolled state & sticky bar), and **Blades** (`ui/v3/movie.slint`, with left/right strips & segmented collection bar).
+
 ## v0.1.78 — 2026-11-25
 - **Quick switch (`feature/feature-pack-1`):**
   - Added `[tv] quick_switch` and `[tv] quick_switch_key` (`F9`) in `config.toml`, `GET/POST /quick` in the pill HTTP endpoint, a **Switch** button + full-screen Quick switch overlay in `extras/back-pill/`, and **Settings › Display › Quick switch** with a shared `QuickSwitchPicker` (Automatic 4 most recent, or Custom 1–4, excluding Google Meet).
