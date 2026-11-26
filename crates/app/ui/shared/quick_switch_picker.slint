@@ -9,12 +9,12 @@ export component QuickSwitchPicker inherits Rectangle {
     height: 100%;
     background: Theme.bg;
 
-    // Breadcrumb & Title (x 96, y 140)
+    // Breadcrumb & Title (x 96, y 112)
     Text {
         x: 96px * TvUi.u;
-        y: 140px * TvUi.u;
+        y: 112px * TvUi.u;
         text: "SETTINGS › DISPLAY › QUICK SWITCH";
-        font-size: 22px * TvUi.u;
+        font-size: 20px * TvUi.u;
         font-weight: 600;
         letter-spacing: 1.2px * TvUi.u;
         color: Theme.text-secondary;
@@ -22,28 +22,28 @@ export component QuickSwitchPicker inherits Rectangle {
 
     Text {
         x: 96px * TvUi.u;
-        y: 174px * TvUi.u;
+        y: 142px * TvUi.u;
         text: "Quick switch";
-        font-size: 54px * TvUi.u;
+        font-size: 48px * TvUi.u;
         font-weight: 300;
         color: Theme.text-primary;
     }
 
     Text {
         x: 96px * TvUi.u;
-        y: 244px * TvUi.u;
+        y: 202px * TvUi.u;
         text: "Apps shown in the Switch overlay while you watch";
-        font-size: 24px * TvUi.u;
+        font-size: 22px * TvUi.u;
         color: Theme.text-secondary;
     }
 
-    // Rect 0: Automatic toggle tile (x 96, y 316, w 1728, h 92)
+    // Rect 0: Automatic toggle tile (x 96, y 254, w 1728, h 96)
     Rectangle {
         property <bool> is-foc: (!TvUi.bar-focused && TvUi.focused-tile == 0) || auto-ta.has-hover;
         x: 96px * TvUi.u;
-        y: 316px * TvUi.u;
+        y: 254px * TvUi.u;
         width: 1728px * TvUi.u;
-        height: 92px * TvUi.u;
+        height: 96px * TvUi.u;
         border-radius: 10px * TvUi.u;
         background: Theme.surface;
         border-width: is-foc ? 4px * TvUi.u : 1px;
@@ -51,12 +51,15 @@ export component QuickSwitchPicker inherits Rectangle {
 
         VerticalLayout {
             x: 28px * TvUi.u;
-            y: 16px * TvUi.u;
+            y: 0;
+            width: parent.width - 168px * TvUi.u;
+            height: parent.height;
+            alignment: center;
             spacing: 4px * TvUi.u;
 
             Text {
                 text: "Automatic";
-                font-size: 26px * TvUi.u;
+                font-size: 25px * TvUi.u;
                 font-weight: 600;
                 color: Theme.text-primary;
             }
@@ -66,6 +69,7 @@ export component QuickSwitchPicker inherits Rectangle {
                     : "Custom order — pick up to 4 apps below";
                 font-size: 18px * TvUi.u;
                 color: Theme.text-secondary;
+                overflow: elide;
             }
         }
 
@@ -98,16 +102,16 @@ export component QuickSwitchPicker inherits Rectangle {
         }
     }
 
-    // App grid: 5 across, starting at y 440 (332 x 186 tiles, 17px gap)
+    // App grid: 5 across, starting at y 376 (332 x 166 tiles, 16px row gap)
     for choice[i] in QuickSwitch.choices: Rectangle {
         property <int> grid-col: Math.mod(i, 5);
         property <int> grid-row: Math.floor(i / 5);
         property <bool> is-foc: (!TvUi.bar-focused && TvUi.focused-tile == i + 1) || (!QuickSwitch.automatic && tile-ta.has-hover);
 
         x: (96 + grid-col * 349) * 1px * TvUi.u - (is-foc ? 4px * TvUi.u : 0px);
-        y: (440 + grid-row * 204) * 1px * TvUi.u - (is-foc ? 4px * TvUi.u : 0px);
+        y: (376 + grid-row * 182) * 1px * TvUi.u - (is-foc ? 4px * TvUi.u : 0px);
         width: (is-foc ? 340 : 332) * 1px * TvUi.u;
-        height: (is-foc ? 194 : 186) * 1px * TvUi.u;
+        height: (is-foc ? 174 : 166) * 1px * TvUi.u;
         border-radius: 14px * TvUi.u;
         border-width: is-foc ? 4px * TvUi.u : 0px;
         border-color: Theme.text-primary;
@@ -124,16 +128,16 @@ export component QuickSwitchPicker inherits Rectangle {
 
             if choice.brand.has-logo: Image {
                 x: (parent.width - self.width) / 2;
-                y: 26px * TvUi.u;
-                width: 180px * TvUi.u;
-                height: 92px * TvUi.u;
+                y: 22px * TvUi.u;
+                width: 168px * TvUi.u;
+                height: 80px * TvUi.u;
                 source: choice.brand.logo;
                 image-fit: contain;
             }
 
             Text {
                 x: 16px * TvUi.u;
-                y: choice.brand.has-logo ? 132px * TvUi.u : (parent.height - self.preferred-height) / 2;
+                y: choice.brand.has-logo ? 116px * TvUi.u : (parent.height - self.preferred-height) / 2;
                 width: parent.width - 32px * TvUi.u;
                 text: choice.name;
                 font-size: choice.brand.has-logo ? 20px * TvUi.u : 28px * TvUi.u;

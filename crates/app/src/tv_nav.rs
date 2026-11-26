@@ -253,6 +253,24 @@ pub fn push_collection(laptop: &LaptopWindow) {
     sync(laptop);
 }
 
+fn quick_switch_rects(laptop: &LaptopWindow) -> Vec<Rect> {
+    let mut rects = vec![Rect { x: 96.0, y: 254.0, w: 1728.0, h: 96.0 }];
+    let qs = laptop.global::<crate::QuickSwitch>();
+    if !qs.get_automatic() {
+        for i in 0..qs.get_choices().row_count() {
+            let col = (i % 5) as f32;
+            let row = (i / 5) as f32;
+            rects.push(Rect {
+                x: 96.0 + col * 349.0,
+                y: 376.0 + row * 182.0,
+                w: 332.0,
+                h: 166.0,
+            });
+        }
+    }
+    rects
+}
+
 fn blades_movie_rects(laptop: &LaptopWindow) -> Vec<Rect> {
     let mp = laptop.global::<MoviePageState>();
     let ox = 228.0;
@@ -801,7 +819,7 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
-        Page::QuickSwitchPicker => Vec::new(),
+        Page::QuickSwitchPicker => quick_switch_rects(laptop),
         Page::Settings => (0..7)
             .map(|i| Rect { x: 110.0, y: 196.0 + i as f32 * 88.0, w: 380.0, h: 80.0 })
             .collect(),
@@ -908,7 +926,7 @@ fn ps5_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
-        Page::QuickSwitchPicker => Vec::new(),
+        Page::QuickSwitchPicker => quick_switch_rects(laptop),
         Page::Settings => (0..6)
             .map(|i| Rect {
                 x: 540.0,
@@ -1239,7 +1257,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
-        Page::QuickSwitchPicker => Vec::new(),
+        Page::QuickSwitchPicker => quick_switch_rects(laptop),
         Page::Settings => {
             let ox = 364.0;
             let oy = 24.0;
@@ -1686,7 +1704,7 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
-        Page::QuickSwitchPicker => Vec::new(),
+        Page::QuickSwitchPicker => quick_switch_rects(laptop),
         Page::Settings => {
             // 0..=6: SubTabs (Display, Accounts, Sites, Sports, Server, Diagnostics, What's new)
             let mut rects = vec![
