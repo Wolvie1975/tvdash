@@ -65,6 +65,7 @@ pub enum Page {
     Apps,
     Library,
     Show(String),
+    Movie,
     Collection(String),
     Collections,
     Sports,

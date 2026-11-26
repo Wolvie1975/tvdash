@@ -9,8 +9,8 @@ use slint::{ComponentHandle, Model, SharedString, platform::Key};
 use tvdash_core::config::Layout;
 
 use crate::{
-    Accounts, Artwork, CollectionPageState, Dash, Display, LaptopWindow, Library, LibraryLanding, Nav, Scoreboard,
-    Server, ShowPageState, SiteEditor, SleepState, Sports, SportsAlertState, SportsAlertsSettings, TvUi,
+    Accounts, Artwork, CollectionPageState, Dash, Display, LaptopWindow, Library, LibraryLanding, MoviePageState, Nav,
+    Scoreboard, Server, ShowPageState, SiteEditor, SleepState, Sports, SportsAlertState, SportsAlertsSettings, TvUi,
     UiTheme, Watch,
     focus::{self, Dir, Rect},
     shell_tv::{Page, ShellState, Tab},
@@ -28,6 +28,7 @@ struct NavRuntime {
     show_scroll: f32,
     col_scroll: f32,
     last_key: Instant,
+    pending_collection_focus: Option<String>,
 }
 
 thread_local! {
@@ -38,6 +39,7 @@ thread_local! {
         show_scroll: 0.0,
         col_scroll: 0.0,
         last_key: Instant::now(),
+        pending_collection_focus: None,
     });
 }
 
@@ -47,6 +49,7 @@ fn page_name(page: &Page) -> &'static str {
         Page::Apps => "apps",
         Page::Library => "library",
         Page::Show(_) => "show",
+        Page::Movie => "movie",
         Page::Collection(_) => "collection",
         Page::Collections => "collections",
         Page::Sports => "sports",
@@ -62,6 +65,7 @@ fn hint_for(page: &Page) -> &'static str {
         Page::Home => "OK Select · Back Home · F12 Return from service",
         Page::Apps => "OK Launch app · Back Home",
         Page::Collections => "OK Open collection · Back Home",
+        Page::Movie => "OK Play · ↓ Cast & crew · Back",
         Page::DashboardPicker => "OK Switch · ‹ › Pick · Back Cancel",
         Page::QuickSwitchPicker => "OK Add/remove · Back Done",
         _ => "OK Select · Back Return",
@@ -249,6 +253,73 @@ pub fn push_collection(laptop: &LaptopWindow) {
     sync(laptop);
 }
 
+pub fn push_movie(laptop: &LaptopWindow) {
+    STATE.with_borrow_mut(|s| {
+        s.show_scroll = 0.0;
+        if !matches!(s.shell.current(), Page::Movie) {
+            s.shell.push(Page::Movie);
+        }
+        s.shell.focused_tile = 0;
+    });
+    laptop.global::<TvUi>().set_show_scroll(0.0);
+    sync(laptop);
+}
+
+pub fn push_search_results(laptop: &LaptopWindow) {
+    STATE.with_borrow_mut(|s| {
+        if !matches!(s.shell.current(), Page::Search) {
+            s.shell.push(Page::Search);
+        }
+        s.shell.focused_tile = 39;
+    });
+    sync(laptop);
+}
+
+pub fn open_collection_from_movie(laptop: &LaptopWindow, movie_key: String) {
+    STATE.with_borrow_mut(|s| {
+        s.pending_collection_focus = Some(movie_key);
+        if !matches!(s.shell.current(), Page::Collection(_)) {
+            s.shell.push(Page::Collection(String::new()));
+        }
+    });
+    sync(laptop);
+}
+
+pub fn on_collection_loaded(laptop: &LaptopWindow) {
+    let target = STATE.with_borrow_mut(|s| s.pending_collection_focus.take());
+    let Some(movie_key) = target else { return };
+    let col = laptop.global::<CollectionPageState>();
+    let items = col.get_items();
+    for i in 0..items.row_count() {
+        if let Some(row) = items.row_data(i)
+            && row.rating_key.as_str() == movie_key
+        {
+            STATE.with_borrow_mut(|s| {
+                if matches!(s.shell.current(), Page::Collection(_)) {
+                    s.shell.focused_tile = 1 + i;
+                }
+            });
+            sync(laptop);
+            break;
+        }
+    }
+}
+
+pub fn focus_movie_tab(laptop: &LaptopWindow, _tab: &str) {
+    let mp = laptop.global::<MoviePageState>();
+    let first = 2
+        + usize::from(mp.get_show_from_start())
+        + usize::from(mp.get_has_trailer())
+        + usize::from(mp.get_in_collection())
+        + usize::from(mp.get_extras().row_count() > 0);
+    STATE.with_borrow_mut(|s| {
+        if matches!(s.shell.current(), Page::Movie) {
+            s.shell.focused_tile = first;
+        }
+    });
+    sync(laptop);
+}
+
 pub fn open_dashboard_picker(laptop: &LaptopWindow) {
     let cur = tvdash_core::config::DashboardUi::parse(&laptop.global::<Display>().get_dashboard_ui());
     let cur_idx = crate::bridge::display::enabled_uis()
@@ -326,7 +397,8 @@ pub fn sync(laptop: &LaptopWindow) {
                     let vert = Rect { x: r.y - 180.0, y: 0.0, w: r.h, h: r.w };
                     s.lib_scroll = focus::panorama_scroll(vert, s.lib_scroll, 824.0, 16.0);
                 }
-                Page::Show(_) => {
+                Page::Movie => {}
+        Page::Show(_) => {
                     let show = laptop.global::<ShowPageState>();
                     let season_n = show.get_seasons().row_count();
                     let grid_base = 2 + season_n;
@@ -469,6 +541,7 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
+        Page::Movie => Vec::new(),
         Page::Show(_) => {
             let sp = laptop.global::<crate::ShowPageState>();
             let n = sp.get_episodes().row_count().min(24).max(1);
@@ -799,6 +872,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
+        Page::Movie => Vec::new(),
         Page::Show(_) => {
             let ox = 228.0;
             let oy = 24.0;
@@ -1283,6 +1357,7 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             }
             rects
         }
+        Page::Movie => Vec::new(),
         Page::Show(_) => {
             let show = laptop.global::<ShowPageState>();
             let mut rects = vec![
@@ -1553,7 +1628,8 @@ fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
                 s.lib_scroll = (s.lib_scroll + step).clamp(0.0, 4000.0);
                 tv.set_lib_scroll(s.lib_scroll);
             }
-            Page::Show(_) => {
+            Page::Movie => {}
+        Page::Show(_) => {
                 let show = laptop.global::<ShowPageState>();
                 let ep_n = show.get_episodes().row_count() + usize::from(!show.get_next_season_label().is_empty());
                 let rows = ep_n.div_ceil(3);
@@ -1643,6 +1719,13 @@ fn activate_library_selection(laptop: &LaptopWindow, lib: &Library, section: &st
         lib.invoke_open_show(show_key);
         STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
         sync(laptop);
+    } else if let Some(item) = crate::bridge::selected()
+        && item.kind == tvdash_core::models::MediaKind::Movie
+        && item.source == tvdash_core::models::SourceKind::Plex
+        && laptop.global::<Display>().get_dashboard_ui() != "ps5"
+    {
+        lib.invoke_close_detail();
+        lib.invoke_open_movie(item.id.into());
     } else {
         lib.invoke_play_detail(false);
     }
@@ -1775,7 +1858,11 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             let s2_n = ll.get_shelf2().row_count().min(6);
             if item_idx < s1_n {
                 if let Some(row) = ll.get_shelf1().row_data(item_idx) {
-                    lib.invoke_play_key(row.rating_key, true);
+                    if is_tv {
+                        lib.invoke_play_key(row.rating_key, true);
+                    } else {
+                        lib.invoke_open_movie(row.rating_key);
+                    }
                 }
             } else if item_idx < s1_n + s2_n {
                 let s2_idx = item_idx - s1_n;
@@ -1785,7 +1872,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                         STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
                         sync(laptop);
                     } else {
-                        lib.invoke_play_key(row.rating_key, true);
+                        lib.invoke_open_movie(row.rating_key);
                     }
                 }
             } else {
@@ -1796,11 +1883,12 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                         STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
                         sync(laptop);
                     } else {
-                        lib.invoke_play_key(row.rating_key, true);
+                        lib.invoke_open_movie(row.rating_key);
                     }
                 }
             }
         }
+        Page::Movie => {}
         Page::Show(_) => {
             let show = laptop.global::<ShowPageState>();
             let season_n = show.get_seasons().row_count();

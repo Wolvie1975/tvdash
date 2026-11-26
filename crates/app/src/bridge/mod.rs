@@ -758,6 +758,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         }
         AppEvent::CollectionDetail(res) => {
             library::on_collection_detail(s, laptop, res);
+            crate::tv_nav::on_collection_loaded(laptop);
         }
         AppEvent::SportsEvents(res) => {
             let sp = laptop.global::<Sports>();

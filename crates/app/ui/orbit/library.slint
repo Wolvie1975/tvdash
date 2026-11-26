@@ -138,7 +138,11 @@ export component OrbitLibrary inherits Rectangle {
                     focused: root.focused-area == 0;
                     activated => {
                         if LibraryLanding.focus.rating-key != "" {
-                            Library.play-key(LibraryLanding.focus.rating-key, true);
+                            if Library.media-tab == "tv" {
+                                Library.play-key(LibraryLanding.focus.rating-key, true);
+                            } else {
+                                Library.open-movie(LibraryLanding.focus.rating-key);
+                            }
                         }
                     }
                     hovered => { root.focused-area = 0; }
@@ -262,7 +266,7 @@ export component OrbitLibrary inherits Rectangle {
                 mouse-cursor: pointer;
                 clicked => {
                     if is-movies {
-                        Library.play-key(item.rating-key, true);
+                        Library.open-movie(item.rating-key);
                     } else {
                         Library.open-show(item.rating-key);
                     }
@@ -362,7 +366,7 @@ export component OrbitLibrary inherits Rectangle {
                 mouse-cursor: pointer;
                 clicked => {
                     if is-movies {
-                        Library.play-key(shelf-pair == 0 ? LibraryLanding.shelf2[lib-dial-node.idx].rating-key : LibraryLanding.shelf3[lib-dial-node.idx].rating-key, true);
+                        Library.open-movie(shelf-pair == 0 ? LibraryLanding.shelf2[lib-dial-node.idx].rating-key : LibraryLanding.shelf3[lib-dial-node.idx].rating-key);
                     } else {
                         Library.open-show(shelf-pair == 0 ? LibraryLanding.shelf2[lib-dial-node.idx].rating-key : LibraryLanding.shelf3[lib-dial-node.idx].rating-key);
                     }
