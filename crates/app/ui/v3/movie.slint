@@ -84,14 +84,14 @@ export component V3Movie inherits Rectangle {
                 font-size: 72px * TvUi.u;
                 font-weight: 900;
                 letter-spacing: -1.5px * TvUi.u;
-                color: V3Theme.text;
+                color: V3Theme.text-primary;
                 overflow: elide;
             }
             if MoviePageState.loading: Rectangle {
                 width: 480px * TvUi.u;
                 height: 68px * TvUi.u;
                 border-radius: 14px * TvUi.u;
-                background: V3Theme.raised;
+                background: V3Theme.surface-raised;
             }
 
             if MoviePageState.chips.length > 0: HorizontalLayout {
@@ -100,7 +100,7 @@ export component V3Movie inherits Rectangle {
                 for chip in MoviePageState.chips: Rectangle {
                     height: 30px * TvUi.u;
                     border-radius: 9px * TvUi.u;
-                    background: V3Theme.raised;
+                    background: V3Theme.surface-raised;
                     HorizontalLayout {
                         padding-left: 11px * TvUi.u;
                         padding-right: 11px * TvUi.u;
@@ -110,7 +110,7 @@ export component V3Movie inherits Rectangle {
                             font-family: V3Theme.font;
                             font-size: 17px * TvUi.u;
                             font-weight: 800;
-                            color: V3Theme.text;
+                            color: V3Theme.text-primary;
                             vertical-alignment: center;
                         }
                     }
@@ -121,7 +121,7 @@ export component V3Movie inherits Rectangle {
                 text: MoviePageState.summary;
                 font-family: V3Theme.font;
                 font-size: 21px * TvUi.u;
-                color: V3Theme.sub;
+                color: V3Theme.text-primary-secondary;
                 wrap: word-wrap;
                 height: 60px * TvUi.u;
                 overflow: elide;
@@ -129,8 +129,8 @@ export component V3Movie inherits Rectangle {
             if MoviePageState.loading: VerticalLayout {
                 spacing: 8px * TvUi.u;
                 height: 60px * TvUi.u;
-                Rectangle { width: 700px * TvUi.u; height: 18px * TvUi.u; border-radius: 9px * TvUi.u; background: V3Theme.raised; }
-                Rectangle { width: 520px * TvUi.u; height: 18px * TvUi.u; border-radius: 9px * TvUi.u; background: V3Theme.raised; }
+                Rectangle { width: 700px * TvUi.u; height: 18px * TvUi.u; border-radius: 9px * TvUi.u; background: V3Theme.surface-raised; }
+                Rectangle { width: 520px * TvUi.u; height: 18px * TvUi.u; border-radius: 9px * TvUi.u; background: V3Theme.surface-raised; }
             }
 
             // Buttons (20 below, h58, pill, gap 12)
@@ -146,7 +146,7 @@ export component V3Movie inherits Rectangle {
                     border-radius: 29px * TvUi.u;
                     background: V3Theme.accent;
                     border-width: TvUi.focused-tile == 0 ? 4px * TvUi.u : 0px;
-                    border-color: V3Theme.text;
+                    border-color: V3Theme.text-primary;
                     HorizontalLayout {
                         padding-left: 24px * TvUi.u;
                         padding-right: 24px * TvUi.u;
@@ -157,7 +157,7 @@ export component V3Movie inherits Rectangle {
                             font-family: V3Theme.font;
                             font-size: 22px * TvUi.u;
                             font-weight: 900;
-                            color: V3Theme.accent-text;
+                            color: V3Theme.on-accent;
                             vertical-alignment: center;
                         }
                     }
@@ -168,7 +168,7 @@ export component V3Movie inherits Rectangle {
                 if MoviePageState.show-from-start: Rectangle {
                     height: 58px * TvUi.u;
                     border-radius: 29px * TvUi.u;
-                    background: V3Theme.raised;
+                    background: V3Theme.surface-raised;
                     border-width: TvUi.focused-tile == root.idx-from-start ? 4px * TvUi.u : 0px;
                     border-color: V3Theme.accent;
                     HorizontalLayout {
@@ -180,7 +180,7 @@ export component V3Movie inherits Rectangle {
                             font-family: V3Theme.font;
                             font-size: 20px * TvUi.u;
                             font-weight: 800;
-                            color: V3Theme.text;
+                            color: V3Theme.text-primary;
                             vertical-alignment: center;
                         }
                     }
@@ -191,7 +191,7 @@ export component V3Movie inherits Rectangle {
                 if MoviePageState.has-trailer: Rectangle {
                     height: 58px * TvUi.u;
                     border-radius: 29px * TvUi.u;
-                    background: V3Theme.raised;
+                    background: V3Theme.surface-raised;
                     border-width: TvUi.focused-tile == root.idx-trailer ? 4px * TvUi.u : 0px;
                     border-color: V3Theme.accent;
                     HorizontalLayout {
@@ -203,7 +203,7 @@ export component V3Movie inherits Rectangle {
                             font-family: V3Theme.font;
                             font-size: 20px * TvUi.u;
                             font-weight: 800;
-                            color: V3Theme.text;
+                            color: V3Theme.text-primary;
                             vertical-alignment: center;
                         }
                     }
@@ -219,7 +219,7 @@ export component V3Movie inherits Rectangle {
             width: 760px * TvUi.u;
             height: 76px * TvUi.u;
             border-radius: 18px * TvUi.u;
-            background: V3Theme.raised;
+            background: V3Theme.surface-raised;
             border-width: TvUi.focused-tile == root.idx-col ? 4px * TvUi.u : 0px;
             border-color: V3Theme.accent;
 
@@ -254,7 +254,7 @@ export component V3Movie inherits Rectangle {
                             font-size: 15px * TvUi.u;
                             font-weight: 900;
                             letter-spacing: 2px * TvUi.u;
-                            color: V3Theme.accent-ink;
+                            color: V3Theme.accent;
                             vertical-alignment: center;
                         }
                         Text {
@@ -262,7 +262,7 @@ export component V3Movie inherits Rectangle {
                             font-family: V3Theme.font;
                             font-size: 20px * TvUi.u;
                             font-weight: 900;
-                            color: V3Theme.text;
+                            color: V3Theme.text-primary;
                             overflow: elide;
                             vertical-alignment: center;
                         }
@@ -300,7 +300,7 @@ export component V3Movie inherits Rectangle {
                     font-family: V3Theme.font;
                     font-size: 18px * TvUi.u;
                     font-weight: 700;
-                    color: V3Theme.sub;
+                    color: V3Theme.text-primary-secondary;
                     vertical-alignment: center;
                 }
             }
@@ -325,9 +325,9 @@ export component V3Movie inherits Rectangle {
                 Rectangle {
                     height: 48px * TvUi.u;
                     border-radius: 24px * TvUi.u;
-                    background: MoviePageState.tab == "cast" ? V3Theme.accent : V3Theme.raised;
+                    background: MoviePageState.tab == "cast" ? V3Theme.accent : V3Theme.surface-raised;
                     border-width: TvUi.focused-tile == root.idx-tab-cast ? 4px * TvUi.u : 0px;
-                    border-color: V3Theme.text;
+                    border-color: V3Theme.text-primary;
                     HorizontalLayout {
                         padding-left: 20px * TvUi.u;
                         padding-right: 20px * TvUi.u;
@@ -337,7 +337,7 @@ export component V3Movie inherits Rectangle {
                             font-family: V3Theme.font;
                             font-size: 18px * TvUi.u;
                             font-weight: 900;
-                            color: MoviePageState.tab == "cast" ? V3Theme.accent-text : V3Theme.text;
+                            color: MoviePageState.tab == "cast" ? V3Theme.on-accent : V3Theme.text-primary;
                             vertical-alignment: center;
                         }
                     }
@@ -347,9 +347,9 @@ export component V3Movie inherits Rectangle {
                 Rectangle {
                     height: 48px * TvUi.u;
                     border-radius: 24px * TvUi.u;
-                    background: MoviePageState.tab == "extras" ? V3Theme.accent : V3Theme.raised;
+                    background: MoviePageState.tab == "extras" ? V3Theme.accent : V3Theme.surface-raised;
                     border-width: TvUi.focused-tile == root.idx-tab-extras ? 4px * TvUi.u : 0px;
-                    border-color: V3Theme.text;
+                    border-color: V3Theme.text-primary;
                     HorizontalLayout {
                         padding-left: 20px * TvUi.u;
                         padding-right: 20px * TvUi.u;
@@ -359,7 +359,7 @@ export component V3Movie inherits Rectangle {
                             font-family: V3Theme.font;
                             font-size: 18px * TvUi.u;
                             font-weight: 900;
-                            color: MoviePageState.tab == "extras" ? V3Theme.accent-text : V3Theme.text;
+                            color: MoviePageState.tab == "extras" ? V3Theme.on-accent : V3Theme.text-primary;
                             vertical-alignment: center;
                         }
                     }
@@ -375,7 +375,7 @@ export component V3Movie inherits Rectangle {
                 font-family: V3Theme.font;
                 font-size: 22px * TvUi.u;
                 font-weight: 900;
-                color: V3Theme.text;
+                color: V3Theme.text-primary;
                 vertical-alignment: center;
             }
 
@@ -389,7 +389,7 @@ export component V3Movie inherits Rectangle {
                 font-family: V3Theme.font;
                 font-size: 18px * TvUi.u;
                 font-weight: 700;
-                color: V3Theme.sub;
+                color: V3Theme.text-primary-secondary;
                 vertical-alignment: center;
             }
         }
@@ -408,7 +408,7 @@ export component V3Movie inherits Rectangle {
                 font-size: 17px * TvUi.u;
                 font-weight: 900;
                 letter-spacing: 2px * TvUi.u;
-                color: V3Theme.sub;
+                color: V3Theme.text-primary-secondary;
             }
             if MoviePageState.tab == "cast": VerticalLayout {
                 spacing: 12px * TvUi.u;
@@ -416,7 +416,7 @@ export component V3Movie inherits Rectangle {
                 width: 260px * TvUi.u;
                 height: 72px * TvUi.u;
                 border-radius: 16px * TvUi.u;
-                background: V3Theme.raised;
+                background: V3Theme.surface-raised;
                 border-width: TvUi.focused-tile == root.content-base + i ? 4px * TvUi.u : 0px;
                 border-color: V3Theme.accent;
 
@@ -436,7 +436,7 @@ export component V3Movie inherits Rectangle {
                             font-family: V3Theme.font;
                             font-size: 16px * TvUi.u;
                             font-weight: 900;
-                            color: V3Theme.text;
+                            color: V3Theme.text-primary;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
@@ -445,8 +445,8 @@ export component V3Movie inherits Rectangle {
                         alignment: center;
                         spacing: 2px * TvUi.u;
                         horizontal-stretch: 1;
-                        Text { text: p.name; font-family: V3Theme.font; font-size: 20px * TvUi.u; font-weight: 800; color: V3Theme.text; overflow: elide; }
-                        Text { text: p.role; font-family: V3Theme.font; font-size: 16px * TvUi.u; font-weight: 700; color: V3Theme.sub; overflow: elide; }
+                        Text { text: p.name; font-family: V3Theme.font; font-size: 20px * TvUi.u; font-weight: 800; color: V3Theme.text-primary; overflow: elide; }
+                        Text { text: p.role; font-family: V3Theme.font; font-size: 16px * TvUi.u; font-weight: 700; color: V3Theme.text-primary-secondary; overflow: elide; }
                     }
                 }
                 TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.search-person(p.name); } }
@@ -460,7 +460,7 @@ export component V3Movie inherits Rectangle {
                     height: 146px * TvUi.u;
                     border-radius: 15px * TvUi.u;
                     clip: true;
-                    background: V3Theme.raised;
+                    background: V3Theme.surface-raised;
                     Image {
                         source: MoviePageState.extras[root.focused-extra-i].thumb;
                         width: 100%;
@@ -473,14 +473,14 @@ export component V3Movie inherits Rectangle {
                     font-family: V3Theme.font;
                     font-size: 17px * TvUi.u;
                     font-weight: 900;
-                    color: V3Theme.accent-ink;
+                    color: V3Theme.accent;
                 }
                 Text {
                     text: MoviePageState.extras[root.focused-extra-i].title;
                     font-family: V3Theme.font;
                     font-size: 24px * TvUi.u;
                     font-weight: 900;
-                    color: V3Theme.text;
+                    color: V3Theme.text-primary;
                     wrap: word-wrap;
                 }
                 Text {
@@ -488,7 +488,7 @@ export component V3Movie inherits Rectangle {
                     font-family: V3Theme.font;
                     font-size: 18px * TvUi.u;
                     font-weight: 700;
-                    color: V3Theme.sub;
+                    color: V3Theme.text-primary-secondary;
                     wrap: word-wrap;
                 }
             }
@@ -508,7 +508,7 @@ export component V3Movie inherits Rectangle {
                 font-family: V3Theme.font;
                 font-size: 20px * TvUi.u;
                 font-weight: 700;
-                color: V3Theme.sub;
+                color: V3Theme.text-primary-secondary;
             }
 
             if MoviePageState.tab == "cast" && MoviePageState.cast.length > 0: Text {
@@ -519,7 +519,7 @@ export component V3Movie inherits Rectangle {
                 font-size: 17px * TvUi.u;
                 font-weight: 900;
                 letter-spacing: 2px * TvUi.u;
-                color: V3Theme.sub;
+                color: V3Theme.text-primary-secondary;
             }
 
             if MoviePageState.tab == "cast": Rectangle {
@@ -540,7 +540,7 @@ export component V3Movie inherits Rectangle {
                     height: 212px * TvUi.u;
                     border-radius: 14px * TvUi.u;
                     clip: true;
-                    background: p.has-photo ? V3Theme.raised : p.tint;
+                    background: p.has-photo ? V3Theme.surface-raised : p.tint;
                     border-width: TvUi.focused-tile == root.cast-base + i ? 4px * TvUi.u : 0px;
                     border-color: V3Theme.accent;
 
@@ -550,7 +550,7 @@ export component V3Movie inherits Rectangle {
                         font-family: V3Theme.font;
                         font-size: 32px * TvUi.u;
                         font-weight: 900;
-                        color: V3Theme.text;
+                        color: V3Theme.text-primary;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
@@ -563,7 +563,7 @@ export component V3Movie inherits Rectangle {
                     font-family: V3Theme.font;
                     font-size: 18px * TvUi.u;
                     font-weight: 800;
-                    color: V3Theme.text;
+                    color: V3Theme.text-primary;
                     overflow: elide;
                 }
                 Text {
@@ -574,7 +574,7 @@ export component V3Movie inherits Rectangle {
                     font-family: V3Theme.font;
                     font-size: 15px * TvUi.u;
                     font-weight: 700;
-                    color: V3Theme.sub;
+                    color: V3Theme.text-primary-secondary;
                     overflow: elide;
                 }
                 TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.search-person(p.name); } }
@@ -599,7 +599,7 @@ export component V3Movie inherits Rectangle {
                     height: 166px * TvUi.u;
                     border-radius: 15px * TvUi.u;
                     clip: true;
-                    background: V3Theme.raised;
+                    background: V3Theme.surface-raised;
                     border-width: TvUi.focused-tile == root.content-base + i ? 4px * TvUi.u : 0px;
                     border-color: V3Theme.accent;
 
@@ -617,7 +617,7 @@ export component V3Movie inherits Rectangle {
                             font-family: V3Theme.font;
                             font-size: 14px * TvUi.u;
                             font-weight: 900;
-                            color: ex.is-trailer ? V3Theme.accent-text : #FFFFFF;
+                            color: ex.is-trailer ? V3Theme.on-accent : #FFFFFF;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
@@ -649,7 +649,7 @@ export component V3Movie inherits Rectangle {
                     font-family: V3Theme.font;
                     font-size: 21px * TvUi.u;
                     font-weight: 900;
-                    color: V3Theme.text;
+                    color: V3Theme.text-primary;
                     overflow: elide;
                 }
                 Text {
@@ -660,7 +660,7 @@ export component V3Movie inherits Rectangle {
                     font-family: V3Theme.font;
                     font-size: 18px * TvUi.u;
                     font-weight: 700;
-                    color: V3Theme.sub;
+                    color: V3Theme.text-primary-secondary;
                     overflow: elide;
                 }
                 TouchArea { mouse-cursor: pointer; clicked => { MoviePageState.play-extra(ex.key); } }
