@@ -734,7 +734,7 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 .collect();
             rects.push(Rect { x: 110.0, y: 690.0, w: 260.0, h: 46.0 }); // Adjust in Settings ›
             if laptop.global::<crate::AppsPage>().get_has_last_app() {
-                rects.push(Rect { x: 1470.0, y: 440.0, w: 340.0, h: 220.0 }); // Last played app
+                rects.push(Rect { x: 1510.0, y: 440.0, w: 300.0, h: 220.0 }); // Last played app
             }
             rects
         }

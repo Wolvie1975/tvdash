@@ -154,9 +154,9 @@ export component OrbitApps inherits Rectangle {
 
     // Right-hand Last App Played card
     if AppsPage.has-last-app: VerticalLayout {
-        x: 1470px * TvUi.u;
+        x: root.width - 110px * TvUi.u - self.width;
         y: 410px * TvUi.u;
-        width: 340px * TvUi.u;
+        width: 300px * TvUi.u;
         alignment: start;
         spacing: 12px * TvUi.u;
 
@@ -171,7 +171,7 @@ export component OrbitApps inherits Rectangle {
 
         Rectangle {
             property <bool> is-foc: (!TvUi.bar-focused && TvUi.focused-tile == AppsPage.apps.length + 1) || last-ta.has-hover;
-            width: 340px * TvUi.u;
+            width: 300px * TvUi.u;
             height: 220px * TvUi.u;
             border-radius: 28px * TvUi.u;
             background: OrbitTheme.row;
