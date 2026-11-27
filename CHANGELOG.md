@@ -1,12 +1,14 @@
 # tvdash Changelog
 
-## Unreleased
+## v0.1.79 — 2026-11-26
 - **Movie page (`movie-page`):**
   - Added `PlexClient::movie_detail` (`/library/metadata/{key}`) with cast, crew (directors & writers, max 3), genres, content/audience rating, resolution/HDR/audio badges, collection tags, and `PlexClient::scrobble` (`/:/scrobble` / `/:/unscrobble`).
   - Added `crates/app/src/movie.rs` (`play_label` with live 1-minute "ends at" countdown and collection link builder), extended `Command::PlayExtra` to movie extras, and re-fetched movie details when returning from playback.
   - Added shared `MoviePageState`, `PersonData`, and `ExtraData` in `ui/state.slint` with `bridge/movie.rs` (persistent `VecModel`s, transcoded person photos with hashed-tint initials fallback).
   - Replaced OK-on-a-movie direct playback with `Library.open-movie` across Library, Browse all, Collection page, Search, and Watching now (Home What's On & Up Next unchanged; PS5 falls back to direct playback).
   - Built the **Movie page** in **Orbit** (`ui/orbit/movie.slint`, including `···` watched toggle), **Classic** (`ui/tv/movie.slint`, with scrolled state & sticky bar), and **Blades** (`ui/v3/movie.slint`, with left/right strips & segmented collection bar).
+  - **Live-check fixes:** Movie and Show titles in all three UIs now shrink to fit (then wrap to two lines) instead of eliding, via a shared `FitTitle` (`ui/shared/fit_title.slint`); Classic backdrop scrims fade to the page colour instead of transparent black (no grey band on light themes); Blades shows the backdrop as a framed 16:9 card with **From start** / **Trailer** in the Cast & crew / Extras row; Orbit's play disc and progress rings are centred (also fixes the play disc on Home, Library and Show); a director who also wrote is one crew entry.
+- **Quick switch picker:** Centred the **Automatic** card text and compacted the 5-column app grid so three rows clear the footer hint (`ui/shared/quick_switch_picker.slint`, `tv_nav.rs`).
 
 ## v0.1.78 — 2026-11-25
 - **Quick switch (`feature/feature-pack-1`):**

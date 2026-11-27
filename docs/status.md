@@ -1,17 +1,15 @@
 # tvdash: where things stand
 
-Last updated 2026-11-25 (`movie-page` implemented on top of `v0.1.78`, ready for unit tests & live UI check). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-26 (`v0.1.79`, `movie-page`: committed & packaged). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-- **Movie page (`movie-page`, Orbit · Classic · Blades) — implemented, ready for host tests & live verification:**
+- **`v0.1.79` (`movie-page`, Movie page in Orbit · Classic · Blades) — committed & packaged (`releases/tvdash-0.1.79-1.x86_64.rpm`):**
   - `PlexClient::movie_detail` & `PlexClient::scrobble` (`crates/media/src/plex.rs`), `MovieDetail`/`MovieExtras`/`MovieCollection`/`OpenMovie`/`SetMovieWatched` (`crates/core/src/events.rs`), `play_label` + collection link (`crates/app/src/movie.rs`), controller (`crates/app/src/controller.rs`), shared `MoviePageState` (`ui/state.slint` + `bridge/movie.rs` + `callbacks.rs`), `Page::Movie` + `open-movie` navigation (`shell_tv.rs`, `tv_nav.rs`), and UI pages (`ui/orbit/movie.slint`, `ui/tv/movie.slint`, `ui/v3/movie.slint`).
-  - **Next (on host):**
-    - `cargo test -j 2 -p tvdash-core`
-    - `cargo test -j 2 -p tvdash-media`
-    - `cargo test -j 2 -p tvdash -- --test-threads=1`
-    - Live test per UI (`ui-orbit`, `ui-classic`, `ui-blades`) with `--windowed --layout tv` before bumping `0.1.79`.
+  - Live-check fixes: shared `FitTitle` for Movie/Show titles, Classic scrim fix, Blades framed backdrop card, Orbit play ring centring. Details in [`docs/movie-page-progress.md`](movie-page-progress.md).
+  - Known gaps: Home still plays movies directly; PS5 has no Movie page; the collection link sometimes doesn't appear (accepted).
+  - **Next:** `git push`, then merge `movie-page` into `development`.
 - **`v0.1.78` (`feature/feature-pack-1`, Feature Pack 1: Quick switch, Credits Up Next, Weather alerts, Show extras) — committed & packaged (`releases/tvdash-0.1.78-1.x86_64.rpm`):**
   - **Part A (Quick switch):** Added `[tv] quick_switch` / `quick_switch_key` (`F9`), `GET/POST /quick`, the Back pill **Switch** button & overlay (`extras/back-pill/`), and **Settings › Display › Quick switch** (`QuickSwitchPicker` across Classic, Blades, and Orbit).
   - **Part B (Credits Up Next & shared Up Next card):** Added Plex `credits` marker reading (`includeMarkers=1`), controller `PlayNextNow` / `WatchCredits` handling, and shared `NextEpisodeCard` mounted once in `laptop.slint` (with 10 s countdown at credits, replacing the per-UI modals and fixing the invisible prompt in Orbit).
