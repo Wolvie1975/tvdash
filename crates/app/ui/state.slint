@@ -324,11 +324,31 @@ export struct FocusInfoData {
     meta: string,
     summary: string,
     play-label: string,
+    sub-line: string,
+    poster: image,
+    has-poster: bool,
     ring-lit: string,
     ring-unlit: string,
     tint-accent: color,
     tint-poster: color,
     tint-card: color,
+}
+
+export struct RailShelfData {
+    title: string,
+    count: int,
+    enabled: bool,
+}
+
+export struct RailGridItem {
+    rating-key: string,
+    title: string,
+    meta: string,
+    poster: image,
+    has-poster: bool,
+    ring-lit: string,
+    ring-unlit: string,
+    badge: int,
 }
 
 export struct Shelf1TileData {
@@ -385,8 +405,14 @@ export global LibraryLanding {
     in property <string> shelf3-title;
     in property <string> shelf3-count;
     in property <[RankedTileData]> shelf3;
+    in property <[RailShelfData]> rail;
+    in-out property <int> rail-idx: 0;
+    in property <[RailGridItem]> grid;
+    in property <string> grid-header;
 
     callback focus-changed(int);
+    callback rail-selected(int);
+    callback grid-activated(int);
     callback open-watching-now();
     callback close-watching-now();
     callback select-watching-now(int);

@@ -16,9 +16,11 @@ use tvdash_core::models::{
 use super::{STATE, UiState, home::cards_for, in_order, to_image};
 use crate::{
     CollectionCardData, CollectionItemData, CollectionPageState, DetailData, EpisodeRowData, FinishSeasonRow,
-    FocusInfoData, GenreTileData, LaptopWindow, Library, LibraryLanding, PopularCardData, RankedTileData,
-    SeasonColumnData, SeasonTabData, Shelf1TileData, ShowPageState, WatchingNowRowData, format, tint,
+    FocusInfoData, GenreTileData, LaptopWindow, Library, LibraryLanding, PopularCardData, RailGridItem,
+    RailShelfData, RankedTileData, SeasonColumnData, SeasonTabData, Shelf1TileData, ShowPageState,
+    WatchingNowRowData, format, tint,
 };
+use crate::orbit::library_rail;
 
 fn filter_items(items: Vec<MediaItem>, filter: &str) -> Vec<MediaItem> {
     match filter {
@@ -1097,6 +1099,38 @@ fn focus_info_for(s: &UiState, item: &MediaItem, is_shelf1: bool, is_tv: bool) -
         (label, rp)
     };
 
+    let poster = s.posters.peek(&key).cloned();
+    let sub_line = if is_tv {
+        if is_shelf1 {
+            let fin = s
+                .lib_finish_season
+                .iter()
+                .find(|f| f.item.id == item.id || (f.item.source == item.source && f.item.title == item.title));
+            match (format::time_left(item), fin) {
+                (Some(left), Some(f)) => {
+                    format!("{left} · {} of {} watched this season", f.watched_episodes, f.total_episodes)
+                }
+                (None, Some(f)) => format!("{} of {} watched this season", f.watched_episodes, f.total_episodes),
+                (Some(left), None) => left,
+                (None, None) => String::new(),
+            }
+        } else {
+            let seasons = item.extra.child_count.unwrap_or(1);
+            match item.extra.leaf_count {
+                Some(eps) => format!("{seasons} {} · {eps} episodes", if seasons == 1 { "season" } else { "seasons" }),
+                None => "Never started".into(),
+            }
+        }
+    } else if let Some(left) = format::time_left(item) {
+        if let Some(pos) = item.resume_ms.filter(|&p| p > 0) {
+            format!("Stopped at {} · {left}", format::duration(pos))
+        } else {
+            left
+        }
+    } else {
+        "Never started".into()
+    };
+
     FocusInfoData {
         rating_key: item.id.as_str().into(),
         kicker: kicker.into(),
@@ -1104,6 +1138,9 @@ fn focus_info_for(s: &UiState, item: &MediaItem, is_shelf1: bool, is_tv: bool) -
         meta: meta.into(),
         summary: summary_or_fallback(item).into(),
         play_label: play_label.into(),
+        sub_line: sub_line.into(),
+        has_poster: poster.is_some(),
+        poster: poster.unwrap_or_default(),
         ring_lit: rp.lit.into(),
         ring_unlit: rp.unlit.into(),
         tint_accent: t.accent,
@@ -1302,6 +1339,9 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
             meta: format!("{total} titles available").into(),
             summary: "Pick Browse all above to explore everything in your library.".into(),
             play_label: Default::default(),
+            sub_line: Default::default(),
+            poster: Default::default(),
+            has_poster: false,
             ring_lit: Default::default(),
             ring_unlit: Default::default(),
             tint_accent: t.accent,
@@ -1309,6 +1349,211 @@ pub(super) fn rebuild_landing(s: &mut UiState, laptop: &LaptopWindow) {
             tint_card: t.card,
         });
         ll.set_has_backdrop(false);
+    }
+
+    if laptop.global::<crate::Display>().get_dashboard_ui() == "orbit" {
+        rebuild_orbit_rail(s, laptop, is_tv);
+    }
+}
+
+fn build_orbit_grid(s: &UiState, is_tv: bool, shelf_idx: usize) -> Vec<RailGridItem> {
+    let items = &s.orbit_rail_items[shelf_idx.min(2)];
+    items
+        .iter()
+        .enumerate()
+        .map(|(i, item)| {
+            let key = (item.source, item.id.clone());
+            let poster = s.posters.peek(&key).cloned();
+            let (meta, ring_lit, ring_unlit, badge) = if is_tv {
+                match shelf_idx {
+                    0 => {
+                        if let Some(entry) = s.orbit_tv_cw.get(i) {
+                            (entry.meta.clone(), entry.ring_lit.clone(), entry.ring_unlit.clone(), 0)
+                        } else {
+                            (String::new(), String::new(), String::new(), 0)
+                        }
+                    }
+                    1 => {
+                        let seasons = item.extra.child_count.unwrap_or(1);
+                        let meta = format!("{seasons} {}", if seasons == 1 { "season" } else { "seasons" });
+                        (meta, String::new(), String::new(), (i + 1) as i32)
+                    }
+                    _ => {
+                        let meta = item.extra.year.map(|y| y.to_string()).unwrap_or_default();
+                        (meta, String::new(), String::new(), 0)
+                    }
+                }
+            } else {
+                let meta = library_rail::movie_meta(item);
+                let prog = item.progress().unwrap_or(0.0);
+                let (lit, unlit) = if (shelf_idx == 0 || shelf_idx == 2) && prog > 0.0 {
+                    let pct = (prog * 100.0).round().clamp(1.0, 100.0) as usize;
+                    let rp = crate::orbit::rings::ring_paths(100, pct, 52.0, 0.0);
+                    (rp.lit, rp.unlit)
+                } else {
+                    (String::new(), String::new())
+                };
+                (meta, lit, unlit, 0)
+            };
+            RailGridItem {
+                rating_key: item.id.as_str().into(),
+                title: item.title.as_str().into(),
+                meta: meta.into(),
+                has_poster: poster.is_some(),
+                poster: poster.unwrap_or_default(),
+                ring_lit: ring_lit.into(),
+                ring_unlit: ring_unlit.into(),
+                badge,
+            }
+        })
+        .collect()
+}
+
+fn rebuild_orbit_rail(s: &mut UiState, laptop: &LaptopWindow, is_tv: bool) {
+    let ll = laptop.global::<LibraryLanding>();
+    if is_tv {
+        s.orbit_tv_cw = library_rail::tv_continue(&s.lib_continue, &s.lib_finish_season, 52.0);
+        let s0: Vec<MediaItem> = s.orbit_tv_cw.iter().map(|e| e.item.clone()).collect();
+        let s1: Vec<MediaItem> = s.lib_start_watching.iter().take(6).cloned().collect();
+        let s2: Vec<MediaItem> = s.lib_recently_released.iter().take(6).cloned().collect();
+        s.orbit_rail_items = [s0, s1, s2];
+    } else {
+        s.orbit_tv_cw.clear();
+        let s0: Vec<MediaItem> = s.lib_continue.iter().take(6).cloned().collect();
+        let s1: Vec<MediaItem> = if !s.lib_added_week.is_empty() {
+            s.lib_added_week.iter().take(6).cloned().collect()
+        } else {
+            s.lib_recent.iter().take(6).cloned().collect()
+        };
+        let s2: Vec<MediaItem> = s.lib_recently_released.iter().take(6).cloned().collect();
+        s.orbit_rail_items = [s0, s1, s2];
+    }
+
+    let rail = library_rail::rail_for(
+        is_tv,
+        s.orbit_rail_items[0].len(),
+        s.orbit_rail_items[1].len(),
+        s.orbit_rail_items[2].len(),
+    );
+    let rail_rows: Vec<RailShelfData> = rail
+        .iter()
+        .map(|r| RailShelfData {
+            title: r.title.into(),
+            count: r.count as i32,
+            enabled: r.enabled,
+        })
+        .collect();
+    ll.set_rail(ModelRc::new(VecModel::from(rail_rows)));
+
+    let remembered = if is_tv { s.orbit_rail_tv } else { s.orbit_rail_movies };
+    let shelf_idx = if rail.get(remembered).is_some_and(|r| r.enabled) {
+        remembered
+    } else {
+        library_rail::default_rail_idx(&rail)
+    };
+    if is_tv {
+        s.orbit_rail_tv = shelf_idx;
+    } else {
+        s.orbit_rail_movies = shelf_idx;
+    }
+    ll.set_rail_idx(shelf_idx as i32);
+
+    let shelf = &rail[shelf_idx];
+    ll.set_grid_header(format!("{} · {}", shelf.title.to_ascii_uppercase(), shelf.note).into());
+    let grid = build_orbit_grid(s, is_tv, shelf_idx);
+    ll.set_grid(ModelRc::new(VecModel::from(grid)));
+
+    let cell_idx = if is_tv {
+        s.orbit_cell_tv[shelf_idx]
+    } else {
+        s.orbit_cell_movies[shelf_idx]
+    }
+    .min(s.orbit_rail_items[shelf_idx].len().saturating_sub(1));
+    if let Some(item) = s.orbit_rail_items[shelf_idx].get(cell_idx).cloned() {
+        apply_focus_item(s, laptop, &item, shelf_idx == 0, is_tv);
+    }
+}
+
+pub fn select_orbit_rail_shelf(laptop: &LaptopWindow, shelf_idx: usize) {
+    STATE.with_borrow_mut(|s| {
+        let is_tv = laptop.global::<Library>().get_media_tab() == "tv";
+        let shelf_idx = shelf_idx.min(2);
+        let ll = laptop.global::<LibraryLanding>();
+        let rail = library_rail::rail_for(
+            is_tv,
+            s.orbit_rail_items[0].len(),
+            s.orbit_rail_items[1].len(),
+            s.orbit_rail_items[2].len(),
+        );
+        if !rail.get(shelf_idx).is_some_and(|r| r.enabled) {
+            return;
+        }
+        if is_tv {
+            s.orbit_rail_tv = shelf_idx;
+            s.orbit_cell_tv[shelf_idx] = 0;
+        } else {
+            s.orbit_rail_movies = shelf_idx;
+            s.orbit_cell_movies[shelf_idx] = 0;
+        }
+        ll.set_rail_idx(shelf_idx as i32);
+        let shelf = &rail[shelf_idx];
+        ll.set_grid_header(format!("{} · {}", shelf.title.to_ascii_uppercase(), shelf.note).into());
+        let grid = build_orbit_grid(s, is_tv, shelf_idx);
+        ll.set_grid(ModelRc::new(VecModel::from(grid)));
+        if let Some(first) = s.orbit_rail_items[shelf_idx].first().cloned() {
+            apply_focus_item(s, laptop, &first, shelf_idx == 0, is_tv);
+        }
+    });
+}
+
+pub fn activate_orbit_grid(laptop: &LaptopWindow, cell_idx: usize) {
+    let item = STATE.with_borrow(|s| {
+        let is_tv = laptop.global::<Library>().get_media_tab() == "tv";
+        let shelf_idx = if is_tv { s.orbit_rail_tv } else { s.orbit_rail_movies }.min(2);
+        s.orbit_rail_items[shelf_idx].get(cell_idx).cloned()
+    });
+    if let Some(it) = item {
+        let lib = laptop.global::<Library>();
+        if it.kind == MediaKind::Movie {
+            lib.invoke_open_movie(it.id.into());
+        } else {
+            lib.invoke_open_show(it.id.into());
+        }
+    }
+}
+
+pub fn orbit_remembered_cell(laptop: &LaptopWindow) -> usize {
+    STATE.with_borrow(|s| {
+        let is_tv = laptop.global::<Library>().get_media_tab() == "tv";
+        let shelf_idx = if is_tv { s.orbit_rail_tv } else { s.orbit_rail_movies }.min(2);
+        let cell = if is_tv {
+            s.orbit_cell_tv[shelf_idx]
+        } else {
+            s.orbit_cell_movies[shelf_idx]
+        };
+        cell.min(s.orbit_rail_items[shelf_idx].len().saturating_sub(1))
+    })
+}
+
+pub(super) fn on_poster(s: &UiState, laptop: &LaptopWindow, source: SourceKind, item_id: &str) {
+    let key = (source, item_id.to_string());
+    let Some(img) = s.posters.peek(&key).cloned() else { return };
+    let ll = laptop.global::<LibraryLanding>();
+    let grid = ll.get_grid();
+    for i in 0..grid.row_count() {
+        if let Some(mut row) = grid.row_data(i)
+            && row.rating_key.as_str() == item_id
+        {
+            row.has_poster = true;
+            row.poster = img.clone();
+            grid.set_row_data(i, row);
+        }
+    }
+    if s.lib_focused_key.as_ref() == Some(&key) {
+        let mut focus = ll.get_focus();
+        focus.has_poster = true;
+        focus.poster = img;
+        ll.set_focus(focus);
     }
 }
 
@@ -1330,6 +1575,42 @@ pub fn on_library_focus_changed(
         let Some(laptop) = weak.upgrade() else { return };
         let to_prefetch: Vec<MediaItem> = STATE.with_borrow_mut(|s| {
             let is_tv = laptop.global::<Library>().get_media_tab() == "tv";
+            if laptop.global::<crate::Display>().get_dashboard_ui() == "orbit" {
+                let ll = laptop.global::<LibraryLanding>();
+                let rail_n = ll.get_rail().iter().filter(|r| r.enabled).count();
+                let grid_base = 4 + rail_n;
+                let t = tile_idx as usize;
+                if t < grid_base {
+                    return Vec::new();
+                }
+                let cell = t - grid_base;
+                let shelf_idx = if is_tv { s.orbit_rail_tv } else { s.orbit_rail_movies }.min(2);
+                let items = &s.orbit_rail_items[shelf_idx];
+                let Some(it) = items.get(cell).cloned() else {
+                    return Vec::new();
+                };
+                if is_tv {
+                    s.orbit_cell_tv[shelf_idx] = cell;
+                } else {
+                    s.orbit_cell_movies[shelf_idx] = cell;
+                }
+                let mut neighbors = Vec::new();
+                if cell > 0 {
+                    neighbors.extend(items.get(cell - 1).cloned());
+                }
+                neighbors.extend(items.get(cell + 1).cloned());
+                apply_focus_item(s, &laptop, &it, shelf_idx == 0, is_tv);
+                let mut out = Vec::new();
+                if !s.backdrops.contains(&(it.source, it.id.clone())) {
+                    out.push(it);
+                }
+                for n in neighbors {
+                    if !s.backdrops.contains(&(n.source, n.id.clone())) {
+                        out.push(n);
+                    }
+                }
+                return out;
+            }
             let idx = (tile_idx - 4) as usize;
             let s1_len = s.lib_shelf1_items.len();
             let s2_len = s.lib_shelf2_items.len();
@@ -1419,6 +1700,13 @@ pub(super) fn on_backdrop(
             apply_focus_item(s, laptop, &it, false, is_tv);
         } else if let Some(it) = s.lib_shelf3_items.iter().find(|i| (i.source, i.id.clone()) == key).cloned() {
             apply_focus_item(s, laptop, &it, false, is_tv);
+        } else if let Some((si, it)) = s
+            .orbit_rail_items
+            .iter()
+            .enumerate()
+            .find_map(|(si, items)| items.iter().find(|i| (i.source, i.id.clone()) == key).map(|i| (si, i.clone())))
+        {
+            apply_focus_item(s, laptop, &it, si == 0, is_tv);
         }
     }
 

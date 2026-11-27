@@ -778,16 +778,31 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 }
                 return rects;
             }
-            let mut rects = vec![
-                Rect { x: 110.0, y: 420.0, w: 104.0, h: 104.0 }, // 0: Play
-                Rect { x: 340.0, y: 448.0, w: 140.0, h: 46.0 },  // 1: Show page
-            ];
             let ll = laptop.global::<crate::LibraryLanding>();
-            for i in 0..ll.get_shelf1().row_count().min(4) {
-                let indent = match i { 0 => 130.0, 1 => 70.0, 2 => 36.0, _ => 24.0 };
-                rects.push(Rect { x: 1180.0 + indent, y: 230.0 + i as f32 * 124.0, w: 580.0, h: 112.0 });
+            let mut rects = vec![
+                Rect { x: 110.0, y: 130.0, w: 110.0, h: 46.0 }, // 0: Movies
+                Rect { x: 232.0, y: 130.0, w: 130.0, h: 46.0 }, // 1: TV Series
+                Rect { x: 374.0, y: 130.0, w: 140.0, h: 46.0 }, // 2: Browse all
+                if ll.get_watching_now_count() > 0 {
+                    Rect { x: 526.0, y: 130.0, w: 160.0, h: 46.0 } // 3: Watching now
+                } else {
+                    Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 }
+                },
+            ];
+            for (i, r) in ll.get_rail().iter().enumerate() {
+                if r.enabled {
+                    rects.push(Rect { x: 110.0, y: 220.0 + 130.0 * i as f32, w: 380.0, h: 116.0 });
+                }
             }
-            rects.push(Rect { x: 880.0, y: 750.0, w: 160.0, h: 160.0 }); // Bottom dial top node
+            let grid_n = ll.get_grid().row_count().min(6);
+            for i in 0..grid_n {
+                let col = (i % 3) as f32;
+                let row = (i / 3) as f32;
+                rects.push(Rect { x: 545.0 + 260.0 * col, y: 242.0 + 296.0 * row, w: 190.0, h: 190.0 });
+            }
+            if grid_n > 0 {
+                rects.push(Rect { x: 1376.0, y: 844.0, w: 84.0, h: 84.0 }); // Card Play
+            }
             rects
         }
         Page::Collections => {
@@ -1837,6 +1852,9 @@ fn hover_tile(laptop: &LaptopWindow, idx: usize) {
 }
 
 fn scroll_library_to_focus(laptop: &LaptopWindow, idx: usize) {
+    if laptop.global::<Display>().get_dashboard_ui() == "orbit" {
+        return;
+    }
     let tv = laptop.global::<TvUi>();
     if idx < 4 {
         STATE.with_borrow_mut(|s| s.lib_scroll = 0.0);
@@ -1986,7 +2004,150 @@ fn show_nav_override(laptop: &LaptopWindow, from: usize, dir: Dir) -> Option<usi
     None
 }
 
+fn orbit_rail_focus_for_shelf(ll: &LibraryLanding, shelf_idx: usize) -> Option<usize> {
+    let mut pos = 0;
+    for (i, r) in ll.get_rail().iter().enumerate() {
+        if r.enabled {
+            if i == shelf_idx {
+                return Some(4 + pos);
+            }
+            pos += 1;
+        }
+    }
+    None
+}
+
+fn orbit_rail_shelf_for_focus(ll: &LibraryLanding, focus_idx: usize) -> Option<usize> {
+    if focus_idx < 4 {
+        return None;
+    }
+    let target = focus_idx - 4;
+    let mut pos = 0;
+    for (i, r) in ll.get_rail().iter().enumerate() {
+        if r.enabled {
+            if pos == target {
+                return Some(i);
+            }
+            pos += 1;
+        }
+    }
+    None
+}
+
+fn orbit_library_nav(laptop: &LaptopWindow, from: usize, dir: Dir) -> Option<usize> {
+    let ll = laptop.global::<LibraryLanding>();
+    let rail_n = ll.get_rail().iter().filter(|r| r.enabled).count();
+    let grid_n = ll.get_grid().row_count().min(6);
+    let grid_base = 4 + rail_n;
+    let card_idx = grid_base + grid_n;
+    let selected_rail = ll.get_rail_idx().max(0) as usize;
+    let selected_rail_focus = orbit_rail_focus_for_shelf(&ll, selected_rail).unwrap_or(4);
+
+    if from < 4 {
+        let max_sub = if ll.get_watching_now_count() > 0 { 3 } else { 2 };
+        return match dir {
+            Dir::Left if from > 0 => Some(from - 1),
+            Dir::Right if from < max_sub => Some(from + 1),
+            Dir::Down if rail_n > 0 => Some(selected_rail_focus),
+            _ => None,
+        };
+    }
+
+    if from < grid_base {
+        return match dir {
+            Dir::Up => {
+                if from > 4 {
+                    if let Some(prev_shelf) = orbit_rail_shelf_for_focus(&ll, from - 1) {
+                        ll.invoke_rail_selected(prev_shelf as i32);
+                    }
+                    Some(from - 1)
+                } else {
+                    Some(0)
+                }
+            }
+            Dir::Down if from + 1 < grid_base => {
+                if let Some(next_shelf) = orbit_rail_shelf_for_focus(&ll, from + 1) {
+                    ll.invoke_rail_selected(next_shelf as i32);
+                }
+                Some(from + 1)
+            }
+            Dir::Right if grid_n > 0 => {
+                let cell = crate::bridge::library::orbit_remembered_cell(laptop).min(grid_n - 1);
+                Some(grid_base + cell)
+            }
+            _ => None,
+        };
+    }
+
+    if from < card_idx {
+        let cell = from - grid_base;
+        let col = cell % 3;
+        let row = cell / 3;
+        return match dir {
+            Dir::Left => {
+                if col == 0 {
+                    Some(selected_rail_focus)
+                } else {
+                    Some(from - 1)
+                }
+            }
+            Dir::Right => {
+                if col == 2 || cell + 1 == grid_n {
+                    Some(card_idx)
+                } else {
+                    Some(from + 1)
+                }
+            }
+            Dir::Up => {
+                if row == 0 {
+                    Some(0)
+                } else {
+                    Some(from - 3)
+                }
+            }
+            Dir::Down if cell + 3 < grid_n => Some(from + 3),
+            _ => None,
+        };
+    }
+
+    if from == card_idx && grid_n > 0 {
+        return match dir {
+            Dir::Left => {
+                let cell = crate::bridge::library::orbit_remembered_cell(laptop).min(grid_n - 1);
+                Some(grid_base + cell)
+            }
+            Dir::Up => Some(0),
+            _ => None,
+        };
+    }
+
+    None
+}
+
 fn go_back(laptop: &LaptopWindow) -> bool {
+    let is_orbit_lib = STATE.with_borrow(|s| {
+        matches!(s.shell.current(), Page::Library)
+            && !s.shell.bar_focused
+            && laptop.global::<Display>().get_dashboard_ui() == "orbit"
+            && !laptop.global::<Library>().get_browse_all()
+    });
+    if is_orbit_lib {
+        let ll = laptop.global::<LibraryLanding>();
+        let rail_n = ll.get_rail().iter().filter(|r| r.enabled).count();
+        let grid_base = 4 + rail_n;
+        let cur = STATE.with_borrow(|s| s.shell.focused_tile);
+        if cur >= grid_base && rail_n > 0 {
+            let rail_focus = orbit_rail_focus_for_shelf(&ll, ll.get_rail_idx().max(0) as usize).unwrap_or(4);
+            STATE.with_borrow_mut(|s| s.shell.focused_tile = rail_focus);
+            sync(laptop);
+            return true;
+        }
+        if (4..grid_base).contains(&cur) {
+            STATE.with_borrow_mut(|s| s.shell.focused_tile = 0);
+            sync(laptop);
+            return true;
+        }
+    }
     let was_show = STATE.with_borrow(|s| matches!(s.shell.current(), Page::Show(_)));
     let was_col = STATE.with_borrow(|s| matches!(s.shell.current(), Page::Collection(_)));
     let changed = STATE.with_borrow_mut(|s| s.shell.back());
@@ -2145,6 +2306,26 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                     lib.invoke_set_browse_letter(letter.into());
                 } else {
                     activate_library_selection(laptop, &lib, "browse", idx - 32);
+                }
+                return;
+            }
+
+            if laptop.global::<Display>().get_dashboard_ui() == "orbit" {
+                let rail_n = ll.get_rail().iter().filter(|r| r.enabled).count();
+                let grid_n = ll.get_grid().row_count().min(6);
+                let grid_base = 4 + rail_n;
+                let card_idx = grid_base + grid_n;
+                if (4..grid_base).contains(&idx) {
+                    if let Some(shelf_idx) = orbit_rail_shelf_for_focus(&ll, idx) {
+                        ll.invoke_rail_selected(shelf_idx as i32);
+                    }
+                } else if (grid_base..card_idx).contains(&idx) {
+                    ll.invoke_grid_activated((idx - grid_base) as i32);
+                } else if idx == card_idx && grid_n > 0 {
+                    let key = ll.get_focus().rating_key;
+                    if !key.is_empty() {
+                        lib.invoke_play_key(key, !is_tv);
+                    }
                 }
                 return;
             }
@@ -2906,6 +3087,22 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
         let page = STATE.with_borrow(|s| s.shell.current().clone());
         let rects = tile_rects(laptop, &page);
         let from = STATE.with_borrow(|s| s.shell.focused_tile);
+        if matches!(page, Page::Library)
+            && laptop.global::<Display>().get_dashboard_ui() == "orbit"
+            && !laptop.global::<Library>().get_browse_all()
+        {
+            if let Some(next_idx) = orbit_library_nav(laptop, from, dir) {
+                STATE.with_borrow_mut(|s| s.shell.focused_tile = next_idx);
+                sync(laptop);
+                return true;
+            }
+            if from < 4 && dir == Dir::Up {
+                STATE.with_borrow_mut(|s| s.shell.bar_focused = true);
+                sync(laptop);
+                return true;
+            }
+            return true;
+        }
         if matches!(page, Page::Show(_))
             && let Some(next_idx) = show_nav_override(laptop, from, dir)
             && rects.get(next_idx).is_some_and(|r| r.w > 0.0)

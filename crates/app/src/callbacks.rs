@@ -325,6 +325,24 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         }
     });
 
+    let weak = laptop.as_weak();
+    ll.on_rail_selected(move |idx| {
+        if let Some(l) = weak.upgrade()
+            && idx >= 0
+        {
+            bridge::library::select_orbit_rail_shelf(&l, idx as usize);
+        }
+    });
+
+    let weak = laptop.as_weak();
+    ll.on_grid_activated(move |idx| {
+        if let Some(l) = weak.upgrade()
+            && idx >= 0
+        {
+            bridge::library::activate_orbit_grid(&l, idx as usize);
+        }
+    });
+
     let (weak, s) = (laptop.as_weak(), send.clone());
     ll.on_open_watching_now(move || {
         if let Some(l) = weak.upgrade() {

@@ -1,22 +1,29 @@
 import { Browse, Library, LibraryLanding, TvUi } from "../state.slint";
 import { OrbitTheme } from "theme.slint";
-import { OrbitPill, OrbitPlay, OrbitRow } from "controls.slint";
+import { OrbitPill, OrbitPlay, OrbitRailRow } from "controls.slint";
+import { OrbitRing } from "ring.slint";
 import { OrbitBrowse } from "browse.slint";
 
-// Orbit Library page (§5):
-// Sub-tabs (TV Series · Movies · Browse all + Watching now),
-// Hero (x 110, y 230), Right curve (4 round posters 108px),
-// Bottom dial (cx 960, cy 1780, r 950, 6 posters at 10.5° steps).
+// Orbit Library page (Concept 2C):
+// Sub-tabs (Movies · TV Series · Browse all + Watching now),
+// Left Shelf rail (3 rows), Center 3x2 poster grid, Right detail card.
 export component OrbitLibrary inherits Rectangle {
-    in-out property <int> dial-idx: 0;
-    in-out property <int> shelf-pair: 0;      // 0 = shelf2 (Start watching), 1 = shelf3 (Added/Popular)
-    in-out property <int> focused-area: 0;       // 0=play, 1=show-page, 2..5=curve, 6=dial
-    in-out property <int> last-dial-hover: -1;
-
     property <bool> is-movies: Library.media-tab == "movies";
     property <bool> is-browse: Library.browse-all;
-    property <int> dial-count: shelf-pair == 0 ? LibraryLanding.shelf2.length : LibraryLanding.shelf3.length;
-    property <int> safe-dial: dial-count > 0 ? Math.clamp(dial-idx, 0, dial-count - 1) : 0;
+
+    // Count enabled rail shelves before a given shelf index (matches compacted tv_nav rects).
+    function rail-rect-idx(i: int) -> int {
+        return 4
+            + (i > 0 && LibraryLanding.rail.length > 0 && LibraryLanding.rail[0].enabled ? 1 : 0)
+            + (i > 1 && LibraryLanding.rail.length > 1 && LibraryLanding.rail[1].enabled ? 1 : 0);
+    }
+
+    property <int> enabled-rail-count:
+        (LibraryLanding.rail.length > 0 && LibraryLanding.rail[0].enabled ? 1 : 0)
+        + (LibraryLanding.rail.length > 1 && LibraryLanding.rail[1].enabled ? 1 : 0)
+        + (LibraryLanding.rail.length > 2 && LibraryLanding.rail[2].enabled ? 1 : 0);
+    property <int> grid-base-idx: 4 + enabled-rail-count;
+    property <int> card-play-idx: grid-base-idx + LibraryLanding.grid.length;
 
     // ── Sub-tabs (y 130) ─────────────────────────────────────────────────────
     HorizontalLayout {
@@ -81,331 +88,127 @@ export component OrbitLibrary inherits Rectangle {
         }
     }
 
-    // ── Main Landing View (Hero + Curve + Dial) ──────────────────────────────
+    // ── Main Landing View (Shelf rail + 3x2 Grid + Detail card) ──────────────
     if !is-browse: Rectangle {
         width: parent.width;
         height: parent.height;
 
-        // Hero (x 110, y 230, w 880)
-        VerticalLayout {
+        // 1. Shelf rail (x 110, y 220, 3 rows of 116 px + 14 px gaps)
+        for shelf[i] in LibraryLanding.rail: OrbitRailRow {
             x: 110px * TvUi.u;
-            y: 230px * TvUi.u;
-            width: 880px * TvUi.u;
-            alignment: start;
-            spacing: 14px * TvUi.u;
-
-            // Blank (line kept, so the title doesn't jump) when it's the time left on a
-            // part-watched movie: the Play label already says "Play 1 h 55 min left".
-            Text {
-                text: LibraryLanding.focus.play-label == "Play " + LibraryLanding.focus.kicker ? ""
-                    : LibraryLanding.focus.kicker != "" ? LibraryLanding.focus.kicker : (is-movies ? "MOVIES" : "TV SERIES");
-                min-height: 22px * TvUi.u;   // one line at 17 px, even when blank
-                font-family: OrbitTheme.font;
-                font-size: 17px * TvUi.u;
-                font-weight: 600;
-                letter-spacing: 2.5px * TvUi.u;
-                color: OrbitTheme.accent;
-                overflow: elide;
-            }
-
-            Text {
-                text: LibraryLanding.focus.title != "" ? LibraryLanding.focus.title : "Library";
-                font-family: OrbitTheme.font;
-                font-size: 80px * TvUi.u;
-                font-weight: 700;
-                letter-spacing: -2px * TvUi.u;
-                color: OrbitTheme.text;
-                wrap: word-wrap;
-                overflow: elide;
-            }
-
-            // Summary in a glass box, like the Continue watching rows, so the art behind it
-            // can't make it hard to read.
-            if LibraryLanding.focus.summary != "": Rectangle {
-                border-radius: 24px * TvUi.u;
-                background: OrbitTheme.glass;
-                border-width: 1px;
-                border-color: OrbitTheme.glass-border;
-
-                VerticalLayout {
-                    padding-left: 24px * TvUi.u;
-                    padding-right: 24px * TvUi.u;
-                    padding-top: 16px * TvUi.u;
-                    padding-bottom: 16px * TvUi.u;
-
-                    Text {
-                        text: LibraryLanding.focus.summary;
-                        font-family: OrbitTheme.font;
-                        font-size: 19px * TvUi.u;
-                        color: OrbitTheme.sub;
-                        wrap: word-wrap;
-                        max-height: 86px * TvUi.u;
-                        overflow: elide;
-                    }
+            y: (220px + i * 130px) * TvUi.u;
+            title: shelf.title;
+            count: shelf.count;
+            enabled: shelf.enabled;
+            selected: LibraryLanding.rail-idx == i;
+            focused: !TvUi.bar-focused && shelf.enabled && TvUi.focused-tile == root.rail-rect-idx(i);
+            hovered => {
+                if shelf.enabled {
+                    LibraryLanding.rail-selected(i);
                 }
             }
-
-            Rectangle { height: 10px * TvUi.u; }
-
-            HorizontalLayout {
-                height: 104px * TvUi.u;
-                spacing: 20px * TvUi.u;
-                alignment: start;
-
-                OrbitPlay {
-                    lit-path: LibraryLanding.focus.ring-lit;
-                    unlit-path: LibraryLanding.focus.ring-unlit;
-                    focused: root.focused-area == 0;
-                    activated => {
-                        if LibraryLanding.focus.rating-key != "" {
-                            if Library.media-tab == "tv" {
-                                Library.play-key(LibraryLanding.focus.rating-key, true);
-                            } else {
-                                Library.open-movie(LibraryLanding.focus.rating-key);
-                            }
-                        }
-                    }
-                    hovered => { root.focused-area = 0; }
-                }
-
-                VerticalLayout {
-                    height: 104px * TvUi.u;
-                    alignment: center;
-                    spacing: 4px * TvUi.u;
-                    Text {
-                        text: LibraryLanding.focus.play-label != "" ? LibraryLanding.focus.play-label : "Play";
-                        font-family: OrbitTheme.font;
-                        font-size: 22px * TvUi.u;
-                        font-weight: 600;
-                        color: OrbitTheme.text;
-                    }
-                    if LibraryLanding.focus.meta != "": Text {
-                        text: LibraryLanding.focus.meta;
-                        font-family: OrbitTheme.font;
-                        font-size: 16px * TvUi.u;
-                        color: OrbitTheme.sub;
-                    }
-                }
-
-                if !is-movies && LibraryLanding.focus.rating-key != "": VerticalLayout {
-                    height: 104px * TvUi.u;
-                    alignment: center;
-                    OrbitPill {
-                        label: "Show page";
-                        focused: root.focused-area == 1;
-                        activated => { Library.open-show(LibraryLanding.focus.rating-key); }
-                        hovered => { root.focused-area = 1; }
-                    }
+            activated => {
+                if shelf.enabled {
+                    LibraryLanding.rail-selected(i);
                 }
             }
         }
 
-        // Right Curve (Finish the season / Continue watching)
-        // Label in a glass pill (same as the hover labels) so the art behind it can't wash it
-        // out. Left edge lines up with the first row below it (x 1180 + its 130 indent).
-        Rectangle {
-            x: 1310px * TvUi.u;
-            y: 180px * TvUi.u;
-            width: shelf-label.preferred-width + 32px * TvUi.u;
-            height: 36px * TvUi.u;
-            border-radius: self.height / 2;
-            background: OrbitTheme.glass;
-            border-width: 1px;
-            border-color: OrbitTheme.glass-border;
-
-            shelf-label := Text {
-                width: parent.width;
-                height: parent.height;
-                text: LibraryLanding.shelf1-title != "" ? LibraryLanding.shelf1-title : "FINISH THE SEASON";
-                font-family: OrbitTheme.font;
-                font-size: 15px * TvUi.u;
-                font-weight: 700;
-                letter-spacing: 2.5px * TvUi.u;
-                // Accent, like the hero's time-remaining kicker.
-                color: OrbitTheme.accent;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
+        // 2. Grid header (x 520, y 192)
+        Text {
+            x: 520px * TvUi.u;
+            y: 192px * TvUi.u;
+            width: 760px * TvUi.u;
+            text: LibraryLanding.grid-header;
+            font-family: OrbitTheme.font;
+            font-size: 16px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 3px * TvUi.u;
+            color: OrbitTheme.accent;
+            overflow: elide;
         }
 
-        for item[i] in LibraryLanding.shelf1: lib-curve := Rectangle {
-            visible: i < 4;
-            property <length> indent: (i == 0 ? 130px : i == 1 ? 70px : i == 2 ? 36px : 24px) * TvUi.u;
-            property <bool> is-foc: (root.focused-area == 2 + i) || curve-ta.has-hover;
+        // Empty state when all shelves are empty
+        if LibraryLanding.grid.length == 0: Text {
+            x: 520px * TvUi.u;
+            y: 260px * TvUi.u;
+            text: "Nothing here yet";
+            font-family: OrbitTheme.font;
+            font-size: 24px * TvUi.u;
+            font-weight: 500;
+            color: OrbitTheme.sub;
+        }
 
-            x: 1180px * TvUi.u + self.indent;
-            y: (230px + i * 124px) * TvUi.u;
-            // Runs to x 1840 like Home's Up next rows.
-            width: 1840px * TvUi.u - self.x;
-            height: 112px * TvUi.u;
+        // 3x2 poster grid (x 520, y 242, w 760, 260 col step, 296 row step)
+        for item[i] in LibraryLanding.grid: Rectangle {
+            property <int> grid-col: Math.mod(i, 3);
+            property <int> grid-row: Math.floor(i / 3);
+            property <bool> is-foc: (!TvUi.bar-focused && TvUi.focused-tile == root.grid-base-idx + i) || cell-ta.has-hover;
+            property <length> ring-size: is-foc ? 210px * TvUi.u : 190px * TvUi.u;
 
-            if lib-curve.is-foc: Rectangle {
-                x: -9px * TvUi.u;
-                y: -7px * TvUi.u;
-                width: parent.width + 18px * TvUi.u;
-                height: parent.height + 14px * TvUi.u;
-                border-radius: self.height / 2;
-                border-width: 4px * TvUi.u;
-                border-color: OrbitTheme.text;
-            }
+            x: (520px + grid-col * 260px) * TvUi.u;
+            y: (242px + grid-row * 296px) * TvUi.u;
+            width: 240px * TvUi.u;
+            height: 270px * TvUi.u;
+            background: transparent;
 
-            // Glass pill behind every row (as on Home), darker when focused, so titles and
-            // time left stay readable over the art.
-            Rectangle {
-                width: parent.width;
-                height: parent.height;
-                border-radius: self.height / 2;
-                background: lib-curve.is-foc ? #1A202CD9 : OrbitTheme.glass;
-            }
-
-            Rectangle {
-                x: 2px * TvUi.u;
-                y: 2px * TvUi.u;
-                width: 108px * TvUi.u;
-                height: 108px * TvUi.u;
+            // Focus ring (4 px text + 5 px bg gap)
+            if is-foc: Rectangle {
+                x: (parent.width - (ring-size + 18px * TvUi.u)) / 2;
+                y: -9px * TvUi.u - (ring-size - 190px * TvUi.u) / 2;
+                width: ring-size + 18px * TvUi.u;
+                height: ring-size + 18px * TvUi.u;
                 border-radius: self.width / 2;
                 border-width: 4px * TvUi.u;
-                border-color: item.progress > 0.0 ? OrbitTheme.accent : OrbitTheme.track;
-                clip: true;
-
-                if item.has-art: Image {
-                    source: item.art;
-                    width: parent.width;
-                    height: parent.height;
-                    image-fit: cover;
-                }
+                border-color: OrbitTheme.text;
+                background: OrbitTheme.bg;
             }
 
-            VerticalLayout {
-                x: 128px * TvUi.u;
-                y: 0;
-                width: parent.width - 144px * TvUi.u;
-                height: parent.height;
-                alignment: center;
-                spacing: 4px * TvUi.u;
+            OrbitRing {
+                x: (parent.width - ring-size) / 2;
+                y: -(ring-size - 190px * TvUi.u) / 2;
+                size: ring-size;
+                viewbox-size: 104;
+                thickness: 6px * TvUi.u;
+                lit-path: item.ring-lit;
+                unlit-path: item.ring-unlit;
+                lit-color: OrbitTheme.accent;
 
-                Text {
+                if item.has-poster: Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: item.poster;
+                    image-fit: cover;
+                }
+
+                if !item.has-poster: Text {
+                    width: parent.width - 24px * TvUi.u;
+                    height: parent.height;
+                    x: 12px * TvUi.u;
                     text: item.title;
                     font-family: OrbitTheme.font;
-                    font-size: 21px * TvUi.u;
+                    font-size: 17px * TvUi.u;
                     font-weight: 600;
-                    color: OrbitTheme.text;
-                    overflow: elide;
-                }
-                Text {
-                    text: item.right-label;
-                    font-family: OrbitTheme.font;
-                    font-size: 16px * TvUi.u;
                     color: OrbitTheme.sub;
-                    overflow: elide;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    wrap: word-wrap;
                 }
             }
 
-            curve-ta := TouchArea {
-                mouse-cursor: pointer;
-                clicked => {
-                    if is-movies {
-                        Library.open-movie(item.rating-key);
-                    } else {
-                        Library.open-show(item.rating-key);
-                    }
-                }
-                pointer-event(ev) => {
-                    if ev.kind == PointerEventKind.move && root.focused-area != 2 + i {
-                        root.focused-area = 2 + i;
-                        root.last-dial-hover = -1;
-                        LibraryLanding.focus-changed(4 + i);
-                    }
-                }
-            }
-        }
-
-        // Bottom Dial (Start watching / Next shelf pair)
-        // Same blue glass pill as the Continue watching label, centred over the dial.
-        Rectangle {
-            x: (parent.width - self.width) / 2;
-            y: 690px * TvUi.u;
-            width: dial-label.preferred-width + 32px * TvUi.u;
-            height: 36px * TvUi.u;
-            border-radius: self.height / 2;
-            background: OrbitTheme.glass;
-            border-width: 1px;
-            border-color: OrbitTheme.glass-border;
-
-            dial-label := Text {
-                width: parent.width;
-                height: parent.height;
-                text: shelf-pair == 0 ? LibraryLanding.shelf2-title : LibraryLanding.shelf3-title;
-                font-family: OrbitTheme.font;
-                font-size: 15px * TvUi.u;
-                font-weight: 700;
-                letter-spacing: 2.5px * TvUi.u;
-                color: OrbitTheme.accent;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-        }
-
-        for slot in [-2, -1, 0, 1, 2, 3]: lib-dial-node := Rectangle {
-            visible: dial-count > 0;
-            property <int> idx: dial-count > 0 ? Math.mod(safe-dial + slot + dial-count * 4, dial-count) : 0;
-            property <bool> is-top: slot == 0;
-            property <bool> is-foc: (self.is-top && root.focused-area == 6) || lib-dial-ta.has-hover;
-            property <length> node-sz: (self.is-top ? 160px : self.is-foc ? 140px : 120px) * TvUi.u;
-            property <angle> ang: slot * 10.5deg - 90deg;
-            property <length> cx: parent.width / 2 + 950px * TvUi.u * Math.cos(self.ang);
-            property <length> cy: 1780px * TvUi.u + 950px * TvUi.u * Math.sin(self.ang);
-
-            x: self.cx - self.node-sz / 2;
-            y: self.cy - self.node-sz / 2;
-            width: self.node-sz;
-            height: self.node-sz;
-            animate width, height { duration: 150ms; easing: ease-out; }
-
-            if lib-dial-node.is-foc: Rectangle {
-                x: -9px * TvUi.u;
-                y: -9px * TvUi.u;
-                width: parent.width + 18px * TvUi.u;
-                height: parent.height + 18px * TvUi.u;
-                border-radius: self.width / 2;
-                border-width: 4px * TvUi.u;
-                border-color: OrbitTheme.text;
-            }
-
-            Rectangle {
-                width: parent.width;
-                height: parent.height;
-                border-radius: self.width / 2;
-                background: OrbitTheme.glass;
-                clip: true;
-
-                if shelf-pair == 0 && LibraryLanding.shelf2[lib-dial-node.idx].has-poster: Image {
-                    source: LibraryLanding.shelf2[lib-dial-node.idx].poster;
-                    width: parent.width;
-                    height: parent.height;
-                    image-fit: cover;
-                }
-                if shelf-pair == 1 && LibraryLanding.shelf3[lib-dial-node.idx].has-poster: Image {
-                    source: LibraryLanding.shelf3[lib-dial-node.idx].poster;
-                    width: parent.width;
-                    height: parent.height;
-                    image-fit: cover;
-                }
-            }
-
-            // Rank badge (40px accent circle)
-            Rectangle {
-                x: parent.width - 36px * TvUi.u;
-                y: -4px * TvUi.u;
-                width: 40px * TvUi.u;
-                height: 40px * TvUi.u;
-                border-radius: self.width / 2;
+            // 1–6 rank badge for Start Watching
+            if item.badge > 0: Rectangle {
+                x: (parent.width - ring-size) / 2 + 4px * TvUi.u;
+                y: -(ring-size - 190px * TvUi.u) / 2 + 4px * TvUi.u;
+                width: 34px * TvUi.u;
+                height: 34px * TvUi.u;
+                border-radius: 17px * TvUi.u;
                 background: OrbitTheme.accent;
 
                 Text {
-                    text: lib-dial-node.idx + 1;
+                    text: item.badge;
                     font-family: OrbitTheme.font;
-                    font-size: 16px * TvUi.u;
+                    font-size: 15px * TvUi.u;
                     font-weight: 700;
                     color: OrbitTheme.bg;
                     horizontal-alignment: center;
@@ -413,25 +216,180 @@ export component OrbitLibrary inherits Rectangle {
                 }
             }
 
-            lib-dial-ta := TouchArea {
+            Text {
+                x: 5px * TvUi.u;
+                y: 218px * TvUi.u;
+                width: 230px * TvUi.u;
+                text: item.title;
+                font-family: OrbitTheme.font;
+                font-size: 19px * TvUi.u;
+                font-weight: 600;
+                color: OrbitTheme.text;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+
+            Text {
+                x: 5px * TvUi.u;
+                y: 244px * TvUi.u;
+                width: 230px * TvUi.u;
+                text: item.meta;
+                font-family: OrbitTheme.font;
+                font-size: 15px * TvUi.u;
+                color: OrbitTheme.sub;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+
+            cell-ta := TouchArea {
                 mouse-cursor: pointer;
-                clicked => {
-                    if is-movies {
-                        Library.open-movie(shelf-pair == 0 ? LibraryLanding.shelf2[lib-dial-node.idx].rating-key : LibraryLanding.shelf3[lib-dial-node.idx].rating-key);
-                    } else {
-                        Library.open-show(shelf-pair == 0 ? LibraryLanding.shelf2[lib-dial-node.idx].rating-key : LibraryLanding.shelf3[lib-dial-node.idx].rating-key);
-                    }
-                }
+                clicked => { LibraryLanding.grid-activated(i); }
                 pointer-event(ev) => {
-                    if ev.kind == PointerEventKind.move && (root.focused-area != 6 || root.last-dial-hover != lib-dial-node.idx) {
-                        root.focused-area = 6;
-                        root.last-dial-hover = lib-dial-node.idx;
-                        LibraryLanding.focus-changed(
-                            4 + LibraryLanding.shelf1.length + (shelf-pair == 0 ? lib-dial-node.idx : LibraryLanding.shelf2.length + lib-dial-node.idx)
-                        );
+                    if ev.kind == PointerEventKind.move && TvUi.focused-tile != root.grid-base-idx + i {
+                        TvUi.tile-hovered(root.grid-base-idx + i);
                     }
                 }
             }
+        }
+
+        // 3. Detail card (x 1340 -> right 70, y 200, h 760)
+        Rectangle {
+            x: 1340px * TvUi.u;
+            y: 200px * TvUi.u;
+            width: root.width - 1410px * TvUi.u;
+            height: 760px * TvUi.u;
+            border-radius: 44px * TvUi.u;
+            background: OrbitTheme.glass;
+            border-width: 1px;
+            border-color: OrbitTheme.glass-border;
+
+            // Round poster (180 px)
+            OrbitRing {
+                x: 36px * TvUi.u;
+                y: 36px * TvUi.u;
+                size: 180px * TvUi.u;
+                thickness: 0px;
+
+                if LibraryLanding.focus.has-poster: Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: LibraryLanding.focus.poster;
+                    image-fit: cover;
+                }
+            }
+
+            VerticalLayout {
+                x: 36px * TvUi.u;
+                y: 232px * TvUi.u;
+                width: parent.width - 72px * TvUi.u;
+                spacing: 8px * TvUi.u;
+                alignment: start;
+
+                Text {
+                    text: LibraryLanding.focus.kicker != "" ? LibraryLanding.focus.kicker : (is-movies ? "MOVIES" : "TV SERIES");
+                    font-family: OrbitTheme.font;
+                    font-size: 15px * TvUi.u;
+                    font-weight: 600;
+                    letter-spacing: 2px * TvUi.u;
+                    color: OrbitTheme.accent;
+                    overflow: elide;
+                }
+
+                Text {
+                    text: LibraryLanding.focus.title != "" ? LibraryLanding.focus.title : "Library";
+                    font-family: OrbitTheme.font;
+                    font-size: 42px * TvUi.u;
+                    font-weight: 700;
+                    letter-spacing: -1px * TvUi.u;
+                    color: OrbitTheme.text;
+                    wrap: word-wrap;
+                    max-height: 108px * TvUi.u;
+                    overflow: elide;
+                }
+
+                Text {
+                    text: LibraryLanding.focus.meta;
+                    font-family: OrbitTheme.font;
+                    font-size: 17px * TvUi.u;
+                    color: OrbitTheme.sub;
+                    overflow: elide;
+                }
+
+                // 5 lines reserved (130 px) so nothing jumps
+                Text {
+                    height: 130px * TvUi.u;
+                    text: LibraryLanding.focus.summary;
+                    font-family: OrbitTheme.font;
+                    font-size: 17px * TvUi.u;
+                    color: OrbitTheme.sub;
+                    wrap: word-wrap;
+                    overflow: elide;
+                }
+            }
+
+            // Pinned to bottom: OrbitPlay 84 px + play label + sub-line
+            HorizontalLayout {
+                x: 36px * TvUi.u;
+                y: parent.height - 32px * TvUi.u - 84px * TvUi.u;
+                width: parent.width - 72px * TvUi.u;
+                height: 84px * TvUi.u;
+                spacing: 18px * TvUi.u;
+                alignment: start;
+
+                OrbitPlay {
+                    size: 84px * TvUi.u;
+                    lit-path: LibraryLanding.focus.ring-lit;
+                    unlit-path: LibraryLanding.focus.ring-unlit;
+                    focused: !TvUi.bar-focused && LibraryLanding.grid.length > 0 && TvUi.focused-tile == root.card-play-idx;
+                    activated => {
+                        if LibraryLanding.focus.rating-key != "" {
+                            if is-movies {
+                                Library.play-key(LibraryLanding.focus.rating-key, true);
+                            } else {
+                                Library.play-key(LibraryLanding.focus.rating-key, false);
+                            }
+                        }
+                    }
+                    hovered => {
+                        if LibraryLanding.grid.length > 0 {
+                            TvUi.tile-hovered(root.card-play-idx);
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 4px * TvUi.u;
+                    horizontal-stretch: 1;
+
+                    Text {
+                        text: LibraryLanding.focus.play-label != "" ? LibraryLanding.focus.play-label : "Play";
+                        font-family: OrbitTheme.font;
+                        font-size: 20px * TvUi.u;
+                        font-weight: 600;
+                        color: OrbitTheme.text;
+                        overflow: elide;
+                    }
+
+                    if LibraryLanding.focus.sub-line != "": Text {
+                        text: LibraryLanding.focus.sub-line;
+                        font-family: OrbitTheme.font;
+                        font-size: 14px * TvUi.u;
+                        color: OrbitTheme.sub;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
+
+        // Bottom hint
+        Text {
+            x: 520px * TvUi.u;
+            y: parent.height - 40px * TvUi.u - self.height;
+            text: "↑ ↓ shelves · → into the grid · → again to the card · Browse all stays in the sub-tabs";
+            font-family: OrbitTheme.font;
+            font-size: 15px * TvUi.u;
+            color: OrbitTheme.muted;
         }
     }
 

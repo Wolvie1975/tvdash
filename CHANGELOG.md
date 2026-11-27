@@ -1,5 +1,11 @@
 # tvdash Changelog
 
+## v1.0.2 — 2026-11-27
+- **Orbit Library landing: Shelf rail (`ui/orbit/library.slint`, `ui/orbit/controls.slint`, `orbit/library_rail.rs`, `bridge/library.rs`, `tv_nav.rs`):**
+  - Replaced the hero/curve/dial Library landing in Orbit with the 3-column **Shelf rail → 3 × 2 poster grid → Detail card** layout (Concept 2C).
+  - **Movies:** `Continue Watching`, `Recently Added`, `Recently Released`. **TV Series:** `Continue Watching` (one tile per show, segmented season rings when in `finish_season`), `Start Watching` (1–6 badges), `Recently Released`.
+  - Added zone navigation (`rail ↔ grid ↔ card`), empty-shelf dimming/skipping, session-remembered shelf/cell per tab, and hover/click support. Classic, Blades, and PS5 Library landings remain unchanged.
+
 ## v1.0.1 — 2026-11-27
 - **Classic Settings & Quick Switch polish (`ui/tv/settings.slint`, `ui/tv/shell.slint`, `tv_nav.rs`):**
   - Reformatted **Classic › Settings › Display** into a two-column grouped layout (`Appearance`, `Preferences`, `Weather location`, `Actions`), fixing the `tvdash <version>` overlap with `Quick switch`, weather search result collisions, and truncated labels.

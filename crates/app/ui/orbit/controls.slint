@@ -387,3 +387,90 @@ export component ClockBadgeContent inherits VerticalLayout {
         horizontal-alignment: center;
     }
 }
+
+// Library shelf rail row (Concept 2C): 108 px count circle + 21 px label, pill when selected.
+export component OrbitRailRow inherits Rectangle {
+    in property <string> title;
+    in property <int> count: 0;
+    in property <bool> enabled: true;
+    in property <bool> selected: false;
+    in property <bool> focused: false;
+    callback activated();
+    callback hovered();
+
+    property <bool> active-focus: enabled && (focused || ta.has-hover);
+
+    width: 380px * TvUi.u;
+    height: 116px * TvUi.u;
+    opacity: enabled ? 1.0 : 0.5;
+    background: transparent;
+
+    if selected: Rectangle {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        border-radius: 58px * TvUi.u;
+        background: OrbitTheme.glass;
+        border-width: 1px;
+        border-color: OrbitTheme.glass-border;
+    }
+
+    // 108 px count circle
+    Rectangle {
+        x: 4px * TvUi.u;
+        y: 4px * TvUi.u;
+        width: 108px * TvUi.u;
+        height: 108px * TvUi.u;
+        border-radius: 54px * TvUi.u;
+        background: selected ? OrbitTheme.text : OrbitTheme.glass;
+        border-width: selected ? 0px : 1px;
+        border-color: OrbitTheme.glass-border;
+
+        if active-focus: Rectangle {
+            x: -8px * TvUi.u;
+            y: -8px * TvUi.u;
+            width: parent.width + 16px * TvUi.u;
+            height: parent.height + 16px * TvUi.u;
+            border-radius: self.width / 2;
+            border-width: 3px * TvUi.u;
+            border-color: OrbitTheme.accent;
+            background: transparent;
+        }
+
+        Text {
+            text: root.count;
+            font-family: OrbitTheme.font;
+            font-size: 38px * TvUi.u;
+            font-weight: 700;
+            color: selected ? OrbitTheme.bg : (enabled ? OrbitTheme.text : OrbitTheme.sub);
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    Text {
+        x: 131px * TvUi.u;
+        y: 0;
+        width: parent.width - 147px * TvUi.u;
+        height: parent.height;
+        text: root.title;
+        font-family: OrbitTheme.font;
+        font-size: 21px * TvUi.u;
+        font-weight: selected ? 700 : 600;
+        color: selected ? OrbitTheme.text : OrbitTheme.sub;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { if root.enabled { root.activated(); } }
+        pointer-event(ev) => {
+            if root.enabled && ev.kind == PointerEventKind.move {
+                root.hovered();
+            }
+        }
+    }
+}

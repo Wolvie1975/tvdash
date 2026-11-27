@@ -165,6 +165,12 @@ pub struct UiState {
     browse_letter_movies: usize,
     browse_genre: String,
     orbit_counts: crate::orbit::counts::OrbitCountCache,
+    orbit_rail_movies: usize,
+    orbit_rail_tv: usize,
+    orbit_cell_movies: [usize; 3],
+    orbit_cell_tv: [usize; 3],
+    orbit_rail_items: [Vec<MediaItem>; 3],
+    orbit_tv_cw: Vec<crate::orbit::library_rail::TvContinueEntry>,
     lib_finish_season: Vec<tvdash_core::models::FinishSeasonItem>,
     lib_shelf1_items: Vec<MediaItem>,
     lib_shelf2_items: Vec<MediaItem>,
@@ -560,6 +566,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::SearchResults { query, items } => library::on_results(s, laptop, query, items),
         AppEvent::Poster { source, item_id, image } => {
             home::on_poster(s, laptop, source, item_id.clone(), &image);
+            library::on_poster(s, laptop, source, &item_id);
             movie::on_poster(s, laptop, source, &item_id, &image);
         }
         AppEvent::Backdrop { source, item_id, image } => {
