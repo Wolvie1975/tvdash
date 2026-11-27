@@ -1,7 +1,7 @@
 // Classic UI — Apps tab (§14.3).
 
 import { Theme } from "../theme.slint";
-import { AppsPage, HomeState, TvUi } from "../state.slint";
+import { AppsPage, HomeState, QuickSwitch, TvUi } from "../state.slint";
 import { Tile } from "tile.slint";
 
 export component TvApps inherits Rectangle {
@@ -29,7 +29,7 @@ export component TvApps inherits Rectangle {
     if AppsPage.apps.length > 0: Rectangle {
         x: 0;
         y: 170px * TvUi.u;
-        width: parent.width;
+        width: 1416px * TvUi.u;
         height: parent.height - 170px * TvUi.u;
         clip: true;
         background: transparent;
@@ -45,22 +45,22 @@ export component TvApps inherits Rectangle {
             x: 0;
             y: -TvUi.lib-scroll * TvUi.u;
             width: parent.width;
-            height: (Math.ceil(AppsPage.apps.length / 5) * 218px + 48px) * TvUi.u;
+            height: (Math.ceil(AppsPage.apps.length / 4) * 208px + 48px) * TvUi.u;
             background: transparent;
             animate y { duration: 150ms; easing: ease-out; }
 
             for app[i] in AppsPage.apps: Rectangle {
-                x: (96px + Math.mod(i, 5) * 348px) * TvUi.u;
-                y: (6px + Math.floor(i / 5) * 218px) * TvUi.u;
-                width: 328px * TvUi.u;
-                height: 204px * TvUi.u;
+                x: (96px + Math.mod(i, 4) * 328px) * TvUi.u;
+                y: (6px + Math.floor(i / 4) * 208px) * TvUi.u;
+                width: 308px * TvUi.u;
+                height: 194px * TvUi.u;
                 background: transparent;
 
                 Tile {
                     x: 0;
                     y: 0;
-                    base-width: 328px * TvUi.u;
-                    base-height: 164px * TvUi.u;
+                    base-width: 308px * TvUi.u;
+                    base-height: 154px * TvUi.u;
                     fill: app.color;
                     focused: !TvUi.bar-focused && TvUi.focused-tile == i;
                     activated => { HomeState.launch-app(app.id); }
@@ -92,7 +92,7 @@ export component TvApps inherits Rectangle {
 
                 Text {
                     x: 4px * TvUi.u;
-                    y: 174px * TvUi.u;
+                    y: 164px * TvUi.u;
                     width: parent.width - 8px * TvUi.u;
                     text: app.name;
                     font-size: 18px * TvUi.u;
@@ -100,6 +100,175 @@ export component TvApps inherits Rectangle {
                     color: Theme.text-primary;
                     overflow: elide;
                 }
+            }
+        }
+    }
+
+    // Right sidebar: Last played + Quick Switch
+    if AppsPage.has-last-app: Tile {
+        x: 1436px * TvUi.u;
+        y: 176px * TvUi.u;
+        base-width: 388px * TvUi.u;
+        base-height: 224px * TvUi.u;
+        fill: Theme.surface;
+        focused: !TvUi.bar-focused && TvUi.focused-tile == AppsPage.apps.length + 1;
+        activated => { HomeState.launch-app(AppsPage.last-app-id); }
+        hovered => { TvUi.tile-hovered(AppsPage.apps.length + 1); }
+
+        VerticalLayout {
+            padding: 18px * TvUi.u;
+            spacing: 10px * TvUi.u;
+            alignment: start;
+
+            Text {
+                text: "LAST PLAYED";
+                font-size: 14px * TvUi.u;
+                font-weight: 600;
+                letter-spacing: 1.4px;
+                color: Theme.text-muted;
+            }
+
+            if AppsPage.last-app-has-logo: HorizontalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 148px * TvUi.u;
+                    height: 82px * TvUi.u;
+                    border-radius: 8px * TvUi.u;
+                    background: AppsPage.last-app-bg;
+                    Image {
+                        x: 16px * TvUi.u;
+                        y: 12px * TvUi.u;
+                        width: parent.width - 32px * TvUi.u;
+                        height: parent.height - 24px * TvUi.u;
+                        source: AppsPage.last-app-logo;
+                        image-fit: contain;
+                    }
+                }
+            }
+
+            Text {
+                text: AppsPage.last-app-name;
+                font-size: 22px * TvUi.u;
+                font-weight: 600;
+                color: Theme.text-primary;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+
+            Text {
+                text: AppsPage.last-app-ago != "" ? (AppsPage.last-app-ago + " · OK to open") : "OK to open";
+                font-size: 16px * TvUi.u;
+                color: Theme.text-secondary;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+        }
+    }
+
+    if AppsPage.apps.length > 0: VerticalLayout {
+        x: 1436px * TvUi.u;
+        y: (AppsPage.has-last-app ? 432px : 176px) * TvUi.u;
+        width: 388px * TvUi.u;
+        spacing: 10px * TvUi.u;
+        alignment: start;
+
+        HorizontalLayout {
+            spacing: 10px * TvUi.u;
+            alignment: start;
+            Text {
+                text: "QUICK SWITCH";
+                font-size: 14px * TvUi.u;
+                font-weight: 600;
+                letter-spacing: 1.4px;
+                color: Theme.text-muted;
+                vertical-alignment: center;
+            }
+            Text {
+                text: QuickSwitch.automatic ? "Automatic" : "Custom";
+                font-size: 14px * TvUi.u;
+                font-weight: 600;
+                color: Theme.accent;
+                vertical-alignment: center;
+            }
+        }
+
+        VerticalLayout {
+            spacing: 8px * TvUi.u;
+            for choice in QuickSwitch.choices: Rectangle {
+                visible: choice.slot > 0;
+                height: choice.slot > 0 ? 48px * TvUi.u : 0px;
+                border-radius: 6px;
+                background: Theme.surface;
+
+                if choice.slot > 0: HorizontalLayout {
+                    padding-left: 12px * TvUi.u;
+                    padding-right: 16px * TvUi.u;
+                    spacing: 12px * TvUi.u;
+                    alignment: start;
+
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 26px * TvUi.u;
+                            height: 26px * TvUi.u;
+                            border-radius: 13px * TvUi.u;
+                            background: #F5A524;
+                            Text {
+                                text: choice.slot;
+                                font-size: 14px * TvUi.u;
+                                font-weight: 800;
+                                color: #1A1200;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    if choice.brand.has-logo: VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 38px * TvUi.u;
+                            height: 26px * TvUi.u;
+                            border-radius: 4px;
+                            background: choice.brand.fill;
+                            Image {
+                                x: 4px * TvUi.u;
+                                y: 3px * TvUi.u;
+                                width: parent.width - 8px * TvUi.u;
+                                height: parent.height - 6px * TvUi.u;
+                                source: choice.brand.logo;
+                                image-fit: contain;
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: choice.name;
+                        font-size: 18px * TvUi.u;
+                        font-weight: 500;
+                        color: Theme.text-primary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
+
+        Tile {
+            base-width: 388px * TvUi.u;
+            base-height: 52px * TvUi.u;
+            fill: Theme.surface;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == AppsPage.apps.length;
+            activated => { QuickSwitch.open-picker(); }
+            hovered => { TvUi.tile-hovered(AppsPage.apps.length); }
+
+            Text {
+                text: "Adjust in Settings ›";
+                font-size: 18px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
             }
         }
     }

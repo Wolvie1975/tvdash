@@ -1,11 +1,20 @@
 # tvdash: where things stand
 
-Last updated 2026-11-27 (`v1.0.0` bumped on `development`, ready for RPM build). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-27 (`v1.0.1` bumped on `development`, ready for RPM build). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-- **`v1.0.0` (`development`, v1.0 release) — version bumped, ready for final tests & RPM build:**
+- **`v1.0.1` (`development`, Classic Settings & Classic/Blades Apps polish) — version bumped, ready for final tests & RPM build:**
+  - Classic Settings Display two-column grouped layout, Classic Settings Sites 2-column grid, `QuickSwitchPicker` `← Back` / `TabBar` fix, and **Last played** + **Quick Switch** added to Classic & Blades Apps (`ui/tv/settings.slint`, `ui/tv/shell.slint`, `ui/tv/apps.slint`, `ui/v3/apps.slint`, `tv_nav.rs`).
+  - **Next (on host):**
+    - `cargo test -j 2 -p tvdash -- --test-threads=1`
+    - `cargo run -j 2 -- --windowed --layout tv`
+    - `cargo build --release -j 2`
+    - `./packaging/rpm.sh`
+    - `cp dist/tvdash-1.0.1-1.x86_64.rpm releases/`
+    - `sudo dnf upgrade ./releases/tvdash-1.0.1-1.x86_64.rpm`
+- **`v1.0.0` (`development`, v1.0 release) — packaged (`releases/tvdash-1.0.0-1.x86_64.rpm`):**
   - Orbit Apps center logo, left-hand **Quick Switch** summary + **`Adjust in Settings ›`**, and right-hand **Last played** app card (`ui/orbit/apps.slint`, `state.slint`, `bridge/home.rs`, `tv_nav.rs`).
   - **Next (on host):**
     - `cargo test -j 2 -p tvdash -- --test-threads=1`

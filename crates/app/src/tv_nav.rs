@@ -610,8 +610,11 @@ pub fn sync(laptop: &LaptopWindow) {
                     }
                 }
                 Page::Apps => {
-                    let vert = Rect { x: r.y - 124.0, y: 0.0, w: r.h, h: r.w };
-                    s.lib_scroll = focus::panorama_scroll(vert, s.lib_scroll, 824.0, 16.0);
+                    let n = laptop.global::<crate::AppsPage>().get_apps().row_count();
+                    if s.shell.focused_tile < n {
+                        let vert = Rect { x: r.y - 124.0, y: 0.0, w: r.h, h: r.w };
+                        s.lib_scroll = focus::panorama_scroll(vert, s.lib_scroll, 824.0, 16.0);
+                    }
                 }
                 Page::Collections => {
                     let vert = Rect { x: r.y - 180.0, y: 0.0, w: r.h, h: r.w };
@@ -664,11 +667,20 @@ pub fn sync(laptop: &LaptopWindow) {
                         sp.invoke_load(sp.get_schedule(), 0);
                     }
                 }
+                Page::Settings if tv.get_settings_tab() == "sites" => {
+                    if s.shell.focused_tile >= 8 {
+                        let vert = Rect { x: r.y - 244.0, y: 0.0, w: r.h, h: r.w };
+                        s.lib_scroll = focus::panorama_scroll(vert, s.lib_scroll, 836.0, 16.0);
+                    } else {
+                        s.lib_scroll = 0.0;
+                    }
+                }
                 _ => {}
             }
         }
         s.cw_scroll = 0.0;
-        if !matches!(s.shell.current(), Page::Apps | Page::Library | Page::Collections) {
+        let keep_settings_scroll = matches!(s.shell.current(), Page::Settings) && tv.get_settings_tab() == "sites";
+        if !matches!(s.shell.current(), Page::Apps | Page::Library | Page::Collections) && !keep_settings_scroll {
             s.lib_scroll = 0.0;
         }
         if !matches!(s.shell.current(), Page::Show(_)) {
@@ -1034,15 +1046,21 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
         Page::Apps => {
             let ox = 92.0;
             let oy = 24.0;
-            let n = laptop.global::<crate::AppsPage>().get_apps().row_count();
-            (0..n)
+            let apps_page = laptop.global::<crate::AppsPage>();
+            let n = apps_page.get_apps().row_count();
+            let mut rects: Vec<Rect> = (0..n)
                 .map(|i| Rect {
                     x: ox + 40.0 + (i % 4) as f32 * 366.0,
-                    y: oy + 124.0 + (i / 4) as f32 * 256.0,
+                    y: oy + 200.0 + (i / 4) as f32 * 218.0,
                     w: 344.0,
-                    h: 194.0,
+                    h: 166.0,
                 })
-                .collect()
+                .collect();
+            rects.push(Rect { x: ox + 1272.0, y: oy + 111.0, w: 196.0, h: 48.0 });
+            if apps_page.get_has_last_app() {
+                rects.push(Rect { x: ox + 40.0, y: oy + 94.0, w: 440.0, h: 82.0 });
+            }
+            rects
         }
         Page::Library => {
             let ox = 160.0;
@@ -1471,19 +1489,33 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             rects
         }
         Page::Apps => {
-            let n = laptop.global::<crate::AppsPage>().get_apps().row_count();
-            (0..n)
+            let apps_page = laptop.global::<crate::AppsPage>();
+            let n = apps_page.get_apps().row_count();
+            let mut rects: Vec<Rect> = (0..n)
                 .map(|i| {
-                    let col = (i % 5) as f32;
-                    let row = (i / 5) as f32;
+                    let col = (i % 4) as f32;
+                    let row = (i / 4) as f32;
                     Rect {
-                        x: 96.0 + col * 348.0,
-                        y: 176.0 + row * 212.0,
-                        w: 328.0,
+                        x: 96.0 + col * 328.0,
+                        y: 176.0 + row * 208.0,
+                        w: 308.0,
                         h: 184.0,
                     }
                 })
-                .collect()
+                .collect();
+            let qs_y = if apps_page.get_has_last_app() { 432.0 } else { 176.0 };
+            let slots = laptop
+                .global::<crate::QuickSwitch>()
+                .get_choices()
+                .iter()
+                .filter(|c| c.slot > 0)
+                .count() as f32;
+            let btn_y = qs_y + 28.0 + slots * 56.0 + if slots > 0.0 { 2.0 } else { 0.0 };
+            rects.push(Rect { x: 1436.0, y: btn_y, w: 388.0, h: 52.0 });
+            if apps_page.get_has_last_app() {
+                rects.push(Rect { x: 1436.0, y: 176.0, w: 388.0, h: 224.0 });
+            }
+            rects
         }
         Page::Collections => {
             let n = laptop.global::<Library>().get_collections().row_count();
@@ -1745,10 +1777,10 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                     let n = laptop.global::<Accounts>().get_sites().row_count();
                     for i in 0..n {
                         rects.push(Rect {
-                            x: 96.0,
-                            y: 252.0 + i as f32 * 96.0,
-                            w: 1728.0,
-                            h: 84.0,
+                            x: 96.0 + (i % 2) as f32 * 888.0,
+                            y: 256.0 + (i / 2) as f32 * 144.0,
+                            w: 840.0,
+                            h: 128.0,
                         });
                     }
                 }
@@ -1758,30 +1790,30 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 "diagnostics" | "changelog" => {}
                 _ => {
                     rects.extend([
-                        Rect { x: 96.0, y: 184.0, w: 416.0, h: 220.0 },
-                        Rect { x: 528.0, y: 184.0, w: 416.0, h: 220.0 },
-                        Rect { x: 960.0, y: 184.0, w: 416.0, h: 220.0 },
-                        Rect { x: 1392.0, y: 184.0, w: 416.0, h: 220.0 },
-                        Rect { x: 96.0, y: 420.0, w: 416.0, h: 220.0 },
-                        Rect { x: 528.0, y: 420.0, w: 416.0, h: 220.0 },
-                        Rect { x: 96.0, y: 656.0, w: 416.0, h: 220.0 },
-                        Rect { x: 528.0, y: 656.0, w: 416.0, h: 220.0 }, // 13: Sleep warning
+                        Rect { x: 96.0, y: 374.0, w: 840.0, h: 66.0 },   // 7: Display layout
+                        Rect { x: 96.0, y: 296.0, w: 840.0, h: 66.0 },   // 8: Theme
+                        Rect { x: 96.0, y: 578.0, w: 840.0, h: 66.0 },   // 9: Temperature
+                        Rect { x: 96.0, y: 656.0, w: 840.0, h: 66.0 },   // 10: Clock
+                        Rect { x: 984.0, y: 736.0, w: 412.0, h: 76.0 },  // 11: Recent services
+                        Rect { x: 1412.0, y: 736.0, w: 412.0, h: 76.0 }, // 12: Application (Quit)
+                        Rect { x: 96.0, y: 218.0, w: 840.0, h: 66.0 },   // 13: Dashboard UI
+                        Rect { x: 96.0, y: 734.0, w: 840.0, h: 66.0 },   // 14: Sleep warning
                     ]);
                     let places_n = laptop.global::<Display>().get_places().row_count().min(4);
                     for i in 0..places_n {
                         rects.push(Rect {
-                            x: 960.0,
-                            y: 656.0 + i as f32 * 64.0,
-                            w: 848.0,
+                            x: 984.0,
+                            y: 434.0 + i as f32 * 64.0,
+                            w: 840.0,
                             h: 54.0,
                         });
                     }
                     for _ in places_n..4 {
                         rects.push(Rect { x: -1000.0, y: -1000.0, w: 0.0, h: 0.0 });
                     }
-                    rects.push(Rect { x: 960.0, y: 656.0, w: 416.0, h: 220.0 }); // 19: Startup animation
-                    rects.push(Rect { x: 1392.0, y: 656.0, w: 416.0, h: 220.0 }); // 20: Preview startup animation
-                    rects.push(Rect { x: 96.0, y: 892.0, w: 416.0, h: 112.0 }); // 21: Quick switch
+                    rects.push(Rect { x: 96.0, y: 452.0, w: 644.0, h: 66.0 });  // 19: Startup animation
+                    rects.push(Rect { x: 752.0, y: 452.0, w: 184.0, h: 66.0 }); // 20: Preview startup animation
+                    rects.push(Rect { x: 96.0, y: 812.0, w: 840.0, h: 66.0 });  // 21: Quick switch
                 }
             }
             rects
@@ -1895,6 +1927,12 @@ fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
             Page::Collection(_) => {
                 s.col_scroll = (s.col_scroll + step).clamp(0.0, 4000.0);
                 tv.set_col_scroll(s.col_scroll);
+            }
+            Page::Settings if tv.get_settings_tab() == "sites" => {
+                let rows = laptop.global::<Accounts>().get_sites().row_count().div_ceil(2);
+                let max_scroll = (rows as f32 * 144.0 + 32.0 - 836.0).max(0.0);
+                s.lib_scroll = (s.lib_scroll + step).clamp(0.0, max_scroll);
+                tv.set_lib_scroll(s.lib_scroll);
             }
             _ => {}
         }
@@ -2043,10 +2081,9 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
         Page::Apps => {
             let apps_page = laptop.global::<crate::AppsPage>();
             let apps = apps_page.get_apps();
-            let is_orbit = laptop.global::<Display>().get_dashboard_ui() == "orbit";
-            if is_orbit && idx == apps.row_count() {
+            if idx == apps.row_count() {
                 laptop.global::<crate::QuickSwitch>().invoke_open_picker();
-            } else if is_orbit && apps_page.get_has_last_app() && idx == apps.row_count() + 1 {
+            } else if apps_page.get_has_last_app() && idx == apps.row_count() + 1 {
                 laptop.global::<crate::HomeState>().invoke_launch_app(apps_page.get_last_app_id());
             } else if let Some(app) = apps.row_data(idx) {
                 laptop.global::<crate::HomeState>().invoke_launch_app(app.id);

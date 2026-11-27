@@ -5,6 +5,39 @@ import { Intro } from "../shared/intro.slint";
 import { SubTabs } from "tabs.slint";
 import { Tile, ValueTile } from "tile.slint";
 
+component SettingRow inherits Tile {
+    in property <string> label;
+    in property <string> value;
+    in property <color> label-color: Theme.text-secondary;
+    in property <color> value-color: Theme.text-primary;
+
+    HorizontalLayout {
+        padding-left: 24px * TvUi.u;
+        padding-right: 24px * TvUi.u;
+        spacing: 16px * TvUi.u;
+
+        Text {
+            text: root.label;
+            font-size: 22px * TvUi.u;
+            font-weight: 400;
+            color: root.label-color;
+            vertical-alignment: center;
+            horizontal-stretch: 0;
+        }
+
+        Text {
+            text: root.value;
+            font-size: 22px * TvUi.u;
+            font-weight: 500;
+            color: root.value-color;
+            vertical-alignment: center;
+            horizontal-alignment: right;
+            horizontal-stretch: 1;
+            overflow: elide;
+        }
+    }
+}
+
 component ServerGraphTile inherits Rectangle {
     in property <string> label;
     in property <string> line-a;
@@ -93,96 +126,23 @@ export component TvSettings inherits Rectangle {
         height: parent.height;
         background: transparent;
 
-        // 6: Layout
-        ValueTile {
+        // ── Left column: Appearance & Preferences ────────────────────────────
+        Text {
             x: 96px * TvUi.u;
             y: 184px * TvUi.u;
-            base-width: 416px * TvUi.u;
-            base-height: 220px * TvUi.u;
-            fill: Theme.surface;
-            label: "Display layout";
-            value: "TV only";
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
-            activated => { TvUi.tile-activated(7); }
-            hovered => { TvUi.tile-hovered(7); }
-        }
-
-        // 8: Theme
-        ValueTile {
-            x: 528px * TvUi.u;
-            y: 184px * TvUi.u;
-            base-width: 416px * TvUi.u;
-            base-height: 220px * TvUi.u;
-            fill: Theme.surface;
-            label: "Theme";
-            value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
-            activated => { TvUi.tile-activated(8); }
-            hovered => { TvUi.tile-hovered(8); }
-        }
-
-        // 9: Temperature units
-        ValueTile {
-            x: 960px * TvUi.u;
-            y: 184px * TvUi.u;
-            base-width: 416px * TvUi.u;
-            base-height: 220px * TvUi.u;
-            fill: Theme.surface;
-            label: "Temperature";
-            value: Display.celsius ? "Celsius (°C)" : "Fahrenheit (°F)";
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 9;
-            activated => { TvUi.tile-activated(9); }
-            hovered => { TvUi.tile-hovered(9); }
-        }
-
-        // 10: Clock format
-        ValueTile {
-            x: 1392px * TvUi.u;
-            y: 184px * TvUi.u;
-            base-width: 416px * TvUi.u;
-            base-height: 220px * TvUi.u;
-            fill: Theme.surface;
-            label: "Clock";
-            value: Display.h12 ? "12-hour" : "24-hour";
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 10;
-            activated => { TvUi.tile-activated(10); }
-            hovered => { TvUi.tile-hovered(10); }
-        }
-
-        // 11: Recent services
-        ValueTile {
-            x: 96px * TvUi.u;
-            y: 420px * TvUi.u;
-            base-width: 416px * TvUi.u;
-            base-height: 220px * TvUi.u;
-            fill: Theme.surface;
-            label: "Recent services";
-            value: "Clear list";
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 11;
-            activated => { TvUi.tile-activated(11); }
-            hovered => { TvUi.tile-hovered(11); }
-        }
-
-        // 12: Quit
-        ValueTile {
-            x: 528px * TvUi.u;
-            y: 420px * TvUi.u;
-            base-width: 416px * TvUi.u;
-            base-height: 220px * TvUi.u;
-            fill: TvUi.confirm-quit ? #5C1E1E : Theme.surface;
-            label: "Application";
-            value: TvUi.confirm-quit ? "Confirm quit?" : "Quit tvdash";
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 12;
-            activated => { TvUi.tile-activated(12); }
-            hovered => { TvUi.tile-hovered(12); }
+            text: "APPEARANCE";
+            font-size: 16px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 1.4px;
+            color: Theme.text-muted;
         }
 
         // 13: Dashboard UI
-        ValueTile {
+        SettingRow {
             x: 96px * TvUi.u;
-            y: 656px * TvUi.u;
-            base-width: 416px * TvUi.u;
-            base-height: 220px * TvUi.u;
+            y: 218px * TvUi.u;
+            base-width: 840px * TvUi.u;
+            base-height: 66px * TvUi.u;
             fill: Theme.surface;
             label: "Dashboard UI";
             value: Display.dashboard-ui-label;
@@ -191,26 +151,40 @@ export component TvSettings inherits Rectangle {
             hovered => { TvUi.tile-hovered(13); }
         }
 
-        // 14: Sleep warning
-        ValueTile {
-            x: 528px * TvUi.u;
-            y: 656px * TvUi.u;
-            base-width: 416px * TvUi.u;
-            base-height: 220px * TvUi.u;
+        // 8: Theme
+        SettingRow {
+            x: 96px * TvUi.u;
+            y: 296px * TvUi.u;
+            base-width: 840px * TvUi.u;
+            base-height: 66px * TvUi.u;
             fill: Theme.surface;
-            label: "Sleep warning";
-            value: SleepState.warn-before == "30s" ? "30 s" : SleepState.warn-before == "2m" ? "2 min" : "60 s";
-            focused: !TvUi.bar-focused && TvUi.focused-tile == 14;
-            activated => { TvUi.tile-activated(14); }
-            hovered => { TvUi.tile-hovered(14); }
+            label: "Theme";
+            value: Theme.mode == UiTheme.dark ? "Espresso" : Theme.mode == UiTheme.aubergine ? "Aubergine" : Theme.mode == UiTheme.ku ? "Kansas Dark" : Theme.mode == UiTheme.stone ? "Stone" : "Mist";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 8;
+            activated => { TvUi.tile-activated(8); }
+            hovered => { TvUi.tile-hovered(8); }
+        }
+
+        // 7: Display layout
+        SettingRow {
+            x: 96px * TvUi.u;
+            y: 374px * TvUi.u;
+            base-width: 840px * TvUi.u;
+            base-height: 66px * TvUi.u;
+            fill: Theme.surface;
+            label: "Display layout";
+            value: "TV only";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
+            activated => { TvUi.tile-activated(7); }
+            hovered => { TvUi.tile-hovered(7); }
         }
 
         // 19: Startup animation
-        ValueTile {
-            x: 960px * TvUi.u;
-            y: 656px * TvUi.u;
-            base-width: 416px * TvUi.u;
-            base-height: 220px * TvUi.u;
+        SettingRow {
+            x: 96px * TvUi.u;
+            y: 452px * TvUi.u;
+            base-width: 644px * TvUi.u;
+            base-height: 66px * TvUi.u;
             fill: Theme.surface;
             label: "Startup animation";
             value: Intro.enabled ? "On" : "Off";
@@ -220,25 +194,84 @@ export component TvSettings inherits Rectangle {
         }
 
         // 20: Preview startup animation
-        ValueTile {
-            x: 1392px * TvUi.u;
-            y: 656px * TvUi.u;
-            base-width: 416px * TvUi.u;
-            base-height: 220px * TvUi.u;
+        Tile {
+            x: 752px * TvUi.u;
+            y: 452px * TvUi.u;
+            base-width: 184px * TvUi.u;
+            base-height: 66px * TvUi.u;
             fill: Theme.surface;
-            label: "Startup animation";
-            value: "Preview";
             focused: !TvUi.bar-focused && TvUi.focused-tile == 20;
             activated => { TvUi.tile-activated(20); }
             hovered => { TvUi.tile-hovered(20); }
+
+            Text {
+                text: "Preview";
+                font-size: 22px * TvUi.u;
+                font-weight: 500;
+                color: Theme.text-primary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        Text {
+            x: 96px * TvUi.u;
+            y: 544px * TvUi.u;
+            text: "PREFERENCES";
+            font-size: 16px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 1.4px;
+            color: Theme.text-muted;
+        }
+
+        // 9: Temperature units
+        SettingRow {
+            x: 96px * TvUi.u;
+            y: 578px * TvUi.u;
+            base-width: 840px * TvUi.u;
+            base-height: 66px * TvUi.u;
+            fill: Theme.surface;
+            label: "Temperature";
+            value: Display.celsius ? "Celsius (°C)" : "Fahrenheit (°F)";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 9;
+            activated => { TvUi.tile-activated(9); }
+            hovered => { TvUi.tile-hovered(9); }
+        }
+
+        // 10: Clock format
+        SettingRow {
+            x: 96px * TvUi.u;
+            y: 656px * TvUi.u;
+            base-width: 840px * TvUi.u;
+            base-height: 66px * TvUi.u;
+            fill: Theme.surface;
+            label: "Clock";
+            value: Display.h12 ? "12-hour" : "24-hour";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 10;
+            activated => { TvUi.tile-activated(10); }
+            hovered => { TvUi.tile-hovered(10); }
+        }
+
+        // 14: Sleep warning
+        SettingRow {
+            x: 96px * TvUi.u;
+            y: 734px * TvUi.u;
+            base-width: 840px * TvUi.u;
+            base-height: 66px * TvUi.u;
+            fill: Theme.surface;
+            label: "Sleep warning";
+            value: SleepState.warn-before == "30s" ? "30 s" : SleepState.warn-before == "2m" ? "2 min" : "60 s";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 14;
+            activated => { TvUi.tile-activated(14); }
+            hovered => { TvUi.tile-hovered(14); }
         }
 
         // 21: Quick switch
-        ValueTile {
+        SettingRow {
             x: 96px * TvUi.u;
-            y: 892px * TvUi.u;
-            base-width: 416px * TvUi.u;
-            base-height: 112px * TvUi.u;
+            y: 812px * TvUi.u;
+            base-width: 840px * TvUi.u;
+            base-height: 66px * TvUi.u;
             fill: Theme.surface;
             label: "Quick switch";
             value: QuickSwitch.summary;
@@ -247,26 +280,29 @@ export component TvSettings inherits Rectangle {
             hovered => { TvUi.tile-hovered(21); }
         }
 
+        // ── Right column: Weather location & Actions ─────────────────────────
+        Text {
+            x: 984px * TvUi.u;
+            y: 184px * TvUi.u;
+            text: "WEATHER LOCATION";
+            font-size: 16px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 1.4px;
+            color: Theme.text-muted;
+        }
+
         // Weather location lookup card
         Rectangle {
-            x: 960px * TvUi.u;
-            y: 420px * TvUi.u;
-            width: 848px * TvUi.u;
-            height: 220px * TvUi.u;
+            x: 984px * TvUi.u;
+            y: 218px * TvUi.u;
+            width: 840px * TvUi.u;
+            height: 204px * TvUi.u;
             border-radius: 6px;
             background: Theme.surface;
 
             VerticalLayout {
                 padding: 20px * TvUi.u;
-                spacing: 10px * TvUi.u;
-
-                Text {
-                    text: "WEATHER LOCATION";
-                    font-size: 18px * TvUi.u;
-                    font-weight: 500;
-                    letter-spacing: 1.2px;
-                    color: Theme.text-secondary;
-                }
+                spacing: 12px * TvUi.u;
 
                 Text {
                     text: Display.location-name != "" ? Display.location-name : "Not set — search for a city to enable weather & time zone";
@@ -353,9 +389,9 @@ export component TvSettings inherits Rectangle {
         // Location search results (up to 4)
         for p[i] in Display.places: Tile {
             visible: i < 4;
-            x: 960px * TvUi.u;
-            y: (656px + i * 64px) * TvUi.u;
-            base-width: 848px * TvUi.u;
+            x: 984px * TvUi.u;
+            y: (434px + i * 64px) * TvUi.u;
+            base-width: 840px * TvUi.u;
             base-height: 54px * TvUi.u;
             fill: Theme.surface;
             focused: !TvUi.bar-focused && TvUi.focused-tile == 15 + i;
@@ -376,8 +412,48 @@ export component TvSettings inherits Rectangle {
         }
 
         Text {
+            x: 984px * TvUi.u;
+            y: 702px * TvUi.u;
+            text: "ACTIONS";
+            font-size: 16px * TvUi.u;
+            font-weight: 600;
+            letter-spacing: 1.4px;
+            color: Theme.text-muted;
+        }
+
+        // 11: Recent services
+        SettingRow {
+            x: 984px * TvUi.u;
+            y: 736px * TvUi.u;
+            base-width: 412px * TvUi.u;
+            base-height: 76px * TvUi.u;
+            fill: Theme.surface;
+            label: "Recent services";
+            value: "Clear list";
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 11;
+            activated => { TvUi.tile-activated(11); }
+            hovered => { TvUi.tile-hovered(11); }
+        }
+
+        // 12: Quit
+        SettingRow {
+            x: 1412px * TvUi.u;
+            y: 736px * TvUi.u;
+            base-width: 412px * TvUi.u;
+            base-height: 76px * TvUi.u;
+            fill: TvUi.confirm-quit ? #5C1E1E : Theme.surface;
+            label: "Application";
+            label-color: TvUi.confirm-quit ? #F5D5D5 : Theme.text-secondary;
+            value: TvUi.confirm-quit ? "Confirm quit?" : "Quit tvdash";
+            value-color: TvUi.confirm-quit ? #FFFFFF : Theme.text-primary;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 12;
+            activated => { TvUi.tile-activated(12); }
+            hovered => { TvUi.tile-hovered(12); }
+        }
+
+        Text {
             x: 96px * TvUi.u;
-            y: 940px * TvUi.u;
+            y: 924px * TvUi.u;
             text: "tvdash " + Dash.version;
             font-size: 22px * TvUi.u;
             color: Theme.text-muted;
@@ -697,161 +773,183 @@ export component TvSettings inherits Rectangle {
             }
         }
 
-        Flickable {
-            x: 96px * TvUi.u;
-            y: 252px * TvUi.u;
-            width: 1728px * TvUi.u;
-            height: 732px * TvUi.u;
-            interactive: true;
-            content-height: sites-col.preferred-height + 24px * TvUi.u;
+        Rectangle {
+            x: 0;
+            y: 244px * TvUi.u;
+            width: parent.width;
+            height: parent.height - 244px * TvUi.u;
+            clip: true;
+            background: transparent;
 
-            sites-col := VerticalLayout {
-                width: 1728px * TvUi.u;
-                spacing: 12px * TvUi.u;
+            TouchArea {
+                scroll-event(event) => {
+                    TvUi.scroll-panorama(event.delta-y);
+                    accept
+                }
+            }
+
+            Rectangle {
+                x: 0;
+                y: -TvUi.lib-scroll * TvUi.u;
+                width: parent.width;
+                height: (Math.ceil(Accounts.sites.length / 2) * 144px + 32px) * TvUi.u;
+                background: transparent;
+                animate y { duration: 150ms; easing: ease-out; }
 
                 for site[i] in Accounts.sites: Tile {
-                    base-width: 1728px * TvUi.u;
-                    base-height: 84px * TvUi.u;
+                    x: (96px + Math.mod(i, 2) * 888px) * TvUi.u;
+                    y: (12px + Math.floor(i / 2) * 144px) * TvUi.u;
+                    base-width: 840px * TvUi.u;
+                    base-height: 128px * TvUi.u;
                     fill: Theme.surface;
                     focused: !TvUi.bar-focused && TvUi.focused-tile == 8 + i;
                     activated => { TvUi.tile-activated(8 + i); }
                     hovered => { TvUi.tile-hovered(8 + i); }
 
-                    HorizontalLayout {
+                    VerticalLayout {
                         x: 20px * TvUi.u;
-                        y: 0;
+                        y: 14px * TvUi.u;
                         width: parent.width - 40px * TvUi.u;
-                        height: parent.height;
-                        spacing: 16px * TvUi.u;
+                        height: parent.height - 28px * TvUi.u;
+                        spacing: 12px * TvUi.u;
 
-                        Rectangle {
-                            width: 48px * TvUi.u;
-                            height: 48px * TvUi.u;
-                            border-radius: 8px;
-                            background: site.bg;
-                            Text {
-                                text: site.monogram;
-                                font-size: 20px * TvUi.u;
-                                font-weight: 600;
-                                color: site.fg;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-                        }
+                        HorizontalLayout {
+                            spacing: 14px * TvUi.u;
 
-                        VerticalLayout {
-                            alignment: center;
-                            spacing: 2px * TvUi.u;
-                            horizontal-stretch: 1;
-
-                            HorizontalLayout {
-                                spacing: 10px * TvUi.u;
+                            Rectangle {
+                                width: 44px * TvUi.u;
+                                height: 44px * TvUi.u;
+                                border-radius: 8px;
+                                background: site.bg;
                                 Text {
-                                    text: site.name;
-                                    font-size: 24px * TvUi.u;
-                                    font-weight: 500;
-                                    color: site.hidden ? Theme.text-muted : Theme.text-primary;
-                                    overflow: elide;
-                                }
-                                if site.hidden: Text {
-                                    text: "Hidden";
+                                    text: site.monogram;
                                     font-size: 18px * TvUi.u;
-                                    color: Theme.text-muted;
+                                    font-weight: 600;
+                                    color: site.fg;
+                                    horizontal-alignment: center;
                                     vertical-alignment: center;
                                 }
                             }
 
-                            Text {
-                                text: site.status != "" ? site.url + " · " + site.status : site.url;
-                                font-size: 18px * TvUi.u;
-                                color: Theme.text-secondary;
-                                overflow: elide;
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 2px * TvUi.u;
+                                horizontal-stretch: 1;
+
+                                HorizontalLayout {
+                                    spacing: 10px * TvUi.u;
+                                    Text {
+                                        text: site.name;
+                                        font-size: 22px * TvUi.u;
+                                        font-weight: 500;
+                                        color: site.hidden ? Theme.text-muted : Theme.text-primary;
+                                        overflow: elide;
+                                    }
+                                    if site.hidden: Text {
+                                        text: "Hidden";
+                                        font-size: 16px * TvUi.u;
+                                        color: Theme.text-muted;
+                                        vertical-alignment: center;
+                                    }
+                                }
+
+                                Text {
+                                    text: site.status != "" ? site.url + " · " + site.status : site.url;
+                                    font-size: 16px * TvUi.u;
+                                    color: Theme.text-secondary;
+                                    overflow: elide;
+                                }
                             }
                         }
 
-                        // Edit
-                        Rectangle {
-                            width: 96px * TvUi.u;
-                            height: 44px * TvUi.u;
-                            border-radius: 6px;
-                            background: edit-ta.has-hover ? Theme.surface-raised : Theme.bg;
-                            border-width: 1px;
-                            border-color: Theme.border;
-                            Text {
-                                text: "Edit";
-                                font-size: 20px * TvUi.u;
-                                color: Theme.text-primary;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-                            edit-ta := TouchArea {
-                                mouse-cursor: pointer;
-                                clicked => { SiteEditor.edit(site.index); }
-                            }
-                        }
+                        HorizontalLayout {
+                            alignment: end;
+                            spacing: 10px * TvUi.u;
 
-                        // Hide / Show
-                        Rectangle {
-                            width: 112px * TvUi.u;
-                            height: 44px * TvUi.u;
-                            border-radius: 6px;
-                            background: hide-ta.has-hover ? Theme.surface-raised : Theme.bg;
-                            border-width: 1px;
-                            border-color: Theme.border;
-                            Text {
-                                text: site.hidden ? "Show" : "Hide";
-                                font-size: 20px * TvUi.u;
-                                color: Theme.text-secondary;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
+                            // Edit
+                            Rectangle {
+                                width: 92px * TvUi.u;
+                                height: 38px * TvUi.u;
+                                border-radius: 6px;
+                                background: edit-ta.has-hover ? Theme.surface-raised : Theme.bg;
+                                border-width: 1px;
+                                border-color: Theme.border;
+                                Text {
+                                    text: "Edit";
+                                    font-size: 18px * TvUi.u;
+                                    color: Theme.text-primary;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                edit-ta := TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => { SiteEditor.edit(site.index); }
+                                }
                             }
-                            hide-ta := TouchArea {
-                                mouse-cursor: pointer;
-                                clicked => { SiteEditor.set-hidden(site.index, !site.hidden); }
-                            }
-                        }
 
-                        // Move up
-                        Rectangle {
-                            width: 56px * TvUi.u;
-                            height: 44px * TvUi.u;
-                            border-radius: 6px;
-                            background: up-ta.has-hover && i > 0 ? Theme.surface-raised : Theme.bg;
-                            border-width: 1px;
-                            border-color: Theme.border;
-                            opacity: i > 0 ? 1.0 : 0.35;
-                            Text {
-                                text: "↑";
-                                font-size: 22px * TvUi.u;
-                                color: Theme.text-primary;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
+                            // Hide / Show
+                            Rectangle {
+                                width: 100px * TvUi.u;
+                                height: 38px * TvUi.u;
+                                border-radius: 6px;
+                                background: hide-ta.has-hover ? Theme.surface-raised : Theme.bg;
+                                border-width: 1px;
+                                border-color: Theme.border;
+                                Text {
+                                    text: site.hidden ? "Show" : "Hide";
+                                    font-size: 18px * TvUi.u;
+                                    color: Theme.text-secondary;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                hide-ta := TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => { SiteEditor.set-hidden(site.index, !site.hidden); }
+                                }
                             }
-                            up-ta := TouchArea {
-                                mouse-cursor: i > 0 ? pointer : default;
-                                clicked => { if i > 0 { SiteEditor.move(site.index, site.index - 1); } }
-                            }
-                        }
 
-                        // Move down
-                        Rectangle {
-                            width: 56px * TvUi.u;
-                            height: 44px * TvUi.u;
-                            border-radius: 6px;
-                            background: dn-ta.has-hover && i + 1 < Accounts.sites.length ? Theme.surface-raised : Theme.bg;
-                            border-width: 1px;
-                            border-color: Theme.border;
-                            opacity: i + 1 < Accounts.sites.length ? 1.0 : 0.35;
-                            Text {
-                                text: "↓";
-                                font-size: 22px * TvUi.u;
-                                color: Theme.text-primary;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
+                            // Move up
+                            Rectangle {
+                                width: 48px * TvUi.u;
+                                height: 38px * TvUi.u;
+                                border-radius: 6px;
+                                background: up-ta.has-hover && i > 0 ? Theme.surface-raised : Theme.bg;
+                                border-width: 1px;
+                                border-color: Theme.border;
+                                opacity: i > 0 ? 1.0 : 0.35;
+                                Text {
+                                    text: "↑";
+                                    font-size: 20px * TvUi.u;
+                                    color: Theme.text-primary;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                up-ta := TouchArea {
+                                    mouse-cursor: i > 0 ? pointer : default;
+                                    clicked => { if i > 0 { SiteEditor.move(site.index, site.index - 1); } }
+                                }
                             }
-                            dn-ta := TouchArea {
-                                mouse-cursor: i + 1 < Accounts.sites.length ? pointer : default;
-                                clicked => { if i + 1 < Accounts.sites.length { SiteEditor.move(site.index, site.index + 1); } }
+
+                            // Move down
+                            Rectangle {
+                                width: 48px * TvUi.u;
+                                height: 38px * TvUi.u;
+                                border-radius: 6px;
+                                background: dn-ta.has-hover && i + 1 < Accounts.sites.length ? Theme.surface-raised : Theme.bg;
+                                border-width: 1px;
+                                border-color: Theme.border;
+                                opacity: i + 1 < Accounts.sites.length ? 1.0 : 0.35;
+                                Text {
+                                    text: "↓";
+                                    font-size: 20px * TvUi.u;
+                                    color: Theme.text-primary;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                                dn-ta := TouchArea {
+                                    mouse-cursor: i + 1 < Accounts.sites.length ? pointer : default;
+                                    clicked => { if i + 1 < Accounts.sites.length { SiteEditor.move(site.index, site.index + 1); } }
+                                }
                             }
                         }
                     }

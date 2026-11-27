@@ -158,7 +158,7 @@ export component TvShell inherits Rectangle {
         }
 
         TabBar {
-            x: ((TvUi.screen == "show" || TvUi.screen == "movie" || TvUi.screen == "collection" || TvUi.screen == "search" || TvUi.screen == "dashboard_picker") ? 240px : 96px) * TvUi.u;
+            x: ((TvUi.screen == "show" || TvUi.screen == "movie" || TvUi.screen == "collection" || TvUi.screen == "search" || TvUi.screen == "dashboard_picker" || TvUi.screen == "quick_switch_picker") ? 240px : 96px) * TvUi.u;
             y: 44px * TvUi.u;
             active: TvUi.active-tab;
             bar-focused: TvUi.bar-focused;

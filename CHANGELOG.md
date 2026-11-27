@@ -1,5 +1,13 @@
 # tvdash Changelog
 
+## v1.0.1 — 2026-11-27
+- **Classic Settings & Quick Switch polish (`ui/tv/settings.slint`, `ui/tv/shell.slint`, `tv_nav.rs`):**
+  - Reformatted **Classic › Settings › Display** into a two-column grouped layout (`Appearance`, `Preferences`, `Weather location`, `Actions`), fixing the `tvdash <version>` overlap with `Quick switch`, weather search result collisions, and truncated labels.
+  - Reformatted **Classic › Settings › Sites** into a 2-column card grid inside a full-width clipped viewport with D-pad/wheel scroll support so focus outlines and the 8th+ row never clip.
+  - Shifted `TabBar` to `240px` on `quick_switch_picker` so `← Back` no longer overlaps `Home`.
+- **Classic & Blades Apps (`ui/tv/apps.slint`, `ui/v3/apps.slint`, `tv_nav.rs`):**
+  - Added **Last played** and **Quick Switch** (`Automatic` / `Custom`, `1–4` slot pills with brand badges, and **`Adjust in Settings ›`**) to **Classic Apps** (4-column grid + right sidebar) and **Blades Apps** (compact top strip above the 4-column grid).
+
 ## v1.0.0 — 2026-11-27
 - **v1.0.0 release (`development`):**
   - Orbit Apps center logo (`220 × 84 px`), left-hand **Quick Switch** summary + **`Adjust in Settings ›`** link, and right-hand **Last played** app card (`ui/orbit/apps.slint`, `state.slint`, `bridge/home.rs`, `tv_nav.rs`).
