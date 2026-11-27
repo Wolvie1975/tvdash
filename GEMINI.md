@@ -22,11 +22,13 @@
 
 ## Releases & Versioning
 - **When unit tests and live testing are finished, bump the version number** before building a release/RPM so `dnf upgrade` picks up the new package cleanly.
+  - Follow SemVer from `1.0.0`: bump **patch** (`1.0.x`) for bug fixes / small polish, **minor** (`1.x.0`) for new features / feature changes, and **major** (`x.0.0`) for major overhauls.
 - Update `Cargo.toml`, `CHANGELOG.md`, `docs/fedora-install.txt`, `docs/status.md`, and `releases/README.md` together.
 - **Do not run `cargo build --release` or `./packaging/rpm.sh` directly.** Instead, show the build commands to the user so they can run the release/RPM build on the host:
   - `cargo build --release -j 2`
   - `./packaging/rpm.sh`
   - `cp dist/tvdash-<version>-1.x86_64.rpm releases/`
+  - `sudo dnf upgrade ./releases/tvdash-<version>-1.x86_64.rpm`
 - **When the user says it's done**, commit the updates (including the new `.rpm` in `releases/`), and let the user run `git push`.
 
 ## Nightly Cleanup

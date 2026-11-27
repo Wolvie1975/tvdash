@@ -1,10 +1,14 @@
 # tvdash Changelog
 
+## v1.0.0 — 2026-11-27
+- **v1.0.0 release (`development`):**
+  - Orbit Apps center logo (`220 × 84 px`), left-hand **Quick Switch** summary + **`Adjust in Settings ›`** link, and right-hand **Last played** app card (`ui/orbit/apps.slint`, `state.slint`, `bridge/home.rs`, `tv_nav.rs`).
+  - Roadmap cleanup (`docs/status.md`): dropped HDMI-CEC and v4 ideas; **Skip intro** and **Sports alerts redesign** queued next.
+
 ## v0.1.83 — 2026-11-27
 - **Orbit Apps & Quick Switch (`ui/orbit/apps.slint`, `tv_nav.rs`):**
   - Replaced the center dial text name with the focused app's centered logo (`220 × 84 px` with vertical padding, falling back to text only when `has-logo` is false) while keeping the **`OK · Open`** launch button.
   - Added the **Quick Switch** summary (`Automatic` / `Custom` + up to 4 active slots) and an **`Adjust in Settings ›`** pill in the blank left-hand area, reachable via `←` from the clock face or by click.
-  - Added a **Last played** app card in the right-hand area (`AppsPage.last-app-*`, sourced from `s.recent.first()`) showing its logo, name, and relative timestamp, launchable via `→` + `OK` or click.
 - **Docs (`docs/status.md`):**
   - Dropped HDMI-CEC and v4 ideas (Ollama, watch stats, Home Assistant, cross-service watchlist) from scope; noted **Skip intro** and **Sports alerts redesign** under **Next**.
 

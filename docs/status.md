@@ -1,10 +1,25 @@
 # tvdash: where things stand
 
-Last updated 2026-11-26 (`v0.1.82`, Orbit Library landing polish: committed, packaged & pushed). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-27 (`v1.0.0` bumped on `development`, ready for RPM build). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
+- **`v1.0.0` (`development`, v1.0 release) — version bumped, ready for final tests & RPM build:**
+  - Orbit Apps center logo, left-hand **Quick Switch** summary + **`Adjust in Settings ›`**, and right-hand **Last played** app card (`ui/orbit/apps.slint`, `state.slint`, `bridge/home.rs`, `tv_nav.rs`).
+  - **Next (on host):**
+    - `cargo test -j 2 -p tvdash -- --test-threads=1`
+    - `cargo run -j 2 -- --windowed --layout tv`
+    - `cargo build --release -j 2`
+    - `./packaging/rpm.sh`
+    - `cp dist/tvdash-1.0.0-1.x86_64.rpm releases/`
+    - `sudo dnf upgrade ./releases/tvdash-1.0.0-1.x86_64.rpm`
+- **`v0.1.83` (`development`, Orbit Apps center logo & Quick Switch summary) — built:**
+  - Centered app logo in the Orbit Apps dial (`ui/orbit/apps.slint`), left-hand Quick Switch summary + **`Adjust in Settings ›`** link (`ui/orbit/apps.slint`, `tv_nav.rs`), and updated roadmap decisions (`docs/status.md`).
+  - **Next (on host):**
+    - `cargo build --release -j 2`
+    - `./packaging/rpm.sh`
+    - `cp dist/tvdash-0.1.83-1.x86_64.rpm releases/`
 - **`v0.1.82` (`development`, Orbit Library landing polish) — committed & packaged (`releases/tvdash-0.1.82-1.x86_64.rpm`):**
   - Hero description in a glass box; time-left line above the title hidden when it repeats the Play label; Recently added label in an accent-blue pill; Continue watching pill lined up with the first row (`ui/orbit/library.slint`).
   - Pushed to `origin/development`. Nothing is waiting on you.
