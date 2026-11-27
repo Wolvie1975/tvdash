@@ -1,5 +1,9 @@
 # tvdash Changelog
 
+## v0.1.81 — 2026-11-26
+- **Orbit Library landing** (`ui/orbit/library.slint`):
+  - Library landing **Continue watching** / **Finish the season** rows now sit on glass pills running to the right edge, like Home's Up next rows.
+
 ## v0.1.80 — 2026-11-26
 - **Orbit Library & Home polish** (`ui/orbit/library.slint`, `ui/orbit/shell.slint`):
   - The **Continue watching** / **Finish the season** label is now accent blue in a glass pill, so bright backdrop art can't wash it out.

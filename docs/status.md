@@ -1,10 +1,13 @@
 # tvdash: where things stand
 
-Last updated 2026-11-26 (`v0.1.80`, Orbit Library polish: committed & packaged). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-26 (`v0.1.81`, Orbit Library row pills: committed & packaged). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
+- **`v0.1.81` (`movie-page`, Orbit Library row pills) — committed & packaged (`releases/tvdash-0.1.81-1.x86_64.rpm`):**
+  - Library landing Continue watching / Finish the season rows on glass pills running to the right edge, as on Home (`ui/orbit/library.slint`).
+  - **Next:** `git push`, then merge `movie-page` into `development`.
 - **`v0.1.80` (`movie-page`, Orbit Library & Home polish) — committed & packaged (`releases/tvdash-0.1.80-1.x86_64.rpm`):**
   - Continue watching / Finish the season label in an accent-blue glass pill; Screensaver / Sleep glyphs centred with hover labels (`ui/orbit/library.slint`, `ui/orbit/shell.slint`).
 - **`v0.1.79` (`movie-page`, Movie page in Orbit · Classic · Blades) — committed & packaged (`releases/tvdash-0.1.79-1.x86_64.rpm`):**

@@ -215,7 +215,8 @@ export component OrbitLibrary inherits Rectangle {
 
             x: 1180px * TvUi.u + self.indent;
             y: (230px + i * 124px) * TvUi.u;
-            width: 580px * TvUi.u;
+            // Runs to x 1840 like Home's Up next rows.
+            width: 1840px * TvUi.u - self.x;
             height: 112px * TvUi.u;
 
             if lib-curve.is-foc: Rectangle {
@@ -228,11 +229,13 @@ export component OrbitLibrary inherits Rectangle {
                 border-color: OrbitTheme.text;
             }
 
-            if lib-curve.is-foc: Rectangle {
+            // Glass pill behind every row (as on Home), darker when focused, so titles and
+            // time left stay readable over the art.
+            Rectangle {
                 width: parent.width;
                 height: parent.height;
                 border-radius: self.height / 2;
-                background: OrbitTheme.row-focus;
+                background: lib-curve.is-foc ? #1A202CD9 : OrbitTheme.glass;
             }
 
             Rectangle {
