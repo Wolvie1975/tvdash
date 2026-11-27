@@ -216,7 +216,7 @@ export component OrbitShell inherits Rectangle {
 
             for qc[qi] in [
                 { icon: "✦", label: "Screensaver" },
-                { icon: "☾", label: "Sleep" },
+                { icon: "☾", label: "Sleep timer" },
             ]: qc-node := Rectangle {
                 property <bool> is-foc: qc-ta.has-hover;
                 width: 58px * TvUi.u;
@@ -240,9 +240,36 @@ export component OrbitShell inherits Rectangle {
                     border-width: 1px;
                     border-color: OrbitTheme.glass-border;
 
+                    // Fill the circle so the glyph is centred both ways.
                     Text {
+                        width: parent.width;
+                        height: parent.height;
                         text: qc.icon;
                         font-size: 22px * TvUi.u;
+                        color: OrbitTheme.text;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Hover label above the circle (they're icons only).
+                if qc-node.is-foc: Rectangle {
+                    width: qc-tip.preferred-width + 28px * TvUi.u;
+                    height: 36px * TvUi.u;
+                    x: (parent.width - self.width) / 2;
+                    y: -14px * TvUi.u - self.height;
+                    border-radius: self.height / 2;
+                    background: OrbitTheme.glass;
+                    border-width: 1px;
+                    border-color: OrbitTheme.glass-border;
+
+                    qc-tip := Text {
+                        width: parent.width;
+                        height: parent.height;
+                        text: qc.label;
+                        font-family: OrbitTheme.font;
+                        font-size: 16px * TvUi.u;
+                        font-weight: 600;
                         color: OrbitTheme.text;
                         horizontal-alignment: center;
                         vertical-alignment: center;

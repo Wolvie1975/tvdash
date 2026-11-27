@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.80 — 2026-11-26
+- **Orbit Library & Home polish** (`ui/orbit/library.slint`, `ui/orbit/shell.slint`):
+  - The **Continue watching** / **Finish the season** label is now accent blue in a glass pill, so bright backdrop art can't wash it out.
+  - Centred the ✦ and ☾ glyphs in the Screensaver and Sleep circles, and added **Screensaver** / **Sleep timer** hover labels.
+
 ## v0.1.79 — 2026-11-26
 - **Movie page (`movie-page`):**
   - Added `PlexClient::movie_detail` (`/library/metadata/{key}`) with cast, crew (directors & writers, max 3), genres, content/audience rating, resolution/HDR/audio badges, collection tags, and `PlexClient::scrobble` (`/:/scrobble` / `/:/unscrobble`).

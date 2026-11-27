@@ -1,10 +1,12 @@
 # tvdash: where things stand
 
-Last updated 2026-11-26 (`v0.1.79`, `movie-page`: committed & packaged). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-26 (`v0.1.80`, Orbit Library polish: committed & packaged). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
+- **`v0.1.80` (`movie-page`, Orbit Library & Home polish) — committed & packaged (`releases/tvdash-0.1.80-1.x86_64.rpm`):**
+  - Continue watching / Finish the season label in an accent-blue glass pill; Screensaver / Sleep glyphs centred with hover labels (`ui/orbit/library.slint`, `ui/orbit/shell.slint`).
 - **`v0.1.79` (`movie-page`, Movie page in Orbit · Classic · Blades) — committed & packaged (`releases/tvdash-0.1.79-1.x86_64.rpm`):**
   - `PlexClient::movie_detail` & `PlexClient::scrobble` (`crates/media/src/plex.rs`), `MovieDetail`/`MovieExtras`/`MovieCollection`/`OpenMovie`/`SetMovieWatched` (`crates/core/src/events.rs`), `play_label` + collection link (`crates/app/src/movie.rs`), controller (`crates/app/src/controller.rs`), shared `MoviePageState` (`ui/state.slint` + `bridge/movie.rs` + `callbacks.rs`), `Page::Movie` + `open-movie` navigation (`shell_tv.rs`, `tv_nav.rs`), and UI pages (`ui/orbit/movie.slint`, `ui/tv/movie.slint`, `ui/v3/movie.slint`).
   - Live-check fixes: shared `FitTitle` for Movie/Show titles, Classic scrim fix, Blades framed backdrop card, Orbit play ring centring. Details in [`docs/movie-page-progress.md`](movie-page-progress.md).

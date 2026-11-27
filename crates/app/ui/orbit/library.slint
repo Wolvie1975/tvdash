@@ -181,15 +181,31 @@ export component OrbitLibrary inherits Rectangle {
         }
 
         // Right Curve (Finish the season / Continue watching)
-        Text {
-            x: 1210px * TvUi.u;
-            y: 190px * TvUi.u;
-            text: LibraryLanding.shelf1-title != "" ? LibraryLanding.shelf1-title : "FINISH THE SEASON";
-            font-family: OrbitTheme.font;
-            font-size: 15px * TvUi.u;
-            font-weight: 600;
-            letter-spacing: 2.5px * TvUi.u;
-            color: OrbitTheme.muted;
+        // Label in a glass pill (same as the hover labels) so the art behind it can't wash it
+        // out. Text starts at x 1210 as before; the pill adds 16 px padding each side.
+        Rectangle {
+            x: 1210px * TvUi.u - 16px * TvUi.u;
+            y: 180px * TvUi.u;
+            width: shelf-label.preferred-width + 32px * TvUi.u;
+            height: 36px * TvUi.u;
+            border-radius: self.height / 2;
+            background: OrbitTheme.glass;
+            border-width: 1px;
+            border-color: OrbitTheme.glass-border;
+
+            shelf-label := Text {
+                width: parent.width;
+                height: parent.height;
+                text: LibraryLanding.shelf1-title != "" ? LibraryLanding.shelf1-title : "FINISH THE SEASON";
+                font-family: OrbitTheme.font;
+                font-size: 15px * TvUi.u;
+                font-weight: 700;
+                letter-spacing: 2.5px * TvUi.u;
+                // Accent, like the hero's time-remaining kicker.
+                color: OrbitTheme.accent;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
         }
 
         for item[i] in LibraryLanding.shelf1: lib-curve := Rectangle {
