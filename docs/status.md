@@ -1,13 +1,14 @@
 # tvdash: where things stand
 
-Last updated 2026-11-26 (`v0.1.82`, Orbit Library landing polish: committed & packaged). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-26 (`v0.1.82`, Orbit Library landing polish: committed, packaged & pushed). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
 - **`v0.1.82` (`development`, Orbit Library landing polish) — committed & packaged (`releases/tvdash-0.1.82-1.x86_64.rpm`):**
   - Hero description in a glass box; time-left line above the title hidden when it repeats the Play label; Recently added label in an accent-blue pill; Continue watching pill lined up with the first row (`ui/orbit/library.slint`).
-  - **Next (on host):** `git push`
+  - Pushed to `origin/development`. Nothing is waiting on you.
+  - **Open polish items (optional):** gradients that fade to `transparent` remain in 7 files (Classic Show, Blades Movie/Show/Apps, ambient and focus backdrops) and can show a grey band on light themes; fix by fading to `<color>.with-alpha(0)` as in `ui/tv/movie.slint`. The Movie page collection link is missing for some movies (e.g. Bourne); accepted, since the Collections page covers it. See [`docs/movie-page-progress.md`](movie-page-progress.md).
 - **`v0.1.81` (`movie-page`, Orbit Library row pills) — committed & packaged (`releases/tvdash-0.1.81-1.x86_64.rpm`):**
   - Library landing Continue watching / Finish the season rows on glass pills running to the right edge, as on Home (`ui/orbit/library.slint`).
 - **`v0.1.80` (`movie-page`, Orbit Library & Home polish) — committed & packaged (`releases/tvdash-0.1.80-1.x86_64.rpm`):**
@@ -69,15 +70,15 @@ Decisions made along the way:
 - **Calendar and homelab:** removed from scope for good (2026-11-11).
 - **Two-screen layout:** keeps using mpv's own window. In-window video is TV-only.
 - **Home Hero when returning from video:** pauses playback and shows the still poster with a play-icon overlay instead of rendering minimized live video (`v0.1.24`).
+- **HDMI-CEC & v4 roadmap (2026-11-27):** removed from scope (using a dedicated remote; PC hardware doesn't support CEC; Ollama / watch stats / Home Assistant / cross-service watchlist dropped).
 
 ## Next
 
 In the order agreed or planned (see [tv-only-plan.md](tv-only-plan.md) and
 [future-plan.md](future-plan.md)):
 
-1. **Optional / Later:** HDMI-CEC remote (`cec-client` listener), skip intro.
-2. **v2:** alerts strip, severe-weather takeover, headlines, richer "up next".
-3. **v4:** "What should I watch?" (Ollama), watch stats, Home Assistant, cross-service watchlist.
+1. **Skip intro:** wire Plex `intro` markers to the HUD/player skip-intro action.
+2. **Sports alerts redesign:** rethink how sports alerts work.
 
 ## Things to check on the TV machine
 
