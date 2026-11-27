@@ -194,10 +194,12 @@ export component OrbitApps inherits Rectangle {
             }
             if has-apps && AppsPage.apps[safe-idx].has-logo: HorizontalLayout {
                 alignment: center;
+                padding-top: 8px * TvUi.u;
+                padding-bottom: 8px * TvUi.u;
                 Image {
                     source: AppsPage.apps[safe-idx].logo;
-                    width: 280px * TvUi.u;
-                    height: 112px * TvUi.u;
+                    width: 220px * TvUi.u;
+                    height: 84px * TvUi.u;
                     image-fit: contain;
                 }
             }
