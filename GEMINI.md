@@ -23,7 +23,7 @@
 ## Releases & Versioning
 - **When unit tests and live testing are finished, bump the version number** before building a release/RPM so `dnf upgrade` picks up the new package cleanly.
   - Follow SemVer from `1.0.0`: bump **patch** (`1.0.x`) for bug fixes / small polish, **minor** (`1.x.0`) for new features / feature changes, and **major** (`x.0.0`) for major overhauls.
-- Update `Cargo.toml`, `CHANGELOG.md`, `docs/fedora-install.txt`, `docs/status.md`, and `releases/README.md` together.
+- Update `Cargo.toml`, `CHANGELOG.md`, `docs/fedora-install.txt`, `docs/status.md`, and `releases/README.md` (both install and upgrade commands) together.
 - **Do not run `cargo build --release` or `./packaging/rpm.sh` directly.** Instead, show the build commands to the user so they can run the release/RPM build on the host:
   - `cargo build --release -j 2`
   - `./packaging/rpm.sh`
