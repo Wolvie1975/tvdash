@@ -94,8 +94,12 @@ export component OrbitLibrary inherits Rectangle {
             alignment: start;
             spacing: 14px * TvUi.u;
 
+            // Blank (line kept, so the title doesn't jump) when it's the time left on a
+            // part-watched movie: the Play label already says "Play 1 h 55 min left".
             Text {
-                text: LibraryLanding.focus.kicker != "" ? LibraryLanding.focus.kicker : (is-movies ? "MOVIES" : "TV SERIES");
+                text: LibraryLanding.focus.play-label == "Play " + LibraryLanding.focus.kicker ? ""
+                    : LibraryLanding.focus.kicker != "" ? LibraryLanding.focus.kicker : (is-movies ? "MOVIES" : "TV SERIES");
+                min-height: 22px * TvUi.u;   // one line at 17 px, even when blank
                 font-family: OrbitTheme.font;
                 font-size: 17px * TvUi.u;
                 font-weight: 600;
@@ -115,14 +119,30 @@ export component OrbitLibrary inherits Rectangle {
                 overflow: elide;
             }
 
-            if LibraryLanding.focus.summary != "": Text {
-                text: LibraryLanding.focus.summary;
-                font-family: OrbitTheme.font;
-                font-size: 19px * TvUi.u;
-                color: OrbitTheme.sub;
-                wrap: word-wrap;
-                max-height: 86px * TvUi.u;
-                overflow: elide;
+            // Summary in a glass box, like the Continue watching rows, so the art behind it
+            // can't make it hard to read.
+            if LibraryLanding.focus.summary != "": Rectangle {
+                border-radius: 24px * TvUi.u;
+                background: OrbitTheme.glass;
+                border-width: 1px;
+                border-color: OrbitTheme.glass-border;
+
+                VerticalLayout {
+                    padding-left: 24px * TvUi.u;
+                    padding-right: 24px * TvUi.u;
+                    padding-top: 16px * TvUi.u;
+                    padding-bottom: 16px * TvUi.u;
+
+                    Text {
+                        text: LibraryLanding.focus.summary;
+                        font-family: OrbitTheme.font;
+                        font-size: 19px * TvUi.u;
+                        color: OrbitTheme.sub;
+                        wrap: word-wrap;
+                        max-height: 86px * TvUi.u;
+                        overflow: elide;
+                    }
+                }
             }
 
             Rectangle { height: 10px * TvUi.u; }
@@ -182,9 +202,9 @@ export component OrbitLibrary inherits Rectangle {
 
         // Right Curve (Finish the season / Continue watching)
         // Label in a glass pill (same as the hover labels) so the art behind it can't wash it
-        // out. Text starts at x 1210 as before; the pill adds 16 px padding each side.
+        // out. Left edge lines up with the first row below it (x 1180 + its 130 indent).
         Rectangle {
-            x: 1210px * TvUi.u - 16px * TvUi.u;
+            x: 1310px * TvUi.u;
             y: 180px * TvUi.u;
             width: shelf-label.preferred-width + 32px * TvUi.u;
             height: 36px * TvUi.u;
@@ -301,17 +321,29 @@ export component OrbitLibrary inherits Rectangle {
         }
 
         // Bottom Dial (Start watching / Next shelf pair)
-        Text {
-            x: (parent.width - 700px * TvUi.u) / 2;
-            y: 700px * TvUi.u;
-            width: 700px * TvUi.u;
-            text: shelf-pair == 0 ? LibraryLanding.shelf2-title : LibraryLanding.shelf3-title;
-            font-family: OrbitTheme.font;
-            font-size: 15px * TvUi.u;
-            font-weight: 600;
-            letter-spacing: 2.5px * TvUi.u;
-            color: OrbitTheme.sub;
-            horizontal-alignment: center;
+        // Same blue glass pill as the Continue watching label, centred over the dial.
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: 690px * TvUi.u;
+            width: dial-label.preferred-width + 32px * TvUi.u;
+            height: 36px * TvUi.u;
+            border-radius: self.height / 2;
+            background: OrbitTheme.glass;
+            border-width: 1px;
+            border-color: OrbitTheme.glass-border;
+
+            dial-label := Text {
+                width: parent.width;
+                height: parent.height;
+                text: shelf-pair == 0 ? LibraryLanding.shelf2-title : LibraryLanding.shelf3-title;
+                font-family: OrbitTheme.font;
+                font-size: 15px * TvUi.u;
+                font-weight: 700;
+                letter-spacing: 2.5px * TvUi.u;
+                color: OrbitTheme.accent;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
         }
 
         for slot in [-2, -1, 0, 1, 2, 3]: lib-dial-node := Rectangle {

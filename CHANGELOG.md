@@ -1,5 +1,10 @@
 # tvdash Changelog
 
+## v0.1.82 — 2026-11-26
+- **Orbit Library landing** (`ui/orbit/library.slint`):
+  - The hero description sits in a glass box, and the time-left line above the title is hidden when it repeats the Play label (part-watched movies).
+  - **Recently added** (and the other dial section titles) is now an accent-blue glass pill like **Continue watching**, which now lines up with the first row below it.
+
 ## v0.1.81 — 2026-11-26
 - **Orbit Library landing** (`ui/orbit/library.slint`):
   - Library landing **Continue watching** / **Finish the season** rows now sit on glass pills running to the right edge, like Home's Up next rows.

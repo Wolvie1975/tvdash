@@ -1,20 +1,21 @@
 # tvdash: where things stand
 
-Last updated 2026-11-26 (`v0.1.81`, Orbit Library row pills: committed & packaged). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-26 (`v0.1.82`, Orbit Library landing polish: committed & packaged). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
+- **`v0.1.82` (`development`, Orbit Library landing polish) — committed & packaged (`releases/tvdash-0.1.82-1.x86_64.rpm`):**
+  - Hero description in a glass box; time-left line above the title hidden when it repeats the Play label; Recently added label in an accent-blue pill; Continue watching pill lined up with the first row (`ui/orbit/library.slint`).
+  - **Next (on host):** `git push`
 - **`v0.1.81` (`movie-page`, Orbit Library row pills) — committed & packaged (`releases/tvdash-0.1.81-1.x86_64.rpm`):**
   - Library landing Continue watching / Finish the season rows on glass pills running to the right edge, as on Home (`ui/orbit/library.slint`).
-  - **Next:** `git push`, then merge `movie-page` into `development`.
 - **`v0.1.80` (`movie-page`, Orbit Library & Home polish) — committed & packaged (`releases/tvdash-0.1.80-1.x86_64.rpm`):**
   - Continue watching / Finish the season label in an accent-blue glass pill; Screensaver / Sleep glyphs centred with hover labels (`ui/orbit/library.slint`, `ui/orbit/shell.slint`).
 - **`v0.1.79` (`movie-page`, Movie page in Orbit · Classic · Blades) — committed & packaged (`releases/tvdash-0.1.79-1.x86_64.rpm`):**
   - `PlexClient::movie_detail` & `PlexClient::scrobble` (`crates/media/src/plex.rs`), `MovieDetail`/`MovieExtras`/`MovieCollection`/`OpenMovie`/`SetMovieWatched` (`crates/core/src/events.rs`), `play_label` + collection link (`crates/app/src/movie.rs`), controller (`crates/app/src/controller.rs`), shared `MoviePageState` (`ui/state.slint` + `bridge/movie.rs` + `callbacks.rs`), `Page::Movie` + `open-movie` navigation (`shell_tv.rs`, `tv_nav.rs`), and UI pages (`ui/orbit/movie.slint`, `ui/tv/movie.slint`, `ui/v3/movie.slint`).
   - Live-check fixes: shared `FitTitle` for Movie/Show titles, Classic scrim fix, Blades framed backdrop card, Orbit play ring centring. Details in [`docs/movie-page-progress.md`](movie-page-progress.md).
   - Known gaps: Home still plays movies directly; PS5 has no Movie page; the collection link sometimes doesn't appear (accepted).
-  - **Next:** `git push`, then merge `movie-page` into `development`.
 - **`v0.1.78` (`feature/feature-pack-1`, Feature Pack 1: Quick switch, Credits Up Next, Weather alerts, Show extras) — committed & packaged (`releases/tvdash-0.1.78-1.x86_64.rpm`):**
   - **Part A (Quick switch):** Added `[tv] quick_switch` / `quick_switch_key` (`F9`), `GET/POST /quick`, the Back pill **Switch** button & overlay (`extras/back-pill/`), and **Settings › Display › Quick switch** (`QuickSwitchPicker` across Classic, Blades, and Orbit).
   - **Part B (Credits Up Next & shared Up Next card):** Added Plex `credits` marker reading (`includeMarkers=1`), controller `PlayNextNow` / `WatchCredits` handling, and shared `NextEpisodeCard` mounted once in `laptop.slint` (with 10 s countdown at credits, replacing the per-UI modals and fixing the invisible prompt in Orbit).
