@@ -240,9 +240,23 @@ pub(super) fn refresh_tiles(s: &UiState, laptop: &LaptopWindow) {
     let tv_ui = laptop.global::<crate::TvUi>();
     tv_ui.set_services(ModelRc::new(VecModel::from(tv_services)));
     tv_ui.set_home_services(ModelRc::new(VecModel::from(home_services)));
-    laptop
-        .global::<crate::AppsPage>()
-        .set_apps(ModelRc::new(VecModel::from(crate::apps::apps_page_tiles(&s.sites, &s.logos))));
+    let apps_page = laptop.global::<crate::AppsPage>();
+    apps_page.set_apps(ModelRc::new(VecModel::from(crate::apps::apps_page_tiles(&s.sites, &s.logos))));
+    if let Some(last) = s.recent.first().and_then(|r| {
+        visible.iter().find(|(_, id, _)| *id == r.id).map(|(_, id, site)| (r, id, site))
+    }) {
+        let (r, id, site) = last;
+        let brand = crate::brand::brand_for_with_logo(id, &site.name, s.logos.get(&site.name).cloned());
+        apps_page.set_has_last_app(true);
+        apps_page.set_last_app_id(id.as_str().into());
+        apps_page.set_last_app_name(site.name.as_str().into());
+        apps_page.set_last_app_ago(crate::recent::ago(r.at, now).into());
+        apps_page.set_last_app_logo(brand.logo);
+        apps_page.set_last_app_has_logo(brand.has_logo);
+        apps_page.set_last_app_bg(brand.fill);
+    } else {
+        apps_page.set_has_last_app(false);
+    }
     let recent_ids: Vec<String> = s.recent.iter().map(|r| r.id.clone()).collect();
     let bar_ids = crate::apps::apps_bar(&recent_ids, &fixed_ids, 7);
     let apps_bar: Vec<crate::AppTile> = bar_ids

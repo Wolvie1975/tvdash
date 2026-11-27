@@ -152,6 +152,95 @@ export component OrbitApps inherits Rectangle {
         }
     }
 
+    // Right-hand Last App Played card
+    if AppsPage.has-last-app: VerticalLayout {
+        x: 1470px * TvUi.u;
+        y: 410px * TvUi.u;
+        width: 340px * TvUi.u;
+        alignment: start;
+        spacing: 12px * TvUi.u;
+
+        Text {
+            text: "LAST PLAYED";
+            font-family: OrbitTheme.font;
+            font-size: 14px * TvUi.u;
+            font-weight: 700;
+            letter-spacing: 2px * TvUi.u;
+            color: OrbitTheme.muted;
+        }
+
+        Rectangle {
+            property <bool> is-foc: (!TvUi.bar-focused && TvUi.focused-tile == AppsPage.apps.length + 1) || last-ta.has-hover;
+            width: 340px * TvUi.u;
+            height: 220px * TvUi.u;
+            border-radius: 28px * TvUi.u;
+            background: OrbitTheme.row;
+
+            if is-foc: Rectangle {
+                x: -9px * TvUi.u;
+                y: -9px * TvUi.u;
+                width: parent.width + 18px * TvUi.u;
+                height: parent.height + 18px * TvUi.u;
+                border-radius: 37px * TvUi.u;
+                border-width: 4px * TvUi.u;
+                border-color: OrbitTheme.text;
+                background: transparent;
+            }
+
+            VerticalLayout {
+                padding: 22px * TvUi.u;
+                spacing: 12px * TvUi.u;
+                alignment: center;
+
+                if AppsPage.last-app-has-logo: HorizontalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 160px * TvUi.u;
+                        height: 76px * TvUi.u;
+                        border-radius: 18px * TvUi.u;
+                        background: AppsPage.last-app-bg;
+                        Image {
+                            x: 16px * TvUi.u;
+                            y: 12px * TvUi.u;
+                            width: parent.width - 32px * TvUi.u;
+                            height: parent.height - 24px * TvUi.u;
+                            source: AppsPage.last-app-logo;
+                            image-fit: contain;
+                        }
+                    }
+                }
+
+                Text {
+                    text: AppsPage.last-app-name;
+                    font-family: OrbitTheme.font;
+                    font-size: 24px * TvUi.u;
+                    font-weight: 700;
+                    color: OrbitTheme.text;
+                    horizontal-alignment: center;
+                    overflow: elide;
+                }
+
+                Text {
+                    text: AppsPage.last-app-ago != "" ? (AppsPage.last-app-ago + " · OK to open") : "OK to open";
+                    font-family: OrbitTheme.font;
+                    font-size: 16px * TvUi.u;
+                    color: OrbitTheme.sub;
+                    horizontal-alignment: center;
+                }
+            }
+
+            last-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { HomeState.launch-app(AppsPage.last-app-id); }
+                pointer-event(ev) => {
+                    if ev.kind == PointerEventKind.move && TvUi.focused-tile != AppsPage.apps.length + 1 {
+                        TvUi.focused-tile = AppsPage.apps.length + 1;
+                    }
+                }
+            }
+        }
+    }
+
     // Outer guide ring (760px)
     Rectangle {
         x: root.clock-cx - 380px * TvUi.u;

@@ -733,6 +733,9 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect();
             rects.push(Rect { x: 110.0, y: 690.0, w: 260.0, h: 46.0 }); // Adjust in Settings ›
+            if laptop.global::<crate::AppsPage>().get_has_last_app() {
+                rects.push(Rect { x: 1470.0, y: 440.0, w: 340.0, h: 220.0 }); // Last played app
+            }
             rects
         }
         Page::Library => {
@@ -2038,9 +2041,13 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             }
         }
         Page::Apps => {
-            let apps = laptop.global::<crate::AppsPage>().get_apps();
-            if idx == apps.row_count() && laptop.global::<Display>().get_dashboard_ui() == "orbit" {
+            let apps_page = laptop.global::<crate::AppsPage>();
+            let apps = apps_page.get_apps();
+            let is_orbit = laptop.global::<Display>().get_dashboard_ui() == "orbit";
+            if is_orbit && idx == apps.row_count() {
                 laptop.global::<crate::QuickSwitch>().invoke_open_picker();
+            } else if is_orbit && apps_page.get_has_last_app() && idx == apps.row_count() + 1 {
+                laptop.global::<crate::HomeState>().invoke_launch_app(apps_page.get_last_app_id());
             } else if let Some(app) = apps.row_data(idx) {
                 laptop.global::<crate::HomeState>().invoke_launch_app(app.id);
             }

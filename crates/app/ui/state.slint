@@ -828,6 +828,13 @@ export global HomeState {
 
 export global AppsPage {
     in property <[AppTile]> apps;
+    in property <bool> has-last-app: false;
+    in property <string> last-app-id;
+    in property <string> last-app-name;
+    in property <string> last-app-ago;
+    in property <image> last-app-logo;
+    in property <bool> last-app-has-logo;
+    in property <color> last-app-bg;
 }
 
 export global TvUi {
