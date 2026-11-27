@@ -93,10 +93,19 @@ export component OrbitApps inherits Rectangle {
                 color: OrbitTheme.muted;
                 horizontal-alignment: center;
             }
-            if has-apps: Text {
+            if has-apps && AppsPage.apps[safe-idx].has-logo: HorizontalLayout {
+                alignment: center;
+                Image {
+                    source: AppsPage.apps[safe-idx].logo;
+                    width: 280px * TvUi.u;
+                    height: 112px * TvUi.u;
+                    image-fit: contain;
+                }
+            }
+            if has-apps && !AppsPage.apps[safe-idx].has-logo: Text {
                 text: AppsPage.apps[safe-idx].name;
                 font-family: OrbitTheme.font;
-                font-size: 56px * TvUi.u;
+                font-size: 48px * TvUi.u;
                 font-weight: 700;
                 color: OrbitTheme.text;
                 horizontal-alignment: center;
