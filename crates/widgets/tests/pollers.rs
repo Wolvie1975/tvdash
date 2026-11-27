@@ -64,7 +64,7 @@ async fn weather_poller_reports_forecast() {
     config.general.longitude = -87.63;
     let (tx, mut rx) = mpsc::unbounded_channel();
     let (general_tx, general) = tokio::sync::watch::channel(config.general.clone());
-    let w = tvdash_widgets::spawn(&config, Endpoints { weather: base.clone() }, tx, general);
+    let w = tvdash_widgets::spawn(&config, Endpoints { weather: base.clone(), ..Endpoints::default() }, tx, general);
 
     let AppEvent::Weather(Some(weather)) = first_weather(&mut rx).await else { panic!() };
     assert_eq!(
@@ -91,7 +91,7 @@ async fn weather_poller_reports_forecast() {
     // No location configured: weather is off.
     let (tx, mut rx) = mpsc::unbounded_channel();
     let (_g, general) = tokio::sync::watch::channel(Config::default().general);
-    let w = tvdash_widgets::spawn(&Config::default(), Endpoints { weather: base }, tx, general);
+    let w = tvdash_widgets::spawn(&Config::default(), Endpoints { weather: base, ..Endpoints::default() }, tx, general);
     assert!(matches!(first_weather(&mut rx).await, AppEvent::Weather(None)));
     w.abort();
     std::fs::remove_dir_all(&fake.dir).ok();

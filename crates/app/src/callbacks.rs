@@ -6,7 +6,8 @@ use tracing::{error, warn};
 use tvdash_core::{Command, models::SourceKind};
 
 use crate::{
-    Accounts, Artwork, Browse, CollectionPageState, Dash, Display, LaptopWindow, Library, Nav, Scoreboard, Server,
+    Accounts, Artwork, Browse, CollectionPageState, Dash, Display, LaptopWindow, Library, MoviePageState, Nav,
+    Scoreboard, Server,
     Setup, ShowPageState, SiteEditor, SleepState, Sports, SportsAlertState, SportsAlertsSettings, Watch, bridge,
     watch_ui,
 };
@@ -43,6 +44,7 @@ pub fn request_quit(cmd_tx: &UnboundedSender<Command>) {
 
 pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
     bridge::alerts::set_cmd_tx(cmd_tx.clone());
+    bridge::weather_alerts::set_cmd_tx(cmd_tx.clone());
     let send = move |cmd: Command| {
         if cmd_tx.send(cmd).is_err() {
             error!("command handler stopped");
@@ -52,6 +54,7 @@ pub fn wire(laptop: &LaptopWindow, cmd_tx: UnboundedSender<Command>) {
     wire_site_editor(laptop, send.clone());
     wire_sleep(laptop, send.clone());
     wire_sports_alert(laptop, send.clone());
+    wire_weather_alert(laptop);
     wire_intro(laptop, send.clone());
 
     let home_state = laptop.global::<crate::HomeState>();
@@ -243,20 +246,32 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
 
     let (weak, s) = (laptop.as_weak(), send.clone());
     dash.on_play_next_ep(move || {
+        let mut credits = false;
         if let Some(l) = weak.upgrade() {
-            l.global::<Dash>().set_next_ep_open(false);
+            let d = l.global::<Dash>();
+            credits = d.get_next_ep_mode() == "credits";
+            d.set_next_ep_open(false);
         }
-        if let Some(item) = bridge::take_next_ep() {
+        if credits {
+            let _ = bridge::take_next_ep();
+            s(Command::PlayNextNow);
+        } else if let Some(item) = bridge::take_next_ep() {
             s(Command::Play(item));
         }
     });
 
-    let weak = laptop.as_weak();
+    let (weak, s) = (laptop.as_weak(), send.clone());
     dash.on_dismiss_next_ep(move || {
+        let mut credits = false;
         if let Some(l) = weak.upgrade() {
-            l.global::<Dash>().set_next_ep_open(false);
+            let d = l.global::<Dash>();
+            credits = d.get_next_ep_mode() == "credits";
+            d.set_next_ep_open(false);
         }
         bridge::clear_next_ep();
+        if credits {
+            s(Command::WatchCredits);
+        }
     });
 
     let weak = laptop.as_weak();
@@ -334,7 +349,11 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
                 l.global::<crate::LibraryLanding>().set_watching_now_open(false);
             }
             if item.kind == tvdash_core::models::MediaKind::Movie {
-                s(Command::Play(item));
+                if let Some(l) = weak.upgrade() {
+                    l.global::<Library>().invoke_open_movie(item.id.into());
+                } else {
+                    s(Command::Play(item));
+                }
             } else if let Some(l) = weak.upgrade() {
                 l.global::<Library>().invoke_open_show(item.id.into());
             }
@@ -488,6 +507,35 @@ fn wire_dash(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
         }
     });
 
+    {
+        let weak_qs = laptop.as_weak();
+        let s_auto = send.clone();
+        let s_tog = send.clone();
+        let qs = laptop.global::<crate::QuickSwitch>();
+        qs.on_open_picker(move || {
+            if let Some(l) = weak_qs.upgrade() {
+                crate::tv_nav::open_quick_switch_picker(&l);
+            }
+        });
+        qs.on_set_automatic(move |auto| {
+            let next = if auto {
+                Vec::new()
+            } else {
+                bridge::display::quick_switch_automatic_set()
+            };
+            s_auto(Command::SetQuickSwitch(next));
+        });
+        qs.on_toggle(move |id| {
+            let mut cur = bridge::display::quick_switch_custom();
+            if let Some(pos) = cur.iter().position(|x| x == id.as_str()) {
+                cur.remove(pos);
+            } else if cur.len() < crate::apps::QUICK_SWITCH_MAX {
+                cur.push(id.to_string());
+            }
+            s_tog(Command::SetQuickSwitch(cur));
+        });
+    }
+
     let s = send.clone();
     dash.on_quit(move || {
         s(Command::Quit);
@@ -597,6 +645,19 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     });
 
     let (weak, s) = (laptop.as_weak(), send.clone());
+    lib.on_open_movie(move |key| {
+        if let Some(l) = weak.upgrade() {
+            if l.global::<Display>().get_dashboard_ui() == "ps5" {
+                s(Command::PlayRatingKey { rating_key: key.to_string(), resume: true });
+                return;
+            }
+            bridge::movie::reset_loading(&l, &key);
+            crate::tv_nav::push_movie(&l);
+        }
+        s(Command::OpenMovie(key.to_string()));
+    });
+
+    let (weak, s) = (laptop.as_weak(), send.clone());
     lib.on_open_collection(move |key| {
         if let Some(l) = weak.upgrade() {
             l.global::<CollectionPageState>().set_loading(true);
@@ -690,7 +751,7 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
         if let Some(l) = weak.upgrade() {
             let lib = l.global::<Library>();
             if bridge::browse::item_is_movie(&key).unwrap_or(false) {
-                lib.invoke_play_key(key, true);
+                lib.invoke_open_movie(key);
             } else {
                 lib.invoke_open_show(key);
             }
@@ -708,14 +769,29 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
             sp.set_selected_season(key.clone());
             crate::bridge::on_season_selected(&l, key.as_str());
         }
-        s(Command::LoadSeasonEpisodes(key.to_string()));
+        if key != "extras" {
+            s(Command::LoadSeasonEpisodes(key.to_string()));
+        }
     });
     let (weak, s) = (laptop.as_weak(), send.clone());
     sp.on_play_episode(move |key, resume| {
-        s(Command::PlayRatingKey { rating_key: key.to_string(), resume });
-        if let Some(l) = weak.upgrade() {
-            l.global::<ShowPageState>().set_open(false);
-            l.global::<Nav>().set_page("home".into());
+        let is_extras = weak
+            .upgrade()
+            .is_some_and(|l| l.global::<ShowPageState>().get_selected_season() == "extras");
+        if is_extras {
+            s(Command::PlayExtra(key.to_string()));
+        } else {
+            s(Command::PlayRatingKey { rating_key: key.to_string(), resume });
+            if let Some(l) = weak.upgrade() {
+                l.global::<ShowPageState>().set_open(false);
+                l.global::<Nav>().set_page("home".into());
+            }
+        }
+    });
+    let s_tr = send.clone();
+    sp.on_play_trailer(move || {
+        if let Some(key) = bridge::library::first_trailer_key() {
+            s_tr(Command::PlayExtra(key));
         }
     });
     let (weak, s) = (laptop.as_weak(), send.clone());
@@ -755,16 +831,84 @@ fn wire_library(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static)
     });
     let (weak, s) = (laptop.as_weak(), send.clone());
     cp.on_play_item(move |key, resume| {
-        s(Command::PlayRatingKey { rating_key: key.to_string(), resume });
         if let Some(l) = weak.upgrade() {
+            if l.global::<crate::TvUi>().get_layout_tv()
+                && l.global::<Display>().get_dashboard_ui() != "ps5"
+            {
+                l.global::<Library>().invoke_open_movie(key);
+                return;
+            }
             l.global::<CollectionPageState>().set_open(false);
             l.global::<Nav>().set_page("home".into());
         }
+        s(Command::PlayRatingKey { rating_key: key.to_string(), resume });
     });
     let weak = laptop.as_weak();
     cp.on_close(move || {
         if let Some(l) = weak.upgrade() {
             l.global::<CollectionPageState>().set_open(false);
+        }
+    });
+
+    let mp = laptop.global::<MoviePageState>();
+    let s = send.clone();
+    mp.on_play(move || {
+        if let Some(item) = bridge::movie::current_item() {
+            s(Command::Play(item));
+        }
+    });
+    let s = send.clone();
+    mp.on_play_from_start(move || {
+        if let Some(mut item) = bridge::movie::current_item() {
+            item.resume_ms = None;
+            s(Command::Play(item));
+        }
+    });
+    let s = send.clone();
+    mp.on_play_trailer(move || {
+        if let Some(key) = bridge::movie::first_trailer_key() {
+            s(Command::PlayExtra(key));
+        }
+    });
+    let s = send.clone();
+    mp.on_play_extra(move |key| {
+        s(Command::PlayExtra(key.to_string()));
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    mp.on_open_collection(move || {
+        if let Some((col_key, movie_key)) = bridge::movie::collection_target() {
+            if let Some(l) = weak.upgrade() {
+                l.global::<CollectionPageState>().set_loading(true);
+                crate::tv_nav::open_collection_from_movie(&l, movie_key);
+            }
+            s(Command::OpenCollection(col_key));
+        }
+    });
+    let (weak, s) = (laptop.as_weak(), send.clone());
+    mp.on_search_person(move |name| {
+        let q = name.trim().to_string();
+        if q.is_empty() {
+            return;
+        }
+        if let Some(l) = weak.upgrade() {
+            let w = l.global::<Watch>();
+            w.set_query(q.as_str().into());
+            w.invoke_edited(q.as_str().into());
+            crate::tv_nav::push_search_results(&l);
+        }
+        s(Command::WhereToWatch(q));
+    });
+    let weak = laptop.as_weak();
+    mp.on_set_tab(move |tab| {
+        if let Some(l) = weak.upgrade() {
+            l.global::<MoviePageState>().set_tab(tab.clone());
+            crate::tv_nav::focus_movie_tab(&l, tab.as_str());
+        }
+    });
+    let s = send.clone();
+    mp.on_toggle_watched(move || {
+        if let Some((rating_key, watched)) = bridge::movie::toggle_watched_args() {
+            s(Command::SetMovieWatched { rating_key, watched });
         }
     });
 
@@ -1026,6 +1170,16 @@ fn wire_watch(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     let weak = laptop.as_weak();
     w.on_select(move |key| {
         if let Some(l) = weak.upgrade() {
+            if l.global::<crate::TvUi>().get_layout_tv()
+                && l.global::<Display>().get_dashboard_ui() != "ps5"
+                && let Some(hit) = watch_ui::hit(&key)
+                && let Some(item) = hit.library
+                && item.kind == tvdash_core::models::MediaKind::Movie
+                && item.source == tvdash_core::models::SourceKind::Plex
+            {
+                l.global::<Library>().invoke_open_movie(item.id.into());
+                return;
+            }
             watch_ui::select(&l, &key);
         }
     });
@@ -1394,6 +1548,36 @@ fn wire_intro(laptop: &LaptopWindow, send: impl Fn(Command) + Clone + 'static) {
     intro.on_skip(move || {
         if let Some(l) = weak.upgrade() {
             crate::intro::skip(&l);
+        }
+    });
+}
+
+fn wire_weather_alert(laptop: &LaptopWindow) {
+    let wa = laptop.global::<crate::WeatherAlertState>();
+    let w1 = laptop.as_weak();
+    wa.on_got_it(move || {
+        if let Some(l) = w1.upgrade() {
+            bridge::weather_alerts::got_it(&l);
+        }
+    });
+    let w2 = laptop.as_weak();
+    wa.on_resume(move || {
+        if let Some(l) = w2.upgrade() {
+            bridge::weather_alerts::resume(&l);
+        }
+    });
+
+    let wc = laptop.global::<crate::WeatherCardState>();
+    let w3 = laptop.as_weak();
+    wc.on_dismiss(move || {
+        if let Some(l) = w3.upgrade() {
+            bridge::weather_alerts::dismiss_card(&l);
+        }
+    });
+    let w4 = laptop.as_weak();
+    wc.on_details(move || {
+        if let Some(l) = w4.upgrade() {
+            bridge::weather_alerts::open_details(&l);
         }
     });
 }

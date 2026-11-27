@@ -16,9 +16,11 @@ pub use ambient::start_ambient;
 pub mod browse;
 pub mod display;
 mod home;
-mod library;
+pub mod library;
 pub use library::{clear_browse_visit, ensure_collections_loaded, ensure_library_loaded, on_season_selected, request_browse};
+pub mod movie;
 mod status;
+pub mod weather_alerts;
 #[cfg(test)]
 mod tests;
 
@@ -116,6 +118,7 @@ pub struct UiState {
     sports_logos: FixedImageCache<String, SPORTS_LOGO_CAP>,
     collection_detail: Option<tvdash_core::models::CollectionDetail>,
     show_detail: Option<tvdash_core::models::ShowDetail>,
+    show_extras: Vec<tvdash_core::events::ExtraItem>,
     ambient_starts: usize,
     next_ep: Option<MediaItem>,
     last_played: Option<LastPlayed>,
@@ -187,8 +190,12 @@ pub struct UiState {
     orbit_browse_cards: Rc<VecModel<BrowseItem>>,
     account_rows: Rc<VecModel<AccountRow>>,
     site_rows: Rc<VecModel<SiteRow>>,
+    quick_switch_custom: Vec<String>,
+    quick_switch_choices: Rc<VecModel<crate::QuickSwitchChoice>>,
     toast_timer: Option<Timer>,
     sports_alerts: alerts::SportsAlertsUi,
+    weather_alerts: weather_alerts::WeatherAlertsUi,
+    movie: movie::MovieUi,
 }
 
 impl UiState {
@@ -377,6 +384,10 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         let acc = laptop.global::<Accounts>();
         acc.set_accounts(ModelRc::from(s.account_rows.clone()));
         acc.set_sites(ModelRc::from(s.site_rows.clone()));
+        laptop
+            .global::<crate::QuickSwitch>()
+            .set_choices(ModelRc::from(s.quick_switch_choices.clone()));
+        display::refresh_quick_switch(s, laptop);
         let d = laptop.global::<Display>();
         d.set_layout_setting(c.layout_setting.as_str().into());
         display::refresh_dashboard_choices(laptop, c.dashboard_ui);
@@ -387,6 +398,7 @@ pub fn init(laptop: &LaptopWindow, c: UiConfig) {
         let paths: Vec<slint::SharedString> = c.paths.iter().map(|p| p.as_str().into()).collect();
         laptop.global::<Diagnostics>().set_paths(ModelRc::new(VecModel::from(paths)));
         status::refresh_diagnostics(s, laptop);
+        movie::init(s, laptop);
         apply_theme(s, laptop, c.theme);
         accounts::refresh(s, laptop);
     });
@@ -546,8 +558,14 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             home::refresh_home_state(s, laptop);
         }
         AppEvent::SearchResults { query, items } => library::on_results(s, laptop, query, items),
-        AppEvent::Poster { source, item_id, image } => home::on_poster(s, laptop, source, item_id, &image),
-        AppEvent::Backdrop { source, item_id, image } => library::on_backdrop(s, laptop, source, item_id, &image),
+        AppEvent::Poster { source, item_id, image } => {
+            home::on_poster(s, laptop, source, item_id.clone(), &image);
+            movie::on_poster(s, laptop, source, &item_id, &image);
+        }
+        AppEvent::Backdrop { source, item_id, image } => {
+            library::on_backdrop(s, laptop, source, item_id.clone(), &image);
+            movie::on_backdrop(s, laptop, source, &item_id, &image);
+        }
         AppEvent::Player(status) => {
             let is_plex = status.as_ref().is_some_and(|p| p.item.source == SourceKind::Plex);
             let is_movie = status.as_ref().is_some_and(|p| p.item.kind == tvdash_core::models::MediaKind::Movie);
@@ -582,6 +600,11 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             status::on_weather(s, laptop, weather);
             crate::intro::mark_data_ready(laptop);
         }
+        AppEvent::WeatherAlerts(alerts) => weather_alerts::on_alerts(s, laptop, alerts),
+        AppEvent::ShowExtras { show_key, extras } => library::on_show_extras(s, laptop, show_key, extras),
+        AppEvent::MovieDetail(detail) => movie::on_movie_detail(s, laptop, *detail),
+        AppEvent::MovieExtras { movie_key, extras } => movie::on_movie_extras(s, laptop, movie_key, extras),
+        AppEvent::MovieCollection { movie_key, link } => movie::on_movie_collection(s, laptop, movie_key, link),
         AppEvent::Places { query, result } => status::on_places(s, laptop, &query, result),
         AppEvent::Location { name, timezone } => status::on_location(s, laptop, name, &timezone),
         AppEvent::Tmdb(status) => accounts::on_tmdb(s, laptop, status),
@@ -724,19 +747,18 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             s.next_ep = opt.clone();
             let dash = laptop.global::<Dash>();
             if let Some(item) = opt {
-                let poster = s.posters.get(&(item.source, item.id.clone()));
-                dash.set_next_ep_title(item.title.as_str().into());
-                dash.set_next_ep_subtitle(crate::format::item_detail(&item).into());
-                dash.set_next_ep_has_poster(poster.is_some());
-                dash.set_next_ep_poster(poster.unwrap_or_default());
-                dash.set_next_ep_open(true);
-                laptop.global::<crate::TvUi>().set_focused_tile(0);
+                show_next_ep_card(s, laptop, &item, "end");
             } else {
                 dash.set_next_ep_open(false);
             }
         }
+        AppEvent::NextEpisodeAtCredits(item) => {
+            s.next_ep = Some(item.clone());
+            show_next_ep_card(s, laptop, &item, "credits");
+        }
         AppEvent::CollectionDetail(res) => {
             library::on_collection_detail(s, laptop, res);
+            crate::tv_nav::on_collection_loaded(laptop);
         }
         AppEvent::SportsEvents(res) => {
             let sp = laptop.global::<Sports>();
@@ -824,6 +846,7 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
             s.sites = sites;
             home::refresh_tiles(s, laptop);
             accounts::refresh(s, laptop);
+            display::refresh_quick_switch(s, laptop);
         }
         AppEvent::Streaming(map) => {
             s.streaming = map;
@@ -832,6 +855,11 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
         AppEvent::RecentServices(recent) => {
             s.recent = recent;
             home::refresh_tiles(s, laptop);
+            display::refresh_quick_switch(s, laptop);
+        }
+        AppEvent::QuickSwitch(custom) => {
+            s.quick_switch_custom = custom;
+            display::refresh_quick_switch(s, laptop);
         }
         AppEvent::ShowSetup => {
             laptop.global::<Setup>().set_step(0);
@@ -849,6 +877,29 @@ fn apply(s: &mut UiState, laptop: &LaptopWindow, tv: &TvWindow, event: AppEvent)
 ///
 /// Each PNG is decoded once per process (on first use) and the same `Image` is reused
 /// afterwards, so Sports/Scoreboard refreshes don't re-decode or re-upload the texture.
+fn show_next_ep_card(s: &mut UiState, laptop: &LaptopWindow, item: &MediaItem, mode: &str) {
+    let dash = laptop.global::<Dash>();
+    let poster = s.posters.get(&(item.source, item.id.clone()));
+    let kicker = match &item.episode_label {
+        Some(ep) if !ep.is_empty() => format!("UP NEXT · {ep}"),
+        _ => "UP NEXT".to_string(),
+    };
+    let meta = item
+        .duration_ms
+        .map(crate::format::duration)
+        .unwrap_or_default();
+    dash.set_next_ep_kicker(kicker.into());
+    dash.set_next_ep_title(item.title.as_str().into());
+    dash.set_next_ep_subtitle(crate::format::item_detail(item).into());
+    dash.set_next_ep_meta(meta.into());
+    dash.set_next_ep_has_poster(poster.is_some());
+    dash.set_next_ep_poster(poster.unwrap_or_default());
+    dash.set_next_ep_mode(mode.into());
+    dash.set_next_ep_countdown(10);
+    dash.set_next_ep_open(true);
+    laptop.global::<crate::TvUi>().set_focused_tile(0);
+}
+
 fn bundled_league_logo(value: &str) -> Option<(Image, bool)> {
     use std::cell::OnceCell;
     use std::thread::LocalKey;

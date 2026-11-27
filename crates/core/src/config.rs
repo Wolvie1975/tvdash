@@ -42,6 +42,7 @@ pub struct Config {
     pub sleep: SleepConfig,
     pub sports: SportsConfig,
     pub startup: StartupConfig,
+    pub weather_alerts: WeatherAlertsConfig,
     /// Kept last: TOML arrays of tables must follow plain tables.
     pub streaming: Vec<StreamingSite>,
 }
@@ -365,11 +366,25 @@ pub struct PlayerConfig {
 }
 
 /// TV-only hub state persisted in `config.toml` (`[tv]`).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TvConfig {
-    /// Last 3 distinct streaming services opened, newest first.
+    /// Recently opened streaming services, newest first (up to 12).
     pub recent: Vec<RecentService>,
+    /// Quick switch apps (service ids), in order. Empty = Automatic (most recent first).
+    pub quick_switch: Vec<String>,
+    /// Key that opens the Quick switch overlay while watching (a `KeyboardEvent.key` value).
+    pub quick_switch_key: String,
+}
+
+impl Default for TvConfig {
+    fn default() -> Self {
+        Self {
+            recent: Vec::new(),
+            quick_switch: Vec::new(),
+            quick_switch_key: "F9".into(),
+        }
+    }
 }
 
 /// Sleep timer settings (`[sleep]`).
@@ -620,7 +635,36 @@ impl Default for Config {
             sleep: SleepConfig::default(),
             sports: SportsConfig::default(),
             startup: StartupConfig::default(),
+            weather_alerts: WeatherAlertsConfig::default(),
             streaming: default_streaming_sites(),
+        }
+    }
+}
+
+/// National Weather Service severe-weather alerts (`[weather_alerts]`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WeatherAlertsConfig {
+    pub enabled: bool,
+    /// Email or URL for the NWS User-Agent (they ask for one). Empty is allowed.
+    pub contact: String,
+    /// Events that take over the screen and pause playback.
+    pub takeover: Vec<String>,
+}
+
+impl Default for WeatherAlertsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            contact: String::new(),
+            takeover: vec![
+                "Tornado Warning".into(),
+                "Severe Thunderstorm Warning".into(),
+                "Flash Flood Warning".into(),
+                "Extreme Wind Warning".into(),
+                "Hurricane Warning".into(),
+                "Tsunami Warning".into(),
+            ],
         }
     }
 }

@@ -2,6 +2,7 @@
 // `laptop.global::<Dash>()` etc.; pages read them directly.
 
 import { AccountPrompt, PosterCardData, SessionRow } from "components.slint";
+import { Brand } from "shared/brand.slint";
 import { UiTheme } from "theme.slint";
 
 // Which laptop page is showing.
@@ -78,6 +79,7 @@ export global Dash {
     in property <string> weather-temp: "—";
     in property <string> weather-detail;
     in property <string> weather-condition;
+    in property <string> weather-alert-line;
     // Icon name (see icons.slint): "clear" | "partly" | "cloud" | "fog" | "rain" | "snow" | "storm"
     in property <string> weather-icon: "partly";
     // Last value is old (shown dimmed) / the last fetch failed (amber dot).
@@ -124,10 +126,14 @@ export global Dash {
 
     // Next episode prompt when an episode finishes naturally.
     in-out property <bool> next-ep-open: false;
+    in property <string> next-ep-kicker: "UP NEXT";
     in property <string> next-ep-title;
     in property <string> next-ep-subtitle;
+    in property <string> next-ep-meta;
     in property <image> next-ep-poster;
     in property <bool> next-ep-has-poster;
+    in-out property <string> next-ep-mode: "end"; // "credits" | "end"
+    in-out property <int> next-ep-countdown: 10;
 
     callback open-site(int);
     callback transport(string); // "back" | "forward" | "restart" | "play-pause" | "stop" | ...
@@ -272,6 +278,7 @@ export global Library {
     callback set-browse-all(bool);
     callback set-browse-letter(string);
     callback open-show(string);
+    callback open-movie(string);
     callback open-collection(string);
     callback play-key(string, bool);
     callback search(string);
@@ -396,6 +403,9 @@ export global ShowPageState {
     in property <string> up-next-key;
     in property <bool> can-resume;
     in property <float> up-next-progress: 0.0;
+    in property <bool> has-trailer: false;
+    in property <string> trailer-meta;
+    in property <int> extras-count: 0;
     in property <image> backdrop;
     in property <bool> has-backdrop: false;
     in property <[SeasonTabData]> seasons;
@@ -415,6 +425,7 @@ export global ShowPageState {
     callback select-season(string);
     callback play-episode(string, bool);
     callback play-from-start();
+    callback play-trailer();
     callback close();
 }
 
@@ -656,6 +667,22 @@ export struct DashboardChoice {
     sub: string,
     description: string,
     current: bool,
+}
+
+export struct QuickSwitchChoice {
+    id: string,
+    name: string,
+    slot: int,        // 1-4 in the custom set, 0 = not in it
+    brand: Brand,
+}
+
+export global QuickSwitch {
+    in property <bool> automatic: true;
+    in property <string> summary;              // "Automatic · YouTube TV, Netflix, …" or "Custom · …"
+    in property <[QuickSwitchChoice]> choices;
+    callback set-automatic(bool);
+    callback toggle(string /* id */);          // add at the end of the set, or remove (custom mode)
+    callback open-picker();
 }
 
 // Settings › Display.
@@ -1100,6 +1127,33 @@ export global SportsAlertState {
     callback dismiss-clicked();
 }
 
+export global WeatherAlertState {
+    in-out property <bool> visible: false;      // takeover on screen
+    in property <string> alert-id;
+    in property <string> event;                 // "Tornado Warning"
+    in property <string> area-until;            // "[county] · until 9:45 PM"
+    in property <string> instruction;
+    in property <string> issued-line;           // "Issued 9:12 PM · Source: weather.gov · Alerts for your saved location"
+    in-out property <string> expires-in;        // "33"
+    in property <string> banner;                // "" = no banner
+    in-out property <int> focus: 0;             // 0 Got it, 1 Resume playback
+    in property <bool> can-resume;              // playback was paused for this
+    in property <bool> details-mode: false;     // true when opened from Watch card Details
+    callback got-it();
+    callback resume();
+}
+
+export global WeatherCardState {
+    in-out property <bool> visible: false;
+    in property <string> alert-id;
+    in property <string> title;
+    in property <string> sub;
+    in-out property <int> focus: 0;             // 0 Dismiss, 1 Details
+    in-out property <int> closes-in: 12;
+    callback dismiss();
+    callback details();
+}
+
 export struct FollowedTeamRow {
     name: string,
     initials: string,
@@ -1111,6 +1165,74 @@ export struct StarredGameRow {
     event-id: string,
     matchup: string,
     meta: string,
+}
+
+export struct PersonData {
+    name: string,
+    role: string,
+    initials: string,
+    photo: image,
+    has-photo: bool,
+    tint: color,
+}
+
+export struct ExtraData {
+    key: string,
+    title: string,
+    kind: string,
+    duration: string,
+    thumb: image,
+    is-trailer: bool,
+}
+
+export global MoviePageState {
+    in property <string> rating-key;
+    in property <string> title;
+    in property <string> kicker;
+    in property <string> meta-line;
+    in property <[string]> chips;
+    in property <[string]> tech-chips;
+    in property <string> summary;
+    in property <image> backdrop;
+    in property <bool> has-backdrop;
+    in property <color> tint;
+    // Text/icon colour on a `tint` fill (dark on dark themes, light on light themes).
+    in property <color> on-tint: #0B0D10;
+
+    in property <string> play-label;
+    in property <string> play-meta;
+    in property <float> progress;
+    in property <string> play-ring-lit;
+    in property <string> play-ring-unlit;
+    in property <bool> show-from-start;
+    in property <bool> has-trailer;
+    in property <bool> watched;
+
+    in property <bool> in-collection;
+    in property <string> collection-title;
+    in property <string> collection-position;
+    in property <int> collection-total;
+    in property <int> collection-watched;
+    in property <string> collection-next;
+    in property <image> collection-poster;
+    in property <string> col-ring-lit;
+    in property <string> col-ring-unlit;
+
+    in property <[PersonData]> crew;
+    in property <[PersonData]> cast;
+    in property <[ExtraData]> extras;
+    in-out property <string> tab: "cast";
+    in property <string> cast-count;
+    in property <bool> loading: true;
+
+    callback play();
+    callback play-from-start();
+    callback play-trailer();
+    callback play-extra(string);
+    callback open-collection();
+    callback search-person(string);
+    callback set-tab(string);
+    callback toggle-watched();
 }
 
 export global SportsAlertsSettings {

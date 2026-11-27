@@ -1,0 +1,187 @@
+// Shared Quick switch picker (Settings › Display › Quick switch).
+// Fixed 1920x1080 design layout scaled by TvUi.u so one focus-rect table serves every UI.
+
+import { Theme } from "../theme.slint";
+import { QuickSwitch, TvUi } from "../state.slint";
+
+export component QuickSwitchPicker inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: Theme.bg;
+
+    // Breadcrumb & Title (x 96, y 112)
+    Text {
+        x: 96px * TvUi.u;
+        y: 112px * TvUi.u;
+        text: "SETTINGS › DISPLAY › QUICK SWITCH";
+        font-size: 20px * TvUi.u;
+        font-weight: 600;
+        letter-spacing: 1.2px * TvUi.u;
+        color: Theme.text-secondary;
+    }
+
+    Text {
+        x: 96px * TvUi.u;
+        y: 142px * TvUi.u;
+        text: "Quick switch";
+        font-size: 48px * TvUi.u;
+        font-weight: 300;
+        color: Theme.text-primary;
+    }
+
+    Text {
+        x: 96px * TvUi.u;
+        y: 202px * TvUi.u;
+        text: "Apps shown in the Switch overlay while you watch";
+        font-size: 22px * TvUi.u;
+        color: Theme.text-secondary;
+    }
+
+    // Rect 0: Automatic toggle tile (x 96, y 254, w 1728, h 96)
+    Rectangle {
+        property <bool> is-foc: (!TvUi.bar-focused && TvUi.focused-tile == 0) || auto-ta.has-hover;
+        x: 96px * TvUi.u;
+        y: 254px * TvUi.u;
+        width: 1728px * TvUi.u;
+        height: 96px * TvUi.u;
+        border-radius: 10px * TvUi.u;
+        background: Theme.surface;
+        border-width: is-foc ? 4px * TvUi.u : 1px;
+        border-color: is-foc ? Theme.text-primary : Theme.border;
+
+        VerticalLayout {
+            x: 28px * TvUi.u;
+            y: 0;
+            width: parent.width - 168px * TvUi.u;
+            height: parent.height;
+            alignment: center;
+            spacing: 4px * TvUi.u;
+
+            Text {
+                text: "Automatic";
+                font-size: 25px * TvUi.u;
+                font-weight: 600;
+                color: Theme.text-primary;
+            }
+            Text {
+                text: QuickSwitch.automatic
+                    ? "Uses your 4 most recently opened apps (badges below show the current set)"
+                    : "Custom order — pick up to 4 apps below";
+                font-size: 18px * TvUi.u;
+                color: Theme.text-secondary;
+                overflow: elide;
+            }
+        }
+
+        // Toggle switch
+        Rectangle {
+            x: parent.width - self.width - 28px * TvUi.u;
+            y: (parent.height - self.height) / 2;
+            width: 96px * TvUi.u;
+            height: 48px * TvUi.u;
+            border-radius: 24px * TvUi.u;
+            background: QuickSwitch.automatic ? Theme.accent : Theme.surface-raised;
+            border-width: 1px;
+            border-color: QuickSwitch.automatic ? Theme.accent : Theme.border;
+            animate background { duration: 120ms; }
+
+            Rectangle {
+                x: QuickSwitch.automatic ? parent.width - self.width - 5px * TvUi.u : 5px * TvUi.u;
+                y: 5px * TvUi.u;
+                width: 38px * TvUi.u;
+                height: 38px * TvUi.u;
+                border-radius: 19px * TvUi.u;
+                background: QuickSwitch.automatic ? Theme.on-accent : Theme.text-primary;
+                animate x { duration: 120ms; easing: ease-out; }
+            }
+        }
+
+        auto-ta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { QuickSwitch.set-automatic(!QuickSwitch.automatic); }
+        }
+    }
+
+    // App grid: 5 across, starting at y 376 (332 x 166 tiles, 16px row gap)
+    for choice[i] in QuickSwitch.choices: Rectangle {
+        property <int> grid-col: Math.mod(i, 5);
+        property <int> grid-row: Math.floor(i / 5);
+        property <bool> is-foc: (!TvUi.bar-focused && TvUi.focused-tile == i + 1) || (!QuickSwitch.automatic && tile-ta.has-hover);
+
+        x: (96 + grid-col * 349) * 1px * TvUi.u - (is-foc ? 4px * TvUi.u : 0px);
+        y: (376 + grid-row * 182) * 1px * TvUi.u - (is-foc ? 4px * TvUi.u : 0px);
+        width: (is-foc ? 340 : 332) * 1px * TvUi.u;
+        height: (is-foc ? 174 : 166) * 1px * TvUi.u;
+        border-radius: 14px * TvUi.u;
+        border-width: is-foc ? 4px * TvUi.u : 0px;
+        border-color: Theme.text-primary;
+        opacity: QuickSwitch.automatic ? 0.55 : 1.0;
+
+        Rectangle {
+            x: is-foc ? 4px * TvUi.u : 0px;
+            y: is-foc ? 4px * TvUi.u : 0px;
+            width: parent.width - (is-foc ? 8px * TvUi.u : 0px);
+            height: parent.height - (is-foc ? 8px * TvUi.u : 0px);
+            border-radius: 10px * TvUi.u;
+            background: choice.brand.fill;
+            clip: true;
+
+            if choice.brand.has-logo: Image {
+                x: (parent.width - self.width) / 2;
+                y: 22px * TvUi.u;
+                width: 168px * TvUi.u;
+                height: 80px * TvUi.u;
+                source: choice.brand.logo;
+                image-fit: contain;
+            }
+
+            Text {
+                x: 16px * TvUi.u;
+                y: choice.brand.has-logo ? 116px * TvUi.u : (parent.height - self.preferred-height) / 2;
+                width: parent.width - 32px * TvUi.u;
+                text: choice.name;
+                font-size: choice.brand.has-logo ? 20px * TvUi.u : 28px * TvUi.u;
+                font-weight: 700;
+                color: choice.brand.ink;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+
+            if choice.slot > 0: Rectangle {
+                x: parent.width - self.width - 14px * TvUi.u;
+                y: 12px * TvUi.u;
+                width: 38px * TvUi.u;
+                height: 38px * TvUi.u;
+                border-radius: 19px * TvUi.u;
+                background: #F5A524;
+
+                Text {
+                    text: choice.slot;
+                    font-size: 20px * TvUi.u;
+                    font-weight: 800;
+                    color: #1A1200;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        tile-ta := TouchArea {
+            mouse-cursor: QuickSwitch.automatic ? default : pointer;
+            clicked => {
+                if !QuickSwitch.automatic {
+                    QuickSwitch.toggle(choice.id);
+                }
+            }
+        }
+    }
+
+    // Footer hint
+    Text {
+        x: 96px * TvUi.u;
+        y: 980px * TvUi.u;
+        text: "OK Add/remove · Back Done";
+        font-size: 20px * TvUi.u;
+        color: Theme.text-muted;
+    }
+}

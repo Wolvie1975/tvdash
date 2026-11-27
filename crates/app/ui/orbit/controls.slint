@@ -116,23 +116,30 @@ export component OrbitPlay inherits Rectangle {
         lit-path: root.lit-path;
         unlit-path: root.unlit-path;
         lit-color: root.lit-color;
+    }
 
-        Rectangle {
+    // The disc is a sibling of the ring, not ring @children: it is placed explicitly in the
+    // ring's inner circle (inset thickness + 3 px) and centred, so it never depends on the
+    // ring's clipped inner container (which left it off-centre with a dark crescent).
+    Rectangle {
+        x: (root.size - self.width) / 2;
+        y: (root.size - self.height) / 2;
+        width: root.size - (9px * TvUi.u + 3px) * 2;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: OrbitTheme.text;
+        drop-shadow-blur: active-focus ? 30px : 0px;
+        drop-shadow-offset-y: active-focus ? 10px : 0px;
+        drop-shadow-color: #000000AA;
+
+        Text {
             width: parent.width;
             height: parent.height;
-            border-radius: self.width / 2;
-            background: OrbitTheme.text;
-            drop-shadow-blur: active-focus ? 30px : 0px;
-            drop-shadow-offset-y: active-focus ? 10px : 0px;
-            drop-shadow-color: #000000AA;
-
-            Text {
-                text: "▶";
-                font-size: 28px * TvUi.u;
-                color: OrbitTheme.bg;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
+            text: "▶";
+            font-size: 28px * TvUi.u;
+            color: OrbitTheme.bg;
+            horizontal-alignment: center;
+            vertical-alignment: center;
         }
     }
 

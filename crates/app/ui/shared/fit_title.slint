@@ -1,0 +1,57 @@
+// A page title that shows the whole title instead of eliding it.
+//
+// It measures the title at `max-size` and scales the font down until the title fits
+// on one line within the given width, down to half of `max-size`. If it still doesn't
+// fit, it wraps onto two lines at half size. Two half-size lines are about as tall as one
+// full-size line, so the box keeps the height of one line at `max-size` and nothing
+// laid out below it moves. Only a title too long for two half-size lines is elided.
+// No base element (not Rectangle): Rectangle already has a (deprecated) `color` property.
+export component FitTitle {
+    in property <string> text;
+    in property <length> max-size;
+    in property <int> font-weight: 400;
+    in property <string> font-family;
+    in property <length> letter-spacing: 0px;
+    in property <brush> color;
+
+    // One line at full size, never constrained: used only for its width and line height.
+    measure := Text {
+        visible: false;
+        x: 0;
+        y: 0;
+        text: root.text;
+        font-size: root.max-size;
+        font-weight: root.font-weight;
+        font-family: root.font-family;
+        letter-spacing: root.letter-spacing;
+    }
+
+    // 0.98: leave a little room for hinting and kerning, which don't scale exactly.
+    property <float> fit: root.width * 0.98 / Math.max(1px, measure.preferred-width);
+    property <float> scale: Math.clamp(fit, 0.5, 1.0);
+    property <bool> two-lines: fit < 0.5;
+
+    // The width comes from the parent (explicit, or the layout's column), never from the
+    // text: the font size depends on the width, so the width must not depend on it.
+    horizontal-stretch: 1;
+    min-width: 0px;
+    preferred-width: 0px;
+    min-height: measure.preferred-height;
+    max-height: measure.preferred-height;
+
+    Text {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        text: root.text;
+        font-size: root.max-size * root.scale;
+        font-weight: root.font-weight;
+        font-family: root.font-family;
+        letter-spacing: root.letter-spacing * root.scale;
+        color: root.color;
+        vertical-alignment: center;
+        wrap: root.two-lines ? word-wrap : no-wrap;
+        overflow: elide;
+    }
+}

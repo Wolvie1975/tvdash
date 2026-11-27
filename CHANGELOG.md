@@ -1,5 +1,25 @@
 # tvdash Changelog
 
+## v0.1.79 — 2026-11-26
+- **Movie page (`movie-page`):**
+  - Added `PlexClient::movie_detail` (`/library/metadata/{key}`) with cast, crew (directors & writers, max 3), genres, content/audience rating, resolution/HDR/audio badges, collection tags, and `PlexClient::scrobble` (`/:/scrobble` / `/:/unscrobble`).
+  - Added `crates/app/src/movie.rs` (`play_label` with live 1-minute "ends at" countdown and collection link builder), extended `Command::PlayExtra` to movie extras, and re-fetched movie details when returning from playback.
+  - Added shared `MoviePageState`, `PersonData`, and `ExtraData` in `ui/state.slint` with `bridge/movie.rs` (persistent `VecModel`s, transcoded person photos with hashed-tint initials fallback).
+  - Replaced OK-on-a-movie direct playback with `Library.open-movie` across Library, Browse all, Collection page, Search, and Watching now (Home What's On & Up Next unchanged; PS5 falls back to direct playback).
+  - Built the **Movie page** in **Orbit** (`ui/orbit/movie.slint`, including `···` watched toggle), **Classic** (`ui/tv/movie.slint`, with scrolled state & sticky bar), and **Blades** (`ui/v3/movie.slint`, with left/right strips & segmented collection bar).
+  - **Live-check fixes:** Movie and Show titles in all three UIs now shrink to fit (then wrap to two lines) instead of eliding, via a shared `FitTitle` (`ui/shared/fit_title.slint`); Classic backdrop scrims fade to the page colour instead of transparent black (no grey band on light themes); Blades shows the backdrop as a framed 16:9 card with **From start** / **Trailer** in the Cast & crew / Extras row; Orbit's play disc and progress rings are centred (also fixes the play disc on Home, Library and Show); a director who also wrote is one crew entry.
+- **Quick switch picker:** Centred the **Automatic** card text and compacted the 5-column app grid so three rows clear the footer hint (`ui/shared/quick_switch_picker.slint`, `tv_nav.rs`).
+
+## v0.1.78 — 2026-11-25
+- **Quick switch (`feature/feature-pack-1`):**
+  - Added `[tv] quick_switch` and `[tv] quick_switch_key` (`F9`) in `config.toml`, `GET/POST /quick` in the pill HTTP endpoint, a **Switch** button + full-screen Quick switch overlay in `extras/back-pill/`, and **Settings › Display › Quick switch** with a shared `QuickSwitchPicker` (Automatic 4 most recent, or Custom 1–4, excluding Google Meet).
+- **Up Next at credits & shared Up Next card (`feature/feature-pack-1`):**
+  - Read Plex `credits` markers (`includeMarkers=1`) and surface a shared `NextEpisodeCard` (`ui/shared/up_next_card.slint`, mounted once in `laptop.slint`) with a 10 s countdown, **Play now**, and **Watch credits**, replacing the per-UI modals in Classic and Blades and fixing the invisible Up Next prompt in Orbit.
+- **Severe-weather alerts (`feature/feature-pack-1`):**
+  - Polled NWS active alerts (`crates/widgets/src/nws.rs`, `[weather_alerts]`) for the saved location: full-screen **WeatherWarning** takeover + playback pause + persistent **WeatherBanner**, **WeatherCard** in the sports alert slot (with priority over sports alerts), Back pill `/weather` takeover & card over streaming apps, advisory line on Classic/Blades Home, and `--weather-test takeover|card|advisory|clear`.
+- **Trailers & extras on the Show page (`feature/feature-pack-1`):**
+  - Loaded Plex show extras (`/library/metadata/{key}/extras`) in the background, added a **Trailer** button and **Extras** tab on `ShowPageState` across Classic, Blades, and Orbit, and played extras via `Command::PlayExtra` without resume points or Up Next/sleep triggers.
+
 ## v0.1.77 — 2026-11-25
 - **Orbit Library landing focus fix** (`crates/app/ui/state.slint`, `crates/app/ui/orbit/library.slint`, `crates/app/src/bridge/library.rs`):
   - Fixed the Orbit Library landing Play button, time-remaining label, progress ring, and `"Show page"` pill to follow the hovered/focused item in `LibraryLanding.focus` instead of staying pinned to `shelf1[0]`.

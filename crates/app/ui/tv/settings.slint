@@ -1,6 +1,6 @@
 import { ListView } from "std-widgets.slint";
 import { Theme, UiTheme } from "../theme.slint";
-import { Accounts, Dash, Diagnostics, Display, Server, SiteEditor, SleepState, SportsAlertsSettings, TvUi } from "../state.slint";
+import { Accounts, Dash, Diagnostics, Display, QuickSwitch, Server, SiteEditor, SleepState, SportsAlertsSettings, TvUi } from "../state.slint";
 import { Intro } from "../shared/intro.slint";
 import { SubTabs } from "tabs.slint";
 import { Tile, ValueTile } from "tile.slint";
@@ -231,6 +231,20 @@ export component TvSettings inherits Rectangle {
             focused: !TvUi.bar-focused && TvUi.focused-tile == 20;
             activated => { TvUi.tile-activated(20); }
             hovered => { TvUi.tile-hovered(20); }
+        }
+
+        // 21: Quick switch
+        ValueTile {
+            x: 96px * TvUi.u;
+            y: 892px * TvUi.u;
+            base-width: 416px * TvUi.u;
+            base-height: 112px * TvUi.u;
+            fill: Theme.surface;
+            label: "Quick switch";
+            value: QuickSwitch.summary;
+            focused: !TvUi.bar-focused && TvUi.focused-tile == 21;
+            activated => { QuickSwitch.open-picker(); }
+            hovered => { TvUi.tile-hovered(21); }
         }
 
         // Weather location lookup card

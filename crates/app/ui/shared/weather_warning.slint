@@ -1,0 +1,222 @@
+// Shared NWS severe-weather Warning takeover (mounted once in laptop.slint).
+
+import { WeatherAlertState, TvUi } from "../state.slint";
+
+export component WeatherWarning inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: #140A0A;
+
+    // Absorb stray clicks
+    TouchArea { }
+
+    // 14px red top strip
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: 14px * TvUi.u;
+        background: #F0605D;
+    }
+
+    // Main content (x 110, y 120)
+    VerticalLayout {
+        x: 110px * TvUi.u;
+        y: 120px * TvUi.u;
+        width: parent.width - 540px * TvUi.u;
+        alignment: start;
+        spacing: 22px * TvUi.u;
+
+        // Kicker row + Playback paused chip
+        HorizontalLayout {
+            spacing: 16px * TvUi.u;
+            alignment: start;
+
+            // Warning triangle SVG icon
+            Rectangle {
+                width: 34px * TvUi.u;
+                height: 34px * TvUi.u;
+
+                Path {
+                    width: parent.width;
+                    height: parent.height;
+                    fill: #F0605D;
+                    viewbox-width: 24;
+                    viewbox-height: 24;
+                    MoveTo { x: 12; y: 2; }
+                    LineTo { x: 1; y: 21; }
+                    LineTo { x: 23; y: 21; }
+                    Close { }
+                }
+            }
+
+            Text {
+                text: "NATIONAL WEATHER SERVICE · WARNING";
+                font-size: 22px * TvUi.u;
+                font-weight: 800;
+                letter-spacing: 2.2px * TvUi.u;
+                color: #F0605D;
+                vertical-alignment: center;
+            }
+
+            if WeatherAlertState.can-resume: Rectangle {
+                width: paused-lbl.preferred-width + 28px * TvUi.u;
+                height: 36px * TvUi.u;
+                border-radius: 18px * TvUi.u;
+                background: #FFFFFF14;
+                border-width: 1px;
+                border-color: #FFFFFF26;
+
+                paused-lbl := Text {
+                    text: "Playback paused";
+                    font-size: 16px * TvUi.u;
+                    font-weight: 600;
+                    color: #E8EAED;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // 120px event title
+        Text {
+            text: WeatherAlertState.event;
+            font-size: 120px * TvUi.u;
+            font-weight: 800;
+            letter-spacing: -2.5px * TvUi.u;
+            color: #FFFFFF;
+            wrap: word-wrap;
+            overflow: elide;
+        }
+
+        // Area + until
+        if WeatherAlertState.area-until != "": Text {
+            text: WeatherAlertState.area-until;
+            font-size: 32px * TvUi.u;
+            font-weight: 600;
+            color: #F8B4B2;
+            wrap: word-wrap;
+        }
+
+        // 34px instruction (max 3 lines, elided)
+        if WeatherAlertState.instruction != "": Text {
+            text: WeatherAlertState.instruction;
+            font-size: 34px * TvUi.u;
+            font-weight: 400;
+            color: #E8EAED;
+            wrap: word-wrap;
+            max-height: 144px * TvUi.u;
+            overflow: elide;
+        }
+
+        // Issued line
+        if WeatherAlertState.issued-line != "": Text {
+            text: WeatherAlertState.issued-line;
+            font-size: 20px * TvUi.u;
+            color: #9CA3AE;
+        }
+    }
+
+    // Right-side "Expires in N min" box
+    Rectangle {
+        x: parent.width - self.width - 110px * TvUi.u;
+        y: 120px * TvUi.u;
+        width: 240px * TvUi.u;
+        height: 170px * TvUi.u;
+        border-radius: 20px * TvUi.u;
+        background: #231214;
+        border-width: 1px;
+        border-color: #F0605D55;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 4px * TvUi.u;
+
+            Text {
+                text: "EXPIRES IN";
+                font-size: 16px * TvUi.u;
+                font-weight: 800;
+                letter-spacing: 1.6px * TvUi.u;
+                color: #F8B4B2;
+                horizontal-alignment: center;
+            }
+            Text {
+                text: WeatherAlertState.expires-in != "" ? WeatherAlertState.expires-in : "—";
+                font-size: 64px * TvUi.u;
+                font-weight: 800;
+                color: #FFFFFF;
+                horizontal-alignment: center;
+            }
+            Text {
+                text: "min";
+                font-size: 18px * TvUi.u;
+                font-weight: 600;
+                color: #9CA3AE;
+                horizontal-alignment: center;
+            }
+        }
+    }
+
+    // Bottom action row
+    HorizontalLayout {
+        x: 110px * TvUi.u;
+        y: parent.height - self.height - 96px * TvUi.u;
+        spacing: 20px * TvUi.u;
+        alignment: start;
+
+        Rectangle {
+            width: got-lbl.preferred-width + 64px * TvUi.u;
+            height: 68px * TvUi.u;
+            border-radius: 34px * TvUi.u;
+            background: #FFFFFF;
+            border-width: WeatherAlertState.focus != 1 ? 4px * TvUi.u : 0px;
+            border-color: #F0605D;
+
+            got-lbl := Text {
+                text: WeatherAlertState.details-mode ? "Close" : "Got it";
+                font-size: 24px * TvUi.u;
+                font-weight: 800;
+                color: #140A0A;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { WeatherAlertState.got-it(); }
+            }
+        }
+
+        if WeatherAlertState.can-resume: Rectangle {
+            width: res-lbl.preferred-width + 64px * TvUi.u;
+            height: 68px * TvUi.u;
+            border-radius: 34px * TvUi.u;
+            background: #2A1618;
+            border-width: WeatherAlertState.focus == 1 ? 4px * TvUi.u : 1px;
+            border-color: WeatherAlertState.focus == 1 ? #FFFFFF : #F0605D66;
+
+            res-lbl := Text {
+                text: "Resume playback";
+                font-size: 24px * TvUi.u;
+                font-weight: 700;
+                color: #FFFFFF;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { WeatherAlertState.resume(); }
+            }
+        }
+
+        Text {
+            text: WeatherAlertState.can-resume
+                ? "OK Confirm · Back Got it (stays paused)"
+                : "OK or Back to dismiss";
+            font-size: 20px * TvUi.u;
+            color: #9CA3AE;
+            vertical-alignment: center;
+        }
+    }
+}

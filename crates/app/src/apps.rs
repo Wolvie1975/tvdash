@@ -21,6 +21,33 @@ pub fn apps_bar(recent: &[String], all: &[String], n: usize) -> Vec<String> {
     out
 }
 
+/// Service ids never offered in Quick switch.
+pub const QUICK_SWITCH_EXCLUDED: &[&str] = &["google-meet"];
+pub const QUICK_SWITCH_MAX: usize = 4;
+
+/// The Quick switch set, in order: the custom list if set, else the most recent apps
+/// filled up in config order. Unknown, excluded and duplicate ids are dropped.
+pub fn quick_switch_set(custom: &[String], recent: &[String], all: &[String]) -> Vec<String> {
+    let eligible: Vec<String> = all
+        .iter()
+        .filter(|id| !QUICK_SWITCH_EXCLUDED.contains(&id.as_str()))
+        .cloned()
+        .collect();
+    if custom.is_empty() {
+        return apps_bar(recent, &eligible, QUICK_SWITCH_MAX);
+    }
+    let mut out: Vec<String> = Vec::with_capacity(QUICK_SWITCH_MAX);
+    for id in custom {
+        if out.len() == QUICK_SWITCH_MAX {
+            break;
+        }
+        if eligible.contains(id) && !out.contains(id) {
+            out.push(id.clone());
+        }
+    }
+    out
+}
+
 /// Build an [`AppTile`] for a configured streaming site.
 pub fn app_tile(site: &StreamingSite, logos: &HashMap<String, Image>) -> AppTile {
     let id = brand::service_id(&site.name);
@@ -115,6 +142,64 @@ mod tests {
         assert_eq!(
             names,
             ["Apple TV", "netflix", "YouTube", "YouTube Music", "YouTube TV"]
+        );
+    }
+
+    #[test]
+    fn quick_switch_automatic_fills_from_config_and_excludes_meet() {
+        let all: Vec<String> = [
+            "google-meet",
+            "youtube-tv",
+            "youtube",
+            "disney-plus",
+            "hulu",
+            "netflix",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+        let recent = vec![
+            "google-meet".into(),
+            "netflix".into(),
+            "hulu".into(),
+        ];
+        assert_eq!(
+            quick_switch_set(&[], &recent, &all),
+            ["netflix", "hulu", "youtube-tv", "youtube"]
+        );
+    }
+
+    #[test]
+    fn quick_switch_custom_preserves_order_and_drops_invalid() {
+        let all: Vec<String> = [
+            "google-meet",
+            "youtube-tv",
+            "apple-tv",
+            "netflix",
+            "hulu",
+            "tubi",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+        let custom = vec![
+            "apple-tv".into(),
+            "google-meet".into(),
+            "unknown".into(),
+            "youtube-tv".into(),
+            "apple-tv".into(),
+        ];
+        assert_eq!(
+            quick_switch_set(&custom, &[], &all),
+            ["apple-tv", "youtube-tv"]
+        );
+        let five: Vec<String> = ["youtube-tv", "apple-tv", "netflix", "hulu", "tubi"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        assert_eq!(
+            quick_switch_set(&five, &[], &all),
+            ["youtube-tv", "apple-tv", "netflix", "hulu"]
         );
     }
 }

@@ -168,6 +168,11 @@ fn blocked_by_priority(laptop: &LaptopWindow) -> bool {
     if dash.get_next_ep_open() || dash.get_search_open() {
         return true;
     }
+    if laptop.global::<crate::WeatherAlertState>().get_visible()
+        || laptop.global::<crate::WeatherCardState>().get_visible()
+    {
+        return true;
+    }
     if laptop.global::<LibraryLanding>().get_watching_now_open() {
         return true;
     }

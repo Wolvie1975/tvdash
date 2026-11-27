@@ -15,6 +15,56 @@ use crate::{LaptopWindow, Nav, tv_nav};
 
 pub const PILL_PORT: u16 = 47800;
 
+/// What the Back pill extension shows in the Quick switch overlay (`GET /quick`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct QuickHttpState {
+    /// `KeyboardEvent.key` that opens the overlay.
+    pub key: String,
+    /// Service id of the app on the TV right now, if any.
+    pub current: Option<String>,
+    pub tiles: Vec<QuickHttpTile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct QuickHttpTile {
+    pub id: String,
+    pub name: String,
+    /// Brand colours as `#RRGGBB`.
+    pub fill: String,
+    pub ink: String,
+    /// The bundled SVG logo as text, if there is one (drawn inline by the extension).
+    pub logo_svg: Option<String>,
+}
+
+/// What the Back pill extension shows for NWS weather alerts (`GET /weather`).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct WeatherHttpState {
+    /// `"takeover" | "card" | "none"`
+    pub level: String,
+    pub id: String,
+    pub event: String,
+    pub area_until: String,
+    pub instruction: String,
+    pub issued_line: String,
+    pub expires_in: String,
+    pub closes_in: i64,
+}
+
+impl Default for WeatherHttpState {
+    fn default() -> Self {
+        Self {
+            level: "none".into(),
+            id: String::new(),
+            event: String::new(),
+            area_until: String::new(),
+            instruction: String::new(),
+            issued_line: String::new(),
+            expires_in: String::new(),
+            closes_in: 0,
+        }
+    }
+}
+
 /// Live state shared with the loopback HTTP server and `--sleep` socket.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct SleepHttpState {
@@ -96,13 +146,15 @@ struct AlertReq {
     action: String,
 }
 
-/// Bind `127.0.0.1:{port}` and listen for `/home`, `/sleep`, and `/alerts`. Call inside a tokio runtime.
+/// Bind `127.0.0.1:{port}` and listen for `/home`, `/sleep`, `/alerts`, `/quick`, and `/weather`. Call inside a tokio runtime.
 pub fn serve_pill(
     port: u16,
     cmd_tx: UnboundedSender<Command>,
     laptop: Weak<LaptopWindow>,
     sleep_rx: watch::Receiver<SleepHttpState>,
     alert_rx: watch::Receiver<Option<AlertHttpState>>,
+    quick_rx: watch::Receiver<QuickHttpState>,
+    weather_rx: watch::Receiver<WeatherHttpState>,
 ) {
     tokio::spawn(async move {
         let addr = format!("127.0.0.1:{port}");
@@ -123,7 +175,9 @@ pub fn serve_pill(
                     let weak = laptop.clone();
                     let srx = sleep_rx.clone();
                     let arx = alert_rx.clone();
-                    tokio::spawn(handle_conn(stream, tx, weak, srx, arx));
+                    let qrx = quick_rx.clone();
+                    let wrx = weather_rx.clone();
+                    tokio::spawn(handle_conn(stream, tx, weak, srx, arx, qrx, wrx));
                 }
                 Err(e) => warn!(error = %e, "pill listener accept failed"),
             }
@@ -159,6 +213,8 @@ async fn handle_conn(
     laptop: Weak<LaptopWindow>,
     mut sleep_rx: watch::Receiver<SleepHttpState>,
     alert_rx: watch::Receiver<Option<AlertHttpState>>,
+    quick_rx: watch::Receiver<QuickHttpState>,
+    weather_rx: watch::Receiver<WeatherHttpState>,
 ) {
     let (reader, mut writer) = stream.into_split();
     let mut buf = BufReader::new(reader);
@@ -292,6 +348,45 @@ async fn handle_conn(
             }
             _ => ("400 Bad Request", "application/json", r#"{"error":"invalid alert request"}"#.into()),
         }
+    } else if method == "GET" && path == "/quick" {
+        let st = quick_rx.borrow().clone();
+        let json = serde_json::to_string(&st).unwrap_or_else(|_| "{}".into());
+        ("200 OK", "application/json", json)
+    } else if method == "POST" && path == "/quick" {
+        #[derive(serde::Deserialize)]
+        struct Req {
+            id: String,
+        }
+        match serde_json::from_slice::<Req>(&req_body) {
+            Ok(r) if quick_rx.borrow().tiles.iter().any(|t| t.id == r.id) => {
+                let _ = cmd_tx.send(Command::OpenService(r.id));
+                ("200 OK", "text/plain", "ok\n".into())
+            }
+            _ => ("400 Bad Request", "application/json", r#"{"error":"not a quick switch app"}"#.into()),
+        }
+    } else if method == "GET" && path == "/weather" {
+        let st = weather_rx.borrow().clone();
+        let json = serde_json::to_string(&st).unwrap_or_else(|_| "{}".into());
+        ("200 OK", "application/json", json)
+    } else if method == "POST" && path == "/weather" {
+        #[derive(serde::Deserialize)]
+        struct Req {
+            id: String,
+            action: String,
+        }
+        match serde_json::from_slice::<Req>(&req_body) {
+            Ok(req) if matches!(req.action.as_str(), "got-it" | "resume" | "dismiss" | "details") => {
+                let id = req.id;
+                let action = req.action;
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(l) = laptop.upgrade() {
+                        crate::bridge::weather_alerts::on_http_action(&l, &id, &action);
+                    }
+                });
+                ("204 No Content", "text/plain", String::new())
+            }
+            _ => ("400 Bad Request", "application/json", r#"{"error":"invalid weather request"}"#.into()),
+        }
     } else {
         ("404 Not Found", "text/plain", "not found\n".into())
     };
@@ -321,10 +416,12 @@ mod tests {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let (_sleep_tx, sleep_rx) = watch::channel(SleepHttpState::off());
         let (_alert_tx, alert_rx) = watch::channel(None);
+        let (_quick_tx, quick_rx) = watch::channel(QuickHttpState::default());
+        let (_weather_tx, weather_rx) = watch::channel(WeatherHttpState::default());
 
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
-            handle_conn(stream, tx, Weak::default(), sleep_rx, alert_rx).await;
+            handle_conn(stream, tx, Weak::default(), sleep_rx, alert_rx, quick_rx, weather_rx).await;
         });
 
         let mut client = TcpStream::connect(addr).await.unwrap();
@@ -355,9 +452,19 @@ mod tests {
 
         tokio::spawn(async move {
             let (_alert_tx, alert_rx) = watch::channel(None);
+            let (_quick_tx, quick_rx) = watch::channel(QuickHttpState::default());
+            let (_weather_tx, weather_rx) = watch::channel(WeatherHttpState::default());
             loop {
                 let Ok((stream, _)) = listener.accept().await else { break };
-                tokio::spawn(handle_conn(stream, tx.clone(), Weak::default(), sleep_rx.clone(), alert_rx.clone()));
+                tokio::spawn(handle_conn(
+                    stream,
+                    tx.clone(),
+                    Weak::default(),
+                    sleep_rx.clone(),
+                    alert_rx.clone(),
+                    quick_rx.clone(),
+                    weather_rx.clone(),
+                ));
             }
         });
 
@@ -404,10 +511,12 @@ mod tests {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let (_sleep_tx, sleep_rx) = watch::channel(SleepHttpState::off());
         let (_alert_tx, alert_rx) = watch::channel(None);
+        let (_quick_tx, quick_rx) = watch::channel(QuickHttpState::default());
+        let (_weather_tx, weather_rx) = watch::channel(WeatherHttpState::default());
 
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
-            handle_conn(stream, tx, Weak::default(), sleep_rx, alert_rx).await;
+            handle_conn(stream, tx, Weak::default(), sleep_rx, alert_rx, quick_rx, weather_rx).await;
         });
 
         let mut client = TcpStream::connect(addr).await.unwrap();
@@ -422,5 +531,91 @@ mod tests {
         assert!(resp.starts_with("HTTP/1.1 403"), "{resp}");
         assert!(!resp.contains("Access-Control-Allow-Origin"));
         assert!(rx.try_recv().is_err(), "no command sent");
+    }
+
+    #[tokio::test]
+    async fn quick_get_post_and_origin_guard() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let (_sleep_tx, sleep_rx) = watch::channel(SleepHttpState::off());
+        let (_alert_tx, alert_rx) = watch::channel(None);
+        let (_quick_tx, quick_rx) = watch::channel(QuickHttpState {
+            key: "F9".into(),
+            current: Some("youtube-tv".into()),
+            tiles: vec![QuickHttpTile {
+                id: "netflix".into(),
+                name: "Netflix".into(),
+                fill: "#121212".into(),
+                ink: "#E50914".into(),
+                logo_svg: None,
+            }],
+        });
+        let (_weather_tx, weather_rx) = watch::channel(WeatherHttpState::default());
+
+        tokio::spawn(async move {
+            loop {
+                let Ok((stream, _)) = listener.accept().await else { break };
+                tokio::spawn(handle_conn(
+                    stream,
+                    tx.clone(),
+                    Weak::default(),
+                    sleep_rx.clone(),
+                    alert_rx.clone(),
+                    quick_rx.clone(),
+                    weather_rx.clone(),
+                ));
+            }
+        });
+
+        // GET /quick
+        let mut c = TcpStream::connect(addr).await.unwrap();
+        c.write_all(b"GET /quick HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n").await.unwrap();
+        let mut resp = String::new();
+        c.read_to_string(&mut resp).await.unwrap();
+        assert!(resp.starts_with("HTTP/1.1 200 OK"), "{resp}");
+        assert!(resp.contains(r#""key":"F9""#));
+        assert!(resp.contains(r#""current":"youtube-tv""#));
+        assert!(resp.contains(r#""id":"netflix""#));
+
+        // POST /quick valid tile
+        let mut c2 = TcpStream::connect(addr).await.unwrap();
+        let body = br#"{"id":"netflix"}"#;
+        c2.write_all(
+            format!("POST /quick HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: {}\r\n\r\n", body.len()).as_bytes(),
+        )
+        .await
+        .unwrap();
+        c2.write_all(body).await.unwrap();
+        let mut resp2 = String::new();
+        c2.read_to_string(&mut resp2).await.unwrap();
+        assert!(resp2.starts_with("HTTP/1.1 200 OK"), "{resp2}");
+        let cmd = tokio::time::timeout(Duration::from_secs(1), rx.recv()).await.unwrap().unwrap();
+        assert!(matches!(cmd, Command::OpenService(ref id) if id == "netflix"));
+
+        // POST /quick excluded/unknown tile -> 400
+        let mut c3 = TcpStream::connect(addr).await.unwrap();
+        let bad = br#"{"id":"google-meet"}"#;
+        c3.write_all(
+            format!("POST /quick HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: {}\r\n\r\n", bad.len()).as_bytes(),
+        )
+        .await
+        .unwrap();
+        c3.write_all(bad).await.unwrap();
+        let mut resp3 = String::new();
+        c3.read_to_string(&mut resp3).await.unwrap();
+        assert!(resp3.starts_with("HTTP/1.1 400"), "{resp3}");
+        assert!(rx.try_recv().is_err());
+
+        // Web-page Origin -> 403
+        let mut c4 = TcpStream::connect(addr).await.unwrap();
+        c4.write_all(
+            b"POST /quick HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: https://example.com\r\nContent-Length: 16\r\n\r\n{\"id\":\"netflix\"}",
+        )
+        .await
+        .unwrap();
+        let mut resp4 = String::new();
+        c4.read_to_string(&mut resp4).await.unwrap();
+        assert!(resp4.starts_with("HTTP/1.1 403"), "{resp4}");
     }
 }

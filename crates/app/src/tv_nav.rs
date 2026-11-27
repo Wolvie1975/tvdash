@@ -9,8 +9,8 @@ use slint::{ComponentHandle, Model, SharedString, platform::Key};
 use tvdash_core::config::Layout;
 
 use crate::{
-    Accounts, Artwork, CollectionPageState, Dash, Display, LaptopWindow, Library, LibraryLanding, Nav, Scoreboard,
-    Server, ShowPageState, SiteEditor, SleepState, Sports, SportsAlertState, SportsAlertsSettings, TvUi,
+    Accounts, Artwork, CollectionPageState, Dash, Display, LaptopWindow, Library, LibraryLanding, MoviePageState, Nav,
+    Scoreboard, Server, ShowPageState, SiteEditor, SleepState, Sports, SportsAlertState, SportsAlertsSettings, TvUi,
     UiTheme, Watch,
     focus::{self, Dir, Rect},
     shell_tv::{Page, ShellState, Tab},
@@ -28,6 +28,7 @@ struct NavRuntime {
     show_scroll: f32,
     col_scroll: f32,
     last_key: Instant,
+    pending_collection_focus: Option<String>,
 }
 
 thread_local! {
@@ -38,6 +39,7 @@ thread_local! {
         show_scroll: 0.0,
         col_scroll: 0.0,
         last_key: Instant::now(),
+        pending_collection_focus: None,
     });
 }
 
@@ -47,12 +49,14 @@ fn page_name(page: &Page) -> &'static str {
         Page::Apps => "apps",
         Page::Library => "library",
         Page::Show(_) => "show",
+        Page::Movie => "movie",
         Page::Collection(_) => "collection",
         Page::Collections => "collections",
         Page::Sports => "sports",
         Page::Search => "search",
         Page::Settings => "settings",
         Page::DashboardPicker => "dashboard_picker",
+        Page::QuickSwitchPicker => "quick_switch_picker",
     }
 }
 
@@ -61,7 +65,9 @@ fn hint_for(page: &Page) -> &'static str {
         Page::Home => "OK Select · Back Home · F12 Return from service",
         Page::Apps => "OK Launch app · Back Home",
         Page::Collections => "OK Open collection · Back Home",
+        Page::Movie => "OK Play · ↓ Cast & crew · Back",
         Page::DashboardPicker => "OK Switch · ‹ › Pick · Back Cancel",
+        Page::QuickSwitchPicker => "OK Add/remove · Back Done",
         _ => "OK Select · Back Return",
     }
 }
@@ -247,6 +253,293 @@ pub fn push_collection(laptop: &LaptopWindow) {
     sync(laptop);
 }
 
+fn quick_switch_rects(laptop: &LaptopWindow) -> Vec<Rect> {
+    let mut rects = vec![Rect { x: 96.0, y: 254.0, w: 1728.0, h: 96.0 }];
+    let qs = laptop.global::<crate::QuickSwitch>();
+    if !qs.get_automatic() {
+        for i in 0..qs.get_choices().row_count() {
+            let col = (i % 5) as f32;
+            let row = (i / 5) as f32;
+            rects.push(Rect {
+                x: 96.0 + col * 349.0,
+                y: 376.0 + row * 182.0,
+                w: 332.0,
+                h: 166.0,
+            });
+        }
+    }
+    rects
+}
+
+fn blades_movie_rects(laptop: &LaptopWindow) -> Vec<Rect> {
+    let mp = laptop.global::<MoviePageState>();
+    let ox = 228.0;
+    let oy = 24.0;
+    let mut rects = vec![Rect { x: ox + 44.0, y: oy + 318.0, w: 300.0, h: 58.0 }]; // 0: Play
+    let has_col = mp.get_in_collection();
+    // Matches V3Movie.y-shift: 24 px below the spec's y 404 / 504 / 580; 100 up without a card.
+    let y_shift = if has_col { 24.0 } else { -76.0 };
+    // From start / Trailer sit at the right end of the switch row (panel 1464 wide, 44 px
+    // margins: right edge at x 1420). Focus indices stay 1 and 2, right after Play.
+    let switch_y = oy + 504.0 + y_shift;
+    let trailer_w = 150.0;
+    let from_start_w = 140.0;
+    let right = ox + 1420.0;
+    if mp.get_show_from_start() {
+        let trailer_space = if mp.get_has_trailer() { trailer_w + 12.0 } else { 0.0 };
+        rects.push(Rect { x: right - trailer_space - from_start_w, y: switch_y, w: from_start_w, h: 48.0 });
+    }
+    if mp.get_has_trailer() {
+        rects.push(Rect { x: right - trailer_w, y: switch_y, w: trailer_w, h: 48.0 });
+    }
+    if has_col {
+        rects.push(Rect { x: ox + 44.0, y: oy + 428.0, w: 760.0, h: 76.0 });
+    }
+    rects.push(Rect { x: ox + 44.0, y: switch_y, w: 160.0, h: 48.0 }); // Cast & crew
+    let has_extras = mp.get_extras().row_count() > 0;
+    if has_extras {
+        rects.push(Rect { x: ox + 210.0, y: switch_y, w: 120.0, h: 48.0 }); // Extras
+    }
+    let content_y = oy + 580.0 + y_shift;
+    if mp.get_tab() == "extras" && has_extras {
+        for i in 0..mp.get_extras().row_count() {
+            let col = (i % 3) as f32;
+            let row = (i / 3) as f32;
+            rects.push(Rect { x: ox + 334.0 + col * 322.0, y: content_y + row * 246.0, w: 296.0, h: 222.0 });
+        }
+    } else {
+        for i in 0..mp.get_crew().row_count() {
+            rects.push(Rect { x: ox + 44.0, y: content_y + 34.0 + i as f32 * 84.0, w: 260.0, h: 72.0 });
+        }
+        for i in 0..mp.get_cast().row_count() {
+            let col = (i % 6) as f32;
+            let row = (i / 6) as f32;
+            rects.push(Rect {
+                x: ox + 334.0 + col * 160.0,
+                y: content_y + 34.0 + row * 288.0,
+                w: 142.0,
+                h: 264.0,
+            });
+        }
+    }
+    rects
+}
+
+fn classic_movie_rects(laptop: &LaptopWindow) -> Vec<Rect> {
+    let mp = laptop.global::<MoviePageState>();
+    let mut rects = vec![Rect { x: 96.0, y: 452.0, w: 440.0, h: 120.0 }]; // 0: Play
+    let mut bx = 552.0;
+    if mp.get_show_from_start() {
+        rects.push(Rect { x: bx, y: 452.0, w: 260.0, h: 120.0 });
+        bx += 276.0;
+    }
+    if mp.get_has_trailer() {
+        rects.push(Rect { x: bx, y: 452.0, w: 220.0, h: 120.0 });
+        bx += 236.0;
+    }
+    if mp.get_in_collection() {
+        rects.push(Rect { x: bx, y: 452.0, w: (1824.0 - bx).max(260.0), h: 120.0 });
+    }
+    rects.push(Rect { x: 96.0, y: 612.0, w: 168.0, h: 52.0 }); // Cast & crew tab
+    let has_extras = mp.get_extras().row_count() > 0;
+    if has_extras {
+        rects.push(Rect { x: 300.0, y: 612.0, w: 110.0, h: 52.0 }); // Extras tab
+    }
+    if mp.get_tab() == "extras" && has_extras {
+        for i in 0..mp.get_extras().row_count() {
+            let col = (i % 3) as f32;
+            let row = (i / 3) as f32;
+            rects.push(Rect { x: 388.0 + col * 484.0, y: 700.0 + row * 356.0, w: 468.0, h: 316.0 });
+        }
+    } else {
+        for i in 0..mp.get_crew().row_count() {
+            rects.push(Rect { x: 96.0, y: 740.0 + i as f32 * 96.0, w: 260.0, h: 84.0 });
+        }
+        for i in 0..mp.get_cast().row_count() {
+            let col = (i % 6) as f32;
+            let row = (i / 6) as f32;
+            rects.push(Rect { x: 388.0 + col * 242.0, y: 700.0 + row * 388.0, w: 226.0, h: 356.0 });
+        }
+    }
+    rects
+}
+
+fn orbit_movie_rects(laptop: &LaptopWindow) -> Vec<Rect> {
+    let mp = laptop.global::<MoviePageState>();
+    let mut rects = vec![Rect { x: 110.0, y: 500.0, w: 104.0, h: 104.0 }]; // 0: Play
+    let mut bx = 430.0;
+    if mp.get_show_from_start() {
+        rects.push(Rect { x: bx, y: 530.0, w: 150.0, h: 44.0 });
+        bx += 168.0;
+    }
+    if mp.get_has_trailer() {
+        rects.push(Rect { x: bx, y: 530.0, w: 140.0, h: 44.0 });
+        bx += 158.0;
+    }
+    rects.push(Rect { x: bx, y: 530.0, w: 56.0, h: 44.0 }); // ···
+    if mp.get_in_collection() {
+        rects.push(Rect { x: 110.0, y: 638.0, w: 600.0, h: 96.0 });
+    }
+    rects.push(Rect { x: 1000.0, y: 220.0, w: 220.0, h: 48.0 }); // Cast & crew tab
+    let has_extras = mp.get_extras().row_count() > 0;
+    if has_extras {
+        rects.push(Rect { x: 1232.0, y: 220.0, w: 180.0, h: 48.0 }); // Extras tab
+    }
+    if mp.get_tab() == "extras" && has_extras {
+        for i in 0..mp.get_extras().row_count() {
+            rects.push(Rect { x: 1000.0, y: 320.0 + i as f32 * 96.0, w: 810.0, h: 88.0 });
+        }
+    } else {
+        let crew_n = mp.get_crew().row_count();
+        for i in 0..crew_n {
+            rects.push(Rect { x: 1000.0 + i as f32 * 274.0, y: 320.0, w: 258.0, h: 72.0 });
+        }
+        let cast_y = if crew_n > 0 { 448.0 } else { 320.0 };
+        for i in 0..mp.get_cast().row_count() {
+            let col = (i % 4) as f32;
+            let row = (i / 4) as f32;
+            rects.push(Rect { x: 1000.0 + col * 207.0, y: cast_y + row * 238.0, w: 187.0, h: 210.0 });
+        }
+    }
+    rects
+}
+
+fn movie_activate_tile(laptop: &LaptopWindow, idx: usize) {
+    let mp = laptop.global::<MoviePageState>();
+    let is_orbit = laptop.global::<Display>().get_dashboard_ui() == "orbit";
+    let mut cur = 0usize;
+    if idx == cur {
+        mp.invoke_play();
+        return;
+    }
+    cur += 1;
+    if mp.get_show_from_start() {
+        if idx == cur {
+            mp.invoke_play_from_start();
+            return;
+        }
+        cur += 1;
+    }
+    if mp.get_has_trailer() {
+        if idx == cur {
+            mp.invoke_play_trailer();
+            return;
+        }
+        cur += 1;
+    }
+    if is_orbit {
+        if idx == cur {
+            mp.invoke_toggle_watched();
+            return;
+        }
+        cur += 1;
+    }
+    if mp.get_in_collection() {
+        if idx == cur {
+            mp.invoke_open_collection();
+            return;
+        }
+        cur += 1;
+    }
+    if idx == cur {
+        mp.invoke_set_tab("cast".into());
+        return;
+    }
+    cur += 1;
+    let has_extras = mp.get_extras().row_count() > 0;
+    if has_extras {
+        if idx == cur {
+            mp.invoke_set_tab("extras".into());
+            return;
+        }
+        cur += 1;
+    }
+    let rel = idx.saturating_sub(cur);
+    if mp.get_tab() == "extras" && has_extras {
+        if let Some(ex) = mp.get_extras().row_data(rel) {
+            mp.invoke_play_extra(ex.key);
+        }
+    } else {
+        let crew_n = mp.get_crew().row_count();
+        if rel < crew_n {
+            if let Some(p) = mp.get_crew().row_data(rel) {
+                mp.invoke_search_person(p.name);
+            }
+        } else if let Some(p) = mp.get_cast().row_data(rel - crew_n) {
+            mp.invoke_search_person(p.name);
+        }
+    }
+}
+
+pub fn push_movie(laptop: &LaptopWindow) {
+    STATE.with_borrow_mut(|s| {
+        s.show_scroll = 0.0;
+        if !matches!(s.shell.current(), Page::Movie) {
+            s.shell.push(Page::Movie);
+        }
+        s.shell.focused_tile = 0;
+    });
+    laptop.global::<TvUi>().set_show_scroll(0.0);
+    sync(laptop);
+}
+
+pub fn push_search_results(laptop: &LaptopWindow) {
+    STATE.with_borrow_mut(|s| {
+        if !matches!(s.shell.current(), Page::Search) {
+            s.shell.push(Page::Search);
+        }
+        s.shell.focused_tile = 39;
+    });
+    sync(laptop);
+}
+
+pub fn open_collection_from_movie(laptop: &LaptopWindow, movie_key: String) {
+    STATE.with_borrow_mut(|s| {
+        s.pending_collection_focus = Some(movie_key);
+        if !matches!(s.shell.current(), Page::Collection(_)) {
+            s.shell.push(Page::Collection(String::new()));
+        }
+    });
+    sync(laptop);
+}
+
+pub fn on_collection_loaded(laptop: &LaptopWindow) {
+    let target = STATE.with_borrow_mut(|s| s.pending_collection_focus.take());
+    let Some(movie_key) = target else { return };
+    let col = laptop.global::<CollectionPageState>();
+    let items = col.get_items();
+    for i in 0..items.row_count() {
+        if let Some(row) = items.row_data(i)
+            && row.rating_key.as_str() == movie_key
+        {
+            STATE.with_borrow_mut(|s| {
+                if matches!(s.shell.current(), Page::Collection(_)) {
+                    s.shell.focused_tile = 1 + i;
+                }
+            });
+            sync(laptop);
+            break;
+        }
+    }
+}
+
+pub fn focus_movie_tab(laptop: &LaptopWindow, _tab: &str) {
+    let mp = laptop.global::<MoviePageState>();
+    let is_orbit = laptop.global::<Display>().get_dashboard_ui() == "orbit";
+    let first = 2
+        + usize::from(mp.get_show_from_start())
+        + usize::from(mp.get_has_trailer())
+        + usize::from(is_orbit)
+        + usize::from(mp.get_in_collection())
+        + usize::from(mp.get_extras().row_count() > 0);
+    STATE.with_borrow_mut(|s| {
+        if matches!(s.shell.current(), Page::Movie) {
+            s.shell.focused_tile = first;
+        }
+    });
+    sync(laptop);
+}
+
 pub fn open_dashboard_picker(laptop: &LaptopWindow) {
     let cur = tvdash_core::config::DashboardUi::parse(&laptop.global::<Display>().get_dashboard_ui());
     let cur_idx = crate::bridge::display::enabled_uis()
@@ -267,6 +560,16 @@ pub fn pop_picker(laptop: &LaptopWindow) {
         if matches!(s.shell.current(), Page::DashboardPicker) {
             s.shell.back();
         }
+    });
+    sync(laptop);
+}
+
+pub fn open_quick_switch_picker(laptop: &LaptopWindow) {
+    STATE.with_borrow_mut(|s| {
+        if !matches!(s.shell.current(), Page::QuickSwitchPicker) {
+            s.shell.push(Page::QuickSwitchPicker);
+        }
+        s.shell.focused_tile = 0;
     });
     sync(laptop);
 }
@@ -313,6 +616,29 @@ pub fn sync(laptop: &LaptopWindow) {
                 Page::Collections => {
                     let vert = Rect { x: r.y - 180.0, y: 0.0, w: r.h, h: r.w };
                     s.lib_scroll = focus::panorama_scroll(vert, s.lib_scroll, 824.0, 16.0);
+                }
+                Page::Movie => {
+                    let rects = tile_rects(laptop, &Page::Movie);
+                    let mp = laptop.global::<MoviePageState>();
+                    let content_base = 2
+                        + usize::from(mp.get_show_from_start())
+                        + usize::from(mp.get_has_trailer())
+                        + usize::from(mp.get_in_collection())
+                        + usize::from(mp.get_extras().row_count() > 0);
+                    let crew_n = if mp.get_tab() == "cast" { mp.get_crew().row_count() } else { 0 };
+                    let grid_base = content_base + crew_n;
+                    if s.shell.focused_tile < grid_base {
+                        s.show_scroll = 0.0;
+                    } else if let Some(r) = rects.get(s.shell.focused_tile) {
+                        let rel_y = r.y - 700.0;
+                        let max_scroll = (rects.last().map(|l| l.y + l.h - 1020.0).unwrap_or(0.0)).max(0.0);
+                        if rel_y < s.show_scroll {
+                            s.show_scroll = rel_y.max(0.0);
+                        } else if rel_y + r.h > s.show_scroll + 820.0 {
+                            s.show_scroll = (rel_y + r.h - 820.0).clamp(0.0, max_scroll);
+                        }
+                    }
+                    laptop.global::<TvUi>().set_show_scroll(s.show_scroll);
                 }
                 Page::Show(_) => {
                     let show = laptop.global::<ShowPageState>();
@@ -457,6 +783,7 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
+        Page::Movie => Vec::new(),
         Page::Show(_) => {
             let sp = laptop.global::<crate::ShowPageState>();
             let n = sp.get_episodes().row_count().min(24).max(1);
@@ -498,6 +825,7 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
+        Page::QuickSwitchPicker => quick_switch_rects(laptop),
         Page::Settings => (0..7)
             .map(|i| Rect { x: 110.0, y: 196.0 + i as f32 * 88.0, w: 380.0, h: 80.0 })
             .collect(),
@@ -604,6 +932,7 @@ fn ps5_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
+        Page::QuickSwitchPicker => quick_switch_rects(laptop),
         Page::Settings => (0..6)
             .map(|i| Rect {
                 x: 540.0,
@@ -612,6 +941,7 @@ fn ps5_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 h: 76.0,
             })
             .collect(),
+        Page::Movie => orbit_movie_rects(laptop),
         Page::Search => (0..36)
             .map(|i| {
                 let col = (i % 6) as f32;
@@ -785,6 +1115,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
+        Page::Movie => blades_movie_rects(laptop),
         Page::Show(_) => {
             let ox = 228.0;
             let oy = 24.0;
@@ -817,6 +1148,14 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                     y: oy + 446.0 + (ep_n / 3) as f32 * 280.0,
                     w: 366.0,
                     h: 204.0,
+                });
+            }
+            if show.get_has_trailer() {
+                rects.push(Rect {
+                    x: ox + 530.0,
+                    y: oy + 304.0,
+                    w: 180.0,
+                    h: 52.0,
                 });
             }
             rects
@@ -924,6 +1263,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
+        Page::QuickSwitchPicker => quick_switch_rects(laptop),
         Page::Settings => {
             let ox = 364.0;
             let oy = 24.0;
@@ -1005,6 +1345,7 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                     }
                     rects.push(Rect { x: ox + 1168.0, y: oy + 622.0, w: 392.0, h: 56.0 }); // 19: Startup animation
                     rects.push(Rect { x: ox + 1168.0, y: oy + 690.0, w: 392.0, h: 56.0 }); // 20: Preview startup animation
+                    rects.push(Rect { x: ox + 1168.0, y: oy + 418.0, w: 392.0, h: 152.0 }); // 21: Quick switch
                 }
             }
             rects
@@ -1013,6 +1354,15 @@ fn blades_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
 }
 
 fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
+    if laptop.global::<crate::WeatherCardState>().get_visible() {
+        let bottom = if laptop.global::<TvUi>().get_hud_open() { 250.0 } else { 120.0 };
+        let card_x = 1920.0 - 96.0 - 560.0;
+        let btn_y = 1080.0 - bottom - 22.0 - 54.0;
+        return vec![
+            Rect { x: card_x + 24.0, y: btn_y, w: 140.0, h: 54.0 },
+            Rect { x: card_x + 176.0, y: btn_y, w: 140.0, h: 54.0 },
+        ];
+    }
     let al = laptop.global::<SportsAlertState>();
     if al.get_visible() {
         let bottom = if laptop.global::<TvUi>().get_hud_open() { 250.0 } else { 120.0 };
@@ -1026,6 +1376,22 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 Rect { x: card_x + 256.0, y: btn_y, w: 140.0, h: 56.0 },
             ]
         };
+    }
+    if matches!(page, Page::QuickSwitchPicker) {
+        let n = laptop.global::<crate::QuickSwitch>().get_choices().row_count();
+        let mut rects = Vec::with_capacity(1 + n);
+        rects.push(Rect { x: 96.0, y: 316.0, w: 1728.0, h: 92.0 });
+        for i in 0..n {
+            let col = (i % 5) as f32;
+            let row = (i / 5) as f32;
+            rects.push(Rect {
+                x: 96.0 + col * 349.0,
+                y: 440.0 + row * 204.0,
+                w: 332.0,
+                h: 186.0,
+            });
+        }
+        return rects;
     }
     let ui = laptop.global::<Display>().get_dashboard_ui();
     if ui == "blades" {
@@ -1234,6 +1600,7 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
             }
             rects
         }
+        Page::Movie => classic_movie_rects(laptop),
         Page::Show(_) => {
             let show = laptop.global::<ShowPageState>();
             let mut rects = vec![
@@ -1272,6 +1639,14 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                     y: 700.0 + (ep_n / 3) as f32 * 380.0,
                     w: 468.0,
                     h: 263.0,
+                });
+            }
+            if show.get_has_trailer() {
+                rects.push(Rect {
+                    x: 828.0,
+                    y: 452.0,
+                    w: 240.0,
+                    h: 120.0,
                 });
             }
             rects
@@ -1335,6 +1710,7 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                 })
                 .collect()
         }
+        Page::QuickSwitchPicker => quick_switch_rects(laptop),
         Page::Settings => {
             // 0..=6: SubTabs (Display, Accounts, Sites, Sports, Server, Diagnostics, What's new)
             let mut rects = vec![
@@ -1400,6 +1776,7 @@ fn tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
                     }
                     rects.push(Rect { x: 960.0, y: 656.0, w: 416.0, h: 220.0 }); // 19: Startup animation
                     rects.push(Rect { x: 1392.0, y: 656.0, w: 416.0, h: 220.0 }); // 20: Preview startup animation
+                    rects.push(Rect { x: 96.0, y: 892.0, w: 416.0, h: 112.0 }); // 21: Quick switch
                 }
             }
             rects
@@ -1494,6 +1871,12 @@ fn scroll_panorama(laptop: &LaptopWindow, delta: f32) {
                 s.lib_scroll = (s.lib_scroll + step).clamp(0.0, 4000.0);
                 tv.set_lib_scroll(s.lib_scroll);
             }
+            Page::Movie => {
+                let rects = tile_rects(laptop, &Page::Movie);
+                let max_scroll = rects.last().map(|l| (l.y + l.h - 1020.0).max(0.0)).unwrap_or(0.0);
+                s.show_scroll = (s.show_scroll + step).clamp(0.0, max_scroll);
+                tv.set_show_scroll(s.show_scroll);
+            }
             Page::Show(_) => {
                 let show = laptop.global::<ShowPageState>();
                 let ep_n = show.get_episodes().row_count() + usize::from(!show.get_next_season_label().is_empty());
@@ -1584,6 +1967,13 @@ fn activate_library_selection(laptop: &LaptopWindow, lib: &Library, section: &st
         lib.invoke_open_show(show_key);
         STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
         sync(laptop);
+    } else if let Some(item) = crate::bridge::selected()
+        && item.kind == tvdash_core::models::MediaKind::Movie
+        && item.source == tvdash_core::models::SourceKind::Plex
+        && laptop.global::<Display>().get_dashboard_ui() != "ps5"
+    {
+        lib.invoke_close_detail();
+        lib.invoke_open_movie(item.id.into());
     } else {
         lib.invoke_play_detail(false);
     }
@@ -1716,7 +2106,11 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             let s2_n = ll.get_shelf2().row_count().min(6);
             if item_idx < s1_n {
                 if let Some(row) = ll.get_shelf1().row_data(item_idx) {
-                    lib.invoke_play_key(row.rating_key, true);
+                    if is_tv {
+                        lib.invoke_play_key(row.rating_key, true);
+                    } else {
+                        lib.invoke_open_movie(row.rating_key);
+                    }
                 }
             } else if item_idx < s1_n + s2_n {
                 let s2_idx = item_idx - s1_n;
@@ -1726,7 +2120,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                         STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
                         sync(laptop);
                     } else {
-                        lib.invoke_play_key(row.rating_key, true);
+                        lib.invoke_open_movie(row.rating_key);
                     }
                 }
             } else {
@@ -1737,11 +2131,12 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                         STATE.with_borrow_mut(|s| s.shell.push(Page::Show(String::new())));
                         sync(laptop);
                     } else {
-                        lib.invoke_play_key(row.rating_key, true);
+                        lib.invoke_open_movie(row.rating_key);
                     }
                 }
             }
         }
+        Page::Movie => movie_activate_tile(laptop, idx),
         Page::Show(_) => {
             let show = laptop.global::<ShowPageState>();
             let season_n = show.get_seasons().row_count();
@@ -1770,6 +2165,11 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                     show.invoke_select_season(next_key);
                     STATE.with_borrow_mut(|s| s.shell.focused_tile = grid_base);
                     sync(laptop);
+                }
+                i if show.get_has_trailer()
+                    && i == grid_base + ep_n + usize::from(!show.get_next_season_label().is_empty()) =>
+                {
+                    show.invoke_play_trailer();
                 }
                 _ => {}
             }
@@ -1830,6 +2230,16 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
             let disp = laptop.global::<Display>();
             if let Some(ch) = disp.get_dashboard_choices().row_data(idx) {
                 disp.invoke_choose_dashboard(ch.id);
+            }
+        }
+        Page::QuickSwitchPicker => {
+            let qs = laptop.global::<crate::QuickSwitch>();
+            if idx == 0 {
+                qs.invoke_set_automatic(!qs.get_automatic());
+            } else if !qs.get_automatic() {
+                if let Some(ch) = qs.get_choices().row_data(idx - 1) {
+                    qs.invoke_toggle(ch.id);
+                }
             }
         }
         Page::Settings => {
@@ -1972,6 +2382,7 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                             intro.invoke_set_enabled(!intro.get_enabled());
                         }
                         13 => laptop.global::<crate::Intro>().invoke_preview(),
+                        14 => laptop.global::<crate::QuickSwitch>().invoke_open_picker(),
                         _ => {}
                     }
                 }
@@ -2086,6 +2497,62 @@ pub fn key(laptop: &LaptopWindow, text: &str) -> bool {
     }
     let tv = laptop.global::<TvUi>();
     STATE.with_borrow_mut(|s| s.last_key = Instant::now());
+
+    let wa = laptop.global::<crate::WeatherAlertState>();
+    if wa.get_visible() {
+        if is_back(text) {
+            wa.invoke_got_it();
+            return true;
+        }
+        match decode_dir(text) {
+            Some(Dir::Left) => {
+                wa.set_focus(0);
+                return true;
+            }
+            Some(Dir::Right) if wa.get_can_resume() => {
+                wa.set_focus(1);
+                return true;
+            }
+            _ => {}
+        }
+        if is_ok(text) {
+            if wa.get_focus() == 1 && wa.get_can_resume() {
+                wa.invoke_resume();
+            } else {
+                wa.invoke_got_it();
+            }
+            return true;
+        }
+        return true;
+    }
+
+    let wc = laptop.global::<crate::WeatherCardState>();
+    if wc.get_visible() {
+        if is_back(text) {
+            wc.invoke_dismiss();
+            return true;
+        }
+        match decode_dir(text) {
+            Some(Dir::Left) => {
+                wc.set_focus(0);
+                return true;
+            }
+            Some(Dir::Right) => {
+                wc.set_focus(1);
+                return true;
+            }
+            _ => {}
+        }
+        if is_ok(text) {
+            if wc.get_focus() == 1 {
+                wc.invoke_details();
+            } else {
+                wc.invoke_dismiss();
+            }
+            return true;
+        }
+        return true;
+    }
 
     let alert_open = laptop.global::<SportsAlertState>().get_visible();
     if tv.get_ambient() && !alert_open {

@@ -10,12 +10,14 @@ import { V3Apps } from "apps.slint";
 import { V3Library } from "library.slint";
 import { V3Collections } from "collections.slint";
 import { V3Show } from "show.slint";
+import { V3Movie } from "movie.slint";
 import { V3Collection } from "collection.slint";
 import { V3Search } from "search.slint";
 import { V3Sports } from "events.slint";
 import { V3Settings } from "settings.slint";
 import { V3PlayerHud } from "player_hud.slint";
 import { TvDashboardPicker } from "../tv/dashboard_picker.slint";
+import { QuickSwitchPicker } from "../shared/quick_switch_picker.slint";
 import { Theme } from "../theme.slint";
 import { V3Ambient } from "ambient.slint";
 import { Intro, IntroStage } from "../shared/intro.slint";
@@ -33,8 +35,8 @@ export component V3Shell inherits Rectangle {
     property <int> focus-ticket: TvUi.focus-ticket;
     changed focus-ticket => { keys.focus(); }
 
-    property <bool> is-subpage: TvUi.screen == "show" || TvUi.screen == "collection" || TvUi.screen == "search";
-    property <int> parent-tab: TvUi.screen == "show" ? 2 : TvUi.screen == "collection" ? 3 : 0;
+    property <bool> is-subpage: TvUi.screen == "show" || TvUi.screen == "movie" || TvUi.screen == "collection" || TvUi.screen == "search";
+    property <int> parent-tab: (TvUi.screen == "show" || TvUi.screen == "movie") ? TvUi.active-tab : TvUi.screen == "collection" ? 3 : 0;
     property <int> eff-active: root.is-subpage ? root.parent-tab : TvUi.active-tab;
     property <int> left-count: root.is-subpage ? (root.eff-active + 1) : root.eff-active;
     property <length> panel-x: (24px + root.left-count * 68px) * TvUi.u;
@@ -100,14 +102,15 @@ export component V3Shell inherits Rectangle {
     }
 
     // ── Blades Shell (hidden while full-screen video is active) ──────────────
-    if !(TvUi.video-on && TvUi.video-full) && TvUi.screen == "dashboard_picker": Rectangle {
+    if !(TvUi.video-on && TvUi.video-full) && (TvUi.screen == "dashboard_picker" || TvUi.screen == "quick_switch_picker"): Rectangle {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         width: 1920px * TvUi.u;
         height: 1080px * TvUi.u;
         background: Theme.bg;
 
-        TvDashboardPicker { width: 100%; height: 100%; }
+        if TvUi.screen == "dashboard_picker": TvDashboardPicker { width: 100%; height: 100%; }
+        if TvUi.screen == "quick_switch_picker": QuickSwitchPicker { width: parent.width; height: parent.height; }
 
         Rectangle {
             x: 96px * TvUi.u;
@@ -132,7 +135,7 @@ export component V3Shell inherits Rectangle {
         }
     }
 
-    if !(TvUi.video-on && TvUi.video-full) && TvUi.screen != "dashboard_picker": Rectangle {
+    if !(TvUi.video-on && TvUi.video-full) && TvUi.screen != "dashboard_picker" && TvUi.screen != "quick_switch_picker": Rectangle {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         width: 1920px * TvUi.u;
@@ -177,6 +180,7 @@ export component V3Shell inherits Rectangle {
             if TvUi.screen == "collections": V3Collections { }
             if TvUi.screen == "library": V3Library { }
             if TvUi.screen == "show": V3Show { }
+            if TvUi.screen == "movie": V3Movie { }
             if TvUi.screen == "collection": V3Collection { }
             if TvUi.screen == "search": V3Search { }
             if TvUi.screen == "sports": V3Sports { }
@@ -219,7 +223,9 @@ export component V3Shell inherits Rectangle {
                 Text {
                     x: 156px * TvUi.u;
                     y: 34px * TvUi.u;
-                    text: TvUi.screen == "show"
+                    text: TvUi.screen == "movie"
+                        ? "Library › Movies"
+                        : TvUi.screen == "show"
                         ? ("Library › " + (Library.media-tab == "movies" ? "Movies" : "TV Series"))
                         : TvUi.screen == "collection"
                             ? "Collections"
@@ -278,136 +284,6 @@ export component V3Shell inherits Rectangle {
             focused: TvUi.bar-focused && TvUi.active-tab == i;
             intro-delay: 300ms + (i - 1) * 90ms;
             clicked => { TvUi.tab-clicked(i); }
-        }
-    }
-
-    // Up Next prompt after an episode finishes
-    if Dash.next-ep-open: Rectangle {
-        width: 100%;
-        height: 100%;
-        background: #000000B0;
-
-        TouchArea {
-            clicked => { Dash.dismiss-next-ep(); }
-        }
-
-        Rectangle {
-            x: (parent.width - self.width) / 2;
-            y: (parent.height - self.height) / 2;
-            width: 780px * TvUi.u;
-            height: 360px * TvUi.u;
-            border-radius: 20px * TvUi.u;
-            background: V3Theme.surface;
-            border-width: 1px;
-            border-color: V3Theme.border;
-            drop-shadow-blur: 48px;
-            drop-shadow-offset-y: 16px;
-            drop-shadow-color: #000000B0;
-
-            TouchArea { }
-
-            VerticalLayout {
-                padding: 28px * TvUi.u;
-                spacing: 20px * TvUi.u;
-
-                Text {
-                    text: "UP NEXT";
-                    font-family: V3Theme.font;
-                    font-size: 16px * TvUi.u;
-                    font-weight: 700;
-                    letter-spacing: 1.2px;
-                    color: V3Theme.accent;
-                }
-
-                HorizontalLayout {
-                    spacing: 22px * TvUi.u;
-                    vertical-stretch: 1;
-
-                    if Dash.next-ep-has-poster: Rectangle {
-                        width: 128px * TvUi.u;
-                        height: 180px * TvUi.u;
-                        border-radius: 10px * TvUi.u;
-                        clip: true;
-
-                        Image {
-                            width: parent.width;
-                            height: parent.height;
-                            source: Dash.next-ep-poster;
-                            image-fit: cover;
-                        }
-                    }
-
-                    VerticalLayout {
-                        alignment: center;
-                        spacing: 8px * TvUi.u;
-                        horizontal-stretch: 1;
-
-                        Text {
-                            text: Dash.next-ep-title;
-                            font-family: V3Theme.font;
-                            font-size: 28px * TvUi.u;
-                            font-weight: 700;
-                            color: V3Theme.text-primary;
-                            wrap: word-wrap;
-                        }
-
-                        if Dash.next-ep-subtitle != "": Text {
-                            text: Dash.next-ep-subtitle;
-                            font-family: V3Theme.font;
-                            font-size: 20px * TvUi.u;
-                            color: V3Theme.text-secondary;
-                            wrap: word-wrap;
-                        }
-                    }
-                }
-
-                HorizontalLayout {
-                    spacing: 16px * TvUi.u;
-                    alignment: end;
-
-                    Rectangle {
-                        width: 150px * TvUi.u;
-                        height: 52px * TvUi.u;
-                        border-radius: 12px * TvUi.u;
-                        background: dis-ta.has-hover ? V3Theme.surface-raised : transparent;
-                        border-width: 1px;
-                        border-color: V3Theme.border;
-                        Text {
-                            text: "Dismiss";
-                            font-family: V3Theme.font;
-                            font-size: 18px * TvUi.u;
-                            font-weight: 600;
-                            color: V3Theme.text-secondary;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                        dis-ta := TouchArea {
-                            mouse-cursor: pointer;
-                            clicked => { Dash.dismiss-next-ep(); }
-                        }
-                    }
-
-                    Rectangle {
-                        width: 210px * TvUi.u;
-                        height: 52px * TvUi.u;
-                        border-radius: 12px * TvUi.u;
-                        background: V3Theme.accent;
-                        Text {
-                            text: "Play next episode";
-                            font-family: V3Theme.font;
-                            font-size: 18px * TvUi.u;
-                            font-weight: 700;
-                            color: V3Theme.on-accent;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                        TouchArea {
-                            mouse-cursor: pointer;
-                            clicked => { Dash.play-next-ep(); }
-                        }
-                    }
-                }
-            }
         }
     }
 

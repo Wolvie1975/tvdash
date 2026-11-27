@@ -80,7 +80,8 @@ pub struct BrowserOptions {
 }
 
 fn back_pill_extension_dir() -> Option<PathBuf> {
-    for candidate in ["/usr/share/tvdash/back-pill", "extras/back-pill"] {
+    // Prefer the workspace copy when running from a checkout, even if an older RPM is installed.
+    for candidate in ["extras/back-pill", "/usr/share/tvdash/back-pill"] {
         let dir = Path::new(candidate);
         if dir.join("manifest.json").is_file() {
             return std::fs::canonicalize(dir).ok().or_else(|| Some(dir.to_path_buf()));
