@@ -1,4 +1,4 @@
-import { AppsPage, HomeState, TvUi } from "../state.slint";
+import { AppsPage, HomeState, QuickSwitch, TvUi } from "../state.slint";
 import { OrbitTheme } from "theme.slint";
 import { OrbitPill } from "controls.slint";
 
@@ -50,6 +50,105 @@ export component OrbitApps inherits Rectangle {
             font-size: 18px * TvUi.u;
             color: OrbitTheme.sub;
             wrap: word-wrap;
+        }
+    }
+
+    // Left-hand Quick Switch summary + Settings link
+    VerticalLayout {
+        x: 110px * TvUi.u;
+        y: 410px * TvUi.u;
+        width: 340px * TvUi.u;
+        alignment: start;
+        spacing: 12px * TvUi.u;
+
+        HorizontalLayout {
+            spacing: 10px * TvUi.u;
+            alignment: start;
+            Text {
+                text: "QUICK SWITCH";
+                font-family: OrbitTheme.font;
+                font-size: 14px * TvUi.u;
+                font-weight: 700;
+                letter-spacing: 2px * TvUi.u;
+                color: OrbitTheme.muted;
+                vertical-alignment: center;
+            }
+            Text {
+                text: QuickSwitch.automatic ? "Automatic" : "Custom";
+                font-family: OrbitTheme.font;
+                font-size: 14px * TvUi.u;
+                font-weight: 600;
+                color: OrbitTheme.accent;
+                vertical-alignment: center;
+            }
+        }
+
+        VerticalLayout {
+            spacing: 8px * TvUi.u;
+            for choice in QuickSwitch.choices: Rectangle {
+                visible: choice.slot > 0;
+                height: choice.slot > 0 ? 48px * TvUi.u : 0px;
+                border-radius: 24px * TvUi.u;
+                background: OrbitTheme.row;
+
+                if choice.slot > 0: HorizontalLayout {
+                    padding-left: 10px * TvUi.u;
+                    padding-right: 16px * TvUi.u;
+                    spacing: 12px * TvUi.u;
+                    alignment: start;
+
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 28px * TvUi.u;
+                            height: 28px * TvUi.u;
+                            border-radius: 14px * TvUi.u;
+                            background: #F5A524;
+                            Text {
+                                text: choice.slot;
+                                font-family: OrbitTheme.font;
+                                font-size: 15px * TvUi.u;
+                                font-weight: 800;
+                                color: #1A1200;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    if choice.brand.has-logo: VerticalLayout {
+                        alignment: center;
+                        Image {
+                            source: choice.brand.logo;
+                            width: 36px * TvUi.u;
+                            height: 24px * TvUi.u;
+                            image-fit: contain;
+                        }
+                    }
+
+                    Text {
+                        text: choice.name;
+                        font-family: OrbitTheme.font;
+                        font-size: 17px * TvUi.u;
+                        font-weight: 600;
+                        color: OrbitTheme.text;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            padding-top: 6px * TvUi.u;
+            alignment: start;
+            OrbitPill {
+                label: "Adjust in Settings ›";
+                pill-height: 44px * TvUi.u;
+                focused: !TvUi.bar-focused && TvUi.focused-tile == AppsPage.apps.length;
+                activated => { QuickSwitch.open-picker(); }
+                hovered => { TvUi.focused-tile = AppsPage.apps.length; }
+            }
         }
     }
 

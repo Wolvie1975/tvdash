@@ -724,14 +724,16 @@ fn orbit_tile_rects(laptop: &LaptopWindow, page: &Page) -> Vec<Rect> {
         }
         Page::Apps => {
             let n = laptop.global::<crate::AppsPage>().get_apps().row_count().max(1);
-            (0..n)
+            let mut rects: Vec<Rect> = (0..n)
                 .map(|i| {
                     let ang = (i as f32 * 360.0 / n as f32 - 90.0).to_radians();
                     let cx = 960.0 + 380.0 * ang.cos();
                     let cy = 590.0 + 380.0 * ang.sin();
                     Rect { x: cx - 62.0, y: cy - 62.0, w: 124.0, h: 124.0 }
                 })
-                .collect()
+                .collect();
+            rects.push(Rect { x: 110.0, y: 690.0, w: 260.0, h: 46.0 }); // Adjust in Settings ›
+            rects
         }
         Page::Library => {
             let lib = laptop.global::<Library>();
@@ -2037,7 +2039,9 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
         }
         Page::Apps => {
             let apps = laptop.global::<crate::AppsPage>().get_apps();
-            if let Some(app) = apps.row_data(idx) {
+            if idx == apps.row_count() && laptop.global::<Display>().get_dashboard_ui() == "orbit" {
+                laptop.global::<crate::QuickSwitch>().invoke_open_picker();
+            } else if let Some(app) = apps.row_data(idx) {
                 laptop.global::<crate::HomeState>().invoke_launch_app(app.id);
             }
         }
