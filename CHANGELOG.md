@@ -1,5 +1,12 @@
 # tvdash Changelog
 
+## v1.1.0 — 2026-11-27
+- **2-screen (`dual`) mode (`main.rs`, `displays.rs`, `tv_nav.rs`, `ui/tv/settings.slint`, `ui/v3/settings.slint`, `ui/orbit/settings.slint`):**
+  - Re-enabled `Automatic`, `Dual screen`, and `TV only` layout switching at startup, on display hotplug, and in Settings › Display across **Classic**, **Blades**, and **Orbit**.
+  - In `dual` mode, the active dashboard UI runs on the laptop display while `TvWindow` (and streaming sites) play on the 2nd display.
+- **Shared floating player dock (`ui/shared/dual_player_bar.slint`, `ui/laptop.slint`, `ui/tv/shell.slint`):**
+  - Added a centered floating player control bar across **Classic**, **Blades**, **Orbit**, and **PS5** when playing in `dual` mode (or minimized video), with a scrubbable progress bar, `-10s`, `Play/Pause`, `+30s`, `Stop`, `Sub`, `Audio`, `Sleep`, `Next`, and `Restart`.
+
 ## v1.0.2 — 2026-11-27
 - **Orbit Library landing: Shelf rail (`ui/orbit/library.slint`, `ui/orbit/controls.slint`, `orbit/library_rail.rs`, `bridge/library.rs`, `tv_nav.rs`):**
   - Replaced the hero/curve/dial Library landing in Orbit with the 3-column **Shelf rail → 3 × 2 poster grid → Detail card** layout (Concept 2C).

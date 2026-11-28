@@ -173,7 +173,7 @@ export component TvSettings inherits Rectangle {
             base-height: 66px * TvUi.u;
             fill: Theme.surface;
             label: "Display layout";
-            value: "TV only";
+            value: Display.layout-setting == "dual" ? "Dual screen" : Display.layout-setting == "tv" ? "TV only" : "Automatic";
             focused: !TvUi.bar-focused && TvUi.focused-tile == 7;
             activated => { TvUi.tile-activated(7); }
             hovered => { TvUi.tile-hovered(7); }

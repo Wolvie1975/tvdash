@@ -225,7 +225,7 @@ fn recheck_displays(laptop: &LaptopWindow, force_eval: bool) {
             );
             let _ = s.events.send(AppEvent::TvConnected(decision.tv_connected));
 
-            let target = s.cli_override.unwrap_or(Layout::Tv);
+            let target = s.cli_override.unwrap_or(decision.layout);
             let current = crate::tv_nav::current(&laptop);
             if target == current {
                 s.defer_started = None;

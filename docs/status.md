@@ -1,11 +1,20 @@
 # tvdash: where things stand
 
-Last updated 2026-11-27 (`v1.0.2` bumped on `development`, ready for RPM build). A pick-up-later note: what's done, what's waiting on you, what's
+Last updated 2026-11-27 (`v1.1.0` bumped on `development`, ready for RPM build). A pick-up-later note: what's done, what's waiting on you, what's
 next, and the practical details that aren't obvious from the code.
 
 ## Waiting on you
 
-- **`v1.0.2` (`development`, Orbit Library Shelf rail) — version bumped, ready for final tests & RPM build:**
+- **`v1.1.0` (`development`, 2-screen mode & shared floating player dock) — version bumped, ready for final tests & RPM build:**
+  - Re-enabled `Automatic` / `Dual screen` / `TV only` layout switching (`main.rs`, `displays.rs`, `tv_nav.rs`, Classic/Blades/Orbit Settings) and added `DualPlayerBar` across all UIs (`ui/shared/dual_player_bar.slint`, `ui/laptop.slint`).
+  - **Next (on host):**
+    - `cargo test -j 2 -p tvdash -- --test-threads=1`
+    - `cargo run -j 2 -- --windowed --layout tv`
+    - `cargo build --release -j 2`
+    - `./packaging/rpm.sh`
+    - `cp dist/tvdash-1.1.0-1.x86_64.rpm releases/`
+    - `sudo dnf upgrade ./releases/tvdash-1.1.0-1.x86_64.rpm`
+- **`v1.0.2` (`development`, Orbit Library Shelf rail) — packaged (`releases/tvdash-1.0.2-1.x86_64.rpm`):**
   - Replaced Orbit Library landing with the 3-column **Shelf rail → 3 × 2 poster grid → Detail card** layout (`ui/orbit/library.slint`, `ui/orbit/controls.slint`, `orbit/library_rail.rs`, `bridge/library.rs`, `tv_nav.rs`).
   - **Next (on host):**
     - `cargo test -j 2 -p tvdash -- --test-threads=1`

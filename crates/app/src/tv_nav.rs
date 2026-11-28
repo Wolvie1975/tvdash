@@ -2555,8 +2555,13 @@ fn activate_tile(laptop: &LaptopWindow, idx: usize) {
                     }
                     match item {
                         0 => {
-                            disp.set_layout_setting("tv".into());
-                            disp.invoke_set_layout_setting("tv".into());
+                            let next = match disp.get_layout_setting().as_str() {
+                                "auto" => "dual",
+                                "dual" => "tv",
+                                _ => "auto",
+                            };
+                            disp.set_layout_setting(next.into());
+                            disp.invoke_set_layout_setting(next.into());
                         }
                         1 => {
                             let next = match laptop.global::<crate::Theme>().get_mode() {

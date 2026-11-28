@@ -8,6 +8,7 @@ import { NextEpisodeCard } from "shared/up_next_card.slint";
 import { WeatherBanner } from "shared/weather_banner.slint";
 import { WeatherCard } from "shared/weather_card.slint";
 import { WeatherWarning } from "shared/weather_warning.slint";
+import { DualPlayerBar } from "shared/dual_player_bar.slint";
 import { WeatherAlertState, WeatherCardState } from "state.slint";
 // Resolved by build.rs: the real shell, or ui/stubs/* when its Cargo feature is off.
 import { TvShell } from "@shell-classic";
@@ -38,6 +39,11 @@ export component LaptopWindow inherits Window {
     if Display.dashboard-ui == "blades": V3Shell { width: root.width; height: root.height; }
     if Display.dashboard-ui == "ps5": Ps5Shell { width: root.width; height: root.height; }
     if Display.dashboard-ui == "orbit": OrbitShell { width: root.width; height: root.height; }
+
+    if (Dash.tv.mode == "playing" || Dash.tv.mode == "paused") && !(TvUi.video-on && TvUi.video-full): DualPlayerBar {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - 12px * TvUi.u;
+    }
 
     if SiteEditor.open: SiteEditorDialog { width: root.width; height: root.height; }
 

@@ -127,14 +127,14 @@ export component V3Settings inherits Rectangle {
                 color: V3Theme.text-secondary;
             }
             Rectangle {
-                x: parent.width - 120px * TvUi.u;
+                x: parent.width - 146px * TvUi.u;
                 y: 22px * TvUi.u;
-                width: 98px * TvUi.u;
+                width: 124px * TvUi.u;
                 height: 38px * TvUi.u;
                 border-radius: 10px * TvUi.u;
                 background: V3Theme.accent;
                 Text {
-                    text: "TV only";
+                    text: Display.layout-setting == "dual" ? "Dual screen" : Display.layout-setting == "tv" ? "TV only" : "Automatic";
                     font-family: V3Theme.font;
                     font-size: 15px * TvUi.u;
                     font-weight: 700;

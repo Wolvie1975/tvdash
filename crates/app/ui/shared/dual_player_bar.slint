@@ -1,0 +1,178 @@
+import { Theme } from "../theme.slint";
+import { Icon } from "../icons.slint";
+import { Dash, SleepState, TvUi } from "../state.slint";
+
+component BarBtn inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    in property <bool> active: false;
+    in property <bool> primary: false;
+    callback clicked();
+
+    height: 36px * TvUi.u;
+    width: label != "" ? btn-row.preferred-width : 38px * TvUi.u;
+    horizontal-stretch: 0;
+    border-radius: 18px * TvUi.u;
+    background: primary ? (ta.has-hover ? #E2E6EE : #FFFFFF)
+        : active ? Theme.accent
+        : ta.has-hover ? #FFFFFF28 : #FFFFFF14;
+    border-width: 1px;
+    border-color: primary ? #FFFFFF
+        : active ? Theme.accent
+        : #FFFFFF22;
+
+    btn-row := HorizontalLayout {
+        padding-left: label != "" ? 12px * TvUi.u : 0px;
+        padding-right: label != "" ? 12px * TvUi.u : 0px;
+        height: parent.height;
+        spacing: 6px * TvUi.u;
+        alignment: center;
+
+        VerticalLayout {
+            alignment: center;
+            Icon {
+                name: root.icon;
+                size: 16px * TvUi.u;
+                tint: primary ? #0B0D10 : #F2F4F8;
+            }
+        }
+
+        if root.label != "": Text {
+            text: root.label;
+            font-size: 13px * TvUi.u;
+            font-weight: 700;
+            color: primary ? #0B0D10 : #F2F4F8;
+            vertical-alignment: center;
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Persistent floating player dock on the dashboard UI (two-screen mode, or minimized video).
+export component DualPlayerBar inherits Rectangle {
+    property <bool> scrubbing: false;
+    property <float> scrub-frac: 0.0;
+    property <float> shown-frac: clamp(root.scrubbing ? root.scrub-frac : Dash.tv.progress, 0.0, 1.0);
+
+    width: 780px * TvUi.u;
+    height: 94px * TvUi.u;
+    border-radius: 22px * TvUi.u;
+    background: #141822F0;
+    border-width: 1px;
+    border-color: #FFFFFF2E;
+    drop-shadow-blur: 32px;
+    drop-shadow-offset-y: 8px;
+    drop-shadow-color: #000000AA;
+
+    VerticalLayout {
+        padding-left: 18px * TvUi.u;
+        padding-right: 18px * TvUi.u;
+        padding-top: 10px * TvUi.u;
+        padding-bottom: 10px * TvUi.u;
+        spacing: 6px * TvUi.u;
+
+        // Top row: Title + Ends at
+        HorizontalLayout {
+            spacing: 12px * TvUi.u;
+            height: 22px * TvUi.u;
+
+            Text {
+                text: Dash.tv.title;
+                font-size: 16px * TvUi.u;
+                font-weight: 600;
+                color: #F5F7FA;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+
+            Text {
+                text: Dash.tv.subtitle + (Dash.tv-ends-at != "" ? " · Ends at " + Dash.tv-ends-at : "");
+                font-size: 13px * TvUi.u;
+                font-weight: 500;
+                color: #C2C8D1;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        // Middle: Scrubbable progress bar
+        Rectangle {
+            height: 12px * TvUi.u;
+            background: transparent;
+
+            Rectangle {
+                x: 0px;
+                y: (parent.height - self.height) / 2;
+                width: parent.width;
+                height: (root.scrubbing || scrub-ta.has-hover) ? 6px * TvUi.u : 4px * TvUi.u;
+                border-radius: 3px * TvUi.u;
+                background: #FFFFFF28;
+
+                Rectangle {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width * root.shown-frac;
+                    height: 100%;
+                    border-radius: 3px * TvUi.u;
+                    background: #FFFFFF;
+                }
+            }
+
+            scrub-ta := TouchArea {
+                mouse-cursor: pointer;
+                pointer-event(event) => {
+                    if event.kind == PointerEventKind.down {
+                        root.scrubbing = true;
+                        root.scrub-frac = clamp(self.mouse-x / self.width, 0.0, 1.0);
+                    } else if event.kind == PointerEventKind.up {
+                        if root.scrubbing {
+                            root.scrubbing = false;
+                            Dash.seek-fraction(clamp(self.mouse-x / self.width, 0.0, 1.0));
+                        }
+                    } else if event.kind == PointerEventKind.cancel {
+                        root.scrubbing = false;
+                    }
+                }
+                moved => {
+                    if root.scrubbing {
+                        root.scrub-frac = clamp(self.mouse-x / self.width, 0.0, 1.0);
+                    }
+                }
+            }
+        }
+
+        // Bottom row: Transport on left, stream/sleep/ep actions on right
+        HorizontalLayout {
+            height: 36px * TvUi.u;
+            spacing: 6px * TvUi.u;
+
+            BarBtn { icon: "back"; label: "-10s"; clicked => { Dash.transport("back"); } }
+            BarBtn {
+                icon: Dash.tv.mode == "paused" ? "play" : "pause";
+                label: Dash.tv.mode == "paused" ? "Play" : "Pause";
+                primary: true;
+                clicked => { Dash.transport("play-pause"); }
+            }
+            BarBtn { icon: "forward"; label: "+30s"; clicked => { Dash.transport("forward"); } }
+            BarBtn { icon: "stop"; label: "Stop"; clicked => { Dash.transport("stop"); } }
+
+            Rectangle { horizontal-stretch: 1; }
+
+            BarBtn { icon: "sub"; label: "Sub"; clicked => { Dash.transport("sub"); } }
+            BarBtn { icon: "audio"; label: "Audio"; clicked => { Dash.transport("audio"); } }
+            BarBtn {
+                icon: "moon";
+                label: SleepState.active ? SleepState.label : "";
+                active: SleepState.active;
+                clicked => { SleepState.open-picker(); }
+            }
+            BarBtn { icon: "forward"; label: "Next"; clicked => { Dash.transport("next-ep"); } }
+            BarBtn { icon: "back"; label: ""; clicked => { Dash.transport("restart"); } }
+        }
+    }
+}

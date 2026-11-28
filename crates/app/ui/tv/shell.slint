@@ -21,32 +21,6 @@ import { TvAmbient } from "ambient.slint";
 import { Intro, IntroStage } from "../shared/intro.slint";
 import { TilesIntro } from "intro_tiles.slint";
 
-component MiniTransportBtn inherits Rectangle {
-    in property <string> icon;
-    in property <string> label;
-    callback clicked();
-
-    width: 40px * TvUi.u;
-    height: 40px * TvUi.u;
-    border-radius: 6px;
-    background: ta.has-hover ? Theme.surface-raised : Theme.bg;
-    border-width: 1px;
-    border-color: Theme.border;
-
-    Icon {
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-        name: root.icon;
-        size: 20px * TvUi.u;
-        tint: Theme.text-primary;
-    }
-
-    ta := TouchArea {
-        mouse-cursor: pointer;
-        clicked => { root.clicked(); }
-    }
-}
-
 export component TvShell inherits Rectangle {
     width: 100%;
     height: 100%;
@@ -213,78 +187,6 @@ export component TvShell inherits Rectangle {
                 color: Theme.text-primary;
                 horizontal-alignment: center;
                 vertical-alignment: center;
-            }
-        }
-
-        // Now-playing transport bar (two-screen mode, or when video is minimized in one-screen mode)
-        if (Dash.tv.mode == "playing" || Dash.tv.mode == "paused") && !(TvUi.video-on && TvUi.video-full): Rectangle {
-            x: 96px * TvUi.u;
-            y: 1022px * TvUi.u;
-            width: 1728px * TvUi.u;
-            height: 52px * TvUi.u;
-            border-radius: 8px;
-            background: #0B0D10EB;
-            border-width: 1px;
-            border-color: Theme.border;
-
-            // Progress bar along top edge
-            Rectangle {
-                x: 10px * TvUi.u;
-                y: 0px;
-                width: parent.width - 20px * TvUi.u;
-                height: 3px * TvUi.u;
-                border-radius: 2px;
-                background: #FFFFFF22;
-
-                Rectangle {
-                    x: 0px;
-                    y: 0px;
-                    width: parent.width * clamp(Dash.tv.progress, 0.0, 1.0);
-                    height: 100%;
-                    border-radius: 2px;
-                    background: Theme.accent;
-                }
-            }
-
-            HorizontalLayout {
-                x: 16px * TvUi.u;
-                y: 0px;
-                width: parent.width - 32px * TvUi.u;
-                height: parent.height;
-                spacing: 8px * TvUi.u;
-                alignment: center;
-
-                VerticalLayout {
-                    alignment: center;
-                    spacing: 1px * TvUi.u;
-                    horizontal-stretch: 1;
-
-                    Text {
-                        text: Dash.tv.title;
-                        font-size: 18px * TvUi.u;
-                        font-weight: 500;
-                        color: Theme.text-primary;
-                        overflow: elide;
-                    }
-
-                    Text {
-                        text: Dash.tv.subtitle + (Dash.tv-ends-at != "" ? " · Ends at " + Dash.tv-ends-at : "");
-                        font-size: 14px * TvUi.u;
-                        color: Theme.text-secondary;
-                        overflow: elide;
-                    }
-                }
-
-                MiniTransportBtn { icon: "back"; label: "-10s"; clicked => { Dash.transport("back"); } }
-                MiniTransportBtn {
-                    icon: Dash.tv.mode == "paused" ? "play" : "pause";
-                    label: Dash.tv.mode == "paused" ? "Play" : "Pause";
-                    clicked => { Dash.transport("play-pause"); }
-                }
-                MiniTransportBtn { icon: "forward"; label: "+30s"; clicked => { Dash.transport("forward"); } }
-                MiniTransportBtn { icon: "stop"; label: "Stop"; clicked => { Dash.transport("stop"); } }
-                MiniTransportBtn { icon: "sub"; label: "Subtitles"; clicked => { Dash.transport("sub"); } }
-                MiniTransportBtn { icon: "audio"; label: "Audio"; clicked => { Dash.transport("audio"); } }
             }
         }
 

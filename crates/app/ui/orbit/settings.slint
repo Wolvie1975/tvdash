@@ -148,7 +148,7 @@ export component OrbitSettings inherits Rectangle {
         y: 170px * TvUi.u;
         width: 1274px * TvUi.u;
         height: parent.height - 190px * TvUi.u;
-        content-height: 710px * TvUi.u;
+        content-height: 790px * TvUi.u;
 
         // ── Display (§10.1) ──────────────────────────────────────────────────
         if TvUi.settings-tab == "display" || TvUi.settings-tab == "": VerticalLayout {
@@ -172,6 +172,23 @@ export component OrbitSettings inherits Rectangle {
                 activated => { Display.open-dashboard-picker(); }
                 Text { x: 28px * TvUi.u; text: "Dashboard UI"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
                 OrbitPill { x: parent.width - self.width - 20px * TvUi.u; y: 14px * TvUi.u; label: Display.dashboard-ui-label + " ›"; activated => { Display.open-dashboard-picker(); } }
+            }
+
+            OrbitRow {
+                width: parent.width;
+                row-height: 74px * TvUi.u;
+                activated => {
+                    Display.set-layout-setting(Display.layout-setting == "auto" ? "dual" : Display.layout-setting == "dual" ? "tv" : "auto");
+                }
+                Text { x: 28px * TvUi.u; text: "Display layout"; font-family: OrbitTheme.font; font-size: 21px * TvUi.u; font-weight: 600; color: OrbitTheme.text; vertical-alignment: center; }
+                OrbitPill {
+                    x: parent.width - self.width - 20px * TvUi.u;
+                    y: 14px * TvUi.u;
+                    label: (Display.layout-setting == "dual" ? "Dual screen" : Display.layout-setting == "tv" ? "TV only" : "Automatic") + " ›";
+                    activated => {
+                        Display.set-layout-setting(Display.layout-setting == "auto" ? "dual" : Display.layout-setting == "dual" ? "tv" : "auto");
+                    }
+                }
             }
 
             OrbitRow {
